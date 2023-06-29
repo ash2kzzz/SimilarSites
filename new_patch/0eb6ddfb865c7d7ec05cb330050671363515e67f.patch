@@ -1,0 +1,53 @@
+From 0eb6ddfb865c7d7ec05cb330050671363515e67f Mon Sep 17 00:00:00 2001
+From: Damien Le Moal <damien.lemoal@wdc.com>
+Date: Thu, 1 Aug 2019 19:21:51 +0900
+Subject: block: Fix __blkdev_direct_IO() for bio fragments
+
+The recent fix to properly handle IOCB_NOWAIT for async O_DIRECT IO
+(patch 6a43074e2f46) introduced two problems with BIO fragment handling
+for direct IOs:
+1) The dio size processed is calculated by incrementing the ret variable
+by the size of the bio fragment issued for the dio. However, this size
+is obtained directly from bio->bi_iter.bi_size AFTER the bio submission
+which may result in referencing the bi_size value after the bio
+completed, resulting in an incorrect value use.
+2) The ret variable is not incremented by the size of the last bio
+fragment issued for the bio, leading to an invalid IO size being
+returned to the user.
+
+Fix both problem by using dio->size (which is incremented before the bio
+submission) to update the value of ret after bio submissions, including
+for the last bio fragment issued.
+
+Fixes: 6a43074e2f46 ("block: properly handle IOCB_NOWAIT for async O_DIRECT IO")
+Reported-by: Masato Suzuki <masato.suzuki@wdc.com>
+Signed-off-by: Damien Le Moal <damien.lemoal@wdc.com>
+Signed-off-by: Jens Axboe <axboe@kernel.dk>
+---
+ fs/block_dev.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/fs/block_dev.c b/fs/block_dev.c
+index 22591bad9353f..a6f7c892cb4a3 100644
+--- a/fs/block_dev.c
++++ b/fs/block_dev.c
+@@ -439,6 +439,7 @@ __blkdev_direct_IO(struct kiocb *iocb, struct iov_iter *iter, int nr_pages)
+ 					ret = -EAGAIN;
+ 				goto error;
+ 			}
++			ret = dio->size;
+ 
+ 			if (polled)
+ 				WRITE_ONCE(iocb->ki_cookie, qc);
+@@ -465,7 +466,7 @@ __blkdev_direct_IO(struct kiocb *iocb, struct iov_iter *iter, int nr_pages)
+ 				ret = -EAGAIN;
+ 			goto error;
+ 		}
+-		ret += bio->bi_iter.bi_size;
++		ret = dio->size;
+ 
+ 		bio = bio_alloc(gfp, nr_pages);
+ 		if (!bio) {
+-- 
+cgit 
+
