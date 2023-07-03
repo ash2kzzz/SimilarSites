@@ -1,0 +1,43 @@
+From 68a63a412d18bd2e2577c8928139f92541afa7a6 Mon Sep 17 00:00:00 2001
+From: James Clark <james.clark@arm.com>
+Date: Mon, 9 Jan 2023 12:27:43 +0000
+Subject: arm64: Fix build with CC=clang, CONFIG_FTRACE=y and
+ CONFIG_STACK_TRACER=y
+
+commit 45bd8951806e ("arm64: Improve HAVE_DYNAMIC_FTRACE_WITH_REGS
+selection for clang") fixed the build with the above combination by
+splitting HAVE_DYNAMIC_FTRACE_WITH_REGS into separate checks for
+Clang and GCC.
+
+commit 26299b3f6ba2 ("ftrace: arm64: move from REGS to ARGS") added the
+GCC only check "-fpatchable-function-entry=2" back in unconditionally
+which breaks the build.
+
+Remove the unconditional check, because the conditional ones were also
+updated to _ARGS in the above commit, so they work correctly on their
+own.
+
+Fixes: 26299b3f6ba2 ("ftrace: arm64: move from REGS to ARGS")
+Signed-off-by: James Clark <james.clark@arm.com>
+Link: https://lore.kernel.org/r/20230109122744.1904852-1-james.clark@arm.com
+Signed-off-by: Will Deacon <will@kernel.org>
+---
+ arch/arm64/Kconfig | 2 --
+ 1 file changed, 2 deletions(-)
+
+diff --git a/arch/arm64/Kconfig b/arch/arm64/Kconfig
+index cf6d1cd8b6dc5..c5ccca26a4087 100644
+--- a/arch/arm64/Kconfig
++++ b/arch/arm64/Kconfig
+@@ -184,8 +184,6 @@ config ARM64
+ 	select HAVE_DEBUG_KMEMLEAK
+ 	select HAVE_DMA_CONTIGUOUS
+ 	select HAVE_DYNAMIC_FTRACE
+-	select HAVE_DYNAMIC_FTRACE_WITH_ARGS \
+-		if $(cc-option,-fpatchable-function-entry=2)
+ 	select FTRACE_MCOUNT_USE_PATCHABLE_FUNCTION_ENTRY \
+ 		if DYNAMIC_FTRACE_WITH_ARGS
+ 	select HAVE_EFFICIENT_UNALIGNED_ACCESS
+-- 
+cgit 
+

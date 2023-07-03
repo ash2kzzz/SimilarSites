@@ -1,0 +1,35 @@
+From 4def7aa377ba1dbe66335ca3ebe3aa5a5bc3fe67 Mon Sep 17 00:00:00 2001
+From: Srinivas Kandagatla <srinivas.kandagatla@linaro.org>
+Date: Thu, 2 Mar 2023 11:57:40 +0000
+Subject: arm64: dts: qcom: sc8280xp-x13s: fix dmic sample rate
+
+The version of dmic that is on X13s panel supports clock frequency
+of range 1 Mhz to 4.8 MHz for normal operation.
+
+So correct the existing node to reflect this.
+
+Fixes: 8c1ea87e80b4 ("arm64: dts: qcom: sc8280xp-x13s: Add soundcard support")
+Signed-off-by: Srinivas Kandagatla <srinivas.kandagatla@linaro.org>
+Reviewed-by: Konrad Dybcio <konrad.dybcio@linaro.org>
+Signed-off-by: Bjorn Andersson <andersson@kernel.org>
+Link: https://lore.kernel.org/r/20230302115741.7726-4-srinivas.kandagatla@linaro.org
+---
+ arch/arm64/boot/dts/qcom/sc8280xp-lenovo-thinkpad-x13s.dts | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/arch/arm64/boot/dts/qcom/sc8280xp-lenovo-thinkpad-x13s.dts b/arch/arm64/boot/dts/qcom/sc8280xp-lenovo-thinkpad-x13s.dts
+index 96b36ce94ce07..7d076b9e85bf7 100644
+--- a/arch/arm64/boot/dts/qcom/sc8280xp-lenovo-thinkpad-x13s.dts
++++ b/arch/arm64/boot/dts/qcom/sc8280xp-lenovo-thinkpad-x13s.dts
+@@ -1075,7 +1075,7 @@
+ 
+ 	vdd-micb-supply = <&vreg_s10b>;
+ 
+-	qcom,dmic-sample-rate = <600000>;
++	qcom,dmic-sample-rate = <4800000>;
+ 
+ 	status = "okay";
+ };
+-- 
+cgit 
+

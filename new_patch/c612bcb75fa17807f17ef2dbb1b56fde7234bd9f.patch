@@ -1,0 +1,33 @@
+From c612bcb75fa17807f17ef2dbb1b56fde7234bd9f Mon Sep 17 00:00:00 2001
+From: Tom Rix <trix@redhat.com>
+Date: Tue, 24 Jan 2023 11:43:01 -0800
+Subject: iio: imu: fix spdx format
+
+checkpatch reports
+WARNING: Missing or malformed SPDX-License-Identifier tag in line 1
+FILE: drivers/iio/imu/bno055/bno055_ser_trace.c:1:
++//SPDX-License-Identifier: GPL-2.0
+
+Add a space
+
+Fixes: 2eef5a9cc643 ("iio: imu: add BNO055 serdev driver")
+Signed-off-by: Tom Rix <trix@redhat.com>
+Link: https://lore.kernel.org/r/20230124194301.656518-1-trix@redhat.com
+Signed-off-by: Jonathan Cameron <Jonathan.Cameron@huawei.com>
+---
+ drivers/iio/imu/bno055/bno055_ser_trace.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/iio/imu/bno055/bno055_ser_trace.c b/drivers/iio/imu/bno055/bno055_ser_trace.c
+index 48397b66daef0..ab564186d19cf 100644
+--- a/drivers/iio/imu/bno055/bno055_ser_trace.c
++++ b/drivers/iio/imu/bno055/bno055_ser_trace.c
+@@ -1,4 +1,4 @@
+-//SPDX-License-Identifier: GPL-2.0
++// SPDX-License-Identifier: GPL-2.0
+ 
+ /*
+  * bno055_ser Trace Support
+-- 
+cgit 
+

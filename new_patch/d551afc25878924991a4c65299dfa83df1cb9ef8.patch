@@ -1,0 +1,43 @@
+From d551afc25878924991a4c65299dfa83df1cb9ef8 Mon Sep 17 00:00:00 2001
+From: Petr Mladek <pmladek@suse.com>
+Date: Tue, 17 Jan 2023 17:10:31 +0100
+Subject: printk: Use scnprintf() to print the message about the dropped
+ messages on a console
+
+Use scnprintf() for printing the message about dropped messages on
+a console. It returns the really written length of the message.
+It prevents potential buffer overflow when the returned length is
+later used to copy the buffer content.
+
+Note that the previous code was safe because the scratch buffer was
+big enough and the message always fit in. But scnprintf() makes
+it more safe, definitely.
+
+Reported-by: coverity-bot <keescook+coverity-bot@chromium.org>
+Addresses-Coverity-ID: 1530570 ("Memory - corruptions")
+Fixes: c4fcc617e148 ("printk: introduce console_prepend_dropped() for dropped messages")
+Link: https://lore.kernel.org/r/202301131544.D9E804CCD@keescook
+Reviewed-by: John Ogness <john.ogness@linutronix.de>
+Reviewed-by: Sergey Senozhatsky <senozhatsky@chromium.org>
+Signed-off-by: Petr Mladek <pmladek@suse.com>
+Link: https://lore.kernel.org/r/20230117161031.15499-1-pmladek@suse.com
+---
+ kernel/printk/printk.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/kernel/printk/printk.c b/kernel/printk/printk.c
+index 55338bfd3b553..a9b7dade0d2ec 100644
+--- a/kernel/printk/printk.c
++++ b/kernel/printk/printk.c
+@@ -2716,7 +2716,7 @@ static void console_prepend_dropped(struct printk_message *pmsg, unsigned long d
+ 	char *outbuf = &pbufs->outbuf[0];
+ 	size_t len;
+ 
+-	len = snprintf(scratchbuf, scratchbuf_sz,
++	len = scnprintf(scratchbuf, scratchbuf_sz,
+ 		       "** %lu printk messages dropped **\n", dropped);
+ 
+ 	/*
+-- 
+cgit 
+

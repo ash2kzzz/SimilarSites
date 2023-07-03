@@ -1,0 +1,57 @@
+From 9325ddf90ec3a801c09da374b74532d4589a7346 Mon Sep 17 00:00:00 2001
+From: "Mike Rapoport (IBM)" <rppt@kernel.org>
+Date: Tue, 14 Feb 2023 16:07:28 +0200
+Subject: m68k/nommu: add missing definition of ARCH_PFN_OFFSET
+
+Patch series "fixups for generic implementation of pfn_valid()".
+
+Guenter reported boot failures on m68k-nommu and sh caused by the switch to
+the generic implementation of pfn_valid():
+
+https://lore.kernel.org/all/20230212173513.GA4052259@roeck-us.net
+https://lore.kernel.org/all/20230212161320.GA3784076@roeck-us.net
+
+These are small fixups that address the issues.
+
+
+This patch (of 2):
+
+On m68k/nommu RAM does not necessarily start at 0x0 and when it does not
+pfn_valid() uses a wrong offset into the memory map which causes silent
+boot failures.
+
+Define ARCH_PFN_OFFSET to make pfn_valid() use the correct offset.
+
+Link: https://lkml.kernel.org/r/20230214140729.1649961-1-rppt@kernel.org
+Link: https://lkml.kernel.org/r/20230214140729.1649961-2-rppt@kernel.org
+Fixes: d82f07f06cf8 ("m68k: use asm-generic/memory_model.h for both MMU and !MMU")
+Reported-by: Guenter Roeck <linux@roeck-us.net>
+Signed-off-by: Mike Rapoport (IBM) <rppt@kernel.org>
+Acked-by: Greg Ungerer <gerg@linux-m68k.org>
+Reviewed-by: David Hildenbrand <david@redhat.com>
+Cc: Arnd Bergmann <arnd@arndb.de>
+Cc: Geert Uytterhoeven <geert@linux-m68k.org>
+Cc: Rich Felker <dalias@libc.org>
+Cc: Yoshinori Sato <ysato@users.sourceforge.jp>
+Cc: John Paul Adrian Glaubitz <glaubitz@physik.fu-berlin.de>
+Signed-off-by: Andrew Morton <akpm@linux-foundation.org>
+---
+ arch/m68k/include/asm/page_no.h | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/arch/m68k/include/asm/page_no.h b/arch/m68k/include/asm/page_no.h
+index 43ff6b109ebbb..060e4c0e76053 100644
+--- a/arch/m68k/include/asm/page_no.h
++++ b/arch/m68k/include/asm/page_no.h
+@@ -28,6 +28,8 @@ extern unsigned long memory_end;
+ #define	virt_addr_valid(kaddr)	(((unsigned long)(kaddr) >= PAGE_OFFSET) && \
+ 				((unsigned long)(kaddr) < memory_end))
+ 
++#define ARCH_PFN_OFFSET PHYS_PFN(PAGE_OFFSET_RAW)
++
+ #endif /* __ASSEMBLY__ */
+ 
+ #endif /* _M68K_PAGE_NO_H */
+-- 
+cgit 
+

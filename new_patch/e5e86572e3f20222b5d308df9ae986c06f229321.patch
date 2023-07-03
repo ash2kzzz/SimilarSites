@@ -1,0 +1,34 @@
+From e5e86572e3f20222b5d308df9ae986c06f229321 Mon Sep 17 00:00:00 2001
+From: Thomas Bamelis <thomas@bamelis.dev>
+Date: Sun, 26 Feb 2023 15:29:29 +0000
+Subject: rust: sort uml documentation arch support table
+
+The arch_support table was not sorted alphabetically.
+Sorts the table properly.
+
+Fixes: 0438aadfa69a ("rust: arch/um: Add support for CONFIG_RUST under x86_64 UML")
+Link: https://lore.kernel.org/rust-for-linux/CANiq72nXMsnUsJNZOG-QZiCVOqa9dRUSMc4RAS3ExLZNJ7VhHg@mail.gmail.com
+Reported-by: Miguel Ojeda <miguel.ojeda.sandonis@gmail.com>
+Signed-off-by: Thomas Bamelis <thomas@bamelis.dev>
+Reviewed-by: David Gow <davidgow@google.com>
+Signed-off-by: Miguel Ojeda <ojeda@kernel.org>
+---
+ Documentation/rust/arch-support.rst | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/Documentation/rust/arch-support.rst b/Documentation/rust/arch-support.rst
+index ed7f4f5b3cf15..b91e9ef4d0c21 100644
+--- a/Documentation/rust/arch-support.rst
++++ b/Documentation/rust/arch-support.rst
+@@ -15,7 +15,7 @@ support corresponds to ``S`` values in the ``MAINTAINERS`` file.
+ ============  ================  ==============================================
+ Architecture  Level of support  Constraints
+ ============  ================  ==============================================
+-``x86``       Maintained        ``x86_64`` only.
+ ``um``        Maintained        ``x86_64`` only.
++``x86``       Maintained        ``x86_64`` only.
+ ============  ================  ==============================================
+ 
+-- 
+cgit 
+

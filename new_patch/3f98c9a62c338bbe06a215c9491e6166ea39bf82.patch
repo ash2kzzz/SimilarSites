@@ -1,0 +1,50 @@
+From 3f98c9a62c338bbe06a215c9491e6166ea39bf82 Mon Sep 17 00:00:00 2001
+From: "andrew.yang" <andrew.yang@mediatek.com>
+Date: Wed, 22 Feb 2023 14:42:20 +0800
+Subject: mm/damon/paddr: fix missing folio_put()
+
+damon_get_folio() would always increase folio _refcount and
+folio_isolate_lru() would increase folio _refcount if the folio's lru flag
+is set.
+
+If an unevictable folio isolated successfully, there will be two more
+_refcount.  The one from folio_isolate_lru() will be decreased in
+folio_puback_lru(), but the other one from damon_get_folio() will be left
+behind.  This causes a pin page.
+
+Whatever the case, the _refcount from damon_get_folio() should be
+decreased.
+
+Link: https://lkml.kernel.org/r/20230222064223.6735-1-andrew.yang@mediatek.com
+Fixes: 57223ac29584 ("mm/damon/paddr: support the pageout scheme")
+Signed-off-by: andrew.yang <andrew.yang@mediatek.com>
+Reviewed-by: SeongJae Park <sj@kernel.org>
+Cc: <stable@vger.kernel.org>	[5.16.x]
+Signed-off-by: Andrew Morton <akpm@linux-foundation.org>
+---
+ mm/damon/paddr.c | 7 +++----
+ 1 file changed, 3 insertions(+), 4 deletions(-)
+
+diff --git a/mm/damon/paddr.c b/mm/damon/paddr.c
+index 607bb69e526cf..6c655d9b56391 100644
+--- a/mm/damon/paddr.c
++++ b/mm/damon/paddr.c
+@@ -250,12 +250,11 @@ static unsigned long damon_pa_pageout(struct damon_region *r, struct damos *s)
+ 			folio_put(folio);
+ 			continue;
+ 		}
+-		if (folio_test_unevictable(folio)) {
++		if (folio_test_unevictable(folio))
+ 			folio_putback_lru(folio);
+-		} else {
++		else
+ 			list_add(&folio->lru, &folio_list);
+-			folio_put(folio);
+-		}
++		folio_put(folio);
+ 	}
+ 	applied = reclaim_pages(&folio_list);
+ 	cond_resched();
+-- 
+cgit 
+

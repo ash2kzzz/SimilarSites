@@ -1,0 +1,34 @@
+From ca17899693518acde9ba1adcf46b95d76286106d Mon Sep 17 00:00:00 2001
+From: Aaron Lewis <aaronlewis@google.com>
+Date: Fri, 9 Dec 2022 20:13:27 +0000
+Subject: KVM: selftests: Fix a typo in the vcpu_msrs_set assert
+
+The assert incorrectly identifies the ioctl being called.  Switch it
+from KVM_GET_MSRS to KVM_SET_MSRS.
+
+Fixes: 6ebfef83f03f ("KVM: selftest: Add proper helpers for x86-specific save/restore ioctls")
+Signed-off-by: Aaron Lewis <aaronlewis@google.com>
+Reviewed-by: Jim Mattson <jmattson@google.com>
+Reviewed-by: Sean Christopherson <seanjc@google.com>
+Link: https://lore.kernel.org/r/20221209201326.2781950-1-aaronlewis@google.com
+Signed-off-by: Sean Christopherson <seanjc@google.com>
+---
+ tools/testing/selftests/kvm/include/x86_64/processor.h | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/tools/testing/selftests/kvm/include/x86_64/processor.h b/tools/testing/selftests/kvm/include/x86_64/processor.h
+index 2a5f47d513884..bbe47e6707eb9 100644
+--- a/tools/testing/selftests/kvm/include/x86_64/processor.h
++++ b/tools/testing/selftests/kvm/include/x86_64/processor.h
+@@ -717,7 +717,7 @@ static inline void vcpu_msrs_set(struct kvm_vcpu *vcpu, struct kvm_msrs *msrs)
+ 	int r = __vcpu_ioctl(vcpu, KVM_SET_MSRS, msrs);
+ 
+ 	TEST_ASSERT(r == msrs->nmsrs,
+-		    "KVM_GET_MSRS failed, r: %i (failed on MSR %x)",
++		    "KVM_SET_MSRS failed, r: %i (failed on MSR %x)",
+ 		    r, r < 0 || r >= msrs->nmsrs ? -1 : msrs->entries[r].index);
+ }
+ static inline void vcpu_debugregs_get(struct kvm_vcpu *vcpu,
+-- 
+cgit 
+

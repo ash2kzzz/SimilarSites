@@ -1,0 +1,41 @@
+From cecb1f06541e12ec68805dbddb2013ee720dfe3d Mon Sep 17 00:00:00 2001
+From: Jan Kara <jack@suse.cz>
+Date: Tue, 28 Feb 2023 12:00:25 +0100
+Subject: udf: Fix reading of in-ICB files
+
+After merging address space operations of normal and in-ICB files,
+readahead could get called for in-ICB files which resulted in
+udf_get_block() being called for these files. udf_get_block() is not
+prepared to be called for in-ICB files and ends up returning garbage
+results as it interprets file data as extent list. Fix the problem by
+skipping readahead for in-ICB files.
+
+Fixes: 37a8a39f7ad3 ("udf: Switch to single address_space_operations")
+Signed-off-by: Jan Kara <jack@suse.cz>
+---
+ fs/udf/inode.c | 9 +++++++++
+ 1 file changed, 9 insertions(+)
+
+diff --git a/fs/udf/inode.c b/fs/udf/inode.c
+index facaf3a206251..0cb7d8fba2c85 100644
+--- a/fs/udf/inode.c
++++ b/fs/udf/inode.c
+@@ -241,6 +241,15 @@ static int udf_read_folio(struct file *file, struct folio *folio)
+ 
+ static void udf_readahead(struct readahead_control *rac)
+ {
++	struct udf_inode_info *iinfo = UDF_I(rac->mapping->host);
++
++	/*
++	 * No readahead needed for in-ICB files and udf_get_block() would get
++	 * confused for such file anyway.
++	 */
++	if (iinfo->i_alloc_type == ICBTAG_FLAG_AD_IN_ICB)
++		return;
++
+ 	mpage_readahead(rac, udf_get_block);
+ }
+ 
+-- 
+cgit 
+

@@ -1,0 +1,36 @@
+From 8fcf2d012c8641c18adcd139dba6a1e556338d36 Mon Sep 17 00:00:00 2001
+From: Harshit Mogalapalli <harshit.m.mogalapalli@oracle.com>
+Date: Tue, 14 Feb 2023 01:38:01 -0800
+Subject: ubi: block: Fix a possible use-after-free bug in ubiblock_create()
+
+Smatch warns:
+	drivers/mtd/ubi/block.c:438 ubiblock_create()
+	warn: '&dev->list' not removed from list
+
+'dev' is freed in 'out_free_dev:, but it is still on the list.
+
+To fix this, delete the list item before freeing.
+
+Fixes: 91cc8fbcc8c7 ("ubi: block: set BLK_MQ_F_BLOCKING")
+Signed-off-by: Harshit Mogalapalli <harshit.m.mogalapalli@oracle.com>
+Reviewed-by: Christoph Hellwig <hch@lst.de>
+Signed-off-by: Richard Weinberger <richard@nod.at>
+---
+ drivers/mtd/ubi/block.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/drivers/mtd/ubi/block.c b/drivers/mtd/ubi/block.c
+index 6a9eb2c860b5a..1de87062c67b9 100644
+--- a/drivers/mtd/ubi/block.c
++++ b/drivers/mtd/ubi/block.c
+@@ -429,6 +429,7 @@ int ubiblock_create(struct ubi_volume_info *vi)
+ 	return 0;
+ 
+ out_remove_minor:
++	list_del(&dev->list);
+ 	idr_remove(&ubiblock_minor_idr, gd->first_minor);
+ out_cleanup_disk:
+ 	put_disk(dev->gd);
+-- 
+cgit 
+

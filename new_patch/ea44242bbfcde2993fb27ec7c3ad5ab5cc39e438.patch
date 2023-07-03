@@ -1,0 +1,49 @@
+From ea44242bbfcde2993fb27ec7c3ad5ab5cc39e438 Mon Sep 17 00:00:00 2001
+From: Jason Yan <yanaijie@huawei.com>
+Date: Thu, 15 Dec 2022 12:09:25 +0800
+Subject: scsi: hisi_sas: Fix tag freeing for reserved tags
+
+The reserved tags were put in the lower region of the tagset in commit
+f7d190a94e35 ("scsi: hisi_sas: Put reserved tags in lower region of
+tagset"). However, only the allocate function was changed, freeing was not
+handled. This resulted in a failure to boot:
+
+[   33.467345] hisi_sas_v3_hw 0000:b4:02.0: task exec: failed[-132]!
+[   33.473413] sas: Executing internal abort failed 5000000000000603 (-132)
+[   33.480088] hisi_sas_v3_hw 0000:b4:02.0: I_T nexus reset: internal abort (-132)
+[   33.657336] hisi_sas_v3_hw 0000:b4:02.0: task exec: failed[-132]!
+[   33.663403] ata7.00: failed to IDENTIFY (I/O error, err_mask=0x40)
+[   35.787344] hisi_sas_v3_hw 0000:b4:04.0: task exec: failed[-132]!
+[   35.793411] sas: Executing internal abort failed 5000000000000703 (-132)
+[   35.800084] hisi_sas_v3_hw 0000:b4:04.0: I_T nexus reset: internal abort (-132)
+[   35.977335] hisi_sas_v3_hw 0000:b4:04.0: task exec: failed[-132]!
+[   35.983403] ata10.00: failed to IDENTIFY (I/O error, err_mask=0x40)
+[   35.989643] ata10.00: revalidation failed (errno=-5)
+
+Fixes: f7d190a94e35 ("scsi: hisi_sas: Put reserved tags in lower region of tagset")
+Cc: John Garry <john.g.garry@oracle.com>
+Cc: Xiang Chen <chenxiang66@hisilicon.com>
+Signed-off-by: Jason Yan <yanaijie@huawei.com>
+Reviewed-by: John Garry <john.g.garry@oracle.com>
+Acked-by: Xiang Chen <chenxiang66@hisilicon.com>
+Signed-off-by: Martin K. Petersen <martin.petersen@oracle.com>
+---
+ drivers/scsi/hisi_sas/hisi_sas_main.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/scsi/hisi_sas/hisi_sas_main.c b/drivers/scsi/hisi_sas/hisi_sas_main.c
+index 41ba22f6c7f05..e9c2d306ed873 100644
+--- a/drivers/scsi/hisi_sas/hisi_sas_main.c
++++ b/drivers/scsi/hisi_sas/hisi_sas_main.c
+@@ -162,7 +162,7 @@ static void hisi_sas_slot_index_clear(struct hisi_hba *hisi_hba, int slot_idx)
+ static void hisi_sas_slot_index_free(struct hisi_hba *hisi_hba, int slot_idx)
+ {
+ 	if (hisi_hba->hw->slot_index_alloc ||
+-	    slot_idx >= HISI_SAS_UNRESERVED_IPTT) {
++	    slot_idx < HISI_SAS_RESERVED_IPTT) {
+ 		spin_lock(&hisi_hba->lock);
+ 		hisi_sas_slot_index_clear(hisi_hba, slot_idx);
+ 		spin_unlock(&hisi_hba->lock);
+-- 
+cgit 
+

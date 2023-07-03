@@ -1,0 +1,79 @@
+From aaecdaf922835ed9a8ce56cdd9a8d40fe630257a Mon Sep 17 00:00:00 2001
+From: Linus Torvalds <torvalds@linux-foundation.org>
+Date: Fri, 19 May 2023 16:07:39 -0700
+Subject: tracing/user_events: Remove RCU lock while pinning pages
+
+pin_user_pages_remote() can reschedule which means we cannot hold any
+RCU lock while using it. Now that enablers are not exposed out to the
+tracing register callbacks during fork(), there is clearly no need to
+require the RCU lock as event_mutex is enough to protect changes.
+
+Remove unneeded RCU usages when pinning pages and walking enablers with
+event_mutex held. Cleanup a misleading "safe" list walk that is not
+needed. During fork() duplication, remove unneeded RCU list add, since
+the list is not exposed yet.
+
+Link: https://lkml.kernel.org/r/20230519230741.669-3-beaub@linux.microsoft.com
+Link: https://lore.kernel.org/linux-trace-kernel/CAHk-=wiiBfT4zNS29jA0XEsy8EmbqTH1hAPdRJCDAJMD8Gxt5A@mail.gmail.com/
+
+Fixes: 7235759084a4 ("tracing/user_events: Use remote writes for event enablement")
+Signed-off-by: Linus Torvalds <torvalds@linux-foundation.org>
+[ change log written by Beau Belgrave ]
+Signed-off-by: Beau Belgrave <beaub@linux.microsoft.com>
+Signed-off-by: Steven Rostedt (Google) <rostedt@goodmis.org>
+---
+ kernel/trace/trace_events_user.c | 13 +++++++------
+ 1 file changed, 7 insertions(+), 6 deletions(-)
+
+diff --git a/kernel/trace/trace_events_user.c b/kernel/trace/trace_events_user.c
+index 599aab46a94b8..d34a59630e70c 100644
+--- a/kernel/trace/trace_events_user.c
++++ b/kernel/trace/trace_events_user.c
+@@ -439,9 +439,8 @@ static bool user_event_enabler_exists(struct user_event_mm *mm,
+ 				      unsigned long uaddr, unsigned char bit)
+ {
+ 	struct user_event_enabler *enabler;
+-	struct user_event_enabler *next;
+ 
+-	list_for_each_entry_safe(enabler, next, &mm->enablers, link) {
++	list_for_each_entry(enabler, &mm->enablers, link) {
+ 		if (enabler->addr == uaddr && ENABLE_BIT(enabler) == bit)
+ 			return true;
+ 	}
+@@ -456,19 +455,19 @@ static void user_event_enabler_update(struct user_event *user)
+ 	struct user_event_mm *next;
+ 	int attempt;
+ 
++	lockdep_assert_held(&event_mutex);
++
+ 	while (mm) {
+ 		next = mm->next;
+ 		mmap_read_lock(mm->mm);
+-		rcu_read_lock();
+ 
+-		list_for_each_entry_rcu(enabler, &mm->enablers, link) {
++		list_for_each_entry(enabler, &mm->enablers, link) {
+ 			if (enabler->event == user) {
+ 				attempt = 0;
+ 				user_event_enabler_write(mm, enabler, true, &attempt);
+ 			}
+ 		}
+ 
+-		rcu_read_unlock();
+ 		mmap_read_unlock(mm->mm);
+ 		user_event_mm_put(mm);
+ 		mm = next;
+@@ -496,7 +495,9 @@ static bool user_event_enabler_dup(struct user_event_enabler *orig,
+ 	enabler->values = orig->values & ENABLE_VAL_DUP_MASK;
+ 
+ 	refcount_inc(&enabler->event->refcnt);
+-	list_add_rcu(&enabler->link, &mm->enablers);
++
++	/* Enablers not exposed yet, RCU not required */
++	list_add(&enabler->link, &mm->enablers);
+ 
+ 	return true;
+ }
+-- 
+cgit 
+

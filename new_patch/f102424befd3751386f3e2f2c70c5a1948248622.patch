@@ -1,0 +1,49 @@
+From f102424befd3751386f3e2f2c70c5a1948248622 Mon Sep 17 00:00:00 2001
+From: Bagas Sanjaya <bagasdotme@gmail.com>
+Date: Thu, 23 Mar 2023 16:24:54 +0700
+Subject: wifi: mac80211: use bullet list for amsdu_mesh_control formats list
+
+Commit fe4a6d2db3ba ("wifi: mac80211: implement support for yet
+another mesh A-MSDU format") expands amsdu_mesh_control list to
+multi-line list. However, the expansion triggers Sphinx warning:
+
+Documentation/driver-api/80211/mac80211-advanced:214: ./net/mac80211/sta_info.h:628: WARNING: Unexpected indentation.
+
+Use bullet list instead to fix the warning.
+
+Link: https://lore.kernel.org/linux-next/20230323141548.659479ef@canb.auug.org.au/
+Fixes: fe4a6d2db3bad4 ("wifi: mac80211: implement support for yet another mesh A-MSDU format")
+Reported-by: Stephen Rothwell <sfr@canb.auug.org.au>
+Signed-off-by: Bagas Sanjaya <bagasdotme@gmail.com>
+Reviewed-by: Simon Horman <simon.horman@corigine.com>
+Signed-off-by: Johannes Berg <johannes.berg@intel.com>
+---
+ net/mac80211/sta_info.h | 12 +++++++-----
+ 1 file changed, 7 insertions(+), 5 deletions(-)
+
+diff --git a/net/mac80211/sta_info.h b/net/mac80211/sta_info.h
+index f354d470e1740..195b563132d6c 100644
+--- a/net/mac80211/sta_info.h
++++ b/net/mac80211/sta_info.h
+@@ -622,11 +622,13 @@ struct link_sta_info {
+  *	taken from HT/VHT capabilities or VHT operating mode notification
+  * @cparams: CoDel parameters for this station.
+  * @reserved_tid: reserved TID (if any, otherwise IEEE80211_TID_UNRESERVED)
+- * @amsdu_mesh_control: track the mesh A-MSDU format used by the peer
+- *	(-1: not yet known,
+- *	  0: non-mesh A-MSDU length field
+- *	  1: big-endian mesh A-MSDU length field
+- *	  2: little-endian mesh A-MSDU length field)
++ * @amsdu_mesh_control: track the mesh A-MSDU format used by the peer:
++ *
++ *	  * -1: not yet known
++ *	  * 0: non-mesh A-MSDU length field
++ *	  * 1: big-endian mesh A-MSDU length field
++ *	  * 2: little-endian mesh A-MSDU length field
++ *
+  * @fast_tx: TX fastpath information
+  * @fast_rx: RX fastpath information
+  * @tdls_chandef: a TDLS peer can have a wider chandef that is compatible to
+-- 
+cgit 
+

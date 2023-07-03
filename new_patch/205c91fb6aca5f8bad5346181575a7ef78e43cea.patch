@@ -1,0 +1,31 @@
+From 205c91fb6aca5f8bad5346181575a7ef78e43cea Mon Sep 17 00:00:00 2001
+From: Konrad Dybcio <konrad.dybcio@linaro.org>
+Date: Thu, 16 Feb 2023 13:49:21 +0100
+Subject: arm64: dts: qcom: sm6115: Un-enable SPI5 by default
+
+The commit mentioned in the fixes tag erroneously enabled SPI5
+unconditionally. Undo it.
+
+Fixes: 25aab0b852d6 ("arm64: dts: qcom: sm6115: Add geni debug uart node for qup0")
+Signed-off-by: Konrad Dybcio <konrad.dybcio@linaro.org>
+Signed-off-by: Bjorn Andersson <andersson@kernel.org>
+Link: https://lore.kernel.org/r/20230216124921.3985834-1-konrad.dybcio@linaro.org
+---
+ arch/arm64/boot/dts/qcom/sm6115.dtsi | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/arch/arm64/boot/dts/qcom/sm6115.dtsi b/arch/arm64/boot/dts/qcom/sm6115.dtsi
+index 4d6ec815b78b1..fbd67d2c8d781 100644
+--- a/arch/arm64/boot/dts/qcom/sm6115.dtsi
++++ b/arch/arm64/boot/dts/qcom/sm6115.dtsi
+@@ -1078,6 +1078,7 @@
+ 				dma-names = "tx", "rx";
+ 				#address-cells = <1>;
+ 				#size-cells = <0>;
++				status = "disabled";
+ 			};
+ 		};
+ 
+-- 
+cgit 
+

@@ -1,0 +1,46 @@
+From b904227a4b693fbb9d5eabc9d7100dc01d9eb973 Mon Sep 17 00:00:00 2001
+From: Konrad Dybcio <konrad.dybcio@linaro.org>
+Date: Fri, 20 Jan 2023 22:01:00 +0100
+Subject: arm64: dts: qcom: sm8350: Hook up DSI1 to MDP
+
+Somehow DSI1 was not hooked up to MDP resulting in it not working.
+Fix it.
+
+Fixes: d4a4410583ed ("arm64: dts: qcom: sm8350: Add display system nodes")
+Signed-off-by: Konrad Dybcio <konrad.dybcio@linaro.org>
+Reviewed-by: Dmitry Baryshkov <dmitry.baryshkov@linaro.org>
+Signed-off-by: Bjorn Andersson <andersson@kernel.org>
+Link: https://lore.kernel.org/r/20230120210101.2146852-8-konrad.dybcio@linaro.org
+---
+ arch/arm64/boot/dts/qcom/sm8350.dtsi | 8 ++++++++
+ 1 file changed, 8 insertions(+)
+
+diff --git a/arch/arm64/boot/dts/qcom/sm8350.dtsi b/arch/arm64/boot/dts/qcom/sm8350.dtsi
+index f3068d545022b..0de42a333d326 100644
+--- a/arch/arm64/boot/dts/qcom/sm8350.dtsi
++++ b/arch/arm64/boot/dts/qcom/sm8350.dtsi
+@@ -2879,6 +2879,13 @@
+ 							remote-endpoint = <&mdss_dsi0_in>;
+ 						};
+ 					};
++
++					port@1 {
++						reg = <1>;
++						dpu_intf2_out: endpoint {
++							remote-endpoint = <&mdss_dsi1_in>;
++						};
++					};
+ 				};
+ 			};
+ 
+@@ -3047,6 +3054,7 @@
+ 					port@0 {
+ 						reg = <0>;
+ 						mdss_dsi1_in: endpoint {
++							remote-endpoint = <&dpu_intf2_out>;
+ 						};
+ 					};
+ 
+-- 
+cgit 
+

@@ -1,0 +1,123 @@
+From 67222c4ba8afe409d1e049a8f1e687c8a214fec7 Mon Sep 17 00:00:00 2001
+From: Li Lingfeng <lilingfeng3@huawei.com>
+Date: Fri, 20 Jan 2023 11:23:52 +0800
+Subject: lib: parser: optimize match_NUMBER apis to use local array
+
+Memory will be allocated to store substring_t in match_strdup(), which
+means the caller of match_strdup() may need to be scheduled out to wait
+for reclaiming memory.  smatch complains that this can cuase sleeping in
+an atoic context.
+
+Using local array to store substring_t to remove the restriction.
+
+Link: https://lkml.kernel.org/r/20230120032352.242767-1-lilingfeng3@huawei.com
+Link: https://lore.kernel.org/all/20221104023938.2346986-5-yukuai1@huaweicloud.com/
+Link: https://lkml.kernel.org/r/20230120032352.242767-1-lilingfeng3@huawei.com
+Fixes: 2c0647988433 ("blk-iocost: don't release 'ioc->lock' while updating params")
+Signed-off-by: Li Lingfeng <lilingfeng3@huawei.com>
+Reported-by: Yu Kuai <yukuai1@huaweicloud.com>
+Acked-by: Tejun Heo <tj@kernel.org>
+Cc: BingJing Chang <bingjingc@synology.com>
+Cc: Eric Biggers <ebiggers@google.com>
+Cc: Hou Tao <houtao1@huawei.com>
+Cc: James Smart <james.smart@broadcom.com>
+Cc: Jan Kara <jack@suse.cz>
+Cc: Jens Axboe <axboe@kernel.dk>
+Cc: yangerkun <yangerkun@huawei.com>
+Cc: Zhang Yi <yi.zhang@huawei.com>
+Signed-off-by: Andrew Morton <akpm@linux-foundation.org>
+---
+ lib/parser.c | 39 ++++++++++++++++++++-------------------
+ 1 file changed, 20 insertions(+), 19 deletions(-)
+
+diff --git a/lib/parser.c b/lib/parser.c
+index bcb23484100ee..2b5e2b480253f 100644
+--- a/lib/parser.c
++++ b/lib/parser.c
+@@ -11,6 +11,15 @@
+ #include <linux/slab.h>
+ #include <linux/string.h>
+ 
++/*
++ * max size needed by different bases to express U64
++ * HEX: "0xFFFFFFFFFFFFFFFF" --> 18
++ * DEC: "18446744073709551615" --> 20
++ * OCT: "01777777777777777777777" --> 23
++ * pick the max one to define NUMBER_BUF_LEN
++ */
++#define NUMBER_BUF_LEN 24
++
+ /**
+  * match_one - Determines if a string matches a simple pattern
+  * @s: the string to examine for presence of the pattern
+@@ -129,14 +138,12 @@ EXPORT_SYMBOL(match_token);
+ static int match_number(substring_t *s, int *result, int base)
+ {
+ 	char *endp;
+-	char *buf;
++	char buf[NUMBER_BUF_LEN];
+ 	int ret;
+ 	long val;
+ 
+-	buf = match_strdup(s);
+-	if (!buf)
+-		return -ENOMEM;
+-
++	if (match_strlcpy(buf, s, NUMBER_BUF_LEN) >= NUMBER_BUF_LEN)
++		return -ERANGE;
+ 	ret = 0;
+ 	val = simple_strtol(buf, &endp, base);
+ 	if (endp == buf)
+@@ -145,7 +152,6 @@ static int match_number(substring_t *s, int *result, int base)
+ 		ret = -ERANGE;
+ 	else
+ 		*result = (int) val;
+-	kfree(buf);
+ 	return ret;
+ }
+ 
+@@ -163,18 +169,15 @@ static int match_number(substring_t *s, int *result, int base)
+  */
+ static int match_u64int(substring_t *s, u64 *result, int base)
+ {
+-	char *buf;
++	char buf[NUMBER_BUF_LEN];
+ 	int ret;
+ 	u64 val;
+ 
+-	buf = match_strdup(s);
+-	if (!buf)
+-		return -ENOMEM;
+-
++	if (match_strlcpy(buf, s, NUMBER_BUF_LEN) >= NUMBER_BUF_LEN)
++		return -ERANGE;
+ 	ret = kstrtoull(buf, base, &val);
+ 	if (!ret)
+ 		*result = val;
+-	kfree(buf);
+ 	return ret;
+ }
+ 
+@@ -206,14 +209,12 @@ EXPORT_SYMBOL(match_int);
+  */
+ int match_uint(substring_t *s, unsigned int *result)
+ {
+-	int err = -ENOMEM;
+-	char *buf = match_strdup(s);
++	char buf[NUMBER_BUF_LEN];
+ 
+-	if (buf) {
+-		err = kstrtouint(buf, 10, result);
+-		kfree(buf);
+-	}
+-	return err;
++	if (match_strlcpy(buf, s, NUMBER_BUF_LEN) >= NUMBER_BUF_LEN)
++		return -ERANGE;
++
++	return kstrtouint(buf, 10, result);
+ }
+ EXPORT_SYMBOL(match_uint);
+ 
+-- 
+cgit 
+

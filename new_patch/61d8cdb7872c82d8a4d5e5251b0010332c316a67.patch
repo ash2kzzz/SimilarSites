@@ -1,0 +1,35 @@
+From 61d8cdb7872c82d8a4d5e5251b0010332c316a67 Mon Sep 17 00:00:00 2001
+From: Jeffrey Hugo <quic_jhugo@quicinc.com>
+Date: Fri, 2 Jun 2023 15:04:40 -0600
+Subject: accel/qaic: Fix NULL pointer deref in qaic_destroy_drm_device()
+
+If qaic_destroy_drm_device() is called before the device has fully
+initialized it will cause a NULL pointer dereference as the drm device
+has not yet been created. Fix this with a NULL check.
+
+Fixes: c501ca23a6a3 ("accel/qaic: Add uapi and core driver file")
+Signed-off-by: Jeffrey Hugo <quic_jhugo@quicinc.com>
+Reviewed-by: Carl Vanderlip <quic_carlv@quicinc.com>
+Reviewed-by: Pranjal Ramajor Asha Kanojiya <quic_pkanojiy@quicinc.com>
+Link: https://patchwork.freedesktop.org/patch/msgid/20230602210440.8411-3-quic_jhugo@quicinc.com
+---
+ drivers/accel/qaic/qaic_drv.c | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/drivers/accel/qaic/qaic_drv.c b/drivers/accel/qaic/qaic_drv.c
+index 961cd341b4141..b5ba550a0c040 100644
+--- a/drivers/accel/qaic/qaic_drv.c
++++ b/drivers/accel/qaic/qaic_drv.c
+@@ -225,6 +225,9 @@ static void qaic_destroy_drm_device(struct qaic_device *qdev, s32 partition_id)
+ 	struct qaic_user *usr;
+ 
+ 	qddev = qdev->qddev;
++	qdev->qddev = NULL;
++	if (!qddev)
++		return;
+ 
+ 	/*
+ 	 * Existing users get unresolvable errors till they close FDs.
+-- 
+cgit 
+

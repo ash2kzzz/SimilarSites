@@ -1,0 +1,51 @@
+From 54686b611eb054a5c84976e6f6e03788fa8e6a38 Mon Sep 17 00:00:00 2001
+From: Lukas Bulwahn <lukas.bulwahn@gmail.com>
+Date: Wed, 8 Mar 2023 15:41:32 +0100
+Subject: MAINTAINERS: repair malformed T: entries in NVM EXPRESS DRIVERS
+
+The T: entries shall be composed of a SCM tree type (git, hg, quilt, stgit
+or topgit) and location.
+
+Add the SCM tree type to the T: entry, and reorder the file entries in
+alphabetical order.
+
+Fixes: b508fc354f6d ("nvme: update maintainers information")
+Signed-off-by: Lukas Bulwahn <lukas.bulwahn@gmail.com>
+Reviewed-by: Sagi Grimberg <sagi@grimberg.me>
+Signed-off-by: Christoph Hellwig <hch@lst.de>
+---
+ MAINTAINERS | 8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/MAINTAINERS b/MAINTAINERS
+index 8d5bc223f3053..1296426b38791 100644
+--- a/MAINTAINERS
++++ b/MAINTAINERS
+@@ -14872,12 +14872,12 @@ M:	Sagi Grimberg <sagi@grimberg.me>
+ L:	linux-nvme@lists.infradead.org
+ S:	Supported
+ W:	http://git.infradead.org/nvme.git
+-T:	git://git.infradead.org/nvme.git
++T:	git git://git.infradead.org/nvme.git
+ F:	Documentation/nvme/
+-F:	drivers/nvme/host/
+ F:	drivers/nvme/common/
+-F:	include/linux/nvme.h
++F:	drivers/nvme/host/
+ F:	include/linux/nvme-*.h
++F:	include/linux/nvme.h
+ F:	include/uapi/linux/nvme_ioctl.h
+ 
+ NVM EXPRESS FABRICS AUTHENTICATION
+@@ -14912,7 +14912,7 @@ M:	Chaitanya Kulkarni <kch@nvidia.com>
+ L:	linux-nvme@lists.infradead.org
+ S:	Supported
+ W:	http://git.infradead.org/nvme.git
+-T:	git://git.infradead.org/nvme.git
++T:	git git://git.infradead.org/nvme.git
+ F:	drivers/nvme/target/
+ 
+ NVMEM FRAMEWORK
+-- 
+cgit 
+

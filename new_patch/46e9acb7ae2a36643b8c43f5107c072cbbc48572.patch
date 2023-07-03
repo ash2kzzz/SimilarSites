@@ -1,0 +1,59 @@
+From 46e9acb7ae2a36643b8c43f5107c072cbbc48572 Mon Sep 17 00:00:00 2001
+From: Petr Machata <petrm@nvidia.com>
+Date: Wed, 29 Mar 2023 17:24:53 +0200
+Subject: selftests: rtnetlink: Fix do_test_address_proto()
+
+This selftest was introduced recently in the commit cited below. It misses
+several check_err() invocations to actually verify that the previous
+command succeeded. When these are added, the first one fails, because
+besides the addresses added by hand, there can be a link-local address
+added by the kernel. Adjust the check to expect at least three addresses
+instead of exactly three, and add the missing check_err's.
+
+Furthermore, the explanatory comments assume that the address with no
+protocol is $addr2, when in fact it is $addr3. Update the comments.
+
+Fixes: 6a414fd77f61 ("selftests: rtnetlink: Add an address proto test")
+Signed-off-by: Petr Machata <petrm@nvidia.com>
+Reviewed-by: Ido Schimmel <idosch@nvidia.com>
+Link: https://lore.kernel.org/r/53a579bc883e1bf2fe490d58427cf22c2d1aa21f.1680102695.git.petrm@nvidia.com
+Signed-off-by: Jakub Kicinski <kuba@kernel.org>
+---
+ tools/testing/selftests/net/rtnetlink.sh | 12 ++++++++----
+ 1 file changed, 8 insertions(+), 4 deletions(-)
+
+diff --git a/tools/testing/selftests/net/rtnetlink.sh b/tools/testing/selftests/net/rtnetlink.sh
+index 3b15c686c03fe..383ac6fc037d0 100755
+--- a/tools/testing/selftests/net/rtnetlink.sh
++++ b/tools/testing/selftests/net/rtnetlink.sh
+@@ -1302,19 +1302,23 @@ do_test_address_proto()
+ 
+ 	count=$(address_count)
+ 	check_err $?
+-	(( count == 3 )) # $addr, $addr2 and $addr3
++	(( count >= 3 )) # $addr, $addr2 and $addr3 plus any kernel addresses
++	check_err $?
+ 
+ 	count=$(address_count proto 0)
+ 	check_err $?
+-	(( count == 1 )) # just $addr2
++	(( count == 1 )) # just $addr3
++	check_err $?
+ 
+ 	count=$(address_count proto 0x11)
+ 	check_err $?
+-	(( count == 2 )) # $addr and $addr2
++	(( count == 2 )) # $addr and $addr3
++	check_err $?
+ 
+ 	count=$(address_count proto 0xab)
+ 	check_err $?
+-	(( count == 1 )) # just $addr2
++	(( count == 1 )) # just $addr3
++	check_err $?
+ 
+ 	ip address del dev "$devdummy" "$addr"
+ 	ip address del dev "$devdummy" "$addr2"
+-- 
+cgit 
+

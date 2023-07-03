@@ -1,0 +1,38 @@
+From c142872ea40a99258e2a86bf5c471bcc81752f56 Mon Sep 17 00:00:00 2001
+From: Arnd Bergmann <arnd@arndb.de>
+Date: Wed, 15 Feb 2023 13:47:08 +0100
+Subject: power: reset: odroid-go-ultra: fix I2C dependency
+
+Since this driver can only be built-in, it fails to link when
+the I2C layer is in a loadable module:
+
+x86_64-linux-ld: drivers/power/reset/odroid-go-ultra-poweroff.o: in function `odroid_go_ultra_poweroff_get_pmic_device':
+odroid-go-ultra-poweroff.c:(.text+0x30): undefined reference to `i2c_find_device_by_fwnode'
+
+Tighten the dependency to only allow enabling
+POWER_RESET_ODROID_GO_ULTRA_POWEROFF is I2C is built-in as well.
+
+Fixes: cec3b46b8bda ("power: reset: add Odroid Go Ultra poweroff driver")
+Signed-off-by: Arnd Bergmann <arnd@arndb.de>
+Acked-by: Neil Armstrong <neil.armstrong@linaro.org>
+Signed-off-by: Sebastian Reichel <sebastian.reichel@collabora.com>
+---
+ drivers/power/reset/Kconfig | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/power/reset/Kconfig b/drivers/power/reset/Kconfig
+index 7059bd1f2ee77..8c87eeda0feca 100644
+--- a/drivers/power/reset/Kconfig
++++ b/drivers/power/reset/Kconfig
+@@ -144,7 +144,7 @@ config POWER_RESET_OCELOT_RESET
+ config POWER_RESET_ODROID_GO_ULTRA_POWEROFF
+ 	bool "Odroid Go Ultra power-off driver"
+ 	depends on ARCH_MESON || COMPILE_TEST
+-	depends on I2C && OF
++	depends on I2C=y && OF
+ 	help
+ 	  This driver supports Power off for Odroid Go Ultra device.
+ 
+-- 
+cgit 
+

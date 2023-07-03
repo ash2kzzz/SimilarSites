@@ -1,0 +1,31 @@
+From 2ce987d7eeb168b749494694ae3666de87fc356e Mon Sep 17 00:00:00 2001
+From: William Breathitt Gray <william.gray@linaro.org>
+Date: Mon, 3 Apr 2023 13:53:14 -0400
+Subject: gpio: 104-idi-48: Enable use_raw_spinlock for idi48_regmap_config
+
+The idi48 regmap can be used in an interrupt context by regmap-irq. To
+prevent a deadlock, enable use_raw_spinlock for idi48_regmap_config.
+
+Fixes: e28432a77365 ("gpio: 104-idi-48: Migrate to the regmap-irq API")
+Signed-off-by: William Breathitt Gray <william.gray@linaro.org>
+Reviewed-by: Linus Walleij <linus.walleij@linaro.org>
+Signed-off-by: Bartosz Golaszewski <bartosz.golaszewski@linaro.org>
+---
+ drivers/gpio/gpio-104-idi-48.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/drivers/gpio/gpio-104-idi-48.c b/drivers/gpio/gpio-104-idi-48.c
+index ca2175b84e241..ba73ee9c0c291 100644
+--- a/drivers/gpio/gpio-104-idi-48.c
++++ b/drivers/gpio/gpio-104-idi-48.c
+@@ -81,6 +81,7 @@ static const struct regmap_config idi48_regmap_config = {
+ 	.wr_table = &idi_48_wr_table,
+ 	.rd_table = &idi_48_rd_table,
+ 	.precious_table = &idi_48_precious_table,
++	.use_raw_spinlock = true,
+ };
+ 
+ #define IDI48_NGPIO 48
+-- 
+cgit 
+

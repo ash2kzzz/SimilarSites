@@ -1,0 +1,93 @@
+From 2cca486cad4bf51da57cdad150697476a702ab69 Mon Sep 17 00:00:00 2001
+From: William Zhang <william.zhang@broadcom.com>
+Date: Fri, 10 Feb 2023 19:27:59 -0800
+Subject: spi: bcm63xx-hsspi: bcmbca-hsspi: fix _be16 type usage
+
+sparse tool report warnings: drivers/spi/spi-bcm63xx-hsspi.c:197:31:
+sparse: sparse: cast from restricted __be16.
+
+The controller requires big endian 16 bit data. Define an intermediate
+u16 value and use __be16 piointer dereferncing for the data to avoid
+directly casting to u16 and sparse warning.
+
+Fixes: 85a84a616999 ("spi: bcm63xx-hsspi: Endianness fix for ARM based SoC")
+Reported-by: kernel test robot <lkp@intel.com>
+Link: https://lore.kernel.org/oe-kbuild-all/202302110438.sQwQnU54-lkp@intel.com/
+
+Signed-off-by: William Zhang <william.zhang@broadcom.com>
+Link: https://lore.kernel.org/r/20230211032759.72967-1-william.zhang@broadcom.com
+Signed-off-by: Mark Brown <broonie@kernel.org>
+---
+ drivers/spi/spi-bcm63xx-hsspi.c | 10 ++++++----
+ drivers/spi/spi-bcmbca-hsspi.c  |  6 ++++--
+ 2 files changed, 10 insertions(+), 6 deletions(-)
+
+diff --git a/drivers/spi/spi-bcm63xx-hsspi.c b/drivers/spi/spi-bcm63xx-hsspi.c
+index 1e9e906d297cf..68093c045e0b8 100644
+--- a/drivers/spi/spi-bcm63xx-hsspi.c
++++ b/drivers/spi/spi-bcm63xx-hsspi.c
+@@ -350,7 +350,7 @@ static int bcm63xx_hsspi_do_prepend_txrx(struct spi_device *spi,
+ {
+ 	struct bcm63xx_hsspi *bs = spi_master_get_devdata(spi->master);
+ 	unsigned int chip_select = spi->chip_select;
+-	u16 opcode = 0;
++	u16 opcode = 0, val;
+ 	const u8 *tx = t->tx_buf;
+ 	u8 *rx = t->rx_buf;
+ 	u32 reg = 0;
+@@ -401,7 +401,8 @@ static int bcm63xx_hsspi_do_prepend_txrx(struct spi_device *spi,
+ 		memcpy_toio(bs->fifo + HSSPI_OPCODE_LEN + bs->prepend_cnt, tx,
+ 			    t->len);
+ 
+-	__raw_writew((u16)cpu_to_be16(opcode | t->len), bs->fifo);
++	*(__be16 *)(&val) = cpu_to_be16(opcode | t->len);
++	__raw_writew(val, bs->fifo);
+ 	/* enable interrupt */
+ 	if (bs->wait_mode == HSSPI_WAIT_MODE_INTR)
+ 		__raw_writel(HSSPI_PINGx_CMD_DONE(0), bs->regs + HSSPI_INT_MASK_REG);
+@@ -468,7 +469,7 @@ static int bcm63xx_hsspi_do_txrx(struct spi_device *spi, struct spi_transfer *t)
+ {
+ 	struct bcm63xx_hsspi *bs = spi_master_get_devdata(spi->master);
+ 	unsigned int chip_select = spi->chip_select;
+-	u16 opcode = 0;
++	u16 opcode = 0, val;
+ 	int pending = t->len;
+ 	int step_size = HSSPI_BUFFER_LEN;
+ 	const u8 *tx = t->tx_buf;
+@@ -511,7 +512,8 @@ static int bcm63xx_hsspi_do_txrx(struct spi_device *spi, struct spi_transfer *t)
+ 			tx += curr_step;
+ 		}
+ 
+-		__raw_writew((u16)cpu_to_be16(opcode | curr_step), bs->fifo);
++		*(__be16 *)(&val) = cpu_to_be16(opcode | curr_step);
++		__raw_writew(val, bs->fifo);
+ 
+ 		/* enable interrupt */
+ 		if (bs->wait_mode == HSSPI_WAIT_MODE_INTR)
+diff --git a/drivers/spi/spi-bcmbca-hsspi.c b/drivers/spi/spi-bcmbca-hsspi.c
+index d58033251c026..e255241319ab1 100644
+--- a/drivers/spi/spi-bcmbca-hsspi.c
++++ b/drivers/spi/spi-bcmbca-hsspi.c
+@@ -252,7 +252,7 @@ static int bcmbca_hsspi_do_txrx(struct spi_device *spi, struct spi_transfer *t,
+ {
+ 	struct bcmbca_hsspi *bs = spi_master_get_devdata(spi->master);
+ 	unsigned int chip_select = spi->chip_select;
+-	u16 opcode = 0;
++	u16 opcode = 0, val;
+ 	int pending = t->len;
+ 	int step_size = HSSPI_BUFFER_LEN;
+ 	const u8 *tx = t->tx_buf;
+@@ -292,7 +292,9 @@ static int bcmbca_hsspi_do_txrx(struct spi_device *spi, struct spi_transfer *t,
+ 			memcpy_toio(bs->fifo + HSSPI_OPCODE_LEN, tx, curr_step);
+ 			tx += curr_step;
+ 		}
+-		__raw_writew((u16)cpu_to_be16(opcode | curr_step), bs->fifo);
++
++		*(__be16 *)(&val) = cpu_to_be16(opcode | curr_step);
++		__raw_writew(val, bs->fifo);
+ 
+ 		/* enable interrupt */
+ 		if (bs->wait_mode == HSSPI_WAIT_MODE_INTR)
+-- 
+cgit 
+

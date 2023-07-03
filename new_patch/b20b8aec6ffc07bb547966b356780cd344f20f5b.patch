@@ -1,0 +1,94 @@
+From b20b8aec6ffc07bb547966b356780cd344f20f5b Mon Sep 17 00:00:00 2001
+From: Ido Schimmel <idosch@nvidia.com>
+Date: Wed, 15 Feb 2023 09:31:39 +0200
+Subject: devlink: Fix netdev notifier chain corruption
+
+Cited commit changed devlink to register its netdev notifier block on
+the global netdev notifier chain instead of on the per network namespace
+one.
+
+However, when changing the network namespace of the devlink instance,
+devlink still tries to unregister its notifier block from the chain of
+the old namespace and register it on the chain of the new namespace.
+This results in corruption of the notifier chains, as the same notifier
+block is registered on two different chains: The global one and the per
+network namespace one. In turn, this causes other problems such as the
+inability to dismantle namespaces due to netdev reference count issues.
+
+Fix by preventing devlink from moving its notifier block between
+namespaces.
+
+Reproducer:
+
+ # echo "10 1" > /sys/bus/netdevsim/new_device
+ # ip netns add test123
+ # devlink dev reload netdevsim/netdevsim10 netns test123
+ # ip netns del test123
+ [   71.935619] unregister_netdevice: waiting for lo to become free. Usage count = 2
+ [   71.938348] leaked reference.
+
+Fixes: 565b4824c39f ("devlink: change port event netdev notifier from per-net to global")
+Signed-off-by: Ido Schimmel <idosch@nvidia.com>
+Reviewed-by: Jiri Pirko <jiri@nvidia.com>
+Reviewed-by: Jacob Keller <jacob.e.keller@intel.com>
+Reviewed-by: Jakub Kicinski <kuba@kernel.org>
+Link: https://lore.kernel.org/r/20230215073139.1360108-1-idosch@nvidia.com
+Signed-off-by: Paolo Abeni <pabeni@redhat.com>
+---
+ include/linux/netdevice.h | 2 --
+ net/core/dev.c            | 8 --------
+ net/core/devlink.c        | 5 +----
+ 3 files changed, 1 insertion(+), 14 deletions(-)
+
+diff --git a/include/linux/netdevice.h b/include/linux/netdevice.h
+index aad12a179e540..e6e02184c25a4 100644
+--- a/include/linux/netdevice.h
++++ b/include/linux/netdevice.h
+@@ -2839,8 +2839,6 @@ int unregister_netdevice_notifier(struct notifier_block *nb);
+ int register_netdevice_notifier_net(struct net *net, struct notifier_block *nb);
+ int unregister_netdevice_notifier_net(struct net *net,
+ 				      struct notifier_block *nb);
+-void move_netdevice_notifier_net(struct net *src_net, struct net *dst_net,
+-				 struct notifier_block *nb);
+ int register_netdevice_notifier_dev_net(struct net_device *dev,
+ 					struct notifier_block *nb,
+ 					struct netdev_net_notifier *nn);
+diff --git a/net/core/dev.c b/net/core/dev.c
+index ea0a7bac1e5c3..f23e287602b7e 100644
+--- a/net/core/dev.c
++++ b/net/core/dev.c
+@@ -1869,14 +1869,6 @@ static void __move_netdevice_notifier_net(struct net *src_net,
+ 	__register_netdevice_notifier_net(dst_net, nb, true);
+ }
+ 
+-void move_netdevice_notifier_net(struct net *src_net, struct net *dst_net,
+-				 struct notifier_block *nb)
+-{
+-	rtnl_lock();
+-	__move_netdevice_notifier_net(src_net, dst_net, nb);
+-	rtnl_unlock();
+-}
+-
+ int register_netdevice_notifier_dev_net(struct net_device *dev,
+ 					struct notifier_block *nb,
+ 					struct netdev_net_notifier *nn)
+diff --git a/net/core/devlink.c b/net/core/devlink.c
+index 909a10e4b0ddf..0bfc144df8b99 100644
+--- a/net/core/devlink.c
++++ b/net/core/devlink.c
+@@ -4742,11 +4742,8 @@ static int devlink_reload(struct devlink *devlink, struct net *dest_net,
+ 	if (err)
+ 		return err;
+ 
+-	if (dest_net && !net_eq(dest_net, curr_net)) {
+-		move_netdevice_notifier_net(curr_net, dest_net,
+-					    &devlink->netdevice_nb);
++	if (dest_net && !net_eq(dest_net, curr_net))
+ 		write_pnet(&devlink->_net, dest_net);
+-	}
+ 
+ 	err = devlink->ops->reload_up(devlink, action, limit, actions_performed, extack);
+ 	devlink_reload_failed_set(devlink, !!err);
+-- 
+cgit 
+

@@ -1,0 +1,71 @@
+From b516354542b71632438d33920f6ce7478ecab0ce Mon Sep 17 00:00:00 2001
+From: Laurent Pinchart <laurent.pinchart@ideasonboard.com>
+Date: Mon, 12 Dec 2022 14:25:05 +0100
+Subject: media: mc: entity: Fix minor issues in comments and documentation
+
+Commit ae219872834a ("media: mc: entity: Rewrite
+media_pipeline_start()") incorrectly referred to entity instead of pad
+in a comment, and forgot to update a second comment accordingly when
+moving the pipe from entity to pad. Furthermore, it didn't properly
+reflow the documentation text it updated.
+
+Fix those small issues.
+
+Fixes: ae219872834a ("media: mc: entity: Rewrite media_pipeline_start()")
+Signed-off-by: Laurent Pinchart <laurent.pinchart@ideasonboard.com>
+Reviewed-by: Tomi Valkeinen <tomi.valkeinen@ideasonboard.com>
+Signed-off-by: Sakari Ailus <sakari.ailus@linux.intel.com>
+Signed-off-by: Mauro Carvalho Chehab <mchehab@kernel.org>
+---
+ Documentation/driver-api/media/mc-core.rst | 10 ++++------
+ drivers/media/mc/mc-entity.c               |  6 +++---
+ 2 files changed, 7 insertions(+), 9 deletions(-)
+
+diff --git a/Documentation/driver-api/media/mc-core.rst b/Documentation/driver-api/media/mc-core.rst
+index 400b8ca29367e..2456950ce8ffb 100644
+--- a/Documentation/driver-api/media/mc-core.rst
++++ b/Documentation/driver-api/media/mc-core.rst
+@@ -232,12 +232,10 @@ prevent link states from being modified during streaming by calling
+ 
+ The function will mark all the pads which are part of the pipeline as streaming.
+ 
+-The struct media_pipeline instance pointed to by
+-the pipe argument will be stored in every pad in the pipeline.
+-Drivers should embed the struct media_pipeline
+-in higher-level pipeline structures and can then access the
+-pipeline through the struct media_pad
+-pipe field.
++The struct media_pipeline instance pointed to by the pipe argument will be
++stored in every pad in the pipeline. Drivers should embed the struct
++media_pipeline in higher-level pipeline structures and can then access the
++pipeline through the struct media_pad pipe field.
+ 
+ Calls to :c:func:`media_pipeline_start()` can be nested.
+ The pipeline pointer must be identical for all nested calls to the function.
+diff --git a/drivers/media/mc/mc-entity.c b/drivers/media/mc/mc-entity.c
+index 7c62d26d9797a..e7216a985ba62 100644
+--- a/drivers/media/mc/mc-entity.c
++++ b/drivers/media/mc/mc-entity.c
+@@ -724,8 +724,8 @@ __must_check int __media_pipeline_start(struct media_pad *pad,
+ 	lockdep_assert_held(&mdev->graph_mutex);
+ 
+ 	/*
+-	 * If the entity is already part of a pipeline, that pipeline must
+-	 * be the same as the pipe given to media_pipeline_start().
++	 * If the pad is already part of a pipeline, that pipeline must be the
++	 * same as the pipe given to media_pipeline_start().
+ 	 */
+ 	if (WARN_ON(pad->pipe && pad->pipe != pipe))
+ 		return -EINVAL;
+@@ -919,7 +919,7 @@ __must_check int media_pipeline_alloc_start(struct media_pad *pad)
+ 	mutex_lock(&mdev->graph_mutex);
+ 
+ 	/*
+-	 * Is the entity already part of a pipeline? If not, we need to allocate
++	 * Is the pad already part of a pipeline? If not, we need to allocate
+ 	 * a pipe.
+ 	 */
+ 	pipe = media_pad_pipeline(pad);
+-- 
+cgit 
+

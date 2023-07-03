@@ -1,0 +1,50 @@
+From d7b5e5dd669436328dbf41d89af09b3fa5de3b95 Mon Sep 17 00:00:00 2001
+From: Dmitry Torokhov <dmitry.torokhov@gmail.com>
+Date: Wed, 1 Feb 2023 13:53:19 -0800
+Subject: net: fec: restore handling of PHY reset line as optional
+
+Conversion of the driver to gpiod API done in 468ba54bd616 ("fec:
+convert to gpio descriptor") incorrectly made reset line mandatory and
+resulted in aborting driver probe in cases where reset line was not
+specified (note: this way of specifying PHY reset line is actually
+deprecated).
+
+Switch to using devm_gpiod_get_optional() and skip manipulating reset
+line if it can not be located.
+
+Fixes: 468ba54bd616 ("fec: convert to gpio descriptor")
+Signed-off-by: Dmitry Torokhov <dmitry.torokhov@gmail.com>
+Reviewed-by: Andrew Lunn <andrew@lunn.ch>
+Reported-by: Marc Kleine-Budde <mkl@pengutronix.de>
+Tested-by: Marc Kleine-Budde <mkl@pengutronix.de>
+Reviewed-by: Arnd Bergmann <arnd@arndb.de>
+Link: https://lore.kernel.org/r/20230201215320.528319-1-dmitry.torokhov@gmail.com
+Signed-off-by: Jakub Kicinski <kuba@kernel.org>
+---
+ drivers/net/ethernet/freescale/fec_main.c | 5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/net/ethernet/freescale/fec_main.c b/drivers/net/ethernet/freescale/fec_main.c
+index 2716898e0b9b6..00115b55d0ff2 100644
+--- a/drivers/net/ethernet/freescale/fec_main.c
++++ b/drivers/net/ethernet/freescale/fec_main.c
+@@ -4056,12 +4056,15 @@ static int fec_reset_phy(struct platform_device *pdev)
+ 
+ 	active_high = of_property_read_bool(np, "phy-reset-active-high");
+ 
+-	phy_reset = devm_gpiod_get(&pdev->dev, "phy-reset",
++	phy_reset = devm_gpiod_get_optional(&pdev->dev, "phy-reset",
+ 			active_high ? GPIOD_OUT_HIGH : GPIOD_OUT_LOW);
+ 	if (IS_ERR(phy_reset))
+ 		return dev_err_probe(&pdev->dev, PTR_ERR(phy_reset),
+ 				     "failed to get phy-reset-gpios\n");
+ 
++	if (!phy_reset)
++		return 0;
++
+ 	if (msec > 20)
+ 		msleep(msec);
+ 	else
+-- 
+cgit 
+

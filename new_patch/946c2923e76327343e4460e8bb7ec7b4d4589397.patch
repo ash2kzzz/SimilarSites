@@ -1,0 +1,32 @@
+From 946c2923e76327343e4460e8bb7ec7b4d4589397 Mon Sep 17 00:00:00 2001
+From: Tanmay Bhushan <007047221b@gmail.com>
+Date: Sat, 31 Dec 2022 16:05:01 +0100
+Subject: btrfs: fix ASSERT em->len condition in btrfs_get_extent
+
+The em->len value is supposed to be verified in the assertion condition
+though we expect it to be same as the sectorsize.
+
+Fixes: a196a8944f77 ("btrfs: do not reset extent map members for inline extents read")
+Reviewed-by: Anand Jain <anand.jain@oracle.com>
+Signed-off-by: Tanmay Bhushan <007047221b@gmail.com>
+Signed-off-by: David Sterba <dsterba@suse.com>
+---
+ fs/btrfs/inode.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/fs/btrfs/inode.c b/fs/btrfs/inode.c
+index bfcbe64eb8b3a..940b404c8f289 100644
+--- a/fs/btrfs/inode.c
++++ b/fs/btrfs/inode.c
+@@ -7092,7 +7092,7 @@ next:
+ 		 * Other members are not utilized for inline extents.
+ 		 */
+ 		ASSERT(em->block_start == EXTENT_MAP_INLINE);
+-		ASSERT(em->len = fs_info->sectorsize);
++		ASSERT(em->len == fs_info->sectorsize);
+ 
+ 		ret = read_inline_extent(inode, path, page);
+ 		if (ret < 0)
+-- 
+cgit 
+

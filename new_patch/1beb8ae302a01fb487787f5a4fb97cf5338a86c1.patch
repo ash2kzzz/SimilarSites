@@ -1,0 +1,42 @@
+From 1beb8ae302a01fb487787f5a4fb97cf5338a86c1 Mon Sep 17 00:00:00 2001
+From: Nhat Pham <nphamcs@gmail.com>
+Date: Fri, 6 Jan 2023 14:00:16 -0800
+Subject: Docs/admin-guide/mm/zswap: remove zsmalloc's lack of writeback
+ warning
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Writeback has been implemented for zsmalloc, so this warning no longer
+holds.
+
+Link: https://lkml.kernel.org/r/20230106220016.172303-1-nphamcs@gmail.com
+Fixes: 9997bc017549a ("zsmalloc: implement writeback mechanism for zsmalloc")
+Suggested-by: Thomas Weißschuh <linux@weissschuh.net>
+Signed-off-by: Nhat Pham <nphamcs@gmail.com>
+Reviewed-by: Sergey Senozhatsky <senozhatsky@chromium.org>
+Cc: Johannes Weiner <hannes@cmpxchg.org>
+Cc: Jonathan Corbet <corbet@lwn.net>
+Signed-off-by: Andrew Morton <akpm@linux-foundation.org>
+---
+ Documentation/admin-guide/mm/zswap.rst | 4 +---
+ 1 file changed, 1 insertion(+), 3 deletions(-)
+
+diff --git a/Documentation/admin-guide/mm/zswap.rst b/Documentation/admin-guide/mm/zswap.rst
+index f67de481c7f60..6dd74a18268ba 100644
+--- a/Documentation/admin-guide/mm/zswap.rst
++++ b/Documentation/admin-guide/mm/zswap.rst
+@@ -70,9 +70,7 @@ e.g. ``zswap.zpool=zbud``. It can also be changed at runtime using the sysfs
+ The zbud type zpool allocates exactly 1 page to store 2 compressed pages, which
+ means the compression ratio will always be 2:1 or worse (because of half-full
+ zbud pages).  The zsmalloc type zpool has a more complex compressed page
+-storage method, and it can achieve greater storage densities.  However,
+-zsmalloc does not implement compressed page eviction, so once zswap fills it
+-cannot evict the oldest page, it can only reject new pages.
++storage method, and it can achieve greater storage densities.
+ 
+ When a swap page is passed from frontswap to zswap, zswap maintains a mapping
+ of the swap entry, a combination of the swap type and swap offset, to the zpool
+-- 
+cgit 
+

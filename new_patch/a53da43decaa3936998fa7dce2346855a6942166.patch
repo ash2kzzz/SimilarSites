@@ -1,0 +1,32 @@
+From a53da43decaa3936998fa7dce2346855a6942166 Mon Sep 17 00:00:00 2001
+From: Masahiro Yamada <masahiroy@kernel.org>
+Date: Sun, 1 Jan 2023 15:07:09 +0900
+Subject: kbuild: fix single *.ko build
+
+The single *.ko build is broken since commit f65a486821cf ("kbuild:
+change module.order to list *.o instead of *.ko").
+
+Fixes: f65a486821cf ("kbuild: change module.order to list *.o instead of *.ko")
+Reported-by: Marc Kleine-Budde <mkl@pengutronix.de>
+Signed-off-by: Masahiro Yamada <masahiroy@kernel.org>
+Tested-by: Marc Kleine-Budde <mkl@pengutronix.de>
+---
+ Makefile | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/Makefile b/Makefile
+index c05b4fb7121e5..dfba294ae7907 100644
+--- a/Makefile
++++ b/Makefile
+@@ -1986,7 +1986,7 @@ $(single-no-ko): $(build-dir)
+ # Remove MODORDER when done because it is not the real one.
+ PHONY += single_modules
+ single_modules: $(single-no-ko) modules_prepare
+-	$(Q){ $(foreach m, $(single-ko), echo $(extmod_prefix)$m;) } > $(MODORDER)
++	$(Q){ $(foreach m, $(single-ko), echo $(extmod_prefix)$(m:%.ko=%.o);) } > $(MODORDER)
+ 	$(Q)$(MAKE) -f $(srctree)/scripts/Makefile.modpost
+ ifneq ($(KBUILD_MODPOST_NOFINAL),1)
+ 	$(Q)$(MAKE) -f $(srctree)/scripts/Makefile.modfinal
+-- 
+cgit 
+

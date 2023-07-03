@@ -1,0 +1,39 @@
+From bae4ae831a43a1e695bdb6c242bad2454519cb2a Mon Sep 17 00:00:00 2001
+From: Arnd Bergmann <arnd@arndb.de>
+Date: Fri, 10 Mar 2023 15:05:37 +0100
+Subject: spi: fsi: restore CONFIG_FSI dependency
+
+The assumption that the build dependency was not necessary turned
+out to be wrong, as building SPI_FSI without FSI results in a link
+failure:
+
+aarch64-linux-ld: drivers/spi/spi-fsi.o: in function `fsi_spi_check_status':
+spi-fsi.c:(.text+0x54): undefined reference to `fsi_device_read'
+aarch64-linux-ld: drivers/spi/spi-fsi.o: in function `fsi_spi_read_reg':
+spi-fsi.c:(.text+0x120): undefined reference to `fsi_device_write'
+aarch64-linux-ld: spi-fsi.c:(.text+0x170): undefined reference to `fsi_device_read'
+
+Fixes: f916c7080d28 ("spi: fsi: Make available for build test")
+Signed-off-by: Arnd Bergmann <arnd@arndb.de>
+Link: https://lore.kernel.org/r/20230310140605.569363-1-arnd@kernel.org
+Signed-off-by: Mark Brown <broonie@kernel.org>
+---
+ drivers/spi/Kconfig | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/spi/Kconfig b/drivers/spi/Kconfig
+index 36a18c215163f..80f3cade60065 100644
+--- a/drivers/spi/Kconfig
++++ b/drivers/spi/Kconfig
+@@ -357,7 +357,7 @@ config SPI_FALCON
+ 
+ config SPI_FSI
+ 	tristate "FSI SPI driver"
+-	depends on FSI || COMPILE_TEST
++	depends on FSI
+ 	help
+ 	  This enables support for the driver for FSI bus attached SPI
+ 	  controllers.
+-- 
+cgit 
+

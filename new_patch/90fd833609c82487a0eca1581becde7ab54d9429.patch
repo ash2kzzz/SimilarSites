@@ -1,0 +1,59 @@
+From 90fd833609c82487a0eca1581becde7ab54d9429 Mon Sep 17 00:00:00 2001
+From: Arnd Bergmann <arnd@arndb.de>
+Date: Tue, 18 Apr 2023 14:23:35 +0200
+Subject: kasan: remove hwasan-kernel-mem-intrinsic-prefix=1 for clang-14
+
+Some unknown -mllvm options (i.e.  those starting with the letter "h")
+don't cause an error to be returned by clang, so the cc-option helper adds
+the unknown hwasan-kernel-mem-intrinsic-prefix=1 flag to CFLAGS with
+compilers that are new enough for hwasan but too old for this option.
+
+This causes a rather unreadable build failure:
+
+fixdep: error opening file: scripts/mod/.empty.o.d: No such file or directory
+make[4]: *** [/home/arnd/arm-soc/scripts/Makefile.build:252: scripts/mod/empty.o] Error 2
+fixdep: error opening file: scripts/mod/.devicetable-offsets.s.d: No such file or directory
+make[4]: *** [/home/arnd/arm-soc/scripts/Makefile.build:114: scripts/mod/devicetable-offsets.s] Error 2
+
+Add a version check to only allow this option with clang-15, gcc-13
+or later versions.
+
+Link: https://lkml.kernel.org/r/20230418122350.1646391-1-arnd@kernel.org
+Fixes: 51287dcb00cc ("kasan: emit different calls for instrumentable memintrinsics")
+Link: https://lore.kernel.org/all/CANpmjNMwYosrvqh4ogDO8rgn+SeDHM2b-shD21wTypm_6MMe=g@mail.gmail.com/
+Signed-off-by: Arnd Bergmann <arnd@arndb.de>
+Reviewed-by: Marco Elver <elver@google.com>
+Reviewed-by: Nathan Chancellor <nathan@kernel.org>
+Cc: Alexander Potapenko <glider@google.com>
+Cc: Andrey Konovalov <andreyknvl@gmail.com>
+Cc: Andrey Ryabinin <ryabinin.a.a@gmail.com>
+Cc: Dmitry Vyukov <dvyukov@google.com>
+Cc: Masahiro Yamada <masahiroy@kernel.org>
+Cc: Michael Ellerman <mpe@ellerman.id.au>
+Cc: Nick Desaulniers <ndesaulniers@google.com>
+Cc: Nicolas Schier <nicolas@fjasle.eu>
+Cc: Peter Zijlstra <peterz@infradead.org>
+Cc: Tom Rix <trix@redhat.com>
+Cc: Vincenzo Frascino <Vincenzo.Frascino@arm.com>
+Signed-off-by: Andrew Morton <akpm@linux-foundation.org>
+---
+ scripts/Makefile.kasan | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/scripts/Makefile.kasan b/scripts/Makefile.kasan
+index c186110ffa209..390658a2d5b74 100644
+--- a/scripts/Makefile.kasan
++++ b/scripts/Makefile.kasan
+@@ -69,7 +69,9 @@ CFLAGS_KASAN := -fsanitize=kernel-hwaddress \
+ 		$(instrumentation_flags)
+ 
+ # Instrument memcpy/memset/memmove calls by using instrumented __hwasan_mem*().
++ifeq ($(call clang-min-version, 150000)$(call gcc-min-version, 130000),y)
+ CFLAGS_KASAN += $(call cc-param,hwasan-kernel-mem-intrinsic-prefix=1)
++endif
+ 
+ endif # CONFIG_KASAN_SW_TAGS
+ 
+-- 
+cgit 
+

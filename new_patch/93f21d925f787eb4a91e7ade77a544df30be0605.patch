@@ -1,0 +1,31 @@
+From 93f21d925f787eb4a91e7ade77a544df30be0605 Mon Sep 17 00:00:00 2001
+From: Konrad Dybcio <konrad.dybcio@linaro.org>
+Date: Wed, 29 Mar 2023 16:01:35 +0200
+Subject: clk: qcom: gpucc-sm6375: Configure CX_GDSC disable wait value
+
+Configure the disable wait value on the CX GDSC to ensure we don't get
+any undefined behavior. This was omitted when first adding the driver.
+
+Fixes: 8397e24278b3 ("clk: qcom: Add GPU clock controller driver for SM6375")
+Signed-off-by: Konrad Dybcio <konrad.dybcio@linaro.org>
+Signed-off-by: Bjorn Andersson <andersson@kernel.org>
+Link: https://lore.kernel.org/r/20230329140135.2178957-1-konrad.dybcio@linaro.org
+---
+ drivers/clk/qcom/gpucc-sm6375.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/drivers/clk/qcom/gpucc-sm6375.c b/drivers/clk/qcom/gpucc-sm6375.c
+index d8f4c4b59f1b1..d3620344a0096 100644
+--- a/drivers/clk/qcom/gpucc-sm6375.c
++++ b/drivers/clk/qcom/gpucc-sm6375.c
+@@ -358,6 +358,7 @@ static struct clk_branch gpucc_sleep_clk = {
+ static struct gdsc gpu_cx_gdsc = {
+ 	.gdscr = 0x106c,
+ 	.gds_hw_ctrl = 0x1540,
++	.clk_dis_wait_val = 8,
+ 	.pd = {
+ 		.name = "gpu_cx_gdsc",
+ 	},
+-- 
+cgit 
+

@@ -1,0 +1,69 @@
+From e94891641c21f607e4d6887bcd3beff882fcc483 Mon Sep 17 00:00:00 2001
+From: "Steven Rostedt (Google)" <rostedt@goodmis.org>
+Date: Tue, 4 Apr 2023 22:21:15 -0400
+Subject: tracing: Fix ftrace_boot_snapshot command line logic
+
+The kernel command line ftrace_boot_snapshot by itself is supposed to
+trigger a snapshot at the end of boot up of the main top level trace
+buffer. A ftrace_boot_snapshot=foo will do the same for an instance called
+foo that was created by trace_instance=foo,...
+
+The logic was broken where if ftrace_boot_snapshot was by itself, it would
+trigger a snapshot for all instances that had tracing enabled, regardless
+if it asked for a snapshot or not.
+
+When a snapshot is requested for a buffer, the buffer's
+tr->allocated_snapshot is set to true. Use that to know if a trace buffer
+wants a snapshot at boot up or not.
+
+Since the top level buffer is part of the ftrace_trace_arrays list,
+there's no reason to treat it differently than the other buffers. Just
+iterate the list if ftrace_boot_snapshot was specified.
+
+Link: https://lkml.kernel.org/r/20230405022341.895334039@goodmis.org
+
+Cc: stable@vger.kernel.org
+Cc: Masami Hiramatsu <mhiramat@kernel.org>
+Cc: Mark Rutland <mark.rutland@arm.com>
+Cc: Andrew Morton <akpm@linux-foundation.org>
+Cc: Ross Zwisler <zwisler@google.com>
+Fixes: 9c1c251d670bc ("tracing: Allow boot instances to have snapshot buffers")
+Signed-off-by: Steven Rostedt (Google) <rostedt@goodmis.org>
+---
+ kernel/trace/trace.c | 13 +++++++------
+ 1 file changed, 7 insertions(+), 6 deletions(-)
+
+diff --git a/kernel/trace/trace.c b/kernel/trace/trace.c
+index ed1d1093f5e9d..4686473b8497b 100644
+--- a/kernel/trace/trace.c
++++ b/kernel/trace/trace.c
+@@ -10393,19 +10393,20 @@ out:
+ 
+ void __init ftrace_boot_snapshot(void)
+ {
++#ifdef CONFIG_TRACER_MAX_TRACE
+ 	struct trace_array *tr;
+ 
+-	if (snapshot_at_boot) {
+-		tracing_snapshot();
+-		internal_trace_puts("** Boot snapshot taken **\n");
+-	}
++	if (!snapshot_at_boot)
++		return;
+ 
+ 	list_for_each_entry(tr, &ftrace_trace_arrays, list) {
+-		if (tr == &global_trace)
++		if (!tr->allocated_snapshot)
+ 			continue;
+-		trace_array_puts(tr, "** Boot snapshot taken **\n");
++
+ 		tracing_snapshot_instance(tr);
++		trace_array_puts(tr, "** Boot snapshot taken **\n");
+ 	}
++#endif
+ }
+ 
+ void __init early_trace_init(void)
+-- 
+cgit 
+

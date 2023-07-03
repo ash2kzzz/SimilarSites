@@ -1,0 +1,35 @@
+From 10e2f328bd900787fd2db24e474f87e1d525ccc4 Mon Sep 17 00:00:00 2001
+From: Adam Ford <aford173@gmail.com>
+Date: Sat, 17 Dec 2022 12:08:49 -0600
+Subject: arm64: dts: imx8mp: Fix power-domain typo
+
+dt_binding_check detects an issue with the pgc_hsiomix power
+domain:
+  pgc: 'power-domains@17' does not match any of the regexes
+
+This is because 'power-domains' should be 'power-domain'
+
+Fixes: 2ae42e0c0b67 ("arm64: dts: imx8mp: add HSIO power-domains")
+Signed-off-by: Adam Ford <aford173@gmail.com>
+Reviewed-by: Laurent Pinchart <laurent.pinchart@ideasonboard.com>
+Signed-off-by: Shawn Guo <shawnguo@kernel.org>
+---
+ arch/arm64/boot/dts/freescale/imx8mp.dtsi | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/arch/arm64/boot/dts/freescale/imx8mp.dtsi b/arch/arm64/boot/dts/freescale/imx8mp.dtsi
+index f26b1b26f4a33..03034b439c1f7 100644
+--- a/arch/arm64/boot/dts/freescale/imx8mp.dtsi
++++ b/arch/arm64/boot/dts/freescale/imx8mp.dtsi
+@@ -591,7 +591,7 @@
+ 						reg = <IMX8MP_POWER_DOMAIN_MIPI_PHY2>;
+ 					};
+ 
+-					pgc_hsiomix: power-domains@17 {
++					pgc_hsiomix: power-domain@17 {
+ 						#power-domain-cells = <0>;
+ 						reg = <IMX8MP_POWER_DOMAIN_HSIOMIX>;
+ 						clocks = <&clk IMX8MP_CLK_HSIO_AXI>,
+-- 
+cgit 
+

@@ -1,0 +1,54 @@
+From 2de43f5b5137e03ef64a2c3f064a01992830c67f Mon Sep 17 00:00:00 2001
+From: Patrisious Haddad <phaddad@nvidia.com>
+Date: Mon, 5 Jun 2023 13:33:21 +0300
+Subject: RDMA/mlx5: Fix Q-counters query in LAG mode
+
+Previously we used the core device associated to the IB device in order
+to do the Q-counters query to the FW, but in LAG mode it is possible
+that the core device isn't the one that created this VF.
+
+Hence instead of using the core device to query the Q-counters
+we use the ESW core device which is guaranteed to be that of the VF.
+
+Fixes: d22467a71ebe ("RDMA/mlx5: Expand switchdev Q-counters to expose representor statistics")
+Signed-off-by: Patrisious Haddad <phaddad@nvidia.com>
+Reviewed-by: Mark Zhang <markzhang@nvidia.com>
+Link: https://lore.kernel.org/r/778d7d7a24892348d0bdef17d2e5f9e044717e86.1685960567.git.leon@kernel.org
+Signed-off-by: Leon Romanovsky <leon@kernel.org>
+---
+ drivers/infiniband/hw/mlx5/counters.c | 7 ++++++-
+ 1 file changed, 6 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/infiniband/hw/mlx5/counters.c b/drivers/infiniband/hw/mlx5/counters.c
+index f40d9c61e30bb..93257fa5aae8e 100644
+--- a/drivers/infiniband/hw/mlx5/counters.c
++++ b/drivers/infiniband/hw/mlx5/counters.c
+@@ -330,6 +330,7 @@ static int mlx5_ib_query_q_counters_vport(struct mlx5_ib_dev *dev,
+ {
+ 	u32 out[MLX5_ST_SZ_DW(query_q_counter_out)] = {};
+ 	u32 in[MLX5_ST_SZ_DW(query_q_counter_in)] = {};
++	struct mlx5_core_dev *mdev;
+ 	__be32 val;
+ 	int ret, i;
+ 
+@@ -337,12 +338,16 @@ static int mlx5_ib_query_q_counters_vport(struct mlx5_ib_dev *dev,
+ 	    dev->port[port_num].rep->vport == MLX5_VPORT_UPLINK)
+ 		return 0;
+ 
++	mdev = mlx5_eswitch_get_core_dev(dev->port[port_num].rep->esw);
++	if (!mdev)
++		return -EOPNOTSUPP;
++
+ 	MLX5_SET(query_q_counter_in, in, opcode, MLX5_CMD_OP_QUERY_Q_COUNTER);
+ 	MLX5_SET(query_q_counter_in, in, other_vport, 1);
+ 	MLX5_SET(query_q_counter_in, in, vport_number,
+ 		 dev->port[port_num].rep->vport);
+ 	MLX5_SET(query_q_counter_in, in, aggregate, 1);
+-	ret = mlx5_cmd_exec_inout(dev->mdev, query_q_counter, in, out);
++	ret = mlx5_cmd_exec_inout(mdev, query_q_counter, in, out);
+ 	if (ret)
+ 		return ret;
+ 
+-- 
+cgit 
+

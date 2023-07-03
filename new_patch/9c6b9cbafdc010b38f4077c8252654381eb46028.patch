@@ -1,0 +1,55 @@
+From 9c6b9cbafdc010b38f4077c8252654381eb46028 Mon Sep 17 00:00:00 2001
+From: Yanguo Li <yanguo.li@corigine.com>
+Date: Tue, 31 Jan 2023 09:03:13 +0100
+Subject: nfp: flower: avoid taking mutex in atomic context
+
+A mutex may sleep, which is not permitted in atomic context.
+Avoid a case where this may arise by moving the to
+nfp_flower_lag_get_info_from_netdev() in nfp_tun_write_neigh() spinlock.
+
+Fixes: abc210952af7 ("nfp: flower: tunnel neigh support bond offload")
+Reported-by: Dan Carpenter <error27@gmail.com>
+Signed-off-by: Yanguo Li <yanguo.li@corigine.com>
+Signed-off-by: Simon Horman <simon.horman@corigine.com>
+Link: https://lore.kernel.org/r/20230131080313.2076060-1-simon.horman@corigine.com
+Signed-off-by: Jakub Kicinski <kuba@kernel.org>
+---
+ drivers/net/ethernet/netronome/nfp/flower/tunnel_conf.c | 8 +++++++-
+ 1 file changed, 7 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/net/ethernet/netronome/nfp/flower/tunnel_conf.c b/drivers/net/ethernet/netronome/nfp/flower/tunnel_conf.c
+index a8678d5612eea..060a77f2265d9 100644
+--- a/drivers/net/ethernet/netronome/nfp/flower/tunnel_conf.c
++++ b/drivers/net/ethernet/netronome/nfp/flower/tunnel_conf.c
+@@ -460,6 +460,7 @@ nfp_tun_write_neigh(struct net_device *netdev, struct nfp_app *app,
+ 			    sizeof(struct nfp_tun_neigh_v4);
+ 	unsigned long cookie = (unsigned long)neigh;
+ 	struct nfp_flower_priv *priv = app->priv;
++	struct nfp_tun_neigh_lag lag_info;
+ 	struct nfp_neigh_entry *nn_entry;
+ 	u32 port_id;
+ 	u8 mtype;
+@@ -468,6 +469,11 @@ nfp_tun_write_neigh(struct net_device *netdev, struct nfp_app *app,
+ 	if (!port_id)
+ 		return;
+ 
++	if ((port_id & NFP_FL_LAG_OUT) == NFP_FL_LAG_OUT) {
++		memset(&lag_info, 0, sizeof(struct nfp_tun_neigh_lag));
++		nfp_flower_lag_get_info_from_netdev(app, netdev, &lag_info);
++	}
++
+ 	spin_lock_bh(&priv->predt_lock);
+ 	nn_entry = rhashtable_lookup_fast(&priv->neigh_table, &cookie,
+ 					  neigh_table_params);
+@@ -515,7 +521,7 @@ nfp_tun_write_neigh(struct net_device *netdev, struct nfp_app *app,
+ 		neigh_ha_snapshot(common->dst_addr, neigh, netdev);
+ 
+ 		if ((port_id & NFP_FL_LAG_OUT) == NFP_FL_LAG_OUT)
+-			nfp_flower_lag_get_info_from_netdev(app, netdev, lag);
++			memcpy(lag, &lag_info, sizeof(struct nfp_tun_neigh_lag));
+ 		common->port_id = cpu_to_be32(port_id);
+ 
+ 		if (rhashtable_insert_fast(&priv->neigh_table,
+-- 
+cgit 
+

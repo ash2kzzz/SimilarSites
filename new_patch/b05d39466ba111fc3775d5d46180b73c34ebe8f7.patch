@@ -1,0 +1,53 @@
+From b05d39466ba111fc3775d5d46180b73c34ebe8f7 Mon Sep 17 00:00:00 2001
+From: Bjorn Andersson <quic_bjorande@quicinc.com>
+Date: Mon, 15 May 2023 09:26:04 -0700
+Subject: leds: qcom-lpg: Fix PWM period limits
+
+The introduction of high resolution PWM support changed the order of the
+operations in the calculation of min and max period. The result in both
+divisions is in most cases a truncation to 0, which limits the period to
+the range of [0, 0].
+
+Both numerators (and denominators) are within 64 bits, so the whole
+expression can be put directly into the div64_u64, instead of doing it
+partially.
+
+Fixes: b00d2ed37617 ("leds: rgb: leds-qcom-lpg: Add support for high resolution PWM")
+Reviewed-by: Caleb Connolly <caleb.connolly@linaro.org>
+Tested-by: Steev Klimaszewski <steev@kali.org>
+Signed-off-by: Bjorn Andersson <quic_bjorande@quicinc.com>
+Acked-by: Lee Jones <lee@kernel.org>
+Tested-by: Johan Hovold <johan+linaro@kernel.org>
+Tested-by: Neil Armstrong <neil.armstrong@linaro.org> # on SM8550-QRD
+Link: https://lore.kernel.org/r/20230515162604.649203-1-quic_bjorande@quicinc.com
+Signed-off-by: Johan Hovold <johan@kernel.org>
+---
+ drivers/leds/rgb/leds-qcom-lpg.c | 8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/leds/rgb/leds-qcom-lpg.c b/drivers/leds/rgb/leds-qcom-lpg.c
+index 55a037234df1b..1c849814a4917 100644
+--- a/drivers/leds/rgb/leds-qcom-lpg.c
++++ b/drivers/leds/rgb/leds-qcom-lpg.c
+@@ -312,14 +312,14 @@ static int lpg_calc_freq(struct lpg_channel *chan, uint64_t period)
+ 		max_res = LPG_RESOLUTION_9BIT;
+ 	}
+ 
+-	min_period = (u64)NSEC_PER_SEC *
+-			div64_u64((1 << pwm_resolution_arr[0]), clk_rate_arr[clk_len - 1]);
++	min_period = div64_u64((u64)NSEC_PER_SEC * (1 << pwm_resolution_arr[0]),
++			       clk_rate_arr[clk_len - 1]);
+ 	if (period <= min_period)
+ 		return -EINVAL;
+ 
+ 	/* Limit period to largest possible value, to avoid overflows */
+-	max_period = (u64)NSEC_PER_SEC * max_res * LPG_MAX_PREDIV *
+-			div64_u64((1 << LPG_MAX_M), 1024);
++	max_period = div64_u64((u64)NSEC_PER_SEC * max_res * LPG_MAX_PREDIV * (1 << LPG_MAX_M),
++			       1024);
+ 	if (period > max_period)
+ 		period = max_period;
+ 
+-- 
+cgit 
+

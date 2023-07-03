@@ -1,0 +1,61 @@
+From b1453d1eb93fd34848082fd181ff247f19c0ee86 Mon Sep 17 00:00:00 2001
+From: Haibo Chen <haibo.chen@nxp.com>
+Date: Sun, 11 Dec 2022 00:05:59 +0200
+Subject: gpio: pca953x: avoid logically dead code
+
+The current code logic make the condition "else if (reg >= 0x54)"
+can't be true, cause the dead code. So fix it to match the coder
+expectation. This is reported by Coverity.
+
+Fixes: 13c5d4ce8060 ("gpio: pca953x: Add support for PCAL6534")
+Signed-off-by: Haibo Chen <haibo.chen@nxp.com>
+Signed-off-by: Andy Shevchenko <andriy.shevchenko@linux.intel.com>
+Signed-off-by: Bartosz Golaszewski <bartosz.golaszewski@linaro.org>
+---
+ drivers/gpio/gpio-pca953x.c | 20 ++++++++++----------
+ 1 file changed, 10 insertions(+), 10 deletions(-)
+
+diff --git a/drivers/gpio/gpio-pca953x.c b/drivers/gpio/gpio-pca953x.c
+index 5299e5bb76d6e..2c8586b3191fd 100644
+--- a/drivers/gpio/gpio-pca953x.c
++++ b/drivers/gpio/gpio-pca953x.c
+@@ -309,26 +309,26 @@ static bool pcal6534_check_register(struct pca953x_chip *chip, unsigned int reg,
+ 	int bank;
+ 	int offset;
+ 
+-	if (reg >= 0x30) {
++	if (reg >= 0x54) {
+ 		/*
+-		 * Reserved block between 14h and 2Fh does not align on
+-		 * expected bank boundaries like other devices.
++		 * Handle lack of reserved registers after output port
++		 * configuration register to form a bank.
+ 		 */
+-		int temp = reg - 0x30;
++		int temp = reg - 0x54;
+ 
+ 		bank = temp / NBANK(chip);
+ 		offset = temp - (bank * NBANK(chip));
+-		bank += 8;
+-	} else if (reg >= 0x54) {
++		bank += 16;
++	} else if (reg >= 0x30) {
+ 		/*
+-		 * Handle lack of reserved registers after output port
+-		 * configuration register to form a bank.
++		 * Reserved block between 14h and 2Fh does not align on
++		 * expected bank boundaries like other devices.
+ 		 */
+-		int temp = reg - 0x54;
++		int temp = reg - 0x30;
+ 
+ 		bank = temp / NBANK(chip);
+ 		offset = temp - (bank * NBANK(chip));
+-		bank += 16;
++		bank += 8;
+ 	} else {
+ 		bank = reg / NBANK(chip);
+ 		offset = reg - (bank * NBANK(chip));
+-- 
+cgit 
+

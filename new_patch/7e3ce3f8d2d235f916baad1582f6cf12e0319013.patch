@@ -1,0 +1,118 @@
+From 7e3ce3f8d2d235f916baad1582f6cf12e0319013 Mon Sep 17 00:00:00 2001
+From: Peter Xu <peterx@redhat.com>
+Date: Wed, 14 Dec 2022 15:04:53 -0500
+Subject: mm: fix a few rare cases of using swapin error pte marker
+
+This patch should harden commit 15520a3f0469 ("mm: use pte markers for
+swap errors") on using pte markers for swapin errors on a few corner
+cases.
+
+1. Propagate swapin errors across fork()s: if there're swapin errors in
+   the parent mm, after fork()s the child should sigbus too when an error
+   page is accessed.
+
+2. Fix a rare condition race in pte_marker_clear() where a uffd-wp pte
+   marker can be quickly switched to a swapin error.
+
+3. Explicitly ignore swapin error pte markers in change_protection().
+
+I mostly don't worry on (2) or (3) at all, but we should still have them.
+Case (1) is special because it can potentially cause silent data corrupt
+on child when parent has swapin error triggered with swapoff, but since
+swapin error is rare itself already it's probably not easy to trigger
+either.
+
+Currently there is a priority difference between the uffd-wp bit and the
+swapin error entry, in which the swapin error always has higher priority
+(e.g.  we don't need to wr-protect a swapin error pte marker).
+
+If there will be a 3rd bit introduced, we'll probably need to consider a
+more involved approach so we may need to start operate on the bits.  Let's
+leave that for later.
+
+This patch is tested with case (1) explicitly where we'll get corrupted
+data before in the child if there's existing swapin error pte markers, and
+after patch applied the child can be rightfully killed.
+
+We don't need to copy stable for this one since 15520a3f0469 just landed
+as part of v6.2-rc1, only "Fixes" applied.
+
+Link: https://lkml.kernel.org/r/20221214200453.1772655-3-peterx@redhat.com
+Fixes: 15520a3f0469 ("mm: use pte markers for swap errors")
+Signed-off-by: Peter Xu <peterx@redhat.com>
+Acked-by: David Hildenbrand <david@redhat.com>
+Reviewed-by: Miaohe Lin <linmiaohe@huawei.com>
+Cc: Andrea Arcangeli <aarcange@redhat.com>
+Cc: "Huang, Ying" <ying.huang@intel.com>
+Cc: Nadav Amit <nadav.amit@gmail.com>
+Cc: Pengfei Xu <pengfei.xu@intel.com>
+Signed-off-by: Andrew Morton <akpm@linux-foundation.org>
+---
+ mm/hugetlb.c  | 3 +++
+ mm/memory.c   | 8 ++++++--
+ mm/mprotect.c | 8 +++++++-
+ 3 files changed, 16 insertions(+), 3 deletions(-)
+
+diff --git a/mm/hugetlb.c b/mm/hugetlb.c
+index 7fcdb98c9e689..bdbfeb6fb3934 100644
+--- a/mm/hugetlb.c
++++ b/mm/hugetlb.c
+@@ -5051,6 +5051,9 @@ again:
+ 				entry = huge_pte_clear_uffd_wp(entry);
+ 			set_huge_pte_at(dst, addr, dst_pte, entry);
+ 		} else if (unlikely(is_pte_marker(entry))) {
++			/* No swap on hugetlb */
++			WARN_ON_ONCE(
++			    is_swapin_error_entry(pte_to_swp_entry(entry)));
+ 			/*
+ 			 * We copy the pte marker only if the dst vma has
+ 			 * uffd-wp enabled.
+diff --git a/mm/memory.c b/mm/memory.c
+index 032ef700c3e8a..3e836fecd0354 100644
+--- a/mm/memory.c
++++ b/mm/memory.c
+@@ -828,7 +828,7 @@ copy_nonpresent_pte(struct mm_struct *dst_mm, struct mm_struct *src_mm,
+ 			return -EBUSY;
+ 		return -ENOENT;
+ 	} else if (is_pte_marker_entry(entry)) {
+-		if (userfaultfd_wp(dst_vma))
++		if (is_swapin_error_entry(entry) || userfaultfd_wp(dst_vma))
+ 			set_pte_at(dst_mm, addr, dst_pte, pte);
+ 		return 0;
+ 	}
+@@ -3625,8 +3625,12 @@ static vm_fault_t pte_marker_clear(struct vm_fault *vmf)
+ 	/*
+ 	 * Be careful so that we will only recover a special uffd-wp pte into a
+ 	 * none pte.  Otherwise it means the pte could have changed, so retry.
++	 *
++	 * This should also cover the case where e.g. the pte changed
++	 * quickly from a PTE_MARKER_UFFD_WP into PTE_MARKER_SWAPIN_ERROR.
++	 * So is_pte_marker() check is not enough to safely drop the pte.
+ 	 */
+-	if (is_pte_marker(*vmf->pte))
++	if (pte_same(vmf->orig_pte, *vmf->pte))
+ 		pte_clear(vmf->vma->vm_mm, vmf->address, vmf->pte);
+ 	pte_unmap_unlock(vmf->pte, vmf->ptl);
+ 	return 0;
+diff --git a/mm/mprotect.c b/mm/mprotect.c
+index 908df12caa268..61cf60015a8b8 100644
+--- a/mm/mprotect.c
++++ b/mm/mprotect.c
+@@ -245,7 +245,13 @@ static unsigned long change_pte_range(struct mmu_gather *tlb,
+ 					newpte = pte_swp_mksoft_dirty(newpte);
+ 				if (pte_swp_uffd_wp(oldpte))
+ 					newpte = pte_swp_mkuffd_wp(newpte);
+-			} else if (pte_marker_entry_uffd_wp(entry)) {
++			} else if (is_pte_marker_entry(entry)) {
++				/*
++				 * Ignore swapin errors unconditionally,
++				 * because any access should sigbus anyway.
++				 */
++				if (is_swapin_error_entry(entry))
++					continue;
+ 				/*
+ 				 * If this is uffd-wp pte marker and we'd like
+ 				 * to unprotect it, drop it; the next page
+-- 
+cgit 
+

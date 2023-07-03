@@ -1,0 +1,32 @@
+From 28af0f009dded735f8d42cc85e95f9c3db212124 Mon Sep 17 00:00:00 2001
+From: Florian Westphal <fw@strlen.de>
+Date: Mon, 23 Jan 2023 13:04:33 +0100
+Subject: netfilter: conntrack: udp: fix seen-reply test
+
+IPS_SEEN_REPLY_BIT is only useful for test_bit() api.
+
+Fixes: 4883ec512c17 ("netfilter: conntrack: avoid reload of ct->status")
+Reported-by: Roi Dayan <roid@nvidia.com>
+Signed-off-by: Florian Westphal <fw@strlen.de>
+Reviewed-by: Roi Dayan <roid@nvidia.com>
+Signed-off-by: Pablo Neira Ayuso <pablo@netfilter.org>
+---
+ net/netfilter/nf_conntrack_proto_udp.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/net/netfilter/nf_conntrack_proto_udp.c b/net/netfilter/nf_conntrack_proto_udp.c
+index 6b9206635b24d..0030fbe8885c5 100644
+--- a/net/netfilter/nf_conntrack_proto_udp.c
++++ b/net/netfilter/nf_conntrack_proto_udp.c
+@@ -104,7 +104,7 @@ int nf_conntrack_udp_packet(struct nf_conn *ct,
+ 	/* If we've seen traffic both ways, this is some kind of UDP
+ 	 * stream. Set Assured.
+ 	 */
+-	if (status & IPS_SEEN_REPLY_BIT) {
++	if (status & IPS_SEEN_REPLY) {
+ 		unsigned long extra = timeouts[UDP_CT_UNREPLIED];
+ 		bool stream = false;
+ 
+-- 
+cgit 
+

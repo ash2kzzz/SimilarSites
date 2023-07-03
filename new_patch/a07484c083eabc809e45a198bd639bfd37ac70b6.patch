@@ -1,0 +1,49 @@
+From a07484c083eabc809e45a198bd639bfd37ac70b6 Mon Sep 17 00:00:00 2001
+From: Bagas Sanjaya <bagasdotme@gmail.com>
+Date: Wed, 22 Feb 2023 15:35:30 +0700
+Subject: bpf, docs: Fix link to BTF doc
+
+Ross reported broken link to BTF documentation
+(Documentation/bpf/btf.rst) in Documentation/bpf/bpf_devel_QA.rst. The
+link in question is written using external link syntax, with the target
+refers to BTF doc in reST source (btf.rst), which doesn't exist in
+resulting HTML output.
+
+Fix the link by replacing external link syntax with simply writing out
+the target doc, which the link will be generated to the correct HTML doc
+target.
+
+Fixes: 6736aa793c2b5f ("selftests/bpf: Add general instructions for test execution")
+Reported-by: Ross Zwisler <zwisler@google.com>
+Signed-off-by: Bagas Sanjaya <bagasdotme@gmail.com>
+Signed-off-by: Daniel Borkmann <daniel@iogearbox.net>
+Acked-by: Ross Zwisler <zwisler@google.com>
+Link: https://lore.kernel.org/linux-doc/Y++09LKx25dtR4Ow@google.com/
+Link: https://lore.kernel.org/bpf/20230222083530.26136-1-bagasdotme@gmail.com
+---
+ Documentation/bpf/bpf_devel_QA.rst | 3 +--
+ 1 file changed, 1 insertion(+), 2 deletions(-)
+
+diff --git a/Documentation/bpf/bpf_devel_QA.rst b/Documentation/bpf/bpf_devel_QA.rst
+index 03d4993eda6f0..715f7321020f2 100644
+--- a/Documentation/bpf/bpf_devel_QA.rst
++++ b/Documentation/bpf/bpf_devel_QA.rst
+@@ -469,7 +469,7 @@ under test should match the config file fragment in
+ tools/testing/selftests/bpf as closely as possible.
+ 
+ Finally to ensure support for latest BPF Type Format features -
+-discussed in `Documentation/bpf/btf.rst`_ - pahole version 1.16
++discussed in Documentation/bpf/btf.rst - pahole version 1.16
+ is required for kernels built with CONFIG_DEBUG_INFO_BTF=y.
+ pahole is delivered in the dwarves package or can be built
+ from source at
+@@ -690,6 +690,5 @@ when:
+    https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/tree/tools/testing/selftests/bpf/
+ .. _Documentation/dev-tools/kselftest.rst:
+    https://www.kernel.org/doc/html/latest/dev-tools/kselftest.html
+-.. _Documentation/bpf/btf.rst: btf.rst
+ 
+ Happy BPF hacking!
+-- 
+cgit 
+

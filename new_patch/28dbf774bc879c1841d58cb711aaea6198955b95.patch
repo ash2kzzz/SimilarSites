@@ -1,0 +1,73 @@
+From 28dbf774bc879c1841d58cb711aaea6198955b95 Mon Sep 17 00:00:00 2001
+From: Piergiorgio Beruto <piergiorgio.beruto@gmail.com>
+Date: Fri, 13 Jan 2023 14:26:35 +0100
+Subject: plca.c: fix obvious mistake in checking retval
+
+Revert a wrong fix that was done during the review process. The
+intention was to substitute "if(ret < 0)" with "if(ret)".
+Unfortunately, the intended fix did not meet the code.
+Besides, after additional review, it was decided that "if(ret < 0)"
+was actually the right thing to do.
+
+Fixes: 8580e16c28f3 ("net/ethtool: add netlink interface for the PLCA RS")
+Signed-off-by: Piergiorgio Beruto <piergiorgio.beruto@gmail.com>
+Reviewed-by: Andrew Lunn <andrew@lunn.ch>
+Reviewed-by: Eric Dumazet <edumazet@google.com>
+Link: https://lore.kernel.org/r/f2277af8951a51cfee2fb905af8d7a812b7beaf4.1673616357.git.piergiorgio.beruto@gmail.com
+Signed-off-by: Jakub Kicinski <kuba@kernel.org>
+---
+ net/ethtool/plca.c | 10 +++++-----
+ 1 file changed, 5 insertions(+), 5 deletions(-)
+
+diff --git a/net/ethtool/plca.c b/net/ethtool/plca.c
+index d9bb13ffc654d..be7404dc9ef22 100644
+--- a/net/ethtool/plca.c
++++ b/net/ethtool/plca.c
+@@ -61,7 +61,7 @@ static int plca_get_cfg_prepare_data(const struct ethnl_req_info *req_base,
+ 	}
+ 
+ 	ret = ethnl_ops_begin(dev);
+-	if (!ret)
++	if (ret < 0)
+ 		goto out;
+ 
+ 	memset(&data->plca_cfg, 0xff,
+@@ -151,7 +151,7 @@ int ethnl_set_plca_cfg(struct sk_buff *skb, struct genl_info *info)
+ 					 tb[ETHTOOL_A_PLCA_HEADER],
+ 					 genl_info_net(info), info->extack,
+ 					 true);
+-	if (!ret)
++	if (ret < 0)
+ 		return ret;
+ 
+ 	dev = req_info.dev;
+@@ -171,7 +171,7 @@ int ethnl_set_plca_cfg(struct sk_buff *skb, struct genl_info *info)
+ 	}
+ 
+ 	ret = ethnl_ops_begin(dev);
+-	if (!ret)
++	if (ret < 0)
+ 		goto out_rtnl;
+ 
+ 	memset(&plca_cfg, 0xff, sizeof(plca_cfg));
+@@ -189,7 +189,7 @@ int ethnl_set_plca_cfg(struct sk_buff *skb, struct genl_info *info)
+ 		goto out_ops;
+ 
+ 	ret = ops->set_plca_cfg(dev->phydev, &plca_cfg, info->extack);
+-	if (!ret)
++	if (ret < 0)
+ 		goto out_ops;
+ 
+ 	ethtool_notify(dev, ETHTOOL_MSG_PLCA_NTF, NULL);
+@@ -233,7 +233,7 @@ static int plca_get_status_prepare_data(const struct ethnl_req_info *req_base,
+ 	}
+ 
+ 	ret = ethnl_ops_begin(dev);
+-	if (!ret)
++	if (ret < 0)
+ 		goto out;
+ 
+ 	memset(&data->plca_st, 0xff,
+-- 
+cgit 
+

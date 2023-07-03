@@ -1,0 +1,55 @@
+From c07deaa1f2bd3fb38a5f52de0f2b44d7fa6e8347 Mon Sep 17 00:00:00 2001
+From: Hans Verkuil <hverkuil-cisco@xs4all.nl>
+Date: Thu, 23 Mar 2023 15:11:20 +0000
+Subject: media: common: saa7146: disable clipping
+
+The patch removing overlay support also removed the old
+saa7146_disable_clipping() function, but that is needed in order
+to capture video. Without this the Hexium cards won't show any
+video.
+
+Signed-off-by: Hans Verkuil <hverkuil-cisco@xs4all.nl>
+Fixes: 7777694f8066 ("media: saa7146: drop overlay support")
+Signed-off-by: Mauro Carvalho Chehab <mchehab@kernel.org>
+---
+ drivers/media/common/saa7146/saa7146_hlp.c | 17 +++++++++++++++++
+ 1 file changed, 17 insertions(+)
+
+diff --git a/drivers/media/common/saa7146/saa7146_hlp.c b/drivers/media/common/saa7146/saa7146_hlp.c
+index 6792a96d0ba34..cb8fc326c0a73 100644
+--- a/drivers/media/common/saa7146/saa7146_hlp.c
++++ b/drivers/media/common/saa7146/saa7146_hlp.c
+@@ -699,6 +699,22 @@ static void program_capture_engine(struct saa7146_dev *dev, int planar)
+ 	WRITE_RPS0(CMD_STOP);
+ }
+ 
++/* disable clipping */
++static void saa7146_disable_clipping(struct saa7146_dev *dev)
++{
++	u32 clip_format	= saa7146_read(dev, CLIP_FORMAT_CTRL);
++
++	/* mask out relevant bits (=lower word)*/
++	clip_format &= MASK_W1;
++
++	/* upload clipping-registers*/
++	saa7146_write(dev, CLIP_FORMAT_CTRL, clip_format);
++	saa7146_write(dev, MC2, (MASK_05 | MASK_21));
++
++	/* disable video dma2 */
++	saa7146_write(dev, MC1, MASK_21);
++}
++
+ void saa7146_set_capture(struct saa7146_dev *dev, struct saa7146_buf *buf, struct saa7146_buf *next)
+ {
+ 	struct saa7146_format *sfmt = saa7146_format_by_fourcc(dev,buf->fmt->pixelformat);
+@@ -716,6 +732,7 @@ void saa7146_set_capture(struct saa7146_dev *dev, struct saa7146_buf *buf, struc
+ 
+ 	saa7146_set_window(dev, buf->fmt->width, buf->fmt->height, buf->fmt->field);
+ 	saa7146_set_output_format(dev, sfmt->trans);
++	saa7146_disable_clipping(dev);
+ 
+ 	if ( vv->last_field == V4L2_FIELD_INTERLACED ) {
+ 	} else if ( vv->last_field == V4L2_FIELD_TOP ) {
+-- 
+cgit 
+

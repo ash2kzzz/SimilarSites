@@ -1,0 +1,48 @@
+From a76e88c2942575bc43ea88d0f05d245b26859130 Mon Sep 17 00:00:00 2001
+From: Dan Carpenter <error27@gmail.com>
+Date: Wed, 18 Jan 2023 13:28:21 +0300
+Subject: net: dsa: microchip: ptp: Fix error code in ksz_hwtstamp_set()
+
+We want to return negative error codes here but the copy_to/from_user()
+functions return the number of bytes remaining to be copied.
+
+Fixes: c59e12a140fb ("net: dsa: microchip: ptp: Initial hardware time stamping support")
+Signed-off-by: Dan Carpenter <error27@gmail.com>
+Reviewed-by: Vladimir Oltean <olteanv@gmail.com>
+Link: https://lore.kernel.org/r/Y8fJxSvbl7UNVHh/@kili
+Signed-off-by: Jakub Kicinski <kuba@kernel.org>
+---
+ drivers/net/dsa/microchip/ksz_ptp.c | 10 ++++++----
+ 1 file changed, 6 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/net/dsa/microchip/ksz_ptp.c b/drivers/net/dsa/microchip/ksz_ptp.c
+index a66a256f88142..4e22a695a64c3 100644
+--- a/drivers/net/dsa/microchip/ksz_ptp.c
++++ b/drivers/net/dsa/microchip/ksz_ptp.c
+@@ -416,9 +416,8 @@ int ksz_hwtstamp_set(struct dsa_switch *ds, int port, struct ifreq *ifr)
+ 
+ 	prt = &dev->ports[port];
+ 
+-	ret = copy_from_user(&config, ifr->ifr_data, sizeof(config));
+-	if (ret)
+-		return ret;
++	if (copy_from_user(&config, ifr->ifr_data, sizeof(config)))
++		return -EFAULT;
+ 
+ 	ret = ksz_set_hwtstamp_config(dev, prt, &config);
+ 	if (ret)
+@@ -426,7 +425,10 @@ int ksz_hwtstamp_set(struct dsa_switch *ds, int port, struct ifreq *ifr)
+ 
+ 	memcpy(&prt->tstamp_config, &config, sizeof(config));
+ 
+-	return copy_to_user(ifr->ifr_data, &config, sizeof(config));
++	if (copy_to_user(ifr->ifr_data, &config, sizeof(config)))
++		return -EFAULT;
++
++	return 0;
+ }
+ 
+ static ktime_t ksz_tstamp_reconstruct(struct ksz_device *dev, ktime_t tstamp)
+-- 
+cgit 
+

@@ -1,0 +1,123 @@
+From 9179f5fe41733ff56f7dfcb83c0c1456f6d2e4ae Mon Sep 17 00:00:00 2001
+From: Vladimir Oltean <vladimir.oltean@nxp.com>
+Date: Wed, 25 Jan 2023 13:02:14 +0200
+Subject: net: ethtool: provide shims for stats aggregation helpers when
+ CONFIG_ETHTOOL_NETLINK=n
+
+ethtool_aggregate_*_stats() are implemented in net/ethtool/stats.c, a
+file which is compiled out when CONFIG_ETHTOOL_NETLINK=n. In order to
+avoid adding Kbuild dependencies from drivers (which call these helpers)
+on CONFIG_ETHTOOL_NETLINK, let's add some shim definitions which simply
+make the helpers dead code.
+
+This means the function prototypes should have been located in
+include/linux/ethtool_netlink.h rather than include/linux/ethtool.h.
+
+Fixes: 449c5459641a ("net: ethtool: add helpers for aggregate statistics")
+Reported-by: kernel test robot <lkp@intel.com>
+Signed-off-by: Vladimir Oltean <vladimir.oltean@nxp.com>
+Reviewed-by: Leon Romanovsky <leonro@nvidia.com>
+Link: https://lore.kernel.org/r/20230125110214.4127759-1-vladimir.oltean@nxp.com
+Signed-off-by: Paolo Abeni <pabeni@redhat.com>
+---
+ drivers/net/ethernet/mscc/ocelot_stats.c |  1 +
+ include/linux/ethtool.h                  | 11 ---------
+ include/linux/ethtool_netlink.h          | 42 ++++++++++++++++++++++++++++++++
+ 3 files changed, 43 insertions(+), 11 deletions(-)
+
+diff --git a/drivers/net/ethernet/mscc/ocelot_stats.c b/drivers/net/ethernet/mscc/ocelot_stats.c
+index f660eef4a2876..bdb893476832b 100644
+--- a/drivers/net/ethernet/mscc/ocelot_stats.c
++++ b/drivers/net/ethernet/mscc/ocelot_stats.c
+@@ -4,6 +4,7 @@
+  * Copyright (c) 2017 Microsemi Corporation
+  * Copyright 2022 NXP
+  */
++#include <linux/ethtool_netlink.h>
+ #include <linux/spinlock.h>
+ #include <linux/mutex.h>
+ #include <linux/workqueue.h>
+diff --git a/include/linux/ethtool.h b/include/linux/ethtool.h
+index 6a8253d3fea82..515c78d8eb7c1 100644
+--- a/include/linux/ethtool.h
++++ b/include/linux/ethtool.h
+@@ -991,17 +991,6 @@ int ethtool_get_phc_vclocks(struct net_device *dev, int **vclock_index);
+ u32 ethtool_op_get_link(struct net_device *dev);
+ int ethtool_op_get_ts_info(struct net_device *dev, struct ethtool_ts_info *eti);
+ 
+-void ethtool_aggregate_mac_stats(struct net_device *dev,
+-				 struct ethtool_eth_mac_stats *mac_stats);
+-void ethtool_aggregate_phy_stats(struct net_device *dev,
+-				 struct ethtool_eth_phy_stats *phy_stats);
+-void ethtool_aggregate_ctrl_stats(struct net_device *dev,
+-				  struct ethtool_eth_ctrl_stats *ctrl_stats);
+-void ethtool_aggregate_pause_stats(struct net_device *dev,
+-				   struct ethtool_pause_stats *pause_stats);
+-void ethtool_aggregate_rmon_stats(struct net_device *dev,
+-				  struct ethtool_rmon_stats *rmon_stats);
+-
+ /**
+  * ethtool_mm_frag_size_add_to_min - Translate (standard) additional fragment
+  *	size expressed as multiplier into (absolute) minimum fragment size
+diff --git a/include/linux/ethtool_netlink.h b/include/linux/ethtool_netlink.h
+index aba348d58ff61..17003b385756b 100644
+--- a/include/linux/ethtool_netlink.h
++++ b/include/linux/ethtool_netlink.h
+@@ -29,6 +29,17 @@ int ethnl_cable_test_amplitude(struct phy_device *phydev, u8 pair, s16 mV);
+ int ethnl_cable_test_pulse(struct phy_device *phydev, u16 mV);
+ int ethnl_cable_test_step(struct phy_device *phydev, u32 first, u32 last,
+ 			  u32 step);
++void ethtool_aggregate_mac_stats(struct net_device *dev,
++				 struct ethtool_eth_mac_stats *mac_stats);
++void ethtool_aggregate_phy_stats(struct net_device *dev,
++				 struct ethtool_eth_phy_stats *phy_stats);
++void ethtool_aggregate_ctrl_stats(struct net_device *dev,
++				  struct ethtool_eth_ctrl_stats *ctrl_stats);
++void ethtool_aggregate_pause_stats(struct net_device *dev,
++				   struct ethtool_pause_stats *pause_stats);
++void ethtool_aggregate_rmon_stats(struct net_device *dev,
++				  struct ethtool_rmon_stats *rmon_stats);
++
+ #else
+ static inline int ethnl_cable_test_alloc(struct phy_device *phydev, u8 cmd)
+ {
+@@ -70,5 +81,36 @@ static inline int ethnl_cable_test_step(struct phy_device *phydev, u32 first,
+ {
+ 	return -EOPNOTSUPP;
+ }
++
++static inline void
++ethtool_aggregate_mac_stats(struct net_device *dev,
++			    struct ethtool_eth_mac_stats *mac_stats)
++{
++}
++
++static inline void
++ethtool_aggregate_phy_stats(struct net_device *dev,
++			    struct ethtool_eth_phy_stats *phy_stats)
++{
++}
++
++static inline void
++ethtool_aggregate_ctrl_stats(struct net_device *dev,
++			     struct ethtool_eth_ctrl_stats *ctrl_stats)
++{
++}
++
++static inline void
++ethtool_aggregate_pause_stats(struct net_device *dev,
++			      struct ethtool_pause_stats *pause_stats)
++{
++}
++
++static inline void
++ethtool_aggregate_rmon_stats(struct net_device *dev,
++			     struct ethtool_rmon_stats *rmon_stats)
++{
++}
++
+ #endif /* IS_ENABLED(CONFIG_ETHTOOL_NETLINK) */
+ #endif /* _LINUX_ETHTOOL_NETLINK_H_ */
+-- 
+cgit 
+

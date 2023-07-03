@@ -1,0 +1,38 @@
+From a49fb7218ed84a4c5e6c56b9fd933498b9730912 Mon Sep 17 00:00:00 2001
+From: Doug Smythies <dsmythies@telus.net>
+Date: Sat, 21 Jan 2023 08:41:35 -0800
+Subject: selftests: amd-pstate: Don't delete source files via Makefile
+
+Revert the portion of a recent Makefile change that incorrectly
+deletes source files when doing "make clean".
+
+Fixes: ba2d788aa873 ("selftests: amd-pstate: Trigger tbench benchmark and test cpus")
+Reported-by: Sedat Dilek <sedat.dilek@gmail.com>
+Tested-by: Sedat Dilek <sedat.dilek@gmail.com>
+Reviewed-by: Sedat Dilek <sedat.dilek@gmail.com>
+Acked-by: Huang Rui <ray.huang@amd.com>
+Signed-off-by: Doug Smythies <dsmythies@telus.net>
+Signed-off-by: Shuah Khan <skhan@linuxfoundation.org>
+---
+ tools/testing/selftests/amd-pstate/Makefile | 5 -----
+ 1 file changed, 5 deletions(-)
+
+diff --git a/tools/testing/selftests/amd-pstate/Makefile b/tools/testing/selftests/amd-pstate/Makefile
+index 5f195ee756d67..5fd1424db37d8 100644
+--- a/tools/testing/selftests/amd-pstate/Makefile
++++ b/tools/testing/selftests/amd-pstate/Makefile
+@@ -7,11 +7,6 @@ all:
+ uname_M := $(shell uname -m 2>/dev/null || echo not)
+ ARCH ?= $(shell echo $(uname_M) | sed -e s/i.86/x86/ -e s/x86_64/x86/)
+ 
+-ifeq (x86,$(ARCH))
+-TEST_GEN_FILES += ../../../power/x86/amd_pstate_tracer/amd_pstate_trace.py
+-TEST_GEN_FILES += ../../../power/x86/intel_pstate_tracer/intel_pstate_tracer.py
+-endif
+-
+ TEST_PROGS := run.sh
+ TEST_FILES := basic.sh tbench.sh gitsource.sh
+ 
+-- 
+cgit 
+

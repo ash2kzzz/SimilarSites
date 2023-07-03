@@ -1,0 +1,35 @@
+From 02f18662f6c671382345fcb696e808d78f4c194a Mon Sep 17 00:00:00 2001
+From: Miquel Raynal <miquel.raynal@bootlin.com>
+Date: Wed, 1 Mar 2023 16:44:50 +0100
+Subject: ieee802154: Prevent user from crashing the host
+
+Avoid crashing the machine by checking
+info->attrs[NL802154_ATTR_SCAN_TYPE] presence before de-referencing it,
+which was the primary intend of the blamed patch.
+
+Reported-by: Sanan Hasanov <sanan.hasanov@Knights.ucf.edu>
+Suggested-by: Eric Dumazet <edumazet@google.com>
+Fixes: a0b6106672b5 ("ieee802154: Convert scan error messages to extack")
+Signed-off-by: Miquel Raynal <miquel.raynal@bootlin.com>
+Link: https://lore.kernel.org/r/20230301154450.547716-1-miquel.raynal@bootlin.com
+Signed-off-by: Stefan Schmidt <stefan@datenfreihafen.org>
+---
+ net/ieee802154/nl802154.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/net/ieee802154/nl802154.c b/net/ieee802154/nl802154.c
+index 2215f576ee378..d8f4379d4fa68 100644
+--- a/net/ieee802154/nl802154.c
++++ b/net/ieee802154/nl802154.c
+@@ -1412,7 +1412,7 @@ static int nl802154_trigger_scan(struct sk_buff *skb, struct genl_info *info)
+ 		return -EOPNOTSUPP;
+ 	}
+ 
+-	if (!nla_get_u8(info->attrs[NL802154_ATTR_SCAN_TYPE])) {
++	if (!info->attrs[NL802154_ATTR_SCAN_TYPE]) {
+ 		NL_SET_ERR_MSG(info->extack, "Malformed request, missing scan type");
+ 		return -EINVAL;
+ 	}
+-- 
+cgit 
+

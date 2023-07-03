@@ -1,0 +1,34 @@
+From 6f098cde9df2c86d60db727d6270272751943674 Mon Sep 17 00:00:00 2001
+From: Manivannan Sadhasivam <manivannan.sadhasivam@linaro.org>
+Date: Tue, 14 Feb 2023 15:11:15 +0530
+Subject: cpufreq: qcom-hw: Add missing null pointer check
+
+of_device_get_match_data() may return NULL, so add a check to prevent
+potential null pointer dereference.
+
+Issue reported by Qualcomm's internal static analysis tool.
+
+Fixes: 4f7961706c63 ("cpufreq: qcom-hw: Move soc_data to struct qcom_cpufreq")
+Signed-off-by: Manivannan Sadhasivam <manivannan.sadhasivam@linaro.org>
+Acked-by: Viresh Kumar <viresh.kumar@linaro.org>
+Signed-off-by: Rafael J. Wysocki <rafael.j.wysocki@intel.com>
+---
+ drivers/cpufreq/qcom-cpufreq-hw.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/drivers/cpufreq/qcom-cpufreq-hw.c b/drivers/cpufreq/qcom-cpufreq-hw.c
+index 957cf6bb8c052..d3f55ca06ed34 100644
+--- a/drivers/cpufreq/qcom-cpufreq-hw.c
++++ b/drivers/cpufreq/qcom-cpufreq-hw.c
+@@ -706,6 +706,8 @@ static int qcom_cpufreq_hw_driver_probe(struct platform_device *pdev)
+ 		return -ENOMEM;
+ 
+ 	qcom_cpufreq.soc_data = of_device_get_match_data(dev);
++	if (!qcom_cpufreq.soc_data)
++		return -ENODEV;
+ 
+ 	clk_data = devm_kzalloc(dev, struct_size(clk_data, hws, num_domains), GFP_KERNEL);
+ 	if (!clk_data)
+-- 
+cgit 
+

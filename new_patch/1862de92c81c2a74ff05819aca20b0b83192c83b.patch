@@ -1,0 +1,59 @@
+From 1862de92c81c2a74ff05819aca20b0b83192c83b Mon Sep 17 00:00:00 2001
+From: Tariq Toukan <tariqt@nvidia.com>
+Date: Thu, 23 Feb 2023 09:26:56 +0200
+Subject: netdev-genl: fix repeated typo oflloading -> offloading
+
+Fix a repeated copy/paste typo.
+
+Fixes: d3d854fd6a1d ("netdev-genl: create a simple family for netdev stuff")
+Signed-off-by: Tariq Toukan <tariqt@nvidia.com>
+Acked-by: Lorenzo Bianconi <lorenzo@kernel.org>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ Documentation/netlink/specs/netdev.yaml | 2 +-
+ include/uapi/linux/netdev.h             | 2 +-
+ tools/include/uapi/linux/netdev.h       | 2 +-
+ 3 files changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/Documentation/netlink/specs/netdev.yaml b/Documentation/netlink/specs/netdev.yaml
+index b4dcdae54ffd2..cffef09729f15 100644
+--- a/Documentation/netlink/specs/netdev.yaml
++++ b/Documentation/netlink/specs/netdev.yaml
+@@ -28,7 +28,7 @@ definitions:
+       -
+         name: hw-offload
+         doc:
+-         This feature informs if netdev supports XDP hw oflloading.
++         This feature informs if netdev supports XDP hw offloading.
+       -
+         name: rx-sg
+         doc:
+diff --git a/include/uapi/linux/netdev.h b/include/uapi/linux/netdev.h
+index 9ee4598726008..588391447bfb0 100644
+--- a/include/uapi/linux/netdev.h
++++ b/include/uapi/linux/netdev.h
+@@ -19,7 +19,7 @@
+  * @NETDEV_XDP_ACT_XSK_ZEROCOPY: This feature informs if netdev supports AF_XDP
+  *   in zero copy mode.
+  * @NETDEV_XDP_ACT_HW_OFFLOAD: This feature informs if netdev supports XDP hw
+- *   oflloading.
++ *   offloading.
+  * @NETDEV_XDP_ACT_RX_SG: This feature informs if netdev implements non-linear
+  *   XDP buffer support in the driver napi callback.
+  * @NETDEV_XDP_ACT_NDO_XMIT_SG: This feature informs if netdev implements
+diff --git a/tools/include/uapi/linux/netdev.h b/tools/include/uapi/linux/netdev.h
+index 9ee4598726008..588391447bfb0 100644
+--- a/tools/include/uapi/linux/netdev.h
++++ b/tools/include/uapi/linux/netdev.h
+@@ -19,7 +19,7 @@
+  * @NETDEV_XDP_ACT_XSK_ZEROCOPY: This feature informs if netdev supports AF_XDP
+  *   in zero copy mode.
+  * @NETDEV_XDP_ACT_HW_OFFLOAD: This feature informs if netdev supports XDP hw
+- *   oflloading.
++ *   offloading.
+  * @NETDEV_XDP_ACT_RX_SG: This feature informs if netdev implements non-linear
+  *   XDP buffer support in the driver napi callback.
+  * @NETDEV_XDP_ACT_NDO_XMIT_SG: This feature informs if netdev implements
+-- 
+cgit 
+

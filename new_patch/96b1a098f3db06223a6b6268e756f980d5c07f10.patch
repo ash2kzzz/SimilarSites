@@ -1,0 +1,53 @@
+From 96b1a098f3db06223a6b6268e756f980d5c07f10 Mon Sep 17 00:00:00 2001
+From: Jesper Dangaard Brouer <brouer@redhat.com>
+Date: Wed, 12 Apr 2023 21:48:50 +0200
+Subject: veth: bpf_xdp_metadata_rx_hash add xdp rss hash type
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Update API for bpf_xdp_metadata_rx_hash() with arg for xdp rss hash type.
+
+The veth driver currently only support XDP-hints based on SKB code path.
+The SKB have lost information about the RSS hash type, by compressing
+the information down to a single bitfield skb->l4_hash, that only knows
+if this was a L4 hash value.
+
+In preparation for veth, the xdp_rss_hash_type have an L4 indication
+bit that allow us to return a meaningful L4 indication when working
+with SKB based packets.
+
+Fixes: 306531f0249f ("veth: Support RX XDP metadata")
+Signed-off-by: Jesper Dangaard Brouer <brouer@redhat.com>
+Acked-by: Toke Høiland-Jørgensen <toke@redhat.com>
+Acked-by: Stanislav Fomichev <sdf@google.com>
+Link: https://lore.kernel.org/r/168132893055.340624.16209448340644513469.stgit@firesoul
+Signed-off-by: Alexei Starovoitov <ast@kernel.org>
+---
+ drivers/net/veth.c | 7 +++++--
+ 1 file changed, 5 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/net/veth.c b/drivers/net/veth.c
+index 424e8876a16b6..e1b38fbf1dd95 100644
+--- a/drivers/net/veth.c
++++ b/drivers/net/veth.c
+@@ -1652,11 +1652,14 @@ static int veth_xdp_rx_hash(const struct xdp_md *ctx, u32 *hash,
+ 			    enum xdp_rss_hash_type *rss_type)
+ {
+ 	struct veth_xdp_buff *_ctx = (void *)ctx;
++	struct sk_buff *skb = _ctx->skb;
+ 
+-	if (!_ctx->skb)
++	if (!skb)
+ 		return -ENODATA;
+ 
+-	*hash = skb_get_hash(_ctx->skb);
++	*hash = skb_get_hash(skb);
++	*rss_type = skb->l4_hash ? XDP_RSS_TYPE_L4_ANY : XDP_RSS_TYPE_NONE;
++
+ 	return 0;
+ }
+ 
+-- 
+cgit 
+

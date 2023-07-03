@@ -1,0 +1,35 @@
+From e07fec475cc86ce6ded82908df1d511edc3303b7 Mon Sep 17 00:00:00 2001
+From: Sandeep Dhavale <dhavale@google.com>
+Date: Sat, 1 Apr 2023 06:05:09 +0000
+Subject: usb: gadgetfs: Fix ep_read_iter to handle ITER_UBUF
+
+iov_iter for ep_read_iter can be ITER_UBUF with io_uring.
+In that case dup_iter() does not have to allocate iov and it can
+return NULL. Fix the assumption by checking for iter_is_ubuf()
+other wise ep_read_iter can treat this as failure and return -ENOMEM.
+
+Fixes: 1e23db450cff ("io_uring: use iter_ubuf for single range imports")
+Signed-off-by: Sandeep Dhavale <dhavale@google.com>
+Acked-by: Jens Axboe <axboe@kernel.dk>
+Link: https://lore.kernel.org/r/20230401060509.3608259-3-dhavale@google.com
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+---
+ drivers/usb/gadget/legacy/inode.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/usb/gadget/legacy/inode.c b/drivers/usb/gadget/legacy/inode.c
+index d605bc2e7e8fd..28249d0bf0629 100644
+--- a/drivers/usb/gadget/legacy/inode.c
++++ b/drivers/usb/gadget/legacy/inode.c
+@@ -614,7 +614,7 @@ ep_read_iter(struct kiocb *iocb, struct iov_iter *to)
+ 		if (!priv)
+ 			goto fail;
+ 		priv->to_free = dup_iter(&priv->to, to, GFP_KERNEL);
+-		if (!priv->to_free) {
++		if (!iter_is_ubuf(&priv->to) && !priv->to_free) {
+ 			kfree(priv);
+ 			goto fail;
+ 		}
+-- 
+cgit 
+

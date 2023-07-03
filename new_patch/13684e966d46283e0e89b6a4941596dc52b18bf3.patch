@@ -1,0 +1,53 @@
+From 13684e966d46283e0e89b6a4941596dc52b18bf3 Mon Sep 17 00:00:00 2001
+From: Geert Uytterhoeven <geert+renesas@glider.be>
+Date: Wed, 15 Mar 2023 15:28:17 +0100
+Subject: lib: dhry: fix unstable smp_processor_id(_) usage
+
+When running the in-kernel Dhrystone benchmark with
+CONFIG_DEBUG_PREEMPT=y:
+
+    BUG: using smp_processor_id() in preemptible [00000000] code: bash/938
+
+Fix this by not using smp_processor_id() directly, but instead wrapping
+the whole benchmark inside a get_cpu()/put_cpu() pair.  This makes sure
+the whole benchmark is run on the same CPU core, and the reported values
+are consistent.
+
+Link: https://lkml.kernel.org/r/b0d29932bb24ad82cea7f821e295c898e9657be0.1678890070.git.geert+renesas@glider.be
+Fixes: d5528cc16893f1f6 ("lib: add Dhrystone benchmark test")
+Signed-off-by: Geert Uytterhoeven <geert+renesas@glider.be>
+Reported-by: Tobias Klausmann <klausman@schwarzvogel.de>
+  Link: https://bugzilla.kernel.org/show_bug.cgi?id=217179
+Signed-off-by: Andrew Morton <akpm@linux-foundation.org>
+---
+ lib/dhry_run.c | 6 ++++--
+ 1 file changed, 4 insertions(+), 2 deletions(-)
+
+diff --git a/lib/dhry_run.c b/lib/dhry_run.c
+index f9d33efa6d090..f15ac666e9d38 100644
+--- a/lib/dhry_run.c
++++ b/lib/dhry_run.c
+@@ -31,6 +31,7 @@ MODULE_PARM_DESC(iterations,
+ 
+ static void dhry_benchmark(void)
+ {
++	unsigned int cpu = get_cpu();
+ 	int i, n;
+ 
+ 	if (iterations > 0) {
+@@ -45,9 +46,10 @@ static void dhry_benchmark(void)
+ 	}
+ 
+ report:
++	put_cpu();
+ 	if (n >= 0)
+-		pr_info("CPU%u: Dhrystones per Second: %d (%d DMIPS)\n",
+-			smp_processor_id(), n, n / DHRY_VAX);
++		pr_info("CPU%u: Dhrystones per Second: %d (%d DMIPS)\n", cpu,
++			n, n / DHRY_VAX);
+ 	else if (n == -EAGAIN)
+ 		pr_err("Please increase the number of iterations\n");
+ 	else
+-- 
+cgit 
+

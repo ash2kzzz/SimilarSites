@@ -1,0 +1,49 @@
+From 9f6c6ad161f1af37548a6b80fb15710998ccfd1e Mon Sep 17 00:00:00 2001
+From: Lorenzo Stoakes <lstoakes@gmail.com>
+Date: Wed, 24 May 2023 09:24:24 +0100
+Subject: lib/test_vmalloc.c: avoid garbage in page array
+
+It turns out that alloc_pages_bulk_array() does not treat the page_array
+parameter as an output parameter, but rather reads the array and skips any
+entries that have already been allocated.
+
+This is somewhat unexpected and breaks this test, as we allocate the pages
+array uninitialised on the assumption it will be overwritten.
+
+As a result, the test was referencing uninitialised data and causing the
+PFN to not be valid and thus a WARN_ON() followed by a null pointer deref
+and panic.
+
+In addition, this is an array of pointers not of struct page objects, so we
+need only allocate an array with elements of pointer size.
+
+We solve both problems by simply using kcalloc() and referencing
+sizeof(struct page *) rather than sizeof(struct page).
+
+Link: https://lkml.kernel.org/r/20230524082424.10022-1-lstoakes@gmail.com
+Fixes: 869cb29a61a1 ("lib/test_vmalloc.c: add vm_map_ram()/vm_unmap_ram() test case")
+Signed-off-by: Lorenzo Stoakes <lstoakes@gmail.com>
+Reviewed-by: Uladzislau Rezki (Sony) <urezki@gmail.com>
+Reviewed-by: Baoquan He <bhe@redhat.com>
+Cc: Christoph Hellwig <hch@infradead.org>
+Signed-off-by: Andrew Morton <akpm@linux-foundation.org>
+---
+ lib/test_vmalloc.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/lib/test_vmalloc.c b/lib/test_vmalloc.c
+index 9dd9745d365f7..3718d9886407d 100644
+--- a/lib/test_vmalloc.c
++++ b/lib/test_vmalloc.c
+@@ -369,7 +369,7 @@ vm_map_ram_test(void)
+ 	int i;
+ 
+ 	map_nr_pages = nr_pages > 0 ? nr_pages:1;
+-	pages = kmalloc(map_nr_pages * sizeof(struct page), GFP_KERNEL);
++	pages = kcalloc(map_nr_pages, sizeof(struct page *), GFP_KERNEL);
+ 	if (!pages)
+ 		return -1;
+ 
+-- 
+cgit 
+

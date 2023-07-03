@@ -1,0 +1,52 @@
+From ef1a99c65edb504c509a5c4aa865830867df6e7b Mon Sep 17 00:00:00 2001
+From: Vladimir Oltean <vladimir.oltean@nxp.com>
+Date: Fri, 24 Feb 2023 17:52:35 +0200
+Subject: net: mscc: ocelot: fix duplicate driver name error
+
+When compiling a kernel which has both CONFIG_NET_DSA_MSCC_OCELOT_EXT
+and CONFIG_MSCC_OCELOT_SWITCH enabled, the following error message will
+be printed:
+
+[    5.266588] Error: Driver 'ocelot-switch' is already registered, aborting...
+
+Rename the ocelot_ext.c driver to "ocelot-ext-switch" to avoid the name
+duplication, and update the mfd_cell entry for its resources.
+
+Fixes: 3d7316ac81ac ("net: dsa: ocelot: add external ocelot switch control")
+Signed-off-by: Vladimir Oltean <vladimir.oltean@nxp.com>
+Reviewed-by: Florian Fainelli <f.fainelli@gmail.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ drivers/mfd/ocelot-core.c           | 2 +-
+ drivers/net/dsa/ocelot/ocelot_ext.c | 2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/mfd/ocelot-core.c b/drivers/mfd/ocelot-core.c
+index b0ff05c1759f7..e1772ff00cadb 100644
+--- a/drivers/mfd/ocelot-core.c
++++ b/drivers/mfd/ocelot-core.c
+@@ -177,7 +177,7 @@ static const struct mfd_cell vsc7512_devs[] = {
+ 		.num_resources = ARRAY_SIZE(vsc7512_miim1_resources),
+ 		.resources = vsc7512_miim1_resources,
+ 	}, {
+-		.name = "ocelot-switch",
++		.name = "ocelot-ext-switch",
+ 		.of_compatible = "mscc,vsc7512-switch",
+ 		.num_resources = ARRAY_SIZE(vsc7512_switch_resources),
+ 		.resources = vsc7512_switch_resources,
+diff --git a/drivers/net/dsa/ocelot/ocelot_ext.c b/drivers/net/dsa/ocelot/ocelot_ext.c
+index 14efa6387bd73..52b41db63a28f 100644
+--- a/drivers/net/dsa/ocelot/ocelot_ext.c
++++ b/drivers/net/dsa/ocelot/ocelot_ext.c
+@@ -149,7 +149,7 @@ MODULE_DEVICE_TABLE(of, ocelot_ext_switch_of_match);
+ 
+ static struct platform_driver ocelot_ext_switch_driver = {
+ 	.driver = {
+-		.name = "ocelot-switch",
++		.name = "ocelot-ext-switch",
+ 		.of_match_table = of_match_ptr(ocelot_ext_switch_of_match),
+ 	},
+ 	.probe = ocelot_ext_probe,
+-- 
+cgit 
+

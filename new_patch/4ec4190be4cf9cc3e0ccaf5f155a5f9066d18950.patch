@@ -1,0 +1,68 @@
+From 4ec4190be4cf9cc3e0ccaf5f155a5f9066d18950 Mon Sep 17 00:00:00 2001
+From: Marco Elver <elver@google.com>
+Date: Fri, 24 Feb 2023 09:59:42 +0100
+Subject: kasan, x86: don't rename memintrinsics in uninstrumented files
+
+Now that memcpy/memset/memmove are no longer overridden by KASAN, we can
+just use the normal symbol names in uninstrumented files.
+
+Drop the preprocessor redefinitions.
+
+Link: https://lkml.kernel.org/r/20230224085942.1791837-4-elver@google.com
+Fixes: 69d4c0d32186 ("entry, kasan, x86: Disallow overriding mem*() functions")
+Signed-off-by: Marco Elver <elver@google.com>
+Reviewed-by: Andrey Konovalov <andreyknvl@gmail.com>
+Cc: Alexander Potapenko <glider@google.com>
+Cc: Andrey Ryabinin <ryabinin.a.a@gmail.com>
+Cc: Borislav Petkov (AMD) <bp@alien8.de>
+Cc: Dave Hansen <dave.hansen@linux.intel.com>
+Cc: Dmitry Vyukov <dvyukov@google.com>
+Cc: Ingo Molnar <mingo@redhat.com>
+Cc: Jakub Jelinek <jakub@redhat.com>
+Cc: Kees Cook <keescook@chromium.org>
+Cc: Linux Kernel Functional Testing <lkft@linaro.org>
+Cc: Naresh Kamboju <naresh.kamboju@linaro.org>
+Cc: Nathan Chancellor <nathan@kernel.org>
+Cc: Nick Desaulniers <ndesaulniers@google.com>
+Cc: Nicolas Schier <nicolas@fjasle.eu>
+Cc: Peter Zijlstra (Intel) <peterz@infradead.org>
+Cc: Thomas Gleixner <tglx@linutronix.de>
+Cc: Vincenzo Frascino <vincenzo.frascino@arm.com>
+Signed-off-by: Andrew Morton <akpm@linux-foundation.org>
+---
+ arch/x86/include/asm/string_64.h | 19 -------------------
+ 1 file changed, 19 deletions(-)
+
+diff --git a/arch/x86/include/asm/string_64.h b/arch/x86/include/asm/string_64.h
+index 888731ccf1f67..c1e14cee0722d 100644
+--- a/arch/x86/include/asm/string_64.h
++++ b/arch/x86/include/asm/string_64.h
+@@ -85,25 +85,6 @@ char *strcpy(char *dest, const char *src);
+ char *strcat(char *dest, const char *src);
+ int strcmp(const char *cs, const char *ct);
+ 
+-#if (defined(CONFIG_KASAN) && !defined(__SANITIZE_ADDRESS__))
+-/*
+- * For files that not instrumented (e.g. mm/slub.c) we
+- * should use not instrumented version of mem* functions.
+- */
+-
+-#undef memcpy
+-#define memcpy(dst, src, len) __memcpy(dst, src, len)
+-#undef memmove
+-#define memmove(dst, src, len) __memmove(dst, src, len)
+-#undef memset
+-#define memset(s, c, n) __memset(s, c, n)
+-
+-#ifndef __NO_FORTIFY
+-#define __NO_FORTIFY /* FORTIFY_SOURCE uses __builtin_memcpy, etc. */
+-#endif
+-
+-#endif
+-
+ #ifdef CONFIG_ARCH_HAS_UACCESS_FLUSHCACHE
+ #define __HAVE_ARCH_MEMCPY_FLUSHCACHE 1
+ void __memcpy_flushcache(void *dst, const void *src, size_t cnt);
+-- 
+cgit 
+

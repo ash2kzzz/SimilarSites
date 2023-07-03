@@ -1,0 +1,173 @@
+From 19398821b25a9cde564265262e680ae1c2351be7 Mon Sep 17 00:00:00 2001
+From: Dan Williams <dan.j.williams@intel.com>
+Date: Fri, 20 Jan 2023 16:26:12 -0800
+Subject: cxl/pmem: Fix nvdimm unregistration when cxl_pmem driver is absent
+
+The cxl_pmem.ko module houses the driver for both cxl_nvdimm_bridge
+objects and cxl_nvdimm objects. When the core creates a cxl_nvdimm it
+arranges for it to be autoremoved when the bridge goes down. However, if
+the bridge never initialized because the cxl_pmem.ko module never
+loaded, it sets up a the following crash scenario:
+
+    BUG: kernel NULL pointer dereference, address: 0000000000000478
+    [..]
+    RIP: 0010:cxl_nvdimm_probe+0x99/0x140 [cxl_pmem]
+    [..]
+    Call Trace:
+     <TASK>
+     cxl_bus_probe+0x17/0x50 [cxl_core]
+     really_probe+0xde/0x380
+     __driver_probe_device+0x78/0x170
+     driver_probe_device+0x1f/0x90
+     __driver_attach+0xd2/0x1c0
+     bus_for_each_dev+0x79/0xc0
+     bus_add_driver+0x1b1/0x200
+     driver_register+0x89/0xe0
+     cxl_pmem_init+0x50/0xff0 [cxl_pmem]
+
+It turns out the recent rework to simplify nvdimm probing obviated the
+need to unregister cxl_nvdimm objects at cxl_nvdimm_bridge ->remove()
+time. Leave the cxl_nvdimm device registered until the hosting
+cxl_memdev departs. The alternative is that the cxl_memdev needs to be
+reattached whenever the cxl_nvdimm_bridge attach state cycles, which is
+awkward and unnecessary.
+
+The only requirement is to make sure that when the cxl_nvdimm_bridge
+goes away any dependent cxl_nvdimm objects are shutdown. Handle that in
+unregister_nvdimm_bus().
+
+With these registration entanglements removed there is no longer a need
+to pre-load the cxl_pmem module in cxl_acpi.
+
+Fixes: cb9cfff82f6a ("cxl/acpi: Simplify cxl_nvdimm_bridge probing")
+Reported-by: Gregory Price <gregory.price@memverge.com>
+Debugged-by: Jonathan Cameron <Jonathan.Cameron@huawei.com>
+Tested-by: Jonathan Cameron <Jonathan.Cameron@huawei.com>
+Reviewed-by: Jonathan Cameron <Jonathan.Cameron@huawei.com>
+Reviewed-by: Dave Jiang <dave.jiang@intel.com>
+Link: https://lore.kernel.org/r/167426077263.3955046.9695309346988027311.stgit@dwillia2-xfh.jf.intel.com
+Signed-off-by: Dan Williams <dan.j.williams@intel.com>
+---
+ drivers/cxl/acpi.c      |  1 -
+ drivers/cxl/core/pmem.c | 42 ++++--------------------------------------
+ drivers/cxl/pmem.c      | 24 ++++++++++++++++++++++++
+ 3 files changed, 28 insertions(+), 39 deletions(-)
+
+diff --git a/drivers/cxl/acpi.c b/drivers/cxl/acpi.c
+index ad0849af42d79..13cde44c60860 100644
+--- a/drivers/cxl/acpi.c
++++ b/drivers/cxl/acpi.c
+@@ -736,4 +736,3 @@ module_exit(cxl_acpi_exit);
+ MODULE_LICENSE("GPL v2");
+ MODULE_IMPORT_NS(CXL);
+ MODULE_IMPORT_NS(ACPI);
+-MODULE_SOFTDEP("pre: cxl_pmem");
+diff --git a/drivers/cxl/core/pmem.c b/drivers/cxl/core/pmem.c
+index f3d2169b67311..c2e4b10937884 100644
+--- a/drivers/cxl/core/pmem.c
++++ b/drivers/cxl/core/pmem.c
+@@ -227,34 +227,16 @@ static struct cxl_nvdimm *cxl_nvdimm_alloc(struct cxl_nvdimm_bridge *cxl_nvb,
+ 	return cxl_nvd;
+ }
+ 
+-static void cxl_nvd_unregister(void *_cxl_nvd)
++static void cxlmd_release_nvdimm(void *_cxlmd)
+ {
+-	struct cxl_nvdimm *cxl_nvd = _cxl_nvd;
+-	struct cxl_memdev *cxlmd = cxl_nvd->cxlmd;
++	struct cxl_memdev *cxlmd = _cxlmd;
++	struct cxl_nvdimm *cxl_nvd = cxlmd->cxl_nvd;
+ 	struct cxl_nvdimm_bridge *cxl_nvb = cxlmd->cxl_nvb;
+ 
+-	/*
+-	 * Either the bridge is in ->remove() context under the device_lock(),
+-	 * or cxlmd_release_nvdimm() is cancelling the bridge's release action
+-	 * for @cxl_nvd and doing it itself (while manually holding the bridge
+-	 * lock).
+-	 */
+-	device_lock_assert(&cxl_nvb->dev);
+ 	cxl_nvd->cxlmd = NULL;
+ 	cxlmd->cxl_nvd = NULL;
++	cxlmd->cxl_nvb = NULL;
+ 	device_unregister(&cxl_nvd->dev);
+-}
+-
+-static void cxlmd_release_nvdimm(void *_cxlmd)
+-{
+-	struct cxl_memdev *cxlmd = _cxlmd;
+-	struct cxl_nvdimm_bridge *cxl_nvb = cxlmd->cxl_nvb;
+-
+-	device_lock(&cxl_nvb->dev);
+-	if (cxlmd->cxl_nvd)
+-		devm_release_action(&cxl_nvb->dev, cxl_nvd_unregister,
+-				    cxlmd->cxl_nvd);
+-	device_unlock(&cxl_nvb->dev);
+ 	put_device(&cxl_nvb->dev);
+ }
+ 
+@@ -293,22 +275,6 @@ int devm_cxl_add_nvdimm(struct cxl_memdev *cxlmd)
+ 
+ 	dev_dbg(&cxlmd->dev, "register %s\n", dev_name(dev));
+ 
+-	/*
+-	 * The two actions below arrange for @cxl_nvd to be deleted when either
+-	 * the top-level PMEM bridge goes down, or the endpoint device goes
+-	 * through ->remove().
+-	 */
+-	device_lock(&cxl_nvb->dev);
+-	if (cxl_nvb->dev.driver)
+-		rc = devm_add_action_or_reset(&cxl_nvb->dev, cxl_nvd_unregister,
+-					      cxl_nvd);
+-	else
+-		rc = -ENXIO;
+-	device_unlock(&cxl_nvb->dev);
+-
+-	if (rc)
+-		goto err_alloc;
+-
+ 	/* @cxlmd carries a reference on @cxl_nvb until cxlmd_release_nvdimm */
+ 	return devm_add_action_or_reset(&cxlmd->dev, cxlmd_release_nvdimm, cxlmd);
+ 
+diff --git a/drivers/cxl/pmem.c b/drivers/cxl/pmem.c
+index eedefebc42839..08bbbac9a6d08 100644
+--- a/drivers/cxl/pmem.c
++++ b/drivers/cxl/pmem.c
+@@ -225,11 +225,35 @@ static int cxl_pmem_ctl(struct nvdimm_bus_descriptor *nd_desc,
+ 	return cxl_pmem_nvdimm_ctl(nvdimm, cmd, buf, buf_len);
+ }
+ 
++static int detach_nvdimm(struct device *dev, void *data)
++{
++	struct cxl_nvdimm *cxl_nvd;
++	bool release = false;
++
++	if (!is_cxl_nvdimm(dev))
++		return 0;
++
++	device_lock(dev);
++	if (!dev->driver)
++		goto out;
++
++	cxl_nvd = to_cxl_nvdimm(dev);
++	if (cxl_nvd->cxlmd && cxl_nvd->cxlmd->cxl_nvb == data)
++		release = true;
++out:
++	device_unlock(dev);
++	if (release)
++		device_release_driver(dev);
++	return 0;
++}
++
+ static void unregister_nvdimm_bus(void *_cxl_nvb)
+ {
+ 	struct cxl_nvdimm_bridge *cxl_nvb = _cxl_nvb;
+ 	struct nvdimm_bus *nvdimm_bus = cxl_nvb->nvdimm_bus;
+ 
++	bus_for_each_dev(&cxl_bus_type, NULL, cxl_nvb, detach_nvdimm);
++
+ 	cxl_nvb->nvdimm_bus = NULL;
+ 	nvdimm_bus_unregister(nvdimm_bus);
+ }
+-- 
+cgit 
+

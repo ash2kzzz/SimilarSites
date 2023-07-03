@@ -1,0 +1,69 @@
+From e53de7b65a3ca59af268c78df2d773f277f717fd Mon Sep 17 00:00:00 2001
+From: Namhyung Kim <namhyung@kernel.org>
+Date: Thu, 27 Apr 2023 16:48:32 -0700
+Subject: perf lock contention: Fix struct rq lock access
+
+The BPF CO-RE's ignore suffix rule requires three underscores.
+Otherwise it'd fail like below:
+
+  $ sudo perf lock contention -ab
+  libbpf: prog 'collect_lock_syms': BPF program load failed: Invalid argument
+  libbpf: prog 'collect_lock_syms': -- BEGIN PROG LOAD LOG --
+  reg type unsupported for arg#0 function collect_lock_syms#380
+  ; int BPF_PROG(collect_lock_syms)
+  0: (b7) r6 = 0                        ; R6_w=0
+  1: (b7) r7 = 0                        ; R7_w=0
+  2: (b7) r9 = 1                        ; R9_w=1
+  3: <invalid CO-RE relocation>
+  failed to resolve CO-RE relocation <byte_off> [381] struct rq__new.__lock (0:0 @ offset 0)
+
+Fixes: 0c1228486befa3d6 ("perf lock contention: Support pre-5.14 kernels")
+Signed-off-by: Namhyung Kim <namhyung@kernel.org>
+Acked-by: Ian Rogers <irogers@google.com>
+Cc: Adrian Hunter <adrian.hunter@intel.com>
+Cc: Andrii Nakryiko <andrii@kernel.org>
+Cc: Hao Luo <haoluo@google.com>
+Cc: Ian Rogers <irogers@google.com>
+Cc: Ingo Molnar <mingo@kernel.org>
+Cc: Jiri Olsa <jolsa@kernel.org>
+Cc: Peter Zijlstra <peterz@infradead.org>
+Cc: Song Liu <song@kernel.org>
+Cc: bpf@vger.kernel.org
+Link: https://lore.kernel.org/r/20230427234833.1576130-1-namhyung@kernel.org
+Signed-off-by: Arnaldo Carvalho de Melo <acme@redhat.com>
+---
+ tools/perf/util/bpf_skel/lock_contention.bpf.c | 8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/tools/perf/util/bpf_skel/lock_contention.bpf.c b/tools/perf/util/bpf_skel/lock_contention.bpf.c
+index 8911e2a077d8c..30c193078bdb8 100644
+--- a/tools/perf/util/bpf_skel/lock_contention.bpf.c
++++ b/tools/perf/util/bpf_skel/lock_contention.bpf.c
+@@ -418,11 +418,11 @@ int contention_end(u64 *ctx)
+ 
+ extern struct rq runqueues __ksym;
+ 
+-struct rq__old {
++struct rq___old {
+ 	raw_spinlock_t lock;
+ } __attribute__((preserve_access_index));
+ 
+-struct rq__new {
++struct rq___new {
+ 	raw_spinlock_t __lock;
+ } __attribute__((preserve_access_index));
+ 
+@@ -434,8 +434,8 @@ int BPF_PROG(collect_lock_syms)
+ 
+ 	for (int i = 0; i < MAX_CPUS; i++) {
+ 		struct rq *rq = bpf_per_cpu_ptr(&runqueues, i);
+-		struct rq__new *rq_new = (void *)rq;
+-		struct rq__old *rq_old = (void *)rq;
++		struct rq___new *rq_new = (void *)rq;
++		struct rq___old *rq_old = (void *)rq;
+ 
+ 		if (rq == NULL)
+ 			break;
+-- 
+cgit 
+

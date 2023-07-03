@@ -1,0 +1,33 @@
+From fa8d32721a07d1349d963832400e97ebb515aa96 Mon Sep 17 00:00:00 2001
+From: Dan Carpenter <error27@gmail.com>
+Date: Mon, 27 Feb 2023 13:07:26 +0300
+Subject: scsi: ufs: ufs-qcom: Remove impossible check
+
+The "dev_req_params" pointer points to inside the middle of a struct so it
+can't be NULL.  Removing this impossible condition is nice because now we
+don't need to consider the correct error code for that situation.
+
+Link: https://lore.kernel.org/r/Y/yA3niWUcGYgBU8@kili
+Fixes: f06fcc7155dc ("scsi: ufs-qcom: add QUniPro hardware support and power optimizations")
+Signed-off-by: Dan Carpenter <error27@gmail.com>
+Signed-off-by: Martin K. Petersen <martin.petersen@oracle.com>
+---
+ drivers/ufs/host/ufs-qcom.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/ufs/host/ufs-qcom.c b/drivers/ufs/host/ufs-qcom.c
+index 34fc453f3eb1f..797230ad39396 100644
+--- a/drivers/ufs/host/ufs-qcom.c
++++ b/drivers/ufs/host/ufs-qcom.c
+@@ -1177,7 +1177,7 @@ static int ufs_qcom_clk_scale_notify(struct ufs_hba *hba,
+ 			err = ufs_qcom_clk_scale_down_post_change(hba);
+ 
+ 
+-		if (err || !dev_req_params) {
++		if (err) {
+ 			ufshcd_uic_hibern8_exit(hba);
+ 			return err;
+ 		}
+-- 
+cgit 
+

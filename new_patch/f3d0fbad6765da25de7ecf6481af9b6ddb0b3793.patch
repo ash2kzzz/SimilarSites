@@ -1,0 +1,42 @@
+From f3d0fbad6765da25de7ecf6481af9b6ddb0b3793 Mon Sep 17 00:00:00 2001
+From: Johan Hovold <johan+linaro@kernel.org>
+Date: Thu, 9 Mar 2023 12:12:09 +0100
+Subject: firmware: qcom: scm: fix bogus irq error at probe
+
+A recent commit added support for an optional interrupt which is only
+available on some platforms.
+
+Stop spamming the logs with bogus error messages on platforms that do
+not use this new optional resource:
+
+	qcom_scm firmware:scm: error -ENXIO: IRQ index 0 not found
+
+Fixes: 6bf325992236 ("firmware: qcom: scm: Add wait-queue handling logic")
+Cc: Guru Das Srinagesh <quic_gurus@quicinc.com>
+Cc: Sibi Sankar <quic_sibis@quicinc.com>
+Signed-off-by: Johan Hovold <johan+linaro@kernel.org>
+Tested-by: Steev Klimaszewski <steev@kali.org> # Thinkpad X13s
+Acked-by: Guru Das Srinagesh <quic_gurus@quicinc.com>
+Reviewed-by: Konrad Dybcio <konrad.dybcio@linaro.org>
+Signed-off-by: Bjorn Andersson <andersson@kernel.org>
+Link: https://lore.kernel.org/r/20230309111209.31606-1-johan+linaro@kernel.org
+---
+ drivers/firmware/qcom_scm.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/firmware/qcom_scm.c b/drivers/firmware/qcom_scm.c
+index 468d4d5ab550c..b1e11f85b8054 100644
+--- a/drivers/firmware/qcom_scm.c
++++ b/drivers/firmware/qcom_scm.c
+@@ -1479,7 +1479,7 @@ static int qcom_scm_probe(struct platform_device *pdev)
+ 
+ 	init_completion(&__scm->waitq_comp);
+ 
+-	irq = platform_get_irq(pdev, 0);
++	irq = platform_get_irq_optional(pdev, 0);
+ 	if (irq < 0) {
+ 		if (irq != -ENXIO)
+ 			return irq;
+-- 
+cgit 
+

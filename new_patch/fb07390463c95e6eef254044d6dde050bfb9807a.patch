@@ -1,0 +1,35 @@
+From fb07390463c95e6eef254044d6dde050bfb9807a Mon Sep 17 00:00:00 2001
+From: Pedro Tammela <pctammela@mojatatu.com>
+Date: Mon, 27 Feb 2023 12:23:52 -0300
+Subject: net/sched: act_connmark: handle errno on tcf_idr_check_alloc
+
+Smatch reports that 'ci' can be used uninitialized.
+The current code ignores errno coming from tcf_idr_check_alloc, which
+will lead to the incorrect usage of 'ci'. Handle the errno as it should.
+
+Fixes: 288864effe33 ("net/sched: act_connmark: transition to percpu stats and rcu")
+Reviewed-by: Jamal Hadi Salim <jhs@mojatatu.com>
+Signed-off-by: Pedro Tammela <pctammela@mojatatu.com>
+Reviewed-by: Simon Horman <simon.horman@corigine.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ net/sched/act_connmark.c | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/net/sched/act_connmark.c b/net/sched/act_connmark.c
+index 8dabfb52ea3db..0d7aee8933c5f 100644
+--- a/net/sched/act_connmark.c
++++ b/net/sched/act_connmark.c
+@@ -158,6 +158,9 @@ static int tcf_connmark_init(struct net *net, struct nlattr *nla,
+ 		nparms->zone = parm->zone;
+ 
+ 		ret = 0;
++	} else {
++		err = ret;
++		goto out_free;
+ 	}
+ 
+ 	err = tcf_action_check_ctrlact(parm->action, tp, &goto_ch, extack);
+-- 
+cgit 
+

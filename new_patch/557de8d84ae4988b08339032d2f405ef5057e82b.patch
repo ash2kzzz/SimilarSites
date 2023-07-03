@@ -1,0 +1,47 @@
+From 557de8d84ae4988b08339032d2f405ef5057e82b Mon Sep 17 00:00:00 2001
+From: Charles Keepax <ckeepax@opensource.cirrus.com>
+Date: Thu, 23 Mar 2023 13:20:46 +0000
+Subject: regulator: arizona-ldo1: Use PROBE_FORCE_SYNCHRONOUS
+
+Restore synchronous probing for Arizona regulators because otherwise
+the main MFD driver will not find its core supplies.
+
+As these regulators are built into the CODEC and typically have no DT
+representation the regulator framework is unaware of their existence
+until the driver probes. These means the probing of the driver needs to
+be synchronous to ensure the regulators are not substitued for the dummy
+later when the users request them.
+
+Fixes: 259b93b21a9f ("regulator: Set PROBE_PREFER_ASYNCHRONOUS for drivers that existed in 4.14")
+Signed-off-by: Charles Keepax <ckeepax@opensource.cirrus.com>
+Link: https://lore.kernel.org/r/20230323132047.833737-1-ckeepax@opensource.cirrus.com
+Signed-off-by: Mark Brown <broonie@kernel.org>
+---
+ drivers/regulator/arizona-ldo1.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/regulator/arizona-ldo1.c b/drivers/regulator/arizona-ldo1.c
+index a53d8441702a4..b465c0010665a 100644
+--- a/drivers/regulator/arizona-ldo1.c
++++ b/drivers/regulator/arizona-ldo1.c
+@@ -380,7 +380,7 @@ static struct platform_driver arizona_ldo1_driver = {
+ 	.remove = arizona_ldo1_remove,
+ 	.driver		= {
+ 		.name	= "arizona-ldo1",
+-		.probe_type = PROBE_PREFER_ASYNCHRONOUS,
++		.probe_type = PROBE_FORCE_SYNCHRONOUS,
+ 	},
+ };
+ 
+@@ -389,7 +389,7 @@ static struct platform_driver madera_ldo1_driver = {
+ 	.remove = arizona_ldo1_remove,
+ 	.driver		= {
+ 		.name	= "madera-ldo1",
+-		.probe_type = PROBE_PREFER_ASYNCHRONOUS,
++		.probe_type = PROBE_FORCE_SYNCHRONOUS,
+ 	},
+ };
+ 
+-- 
+cgit 
+

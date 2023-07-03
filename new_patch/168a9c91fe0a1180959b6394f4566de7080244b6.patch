@@ -1,0 +1,42 @@
+From 168a9c91fe0a1180959b6394f4566de7080244b6 Mon Sep 17 00:00:00 2001
+From: Tomasz Duszynski <tduszynski@marvell.com>
+Date: Tue, 31 Jan 2023 09:33:49 +0100
+Subject: vfio: platform: ignore missing reset if disabled at module init
+
+If reset requirement was relaxed via module parameter, errors caused by
+missing reset should not be propagated down to the vfio core.
+Otherwise initialization will fail.
+
+Signed-off-by: Tomasz Duszynski <tduszynski@marvell.com>
+Fixes: 5f6c7e0831a1 ("vfio/platform: Use the new device life cycle helpers")
+Reviewed-by: Kevin Tian <kevin.tian@intel.com>
+Reviewed-by: Eric Auger <eric.auger@redhat.com>
+Link: https://lore.kernel.org/r/20230131083349.2027189-1-tduszynski@marvell.com
+Signed-off-by: Alex Williamson <alex.williamson@redhat.com>
+---
+ drivers/vfio/platform/vfio_platform_common.c | 7 +++++--
+ 1 file changed, 5 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/vfio/platform/vfio_platform_common.c b/drivers/vfio/platform/vfio_platform_common.c
+index 9f27e8c30c928..e53757d1d0958 100644
+--- a/drivers/vfio/platform/vfio_platform_common.c
++++ b/drivers/vfio/platform/vfio_platform_common.c
+@@ -647,10 +647,13 @@ int vfio_platform_init_common(struct vfio_platform_device *vdev)
+ 	mutex_init(&vdev->igate);
+ 
+ 	ret = vfio_platform_get_reset(vdev);
+-	if (ret && vdev->reset_required)
++	if (ret && vdev->reset_required) {
+ 		dev_err(dev, "No reset function found for device %s\n",
+ 			vdev->name);
+-	return ret;
++		return ret;
++	}
++
++	return 0;
+ }
+ EXPORT_SYMBOL_GPL(vfio_platform_init_common);
+ 
+-- 
+cgit 
+

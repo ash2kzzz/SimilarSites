@@ -1,0 +1,32 @@
+From a48bba98380cb0b43dcd01d276c7efc282e3c33f Mon Sep 17 00:00:00 2001
+From: Dave Airlie <airlied@redhat.com>
+Date: Thu, 23 Feb 2023 09:47:29 +1000
+Subject: msm/fbdev: fix unused variable warning with clang.
+
+clang builds showed this:
+drivers/gpu/drm/msm/msm_fbdev.c:144:6: error: variable 'helper' is used uninitialized whenever 'if' condition is true [-Werror,-Wsometimes-uninitialized]
+        if (!fbdev)
+            ^~~~~~
+
+Fixes: 3fb1f62f80a1 ("drm/fb-helper: Remove drm_fb_helper_unprepare() from drm_fb_helper_fini()")
+Signed-off-by: Dave Airlie <airlied@redhat.com>
+---
+ drivers/gpu/drm/msm/msm_fbdev.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/msm/msm_fbdev.c b/drivers/gpu/drm/msm/msm_fbdev.c
+index c804e5ba682af..c1356aff87da3 100644
+--- a/drivers/gpu/drm/msm/msm_fbdev.c
++++ b/drivers/gpu/drm/msm/msm_fbdev.c
+@@ -142,7 +142,7 @@ struct drm_fb_helper *msm_fbdev_init(struct drm_device *dev)
+ 
+ 	fbdev = kzalloc(sizeof(*fbdev), GFP_KERNEL);
+ 	if (!fbdev)
+-		goto fail;
++		return NULL;
+ 
+ 	helper = &fbdev->base;
+ 
+-- 
+cgit 
+

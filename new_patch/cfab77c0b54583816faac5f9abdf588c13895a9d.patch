@@ -1,0 +1,79 @@
+From cfab77c0b54583816faac5f9abdf588c13895a9d Mon Sep 17 00:00:00 2001
+From: Jakub Kicinski <kuba@kernel.org>
+Date: Wed, 15 Mar 2023 16:03:51 -0700
+Subject: ynl: make the tooling check the license
+
+The (only recently documented) expectation is that all specs
+are under a certain license, but we don't actually enforce it.
+What's worse we then go ahead and assume the license was right,
+outputting the expected license into generated files.
+
+Fixes: 37d9df224d1e ("ynl: re-license uniformly under GPL-2.0 OR BSD-3-Clause")
+Reviewed-by: Chuck Lever <chuck.lever@oracle.com>
+Signed-off-by: Jakub Kicinski <kuba@kernel.org>
+---
+ tools/net/ynl/lib/nlspec.py |  8 ++++++++
+ tools/net/ynl/ynl-gen-c.py  | 13 +++++++------
+ 2 files changed, 15 insertions(+), 6 deletions(-)
+
+diff --git a/tools/net/ynl/lib/nlspec.py b/tools/net/ynl/lib/nlspec.py
+index e01a72d066384..d04450c2a44af 100644
+--- a/tools/net/ynl/lib/nlspec.py
++++ b/tools/net/ynl/lib/nlspec.py
+@@ -274,6 +274,7 @@ class SpecFamily(SpecElement):
+ 
+     Attributes:
+         proto     protocol type (e.g. genetlink)
++        license   spec license (loaded from an SPDX tag on the spec)
+ 
+         attr_sets  dict of attribute sets
+         msgs       dict of all messages (index by name)
+@@ -283,6 +284,13 @@ class SpecFamily(SpecElement):
+     """
+     def __init__(self, spec_path, schema_path=None):
+         with open(spec_path, "r") as stream:
++            prefix = '# SPDX-License-Identifier: '
++            first = stream.readline().strip()
++            if not first.startswith(prefix):
++                raise Exception('SPDX license tag required in the spec')
++            self.license = first[len(prefix):]
++
++            stream.seek(0)
+             spec = yaml.safe_load(stream)
+ 
+         self._resolution_list = []
+diff --git a/tools/net/ynl/ynl-gen-c.py b/tools/net/ynl/ynl-gen-c.py
+index 3b4d03a50fc1b..c16671a02621b 100755
+--- a/tools/net/ynl/ynl-gen-c.py
++++ b/tools/net/ynl/ynl-gen-c.py
+@@ -2059,6 +2059,10 @@ def main():
+ 
+     try:
+         parsed = Family(args.spec)
++        if parsed.license != '((GPL-2.0 WITH Linux-syscall-note) OR BSD-3-Clause)':
++            print('Spec license:', parsed.license)
++            print('License must be: ((GPL-2.0 WITH Linux-syscall-note) OR BSD-3-Clause)')
++            os.sys.exit(1)
+     except yaml.YAMLError as exc:
+         print(exc)
+         os.sys.exit(1)
+@@ -2067,13 +2071,10 @@ def main():
+     cw = CodeWriter(BaseNlLib(), out_file)
+ 
+     _, spec_kernel = find_kernel_root(args.spec)
+-    if args.mode == 'uapi':
+-        cw.p('/* SPDX-License-Identifier: ((GPL-2.0 WITH Linux-syscall-note) OR BSD-3-Clause) */')
++    if args.mode == 'uapi' or args.header:
++        cw.p(f'/* SPDX-License-Identifier: {parsed.license} */')
+     else:
+-        if args.header:
+-            cw.p('/* SPDX-License-Identifier: ((GPL-2.0 WITH Linux-syscall-note) OR BSD-3-Clause) */')
+-        else:
+-            cw.p('// SPDX-License-Identifier: ((GPL-2.0 WITH Linux-syscall-note) OR BSD-3-Clause)')
++        cw.p(f'// SPDX-License-Identifier: {parsed.license}')
+     cw.p("/* Do not edit directly, auto-generated from: */")
+     cw.p(f"/*\t{spec_kernel} */")
+     cw.p(f"/* YNL-GEN {args.mode} {'header' if args.header else 'source'} */")
+-- 
+cgit 
+

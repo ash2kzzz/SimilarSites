@@ -1,0 +1,43 @@
+From 7adde5ac25fa50dbb1fb237042316685cafe976c Mon Sep 17 00:00:00 2001
+From: Yuan Can <yuancan@huawei.com>
+Date: Thu, 8 Dec 2022 11:36:20 +0000
+Subject: mtd: parsers: Fix potential memory leak in
+ mtd_parser_tplink_safeloader_parse()
+
+The parts needs to be freed with all its elements, otherwise it will be
+leaked.
+
+Fixes: 00a3588084be ("mtd: parsers: add TP-Link SafeLoader partitions table parser")
+Signed-off-by: Yuan Can <yuancan@huawei.com>
+Reviewed-by: Dan Carpenter <error27@gmail.com>
+Signed-off-by: Miquel Raynal <miquel.raynal@bootlin.com>
+Link: https://lore.kernel.org/linux-mtd/20221208113620.78855-1-yuancan@huawei.com
+---
+ drivers/mtd/parsers/tplink_safeloader.c | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/mtd/parsers/tplink_safeloader.c b/drivers/mtd/parsers/tplink_safeloader.c
+index f601e7bd86279..1c689dafca2ae 100644
+--- a/drivers/mtd/parsers/tplink_safeloader.c
++++ b/drivers/mtd/parsers/tplink_safeloader.c
+@@ -91,7 +91,7 @@ static int mtd_parser_tplink_safeloader_parse(struct mtd_info *mtd,
+ 	buf = mtd_parser_tplink_safeloader_read_table(mtd);
+ 	if (!buf) {
+ 		err = -ENOENT;
+-		goto err_out;
++		goto err_free_parts;
+ 	}
+ 
+ 	for (idx = 0, offset = TPLINK_SAFELOADER_DATA_OFFSET;
+@@ -118,6 +118,8 @@ static int mtd_parser_tplink_safeloader_parse(struct mtd_info *mtd,
+ err_free:
+ 	for (idx -= 1; idx >= 0; idx--)
+ 		kfree(parts[idx].name);
++err_free_parts:
++	kfree(parts);
+ err_out:
+ 	return err;
+ };
+-- 
+cgit 
+

@@ -1,0 +1,82 @@
+From 00dcd17cfa7f103f7d640ffd34645a2ddab96330 Mon Sep 17 00:00:00 2001
+From: Dave Chinner <dchinner@redhat.com>
+Date: Mon, 5 Jun 2023 04:06:27 +1000
+Subject: xfs: restore allocation trylock iteration
+
+It was accidentally dropped when refactoring the allocation code,
+resulting in the AG iteration always doing blocking AG iteration.
+This results in a small performance regression for a specific fsmark
+test that runs more user data writer threads than there are AGs.
+
+Reported-by: kernel test robot <oliver.sang@intel.com>
+Fixes: 2edf06a50f5b ("xfs: factor xfs_alloc_vextent_this_ag() for _iterate_ags()")
+Signed-off-by: Dave Chinner <dchinner@redhat.com>
+Reviewed-by: Darrick J. Wong <djwong@kernel.org>
+Reviewed-by: Christoph Hellwig <hch@lst.de>
+Signed-off-by: Dave Chinner <david@fromorbit.com>
+---
+ fs/xfs/libxfs/xfs_alloc.c | 13 +++++++------
+ 1 file changed, 7 insertions(+), 6 deletions(-)
+
+diff --git a/fs/xfs/libxfs/xfs_alloc.c b/fs/xfs/libxfs/xfs_alloc.c
+index fdfa08cbf4db0..61eb65be17f37 100644
+--- a/fs/xfs/libxfs/xfs_alloc.c
++++ b/fs/xfs/libxfs/xfs_alloc.c
+@@ -3187,7 +3187,8 @@ xfs_alloc_vextent_check_args(
+  */
+ static int
+ xfs_alloc_vextent_prepare_ag(
+-	struct xfs_alloc_arg	*args)
++	struct xfs_alloc_arg	*args,
++	uint32_t		flags)
+ {
+ 	bool			need_pag = !args->pag;
+ 	int			error;
+@@ -3196,7 +3197,7 @@ xfs_alloc_vextent_prepare_ag(
+ 		args->pag = xfs_perag_get(args->mp, args->agno);
+ 
+ 	args->agbp = NULL;
+-	error = xfs_alloc_fix_freelist(args, 0);
++	error = xfs_alloc_fix_freelist(args, flags);
+ 	if (error) {
+ 		trace_xfs_alloc_vextent_nofix(args);
+ 		if (need_pag)
+@@ -3336,7 +3337,7 @@ xfs_alloc_vextent_this_ag(
+ 		return error;
+ 	}
+ 
+-	error = xfs_alloc_vextent_prepare_ag(args);
++	error = xfs_alloc_vextent_prepare_ag(args, 0);
+ 	if (!error && args->agbp)
+ 		error = xfs_alloc_ag_vextent_size(args);
+ 
+@@ -3380,7 +3381,7 @@ restart:
+ 	for_each_perag_wrap_range(mp, start_agno, restart_agno,
+ 			mp->m_sb.sb_agcount, agno, args->pag) {
+ 		args->agno = agno;
+-		error = xfs_alloc_vextent_prepare_ag(args);
++		error = xfs_alloc_vextent_prepare_ag(args, flags);
+ 		if (error)
+ 			break;
+ 		if (!args->agbp) {
+@@ -3546,7 +3547,7 @@ xfs_alloc_vextent_exact_bno(
+ 		return error;
+ 	}
+ 
+-	error = xfs_alloc_vextent_prepare_ag(args);
++	error = xfs_alloc_vextent_prepare_ag(args, 0);
+ 	if (!error && args->agbp)
+ 		error = xfs_alloc_ag_vextent_exact(args);
+ 
+@@ -3587,7 +3588,7 @@ xfs_alloc_vextent_near_bno(
+ 	if (needs_perag)
+ 		args->pag = xfs_perag_grab(mp, args->agno);
+ 
+-	error = xfs_alloc_vextent_prepare_ag(args);
++	error = xfs_alloc_vextent_prepare_ag(args, 0);
+ 	if (!error && args->agbp)
+ 		error = xfs_alloc_ag_vextent_near(args);
+ 
+-- 
+cgit 
+

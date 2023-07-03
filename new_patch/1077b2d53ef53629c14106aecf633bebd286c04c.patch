@@ -1,0 +1,45 @@
+From 1077b2d53ef53629c14106aecf633bebd286c04c Mon Sep 17 00:00:00 2001
+From: Jan Kara <jack@suse.cz>
+Date: Wed, 24 May 2023 12:44:53 +0200
+Subject: ext4: fix fsync for non-directories
+
+Commit e360c6ed7274 ("ext4: Drop special handling of journalled data
+from ext4_sync_file()") simplified ext4_sync_file() by dropping special
+handling of journalled data mode as it was not needed anymore. However
+that branch was also used for directories and symlinks and since the
+fastcommit code does not track metadata changes to non-regular files, the
+change has caused e.g. fsync(2) on directories to not commit transaction
+as it should. Fix the problem by adding handling for non-regular files.
+
+Fixes: e360c6ed7274 ("ext4: Drop special handling of journalled data from ext4_sync_file()")
+Reported-by: Eric Whitney <enwlinux@gmail.com>
+Link: https://lore.kernel.org/all/ZFqO3xVnmhL7zv1x@debian-BULLSEYE-live-builder-AMD64
+Signed-off-by: Jan Kara <jack@suse.cz>
+Tested-by: Eric Whitney <enwlinux@gmail.com>
+Link: https://lore.kernel.org/r/20230524104453.8734-1-jack@suse.cz
+Signed-off-by: Theodore Ts'o <tytso@mit.edu>
+---
+ fs/ext4/fsync.c | 7 +++++++
+ 1 file changed, 7 insertions(+)
+
+diff --git a/fs/ext4/fsync.c b/fs/ext4/fsync.c
+index f65fdb27ce141..2a143209aa0cb 100644
+--- a/fs/ext4/fsync.c
++++ b/fs/ext4/fsync.c
+@@ -108,6 +108,13 @@ static int ext4_fsync_journal(struct inode *inode, bool datasync,
+ 	journal_t *journal = EXT4_SB(inode->i_sb)->s_journal;
+ 	tid_t commit_tid = datasync ? ei->i_datasync_tid : ei->i_sync_tid;
+ 
++	/*
++	 * Fastcommit does not really support fsync on directories or other
++	 * special files. Force a full commit.
++	 */
++	if (!S_ISREG(inode->i_mode))
++		return ext4_force_commit(inode->i_sb);
++
+ 	if (journal->j_flags & JBD2_BARRIER &&
+ 	    !jbd2_trans_will_send_data_barrier(journal, commit_tid))
+ 		*needs_barrier = true;
+-- 
+cgit 
+

@@ -1,0 +1,38 @@
+From 769639c1fe8a98129aa97c8ee981639db1e8955c Mon Sep 17 00:00:00 2001
+From: Jakub Kicinski <kuba@kernel.org>
+Date: Thu, 16 Mar 2023 15:02:34 -0700
+Subject: net: xdp: don't call notifiers during driver init
+
+Drivers will commonly perform feature setting during init, if they use
+the xdp_set_features_flag() helper they'll likely run into an ASSERT_RTNL()
+inside call_netdevice_notifiers_info().
+
+Don't call the notifier until the device is actually registered.
+Nothing should be tracking the device until its registered and
+after its unregistration has started.
+
+Fixes: 4d5ab0ad964d ("net/mlx5e: take into account device reconfiguration for xdp_features flag")
+Link: https://lore.kernel.org/r/20230316220234.598091-1-kuba@kernel.org
+Signed-off-by: Jakub Kicinski <kuba@kernel.org>
+---
+ net/core/xdp.c | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/net/core/xdp.c b/net/core/xdp.c
+index 87e654b7d06c1..b5737e47ec412 100644
+--- a/net/core/xdp.c
++++ b/net/core/xdp.c
+@@ -781,7 +781,9 @@ void xdp_set_features_flag(struct net_device *dev, xdp_features_t val)
+ 		return;
+ 
+ 	dev->xdp_features = val;
+-	call_netdevice_notifiers(NETDEV_XDP_FEAT_CHANGE, dev);
++
++	if (dev->reg_state == NETREG_REGISTERED)
++		call_netdevice_notifiers(NETDEV_XDP_FEAT_CHANGE, dev);
+ }
+ EXPORT_SYMBOL_GPL(xdp_set_features_flag);
+ 
+-- 
+cgit 
+

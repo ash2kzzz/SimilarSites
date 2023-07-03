@@ -1,0 +1,32 @@
+From 764d102ef94e880ca834a7fe3968a00a05b1fb12 Mon Sep 17 00:00:00 2001
+From: Dave Jiang <dave.jiang@intel.com>
+Date: Sat, 13 May 2023 00:20:06 -0700
+Subject: cxl: Add missing return to cdat read error path
+
+Add a return to the error path when cxl_cdat_read_table() fails. Current
+code continues with the table pointer points to freed memory.
+
+Fixes: 7a877c923995 ("cxl/pci: Simplify CDAT retrieval error path")
+Signed-off-by: Dave Jiang <dave.jiang@intel.com>
+Reviewed-by: Davidlohr Bueso <dave@stgolabs.net>
+Link: https://lore.kernel.org/r/168382793506.3510737.4792518576623749076.stgit@djiang5-mobl3
+Signed-off-by: Dan Williams <dan.j.williams@intel.com>
+---
+ drivers/cxl/core/pci.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/drivers/cxl/core/pci.c b/drivers/cxl/core/pci.c
+index bdbd907884ce7..f332fe7af92ba 100644
+--- a/drivers/cxl/core/pci.c
++++ b/drivers/cxl/core/pci.c
+@@ -571,6 +571,7 @@ void read_cdat_data(struct cxl_port *port)
+ 		/* Don't leave table data allocated on error */
+ 		devm_kfree(dev, cdat_table);
+ 		dev_err(dev, "CDAT data read error\n");
++		return;
+ 	}
+ 
+ 	port->cdat.table = cdat_table + sizeof(__le32);
+-- 
+cgit 
+

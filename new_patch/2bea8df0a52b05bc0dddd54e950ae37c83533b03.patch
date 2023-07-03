@@ -1,0 +1,94 @@
+From 2bea8df0a52b05bc0dddd54e950ae37c83533b03 Mon Sep 17 00:00:00 2001
+From: "Darrick J. Wong" <djwong@kernel.org>
+Date: Tue, 11 Apr 2023 19:00:09 -0700
+Subject: xfs: always scrub record/key order of interior records
+
+In commit d47fef9342d0, we removed the firstrec and firstkey fields of
+struct xchk_btree because Christoph thought they were unnecessary
+because we could use the record index in the btree cursor.  This is
+incorrect because bc_ptrs (now bc_levels[].ptr) tracks the cursor
+position within a specific btree block, not within the entire level.
+
+The end result is that scrub no longer detects situations where the
+rightmost record of a block is identical to the leftmost record of that
+block's right sibling.  Fix this regression by reintroducing record
+validity booleans so that order checking skips *only* the leftmost
+record/key in each level.
+
+Fixes: d47fef9342d0 ("xfs: don't track firstrec/firstkey separately in xchk_btree")
+Signed-off-by: Darrick J. Wong <djwong@kernel.org>
+Reviewed-by: Dave Chinner <dchinner@redhat.com>
+---
+ fs/xfs/scrub/btree.c | 14 ++++++++------
+ fs/xfs/scrub/btree.h |  8 +++++++-
+ 2 files changed, 15 insertions(+), 7 deletions(-)
+
+diff --git a/fs/xfs/scrub/btree.c b/fs/xfs/scrub/btree.c
+index d9ab280eb6c4c..4ec3b1cab0187 100644
+--- a/fs/xfs/scrub/btree.c
++++ b/fs/xfs/scrub/btree.c
+@@ -151,11 +151,12 @@ xchk_btree_rec(
+ 
+ 	trace_xchk_btree_rec(bs->sc, cur, 0);
+ 
+-	/* If this isn't the first record, are they in order? */
+-	if (cur->bc_levels[0].ptr > 1 &&
++	/* Are all records across all record blocks in order? */
++	if (bs->lastrec_valid &&
+ 	    !cur->bc_ops->recs_inorder(cur, &bs->lastrec, rec))
+ 		xchk_btree_set_corrupt(bs->sc, cur, 0);
+ 	memcpy(&bs->lastrec, rec, cur->bc_ops->rec_len);
++	bs->lastrec_valid = true;
+ 
+ 	if (cur->bc_nlevels == 1)
+ 		return;
+@@ -198,11 +199,12 @@ xchk_btree_key(
+ 
+ 	trace_xchk_btree_key(bs->sc, cur, level);
+ 
+-	/* If this isn't the first key, are they in order? */
+-	if (cur->bc_levels[level].ptr > 1 &&
+-	    !cur->bc_ops->keys_inorder(cur, &bs->lastkey[level - 1], key))
++	/* Are all low keys across all node blocks in order? */
++	if (bs->lastkey[level - 1].valid &&
++	    !cur->bc_ops->keys_inorder(cur, &bs->lastkey[level - 1].key, key))
+ 		xchk_btree_set_corrupt(bs->sc, cur, level);
+-	memcpy(&bs->lastkey[level - 1], key, cur->bc_ops->key_len);
++	memcpy(&bs->lastkey[level - 1].key, key, cur->bc_ops->key_len);
++	bs->lastkey[level - 1].valid = true;
+ 
+ 	if (level + 1 >= cur->bc_nlevels)
+ 		return;
+diff --git a/fs/xfs/scrub/btree.h b/fs/xfs/scrub/btree.h
+index 639e44e7544fe..9d7b9ee8bef47 100644
+--- a/fs/xfs/scrub/btree.h
++++ b/fs/xfs/scrub/btree.h
+@@ -31,6 +31,11 @@ typedef int (*xchk_btree_rec_fn)(
+ 	struct xchk_btree		*bs,
+ 	const union xfs_btree_rec	*rec);
+ 
++struct xchk_btree_key {
++	union xfs_btree_key		key;
++	bool				valid;
++};
++
+ struct xchk_btree {
+ 	/* caller-provided scrub state */
+ 	struct xfs_scrub		*sc;
+@@ -40,11 +45,12 @@ struct xchk_btree {
+ 	void				*private;
+ 
+ 	/* internal scrub state */
++	bool				lastrec_valid;
+ 	union xfs_btree_rec		lastrec;
+ 	struct list_head		to_check;
+ 
+ 	/* this element must come last! */
+-	union xfs_btree_key		lastkey[];
++	struct xchk_btree_key		lastkey[];
+ };
+ 
+ /*
+-- 
+cgit 
+

@@ -1,0 +1,47 @@
+From 4f48c30312b7af5365878ab191bb41e7b899e09b Mon Sep 17 00:00:00 2001
+From: Brett Creeley <brett.creeley@amd.com>
+Date: Mon, 5 Jun 2023 12:51:16 -0700
+Subject: pds_core: Fix FW recovery detection
+
+Commit 523847df1b37 ("pds_core: add devcmd device interfaces") included
+initial support for FW recovery detection. Unfortunately, the ordering
+in pdsc_is_fw_good() was incorrect, which was causing FW recovery to be
+undetected by the driver. Fix this by making sure to update the cached
+fw_status by calling pdsc_is_fw_running() before setting the local FW
+gen.
+
+Fixes: 523847df1b37 ("pds_core: add devcmd device interfaces")
+Signed-off-by: Shannon Nelson <shannon.nelson@amd.com>
+Signed-off-by: Brett Creeley <brett.creeley@amd.com>
+Reviewed-by: Simon Horman <simon.horman@corigine.com>
+Link: https://lore.kernel.org/r/20230605195116.49653-1-brett.creeley@amd.com
+Signed-off-by: Jakub Kicinski <kuba@kernel.org>
+---
+ drivers/net/ethernet/amd/pds_core/dev.c | 10 ++++++++--
+ 1 file changed, 8 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/net/ethernet/amd/pds_core/dev.c b/drivers/net/ethernet/amd/pds_core/dev.c
+index f7c597ea5daf3..debe5216fe29e 100644
+--- a/drivers/net/ethernet/amd/pds_core/dev.c
++++ b/drivers/net/ethernet/amd/pds_core/dev.c
+@@ -68,9 +68,15 @@ bool pdsc_is_fw_running(struct pdsc *pdsc)
+ 
+ bool pdsc_is_fw_good(struct pdsc *pdsc)
+ {
+-	u8 gen = pdsc->fw_status & PDS_CORE_FW_STS_F_GENERATION;
++	bool fw_running = pdsc_is_fw_running(pdsc);
++	u8 gen;
+ 
+-	return pdsc_is_fw_running(pdsc) && gen == pdsc->fw_generation;
++	/* Make sure to update the cached fw_status by calling
++	 * pdsc_is_fw_running() before getting the generation
++	 */
++	gen = pdsc->fw_status & PDS_CORE_FW_STS_F_GENERATION;
++
++	return fw_running && gen == pdsc->fw_generation;
+ }
+ 
+ static u8 pdsc_devcmd_status(struct pdsc *pdsc)
+-- 
+cgit 
+

@@ -1,0 +1,2080 @@
+From 81d358b118dc364bd147432db569d4d400a5a4f2 Mon Sep 17 00:00:00 2001
+From: Michael Ellerman <mpe@ellerman.id.au>
+Date: Thu, 25 May 2023 12:43:21 +1000
+Subject: powerpc/crypto: Fix aes-gcm-p10 link errors
+
+The recently added P10 AES/GCM code added some files containing
+CRYPTOGAMS perl-asm code which are near duplicates of the p8 files
+found in drivers/crypto/vmx.
+
+In particular the newly added files produce functions with identical
+names to the existing code.
+
+When the kernel is built with CONFIG_CRYPTO_AES_GCM_P10=y and
+CONFIG_CRYPTO_DEV_VMX_ENCRYPT=y that leads to link errors, eg:
+
+  ld: drivers/crypto/vmx/aesp8-ppc.o: in function `aes_p8_set_encrypt_key':
+  (.text+0xa0): multiple definition of `aes_p8_set_encrypt_key'; arch/powerpc/crypto/aesp8-ppc.o:(.text+0xa0): first defined here
+  ...
+  ld: drivers/crypto/vmx/ghashp8-ppc.o: in function `gcm_ghash_p8':
+  (.text+0x140): multiple definition of `gcm_ghash_p8'; arch/powerpc/crypto/ghashp8-ppc.o:(.text+0x2e4): first defined here
+
+Fix it for now by renaming the newly added files and functions to use
+"p10" instead of "p8" in the names.
+
+Fixes: 45a4672b9a6e ("crypto: p10-aes-gcm - Update Kconfig and Makefile")
+Tested-by: Vishal Chourasia <vishalc@linux.ibm.com>
+Signed-off-by: Michael Ellerman <mpe@ellerman.id.au>
+Link: https://msgid.link/20230525150501.37081-1-mpe@ellerman.id.au
+---
+ arch/powerpc/crypto/Makefile           |  10 +-
+ arch/powerpc/crypto/aes-gcm-p10-glue.c |  18 +-
+ arch/powerpc/crypto/aesp10-ppc.pl      | 585 +++++++++++++++++++++++++++++++++
+ arch/powerpc/crypto/aesp8-ppc.pl       | 585 ---------------------------------
+ arch/powerpc/crypto/ghashp10-ppc.pl    | 370 +++++++++++++++++++++
+ arch/powerpc/crypto/ghashp8-ppc.pl     | 370 ---------------------
+ 6 files changed, 969 insertions(+), 969 deletions(-)
+ create mode 100644 arch/powerpc/crypto/aesp10-ppc.pl
+ delete mode 100644 arch/powerpc/crypto/aesp8-ppc.pl
+ create mode 100644 arch/powerpc/crypto/ghashp10-ppc.pl
+ delete mode 100644 arch/powerpc/crypto/ghashp8-ppc.pl
+
+diff --git a/arch/powerpc/crypto/Makefile b/arch/powerpc/crypto/Makefile
+index 05c7486f42c58..7b4f516abec1d 100644
+--- a/arch/powerpc/crypto/Makefile
++++ b/arch/powerpc/crypto/Makefile
+@@ -22,15 +22,15 @@ sha1-ppc-spe-y := sha1-spe-asm.o sha1-spe-glue.o
+ sha256-ppc-spe-y := sha256-spe-asm.o sha256-spe-glue.o
+ crc32c-vpmsum-y := crc32c-vpmsum_asm.o crc32c-vpmsum_glue.o
+ crct10dif-vpmsum-y := crct10dif-vpmsum_asm.o crct10dif-vpmsum_glue.o
+-aes-gcm-p10-crypto-y := aes-gcm-p10-glue.o aes-gcm-p10.o ghashp8-ppc.o aesp8-ppc.o
++aes-gcm-p10-crypto-y := aes-gcm-p10-glue.o aes-gcm-p10.o ghashp10-ppc.o aesp10-ppc.o
+ 
+ quiet_cmd_perl = PERL    $@
+       cmd_perl = $(PERL) $< $(if $(CONFIG_CPU_LITTLE_ENDIAN), linux-ppc64le, linux-ppc64) > $@
+ 
+-targets += aesp8-ppc.S ghashp8-ppc.S
++targets += aesp10-ppc.S ghashp10-ppc.S
+ 
+-$(obj)/aesp8-ppc.S $(obj)/ghashp8-ppc.S: $(obj)/%.S: $(src)/%.pl FORCE
++$(obj)/aesp10-ppc.S $(obj)/ghashp10-ppc.S: $(obj)/%.S: $(src)/%.pl FORCE
+ 	$(call if_changed,perl)
+ 
+-OBJECT_FILES_NON_STANDARD_aesp8-ppc.o := y
+-OBJECT_FILES_NON_STANDARD_ghashp8-ppc.o := y
++OBJECT_FILES_NON_STANDARD_aesp10-ppc.o := y
++OBJECT_FILES_NON_STANDARD_ghashp10-ppc.o := y
+diff --git a/arch/powerpc/crypto/aes-gcm-p10-glue.c b/arch/powerpc/crypto/aes-gcm-p10-glue.c
+index bd3475f5348d9..4b6e899895e7b 100644
+--- a/arch/powerpc/crypto/aes-gcm-p10-glue.c
++++ b/arch/powerpc/crypto/aes-gcm-p10-glue.c
+@@ -30,15 +30,15 @@ MODULE_AUTHOR("Danny Tsen <dtsen@linux.ibm.com");
+ MODULE_LICENSE("GPL v2");
+ MODULE_ALIAS_CRYPTO("aes");
+ 
+-asmlinkage int aes_p8_set_encrypt_key(const u8 *userKey, const int bits,
++asmlinkage int aes_p10_set_encrypt_key(const u8 *userKey, const int bits,
+ 				      void *key);
+-asmlinkage void aes_p8_encrypt(const u8 *in, u8 *out, const void *key);
++asmlinkage void aes_p10_encrypt(const u8 *in, u8 *out, const void *key);
+ asmlinkage void aes_p10_gcm_encrypt(u8 *in, u8 *out, size_t len,
+ 				    void *rkey, u8 *iv, void *Xi);
+ asmlinkage void aes_p10_gcm_decrypt(u8 *in, u8 *out, size_t len,
+ 				    void *rkey, u8 *iv, void *Xi);
+ asmlinkage void gcm_init_htable(unsigned char htable[256], unsigned char Xi[16]);
+-asmlinkage void gcm_ghash_p8(unsigned char *Xi, unsigned char *Htable,
++asmlinkage void gcm_ghash_p10(unsigned char *Xi, unsigned char *Htable,
+ 		unsigned char *aad, unsigned int alen);
+ 
+ struct aes_key {
+@@ -93,7 +93,7 @@ static void set_aad(struct gcm_ctx *gctx, struct Hash_ctx *hash,
+ 	gctx->aadLen = alen;
+ 	i = alen & ~0xf;
+ 	if (i) {
+-		gcm_ghash_p8(nXi, hash->Htable+32, aad, i);
++		gcm_ghash_p10(nXi, hash->Htable+32, aad, i);
+ 		aad += i;
+ 		alen -= i;
+ 	}
+@@ -102,7 +102,7 @@ static void set_aad(struct gcm_ctx *gctx, struct Hash_ctx *hash,
+ 			nXi[i] ^= aad[i];
+ 
+ 		memset(gctx->aad_hash, 0, 16);
+-		gcm_ghash_p8(gctx->aad_hash, hash->Htable+32, nXi, 16);
++		gcm_ghash_p10(gctx->aad_hash, hash->Htable+32, nXi, 16);
+ 	} else {
+ 		memcpy(gctx->aad_hash, nXi, 16);
+ 	}
+@@ -115,7 +115,7 @@ static void gcmp10_init(struct gcm_ctx *gctx, u8 *iv, unsigned char *rdkey,
+ {
+ 	__be32 counter = cpu_to_be32(1);
+ 
+-	aes_p8_encrypt(hash->H, hash->H, rdkey);
++	aes_p10_encrypt(hash->H, hash->H, rdkey);
+ 	set_subkey(hash->H);
+ 	gcm_init_htable(hash->Htable+32, hash->H);
+ 
+@@ -126,7 +126,7 @@ static void gcmp10_init(struct gcm_ctx *gctx, u8 *iv, unsigned char *rdkey,
+ 	/*
+ 	 * Encrypt counter vector as iv tag and increment counter.
+ 	 */
+-	aes_p8_encrypt(iv, gctx->ivtag, rdkey);
++	aes_p10_encrypt(iv, gctx->ivtag, rdkey);
+ 
+ 	counter = cpu_to_be32(2);
+ 	*((__be32 *)(iv+12)) = counter;
+@@ -160,7 +160,7 @@ static void finish_tag(struct gcm_ctx *gctx, struct Hash_ctx *hash, int len)
+ 	/*
+ 	 * hash (AAD len and len)
+ 	 */
+-	gcm_ghash_p8(hash->Htable, hash->Htable+32, aclen, 16);
++	gcm_ghash_p10(hash->Htable, hash->Htable+32, aclen, 16);
+ 
+ 	for (i = 0; i < 16; i++)
+ 		hash->Htable[i] ^= gctx->ivtag[i];
+@@ -192,7 +192,7 @@ static int p10_aes_gcm_setkey(struct crypto_aead *aead, const u8 *key,
+ 	int ret;
+ 
+ 	vsx_begin();
+-	ret = aes_p8_set_encrypt_key(key, keylen * 8, &ctx->enc_key);
++	ret = aes_p10_set_encrypt_key(key, keylen * 8, &ctx->enc_key);
+ 	vsx_end();
+ 
+ 	return ret ? -EINVAL : 0;
+diff --git a/arch/powerpc/crypto/aesp10-ppc.pl b/arch/powerpc/crypto/aesp10-ppc.pl
+new file mode 100644
+index 0000000000000..2c06ce2a2c7c0
+--- /dev/null
++++ b/arch/powerpc/crypto/aesp10-ppc.pl
+@@ -0,0 +1,585 @@
++#! /usr/bin/env perl
++# SPDX-License-Identifier: GPL-2.0
++
++# This code is taken from CRYPTOGAMs[1] and is included here using the option
++# in the license to distribute the code under the GPL. Therefore this program
++# is free software; you can redistribute it and/or modify it under the terms of
++# the GNU General Public License version 2 as published by the Free Software
++# Foundation.
++#
++# [1] https://www.openssl.org/~appro/cryptogams/
++
++# Copyright (c) 2006-2017, CRYPTOGAMS by <appro@openssl.org>
++# All rights reserved.
++#
++# Redistribution and use in source and binary forms, with or without
++# modification, are permitted provided that the following conditions
++# are met:
++#
++#       * Redistributions of source code must retain copyright notices,
++#         this list of conditions and the following disclaimer.
++#
++#       * Redistributions in binary form must reproduce the above
++#         copyright notice, this list of conditions and the following
++#         disclaimer in the documentation and/or other materials
++#         provided with the distribution.
++#
++#       * Neither the name of the CRYPTOGAMS nor the names of its
++#         copyright holder and contributors may be used to endorse or
++#         promote products derived from this software without specific
++#         prior written permission.
++#
++# ALTERNATIVELY, provided that this notice is retained in full, this
++# product may be distributed under the terms of the GNU General Public
++# License (GPL), in which case the provisions of the GPL apply INSTEAD OF
++# those given above.
++#
++# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDER AND CONTRIBUTORS
++# "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++# LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
++# A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
++# OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
++# SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
++# LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
++# DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
++# THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
++# (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
++# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
++
++# ====================================================================
++# Written by Andy Polyakov <appro@openssl.org> for the OpenSSL
++# project. The module is, however, dual licensed under OpenSSL and
++# CRYPTOGAMS licenses depending on where you obtain it. For further
++# details see https://www.openssl.org/~appro/cryptogams/.
++# ====================================================================
++#
++# This module implements support for AES instructions as per PowerISA
++# specification version 2.07, first implemented by POWER8 processor.
++# The module is endian-agnostic in sense that it supports both big-
++# and little-endian cases. Data alignment in parallelizable modes is
++# handled with VSX loads and stores, which implies MSR.VSX flag being
++# set. It should also be noted that ISA specification doesn't prohibit
++# alignment exceptions for these instructions on page boundaries.
++# Initially alignment was handled in pure AltiVec/VMX way [when data
++# is aligned programmatically, which in turn guarantees exception-
++# free execution], but it turned to hamper performance when vcipher
++# instructions are interleaved. It's reckoned that eventual
++# misalignment penalties at page boundaries are in average lower
++# than additional overhead in pure AltiVec approach.
++#
++# May 2016
++#
++# Add XTS subroutine, 9x on little- and 12x improvement on big-endian
++# systems were measured.
++#
++######################################################################
++# Current large-block performance in cycles per byte processed with
++# 128-bit key (less is better).
++#
++#		CBC en-/decrypt	CTR	XTS
++# POWER8[le]	3.96/0.72	0.74	1.1
++# POWER8[be]	3.75/0.65	0.66	1.0
++
++$flavour = shift;
++
++if ($flavour =~ /64/) {
++	$SIZE_T	=8;
++	$LRSAVE	=2*$SIZE_T;
++	$STU	="stdu";
++	$POP	="ld";
++	$PUSH	="std";
++	$UCMP	="cmpld";
++	$SHL	="sldi";
++} elsif ($flavour =~ /32/) {
++	$SIZE_T	=4;
++	$LRSAVE	=$SIZE_T;
++	$STU	="stwu";
++	$POP	="lwz";
++	$PUSH	="stw";
++	$UCMP	="cmplw";
++	$SHL	="slwi";
++} else { die "nonsense $flavour"; }
++
++$LITTLE_ENDIAN = ($flavour=~/le$/) ? $SIZE_T : 0;
++
++$0 =~ m/(.*[\/\\])[^\/\\]+$/; $dir=$1;
++( $xlate="${dir}ppc-xlate.pl" and -f $xlate ) or
++( $xlate="${dir}../../perlasm/ppc-xlate.pl" and -f $xlate) or
++die "can't locate ppc-xlate.pl";
++
++open STDOUT,"| $^X $xlate $flavour ".shift || die "can't call $xlate: $!";
++
++$FRAME=8*$SIZE_T;
++$prefix="aes_p10";
++
++$sp="r1";
++$vrsave="r12";
++
++#########################################################################
++{{{	# Key setup procedures						#
++my ($inp,$bits,$out,$ptr,$cnt,$rounds)=map("r$_",(3..8));
++my ($zero,$in0,$in1,$key,$rcon,$mask,$tmp)=map("v$_",(0..6));
++my ($stage,$outperm,$outmask,$outhead,$outtail)=map("v$_",(7..11));
++
++$code.=<<___;
++.machine	"any"
++
++.text
++
++.align	7
++rcon:
++.long	0x01000000, 0x01000000, 0x01000000, 0x01000000	?rev
++.long	0x1b000000, 0x1b000000, 0x1b000000, 0x1b000000	?rev
++.long	0x0d0e0f0c, 0x0d0e0f0c, 0x0d0e0f0c, 0x0d0e0f0c	?rev
++.long	0,0,0,0						?asis
++Lconsts:
++	mflr	r0
++	bcl	20,31,\$+4
++	mflr	$ptr	 #vvvvv "distance between . and rcon
++	addi	$ptr,$ptr,-0x48
++	mtlr	r0
++	blr
++	.long	0
++	.byte	0,12,0x14,0,0,0,0,0
++.asciz	"AES for PowerISA 2.07, CRYPTOGAMS by <appro\@openssl.org>"
++
++.globl	.${prefix}_set_encrypt_key
++Lset_encrypt_key:
++	mflr		r11
++	$PUSH		r11,$LRSAVE($sp)
++
++	li		$ptr,-1
++	${UCMP}i	$inp,0
++	beq-		Lenc_key_abort		# if ($inp==0) return -1;
++	${UCMP}i	$out,0
++	beq-		Lenc_key_abort		# if ($out==0) return -1;
++	li		$ptr,-2
++	cmpwi		$bits,128
++	blt-		Lenc_key_abort
++	cmpwi		$bits,256
++	bgt-		Lenc_key_abort
++	andi.		r0,$bits,0x3f
++	bne-		Lenc_key_abort
++
++	lis		r0,0xfff0
++	mfspr		$vrsave,256
++	mtspr		256,r0
++
++	bl		Lconsts
++	mtlr		r11
++
++	neg		r9,$inp
++	lvx		$in0,0,$inp
++	addi		$inp,$inp,15		# 15 is not typo
++	lvsr		$key,0,r9		# borrow $key
++	li		r8,0x20
++	cmpwi		$bits,192
++	lvx		$in1,0,$inp
++	le?vspltisb	$mask,0x0f		# borrow $mask
++	lvx		$rcon,0,$ptr
++	le?vxor		$key,$key,$mask		# adjust for byte swap
++	lvx		$mask,r8,$ptr
++	addi		$ptr,$ptr,0x10
++	vperm		$in0,$in0,$in1,$key	# align [and byte swap in LE]
++	li		$cnt,8
++	vxor		$zero,$zero,$zero
++	mtctr		$cnt
++
++	?lvsr		$outperm,0,$out
++	vspltisb	$outmask,-1
++	lvx		$outhead,0,$out
++	?vperm		$outmask,$zero,$outmask,$outperm
++
++	blt		Loop128
++	addi		$inp,$inp,8
++	beq		L192
++	addi		$inp,$inp,8
++	b		L256
++
++.align	4
++Loop128:
++	vperm		$key,$in0,$in0,$mask	# rotate-n-splat
++	vsldoi		$tmp,$zero,$in0,12	# >>32
++	 vperm		$outtail,$in0,$in0,$outperm	# rotate
++	 vsel		$stage,$outhead,$outtail,$outmask
++	 vmr		$outhead,$outtail
++	vcipherlast	$key,$key,$rcon
++	 stvx		$stage,0,$out
++	 addi		$out,$out,16
++
++	vxor		$in0,$in0,$tmp
++	vsldoi		$tmp,$zero,$tmp,12	# >>32
++	vxor		$in0,$in0,$tmp
++	vsldoi		$tmp,$zero,$tmp,12	# >>32
++	vxor		$in0,$in0,$tmp
++	 vadduwm	$rcon,$rcon,$rcon
++	vxor		$in0,$in0,$key
++	bdnz		Loop128
++
++	lvx		$rcon,0,$ptr		# last two round keys
++
++	vperm		$key,$in0,$in0,$mask	# rotate-n-splat
++	vsldoi		$tmp,$zero,$in0,12	# >>32
++	 vperm		$outtail,$in0,$in0,$outperm	# rotate
++	 vsel		$stage,$outhead,$outtail,$outmask
++	 vmr		$outhead,$outtail
++	vcipherlast	$key,$key,$rcon
++	 stvx		$stage,0,$out
++	 addi		$out,$out,16
++
++	vxor		$in0,$in0,$tmp
++	vsldoi		$tmp,$zero,$tmp,12	# >>32
++	vxor		$in0,$in0,$tmp
++	vsldoi		$tmp,$zero,$tmp,12	# >>32
++	vxor		$in0,$in0,$tmp
++	 vadduwm	$rcon,$rcon,$rcon
++	vxor		$in0,$in0,$key
++
++	vperm		$key,$in0,$in0,$mask	# rotate-n-splat
++	vsldoi		$tmp,$zero,$in0,12	# >>32
++	 vperm		$outtail,$in0,$in0,$outperm	# rotate
++	 vsel		$stage,$outhead,$outtail,$outmask
++	 vmr		$outhead,$outtail
++	vcipherlast	$key,$key,$rcon
++	 stvx		$stage,0,$out
++	 addi		$out,$out,16
++
++	vxor		$in0,$in0,$tmp
++	vsldoi		$tmp,$zero,$tmp,12	# >>32
++	vxor		$in0,$in0,$tmp
++	vsldoi		$tmp,$zero,$tmp,12	# >>32
++	vxor		$in0,$in0,$tmp
++	vxor		$in0,$in0,$key
++	 vperm		$outtail,$in0,$in0,$outperm	# rotate
++	 vsel		$stage,$outhead,$outtail,$outmask
++	 vmr		$outhead,$outtail
++	 stvx		$stage,0,$out
++
++	addi		$inp,$out,15		# 15 is not typo
++	addi		$out,$out,0x50
++
++	li		$rounds,10
++	b		Ldone
++
++.align	4
++L192:
++	lvx		$tmp,0,$inp
++	li		$cnt,4
++	 vperm		$outtail,$in0,$in0,$outperm	# rotate
++	 vsel		$stage,$outhead,$outtail,$outmask
++	 vmr		$outhead,$outtail
++	 stvx		$stage,0,$out
++	 addi		$out,$out,16
++	vperm		$in1,$in1,$tmp,$key	# align [and byte swap in LE]
++	vspltisb	$key,8			# borrow $key
++	mtctr		$cnt
++	vsububm		$mask,$mask,$key	# adjust the mask
++
++Loop192:
++	vperm		$key,$in1,$in1,$mask	# roate-n-splat
++	vsldoi		$tmp,$zero,$in0,12	# >>32
++	vcipherlast	$key,$key,$rcon
++
++	vxor		$in0,$in0,$tmp
++	vsldoi		$tmp,$zero,$tmp,12	# >>32
++	vxor		$in0,$in0,$tmp
++	vsldoi		$tmp,$zero,$tmp,12	# >>32
++	vxor		$in0,$in0,$tmp
++
++	 vsldoi		$stage,$zero,$in1,8
++	vspltw		$tmp,$in0,3
++	vxor		$tmp,$tmp,$in1
++	vsldoi		$in1,$zero,$in1,12	# >>32
++	 vadduwm	$rcon,$rcon,$rcon
++	vxor		$in1,$in1,$tmp
++	vxor		$in0,$in0,$key
++	vxor		$in1,$in1,$key
++	 vsldoi		$stage,$stage,$in0,8
++
++	vperm		$key,$in1,$in1,$mask	# rotate-n-splat
++	vsldoi		$tmp,$zero,$in0,12	# >>32
++	 vperm		$outtail,$stage,$stage,$outperm	# rotate
++	 vsel		$stage,$outhead,$outtail,$outmask
++	 vmr		$outhead,$outtail
++	vcipherlast	$key,$key,$rcon
++	 stvx		$stage,0,$out
++	 addi		$out,$out,16
++
++	 vsldoi		$stage,$in0,$in1,8
++	vxor		$in0,$in0,$tmp
++	vsldoi		$tmp,$zero,$tmp,12	# >>32
++	 vperm		$outtail,$stage,$stage,$outperm	# rotate
++	 vsel		$stage,$outhead,$outtail,$outmask
++	 vmr		$outhead,$outtail
++	vxor		$in0,$in0,$tmp
++	vsldoi		$tmp,$zero,$tmp,12	# >>32
++	vxor		$in0,$in0,$tmp
++	 stvx		$stage,0,$out
++	 addi		$out,$out,16
++
++	vspltw		$tmp,$in0,3
++	vxor		$tmp,$tmp,$in1
++	vsldoi		$in1,$zero,$in1,12	# >>32
++	 vadduwm	$rcon,$rcon,$rcon
++	vxor		$in1,$in1,$tmp
++	vxor		$in0,$in0,$key
++	vxor		$in1,$in1,$key
++	 vperm		$outtail,$in0,$in0,$outperm	# rotate
++	 vsel		$stage,$outhead,$outtail,$outmask
++	 vmr		$outhead,$outtail
++	 stvx		$stage,0,$out
++	 addi		$inp,$out,15		# 15 is not typo
++	 addi		$out,$out,16
++	bdnz		Loop192
++
++	li		$rounds,12
++	addi		$out,$out,0x20
++	b		Ldone
++
++.align	4
++L256:
++	lvx		$tmp,0,$inp
++	li		$cnt,7
++	li		$rounds,14
++	 vperm		$outtail,$in0,$in0,$outperm	# rotate
++	 vsel		$stage,$outhead,$outtail,$outmask
++	 vmr		$outhead,$outtail
++	 stvx		$stage,0,$out
++	 addi		$out,$out,16
++	vperm		$in1,$in1,$tmp,$key	# align [and byte swap in LE]
++	mtctr		$cnt
++
++Loop256:
++	vperm		$key,$in1,$in1,$mask	# rotate-n-splat
++	vsldoi		$tmp,$zero,$in0,12	# >>32
++	 vperm		$outtail,$in1,$in1,$outperm	# rotate
++	 vsel		$stage,$outhead,$outtail,$outmask
++	 vmr		$outhead,$outtail
++	vcipherlast	$key,$key,$rcon
++	 stvx		$stage,0,$out
++	 addi		$out,$out,16
++
++	vxor		$in0,$in0,$tmp
++	vsldoi		$tmp,$zero,$tmp,12	# >>32
++	vxor		$in0,$in0,$tmp
++	vsldoi		$tmp,$zero,$tmp,12	# >>32
++	vxor		$in0,$in0,$tmp
++	 vadduwm	$rcon,$rcon,$rcon
++	vxor		$in0,$in0,$key
++	 vperm		$outtail,$in0,$in0,$outperm	# rotate
++	 vsel		$stage,$outhead,$outtail,$outmask
++	 vmr		$outhead,$outtail
++	 stvx		$stage,0,$out
++	 addi		$inp,$out,15		# 15 is not typo
++	 addi		$out,$out,16
++	bdz		Ldone
++
++	vspltw		$key,$in0,3		# just splat
++	vsldoi		$tmp,$zero,$in1,12	# >>32
++	vsbox		$key,$key
++
++	vxor		$in1,$in1,$tmp
++	vsldoi		$tmp,$zero,$tmp,12	# >>32
++	vxor		$in1,$in1,$tmp
++	vsldoi		$tmp,$zero,$tmp,12	# >>32
++	vxor		$in1,$in1,$tmp
++
++	vxor		$in1,$in1,$key
++	b		Loop256
++
++.align	4
++Ldone:
++	lvx		$in1,0,$inp		# redundant in aligned case
++	vsel		$in1,$outhead,$in1,$outmask
++	stvx		$in1,0,$inp
++	li		$ptr,0
++	mtspr		256,$vrsave
++	stw		$rounds,0($out)
++
++Lenc_key_abort:
++	mr		r3,$ptr
++	blr
++	.long		0
++	.byte		0,12,0x14,1,0,0,3,0
++	.long		0
++.size	.${prefix}_set_encrypt_key,.-.${prefix}_set_encrypt_key
++
++.globl	.${prefix}_set_decrypt_key
++	$STU		$sp,-$FRAME($sp)
++	mflr		r10
++	$PUSH		r10,$FRAME+$LRSAVE($sp)
++	bl		Lset_encrypt_key
++	mtlr		r10
++
++	cmpwi		r3,0
++	bne-		Ldec_key_abort
++
++	slwi		$cnt,$rounds,4
++	subi		$inp,$out,240		# first round key
++	srwi		$rounds,$rounds,1
++	add		$out,$inp,$cnt		# last round key
++	mtctr		$rounds
++
++Ldeckey:
++	lwz		r0, 0($inp)
++	lwz		r6, 4($inp)
++	lwz		r7, 8($inp)
++	lwz		r8, 12($inp)
++	addi		$inp,$inp,16
++	lwz		r9, 0($out)
++	lwz		r10,4($out)
++	lwz		r11,8($out)
++	lwz		r12,12($out)
++	stw		r0, 0($out)
++	stw		r6, 4($out)
++	stw		r7, 8($out)
++	stw		r8, 12($out)
++	subi		$out,$out,16
++	stw		r9, -16($inp)
++	stw		r10,-12($inp)
++	stw		r11,-8($inp)
++	stw		r12,-4($inp)
++	bdnz		Ldeckey
++
++	xor		r3,r3,r3		# return value
++Ldec_key_abort:
++	addi		$sp,$sp,$FRAME
++	blr
++	.long		0
++	.byte		0,12,4,1,0x80,0,3,0
++	.long		0
++.size	.${prefix}_set_decrypt_key,.-.${prefix}_set_decrypt_key
++___
++}}}
++#########################################################################
++{{{	# Single block en- and decrypt procedures			#
++sub gen_block () {
++my $dir = shift;
++my $n   = $dir eq "de" ? "n" : "";
++my ($inp,$out,$key,$rounds,$idx)=map("r$_",(3..7));
++
++$code.=<<___;
++.globl	.${prefix}_${dir}crypt
++	lwz		$rounds,240($key)
++	lis		r0,0xfc00
++	mfspr		$vrsave,256
++	li		$idx,15			# 15 is not typo
++	mtspr		256,r0
++
++	lvx		v0,0,$inp
++	neg		r11,$out
++	lvx		v1,$idx,$inp
++	lvsl		v2,0,$inp		# inpperm
++	le?vspltisb	v4,0x0f
++	?lvsl		v3,0,r11		# outperm
++	le?vxor		v2,v2,v4
++	li		$idx,16
++	vperm		v0,v0,v1,v2		# align [and byte swap in LE]
++	lvx		v1,0,$key
++	?lvsl		v5,0,$key		# keyperm
++	srwi		$rounds,$rounds,1
++	lvx		v2,$idx,$key
++	addi		$idx,$idx,16
++	subi		$rounds,$rounds,1
++	?vperm		v1,v1,v2,v5		# align round key
++
++	vxor		v0,v0,v1
++	lvx		v1,$idx,$key
++	addi		$idx,$idx,16
++	mtctr		$rounds
++
++Loop_${dir}c:
++	?vperm		v2,v2,v1,v5
++	v${n}cipher	v0,v0,v2
++	lvx		v2,$idx,$key
++	addi		$idx,$idx,16
++	?vperm		v1,v1,v2,v5
++	v${n}cipher	v0,v0,v1
++	lvx		v1,$idx,$key
++	addi		$idx,$idx,16
++	bdnz		Loop_${dir}c
++
++	?vperm		v2,v2,v1,v5
++	v${n}cipher	v0,v0,v2
++	lvx		v2,$idx,$key
++	?vperm		v1,v1,v2,v5
++	v${n}cipherlast	v0,v0,v1
++
++	vspltisb	v2,-1
++	vxor		v1,v1,v1
++	li		$idx,15			# 15 is not typo
++	?vperm		v2,v1,v2,v3		# outmask
++	le?vxor		v3,v3,v4
++	lvx		v1,0,$out		# outhead
++	vperm		v0,v0,v0,v3		# rotate [and byte swap in LE]
++	vsel		v1,v1,v0,v2
++	lvx		v4,$idx,$out
++	stvx		v1,0,$out
++	vsel		v0,v0,v4,v2
++	stvx		v0,$idx,$out
++
++	mtspr		256,$vrsave
++	blr
++	.long		0
++	.byte		0,12,0x14,0,0,0,3,0
++	.long		0
++.size	.${prefix}_${dir}crypt,.-.${prefix}_${dir}crypt
++___
++}
++&gen_block("en");
++&gen_block("de");
++}}}
++
++my $consts=1;
++foreach(split("\n",$code)) {
++        s/\`([^\`]*)\`/eval($1)/geo;
++
++	# constants table endian-specific conversion
++	if ($consts && m/\.(long|byte)\s+(.+)\s+(\?[a-z]*)$/o) {
++	    my $conv=$3;
++	    my @bytes=();
++
++	    # convert to endian-agnostic format
++	    if ($1 eq "long") {
++	      foreach (split(/,\s*/,$2)) {
++		my $l = /^0/?oct:int;
++		push @bytes,($l>>24)&0xff,($l>>16)&0xff,($l>>8)&0xff,$l&0xff;
++	      }
++	    } else {
++		@bytes = map(/^0/?oct:int,split(/,\s*/,$2));
++	    }
++
++	    # little-endian conversion
++	    if ($flavour =~ /le$/o) {
++		SWITCH: for($conv)  {
++		    /\?inv/ && do   { @bytes=map($_^0xf,@bytes); last; };
++		    /\?rev/ && do   { @bytes=reverse(@bytes);    last; };
++		}
++	    }
++
++	    #emit
++	    print ".byte\t",join(',',map (sprintf("0x%02x",$_),@bytes)),"\n";
++	    next;
++	}
++	$consts=0 if (m/Lconsts:/o);	# end of table
++
++	# instructions prefixed with '?' are endian-specific and need
++	# to be adjusted accordingly...
++	if ($flavour =~ /le$/o) {	# little-endian
++	    s/le\?//o		or
++	    s/be\?/#be#/o	or
++	    s/\?lvsr/lvsl/o	or
++	    s/\?lvsl/lvsr/o	or
++	    s/\?(vperm\s+v[0-9]+,\s*)(v[0-9]+,\s*)(v[0-9]+,\s*)(v[0-9]+)/$1$3$2$4/o or
++	    s/\?(vsldoi\s+v[0-9]+,\s*)(v[0-9]+,)\s*(v[0-9]+,\s*)([0-9]+)/$1$3$2 16-$4/o or
++	    s/\?(vspltw\s+v[0-9]+,\s*)(v[0-9]+,)\s*([0-9])/$1$2 3-$3/o;
++	} else {			# big-endian
++	    s/le\?/#le#/o	or
++	    s/be\?//o		or
++	    s/\?([a-z]+)/$1/o;
++	}
++
++        print $_,"\n";
++}
++
++close STDOUT;
+diff --git a/arch/powerpc/crypto/aesp8-ppc.pl b/arch/powerpc/crypto/aesp8-ppc.pl
+deleted file mode 100644
+index 1f22aec27d799..0000000000000
+--- a/arch/powerpc/crypto/aesp8-ppc.pl
++++ /dev/null
+@@ -1,585 +0,0 @@
+-#! /usr/bin/env perl
+-# SPDX-License-Identifier: GPL-2.0
+-
+-# This code is taken from CRYPTOGAMs[1] and is included here using the option
+-# in the license to distribute the code under the GPL. Therefore this program
+-# is free software; you can redistribute it and/or modify it under the terms of
+-# the GNU General Public License version 2 as published by the Free Software
+-# Foundation.
+-#
+-# [1] https://www.openssl.org/~appro/cryptogams/
+-
+-# Copyright (c) 2006-2017, CRYPTOGAMS by <appro@openssl.org>
+-# All rights reserved.
+-#
+-# Redistribution and use in source and binary forms, with or without
+-# modification, are permitted provided that the following conditions
+-# are met:
+-#
+-#       * Redistributions of source code must retain copyright notices,
+-#         this list of conditions and the following disclaimer.
+-#
+-#       * Redistributions in binary form must reproduce the above
+-#         copyright notice, this list of conditions and the following
+-#         disclaimer in the documentation and/or other materials
+-#         provided with the distribution.
+-#
+-#       * Neither the name of the CRYPTOGAMS nor the names of its
+-#         copyright holder and contributors may be used to endorse or
+-#         promote products derived from this software without specific
+-#         prior written permission.
+-#
+-# ALTERNATIVELY, provided that this notice is retained in full, this
+-# product may be distributed under the terms of the GNU General Public
+-# License (GPL), in which case the provisions of the GPL apply INSTEAD OF
+-# those given above.
+-#
+-# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDER AND CONTRIBUTORS
+-# "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+-# LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+-# A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+-# OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+-# SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+-# LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+-# DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+-# THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+-# (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+-# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+-
+-# ====================================================================
+-# Written by Andy Polyakov <appro@openssl.org> for the OpenSSL
+-# project. The module is, however, dual licensed under OpenSSL and
+-# CRYPTOGAMS licenses depending on where you obtain it. For further
+-# details see https://www.openssl.org/~appro/cryptogams/.
+-# ====================================================================
+-#
+-# This module implements support for AES instructions as per PowerISA
+-# specification version 2.07, first implemented by POWER8 processor.
+-# The module is endian-agnostic in sense that it supports both big-
+-# and little-endian cases. Data alignment in parallelizable modes is
+-# handled with VSX loads and stores, which implies MSR.VSX flag being
+-# set. It should also be noted that ISA specification doesn't prohibit
+-# alignment exceptions for these instructions on page boundaries.
+-# Initially alignment was handled in pure AltiVec/VMX way [when data
+-# is aligned programmatically, which in turn guarantees exception-
+-# free execution], but it turned to hamper performance when vcipher
+-# instructions are interleaved. It's reckoned that eventual
+-# misalignment penalties at page boundaries are in average lower
+-# than additional overhead in pure AltiVec approach.
+-#
+-# May 2016
+-#
+-# Add XTS subroutine, 9x on little- and 12x improvement on big-endian
+-# systems were measured.
+-#
+-######################################################################
+-# Current large-block performance in cycles per byte processed with
+-# 128-bit key (less is better).
+-#
+-#		CBC en-/decrypt	CTR	XTS
+-# POWER8[le]	3.96/0.72	0.74	1.1
+-# POWER8[be]	3.75/0.65	0.66	1.0
+-
+-$flavour = shift;
+-
+-if ($flavour =~ /64/) {
+-	$SIZE_T	=8;
+-	$LRSAVE	=2*$SIZE_T;
+-	$STU	="stdu";
+-	$POP	="ld";
+-	$PUSH	="std";
+-	$UCMP	="cmpld";
+-	$SHL	="sldi";
+-} elsif ($flavour =~ /32/) {
+-	$SIZE_T	=4;
+-	$LRSAVE	=$SIZE_T;
+-	$STU	="stwu";
+-	$POP	="lwz";
+-	$PUSH	="stw";
+-	$UCMP	="cmplw";
+-	$SHL	="slwi";
+-} else { die "nonsense $flavour"; }
+-
+-$LITTLE_ENDIAN = ($flavour=~/le$/) ? $SIZE_T : 0;
+-
+-$0 =~ m/(.*[\/\\])[^\/\\]+$/; $dir=$1;
+-( $xlate="${dir}ppc-xlate.pl" and -f $xlate ) or
+-( $xlate="${dir}../../perlasm/ppc-xlate.pl" and -f $xlate) or
+-die "can't locate ppc-xlate.pl";
+-
+-open STDOUT,"| $^X $xlate $flavour ".shift || die "can't call $xlate: $!";
+-
+-$FRAME=8*$SIZE_T;
+-$prefix="aes_p8";
+-
+-$sp="r1";
+-$vrsave="r12";
+-
+-#########################################################################
+-{{{	# Key setup procedures						#
+-my ($inp,$bits,$out,$ptr,$cnt,$rounds)=map("r$_",(3..8));
+-my ($zero,$in0,$in1,$key,$rcon,$mask,$tmp)=map("v$_",(0..6));
+-my ($stage,$outperm,$outmask,$outhead,$outtail)=map("v$_",(7..11));
+-
+-$code.=<<___;
+-.machine	"any"
+-
+-.text
+-
+-.align	7
+-rcon:
+-.long	0x01000000, 0x01000000, 0x01000000, 0x01000000	?rev
+-.long	0x1b000000, 0x1b000000, 0x1b000000, 0x1b000000	?rev
+-.long	0x0d0e0f0c, 0x0d0e0f0c, 0x0d0e0f0c, 0x0d0e0f0c	?rev
+-.long	0,0,0,0						?asis
+-Lconsts:
+-	mflr	r0
+-	bcl	20,31,\$+4
+-	mflr	$ptr	 #vvvvv "distance between . and rcon
+-	addi	$ptr,$ptr,-0x48
+-	mtlr	r0
+-	blr
+-	.long	0
+-	.byte	0,12,0x14,0,0,0,0,0
+-.asciz	"AES for PowerISA 2.07, CRYPTOGAMS by <appro\@openssl.org>"
+-
+-.globl	.${prefix}_set_encrypt_key
+-Lset_encrypt_key:
+-	mflr		r11
+-	$PUSH		r11,$LRSAVE($sp)
+-
+-	li		$ptr,-1
+-	${UCMP}i	$inp,0
+-	beq-		Lenc_key_abort		# if ($inp==0) return -1;
+-	${UCMP}i	$out,0
+-	beq-		Lenc_key_abort		# if ($out==0) return -1;
+-	li		$ptr,-2
+-	cmpwi		$bits,128
+-	blt-		Lenc_key_abort
+-	cmpwi		$bits,256
+-	bgt-		Lenc_key_abort
+-	andi.		r0,$bits,0x3f
+-	bne-		Lenc_key_abort
+-
+-	lis		r0,0xfff0
+-	mfspr		$vrsave,256
+-	mtspr		256,r0
+-
+-	bl		Lconsts
+-	mtlr		r11
+-
+-	neg		r9,$inp
+-	lvx		$in0,0,$inp
+-	addi		$inp,$inp,15		# 15 is not typo
+-	lvsr		$key,0,r9		# borrow $key
+-	li		r8,0x20
+-	cmpwi		$bits,192
+-	lvx		$in1,0,$inp
+-	le?vspltisb	$mask,0x0f		# borrow $mask
+-	lvx		$rcon,0,$ptr
+-	le?vxor		$key,$key,$mask		# adjust for byte swap
+-	lvx		$mask,r8,$ptr
+-	addi		$ptr,$ptr,0x10
+-	vperm		$in0,$in0,$in1,$key	# align [and byte swap in LE]
+-	li		$cnt,8
+-	vxor		$zero,$zero,$zero
+-	mtctr		$cnt
+-
+-	?lvsr		$outperm,0,$out
+-	vspltisb	$outmask,-1
+-	lvx		$outhead,0,$out
+-	?vperm		$outmask,$zero,$outmask,$outperm
+-
+-	blt		Loop128
+-	addi		$inp,$inp,8
+-	beq		L192
+-	addi		$inp,$inp,8
+-	b		L256
+-
+-.align	4
+-Loop128:
+-	vperm		$key,$in0,$in0,$mask	# rotate-n-splat
+-	vsldoi		$tmp,$zero,$in0,12	# >>32
+-	 vperm		$outtail,$in0,$in0,$outperm	# rotate
+-	 vsel		$stage,$outhead,$outtail,$outmask
+-	 vmr		$outhead,$outtail
+-	vcipherlast	$key,$key,$rcon
+-	 stvx		$stage,0,$out
+-	 addi		$out,$out,16
+-
+-	vxor		$in0,$in0,$tmp
+-	vsldoi		$tmp,$zero,$tmp,12	# >>32
+-	vxor		$in0,$in0,$tmp
+-	vsldoi		$tmp,$zero,$tmp,12	# >>32
+-	vxor		$in0,$in0,$tmp
+-	 vadduwm	$rcon,$rcon,$rcon
+-	vxor		$in0,$in0,$key
+-	bdnz		Loop128
+-
+-	lvx		$rcon,0,$ptr		# last two round keys
+-
+-	vperm		$key,$in0,$in0,$mask	# rotate-n-splat
+-	vsldoi		$tmp,$zero,$in0,12	# >>32
+-	 vperm		$outtail,$in0,$in0,$outperm	# rotate
+-	 vsel		$stage,$outhead,$outtail,$outmask
+-	 vmr		$outhead,$outtail
+-	vcipherlast	$key,$key,$rcon
+-	 stvx		$stage,0,$out
+-	 addi		$out,$out,16
+-
+-	vxor		$in0,$in0,$tmp
+-	vsldoi		$tmp,$zero,$tmp,12	# >>32
+-	vxor		$in0,$in0,$tmp
+-	vsldoi		$tmp,$zero,$tmp,12	# >>32
+-	vxor		$in0,$in0,$tmp
+-	 vadduwm	$rcon,$rcon,$rcon
+-	vxor		$in0,$in0,$key
+-
+-	vperm		$key,$in0,$in0,$mask	# rotate-n-splat
+-	vsldoi		$tmp,$zero,$in0,12	# >>32
+-	 vperm		$outtail,$in0,$in0,$outperm	# rotate
+-	 vsel		$stage,$outhead,$outtail,$outmask
+-	 vmr		$outhead,$outtail
+-	vcipherlast	$key,$key,$rcon
+-	 stvx		$stage,0,$out
+-	 addi		$out,$out,16
+-
+-	vxor		$in0,$in0,$tmp
+-	vsldoi		$tmp,$zero,$tmp,12	# >>32
+-	vxor		$in0,$in0,$tmp
+-	vsldoi		$tmp,$zero,$tmp,12	# >>32
+-	vxor		$in0,$in0,$tmp
+-	vxor		$in0,$in0,$key
+-	 vperm		$outtail,$in0,$in0,$outperm	# rotate
+-	 vsel		$stage,$outhead,$outtail,$outmask
+-	 vmr		$outhead,$outtail
+-	 stvx		$stage,0,$out
+-
+-	addi		$inp,$out,15		# 15 is not typo
+-	addi		$out,$out,0x50
+-
+-	li		$rounds,10
+-	b		Ldone
+-
+-.align	4
+-L192:
+-	lvx		$tmp,0,$inp
+-	li		$cnt,4
+-	 vperm		$outtail,$in0,$in0,$outperm	# rotate
+-	 vsel		$stage,$outhead,$outtail,$outmask
+-	 vmr		$outhead,$outtail
+-	 stvx		$stage,0,$out
+-	 addi		$out,$out,16
+-	vperm		$in1,$in1,$tmp,$key	# align [and byte swap in LE]
+-	vspltisb	$key,8			# borrow $key
+-	mtctr		$cnt
+-	vsububm		$mask,$mask,$key	# adjust the mask
+-
+-Loop192:
+-	vperm		$key,$in1,$in1,$mask	# roate-n-splat
+-	vsldoi		$tmp,$zero,$in0,12	# >>32
+-	vcipherlast	$key,$key,$rcon
+-
+-	vxor		$in0,$in0,$tmp
+-	vsldoi		$tmp,$zero,$tmp,12	# >>32
+-	vxor		$in0,$in0,$tmp
+-	vsldoi		$tmp,$zero,$tmp,12	# >>32
+-	vxor		$in0,$in0,$tmp
+-
+-	 vsldoi		$stage,$zero,$in1,8
+-	vspltw		$tmp,$in0,3
+-	vxor		$tmp,$tmp,$in1
+-	vsldoi		$in1,$zero,$in1,12	# >>32
+-	 vadduwm	$rcon,$rcon,$rcon
+-	vxor		$in1,$in1,$tmp
+-	vxor		$in0,$in0,$key
+-	vxor		$in1,$in1,$key
+-	 vsldoi		$stage,$stage,$in0,8
+-
+-	vperm		$key,$in1,$in1,$mask	# rotate-n-splat
+-	vsldoi		$tmp,$zero,$in0,12	# >>32
+-	 vperm		$outtail,$stage,$stage,$outperm	# rotate
+-	 vsel		$stage,$outhead,$outtail,$outmask
+-	 vmr		$outhead,$outtail
+-	vcipherlast	$key,$key,$rcon
+-	 stvx		$stage,0,$out
+-	 addi		$out,$out,16
+-
+-	 vsldoi		$stage,$in0,$in1,8
+-	vxor		$in0,$in0,$tmp
+-	vsldoi		$tmp,$zero,$tmp,12	# >>32
+-	 vperm		$outtail,$stage,$stage,$outperm	# rotate
+-	 vsel		$stage,$outhead,$outtail,$outmask
+-	 vmr		$outhead,$outtail
+-	vxor		$in0,$in0,$tmp
+-	vsldoi		$tmp,$zero,$tmp,12	# >>32
+-	vxor		$in0,$in0,$tmp
+-	 stvx		$stage,0,$out
+-	 addi		$out,$out,16
+-
+-	vspltw		$tmp,$in0,3
+-	vxor		$tmp,$tmp,$in1
+-	vsldoi		$in1,$zero,$in1,12	# >>32
+-	 vadduwm	$rcon,$rcon,$rcon
+-	vxor		$in1,$in1,$tmp
+-	vxor		$in0,$in0,$key
+-	vxor		$in1,$in1,$key
+-	 vperm		$outtail,$in0,$in0,$outperm	# rotate
+-	 vsel		$stage,$outhead,$outtail,$outmask
+-	 vmr		$outhead,$outtail
+-	 stvx		$stage,0,$out
+-	 addi		$inp,$out,15		# 15 is not typo
+-	 addi		$out,$out,16
+-	bdnz		Loop192
+-
+-	li		$rounds,12
+-	addi		$out,$out,0x20
+-	b		Ldone
+-
+-.align	4
+-L256:
+-	lvx		$tmp,0,$inp
+-	li		$cnt,7
+-	li		$rounds,14
+-	 vperm		$outtail,$in0,$in0,$outperm	# rotate
+-	 vsel		$stage,$outhead,$outtail,$outmask
+-	 vmr		$outhead,$outtail
+-	 stvx		$stage,0,$out
+-	 addi		$out,$out,16
+-	vperm		$in1,$in1,$tmp,$key	# align [and byte swap in LE]
+-	mtctr		$cnt
+-
+-Loop256:
+-	vperm		$key,$in1,$in1,$mask	# rotate-n-splat
+-	vsldoi		$tmp,$zero,$in0,12	# >>32
+-	 vperm		$outtail,$in1,$in1,$outperm	# rotate
+-	 vsel		$stage,$outhead,$outtail,$outmask
+-	 vmr		$outhead,$outtail
+-	vcipherlast	$key,$key,$rcon
+-	 stvx		$stage,0,$out
+-	 addi		$out,$out,16
+-
+-	vxor		$in0,$in0,$tmp
+-	vsldoi		$tmp,$zero,$tmp,12	# >>32
+-	vxor		$in0,$in0,$tmp
+-	vsldoi		$tmp,$zero,$tmp,12	# >>32
+-	vxor		$in0,$in0,$tmp
+-	 vadduwm	$rcon,$rcon,$rcon
+-	vxor		$in0,$in0,$key
+-	 vperm		$outtail,$in0,$in0,$outperm	# rotate
+-	 vsel		$stage,$outhead,$outtail,$outmask
+-	 vmr		$outhead,$outtail
+-	 stvx		$stage,0,$out
+-	 addi		$inp,$out,15		# 15 is not typo
+-	 addi		$out,$out,16
+-	bdz		Ldone
+-
+-	vspltw		$key,$in0,3		# just splat
+-	vsldoi		$tmp,$zero,$in1,12	# >>32
+-	vsbox		$key,$key
+-
+-	vxor		$in1,$in1,$tmp
+-	vsldoi		$tmp,$zero,$tmp,12	# >>32
+-	vxor		$in1,$in1,$tmp
+-	vsldoi		$tmp,$zero,$tmp,12	# >>32
+-	vxor		$in1,$in1,$tmp
+-
+-	vxor		$in1,$in1,$key
+-	b		Loop256
+-
+-.align	4
+-Ldone:
+-	lvx		$in1,0,$inp		# redundant in aligned case
+-	vsel		$in1,$outhead,$in1,$outmask
+-	stvx		$in1,0,$inp
+-	li		$ptr,0
+-	mtspr		256,$vrsave
+-	stw		$rounds,0($out)
+-
+-Lenc_key_abort:
+-	mr		r3,$ptr
+-	blr
+-	.long		0
+-	.byte		0,12,0x14,1,0,0,3,0
+-	.long		0
+-.size	.${prefix}_set_encrypt_key,.-.${prefix}_set_encrypt_key
+-
+-.globl	.${prefix}_set_decrypt_key
+-	$STU		$sp,-$FRAME($sp)
+-	mflr		r10
+-	$PUSH		r10,$FRAME+$LRSAVE($sp)
+-	bl		Lset_encrypt_key
+-	mtlr		r10
+-
+-	cmpwi		r3,0
+-	bne-		Ldec_key_abort
+-
+-	slwi		$cnt,$rounds,4
+-	subi		$inp,$out,240		# first round key
+-	srwi		$rounds,$rounds,1
+-	add		$out,$inp,$cnt		# last round key
+-	mtctr		$rounds
+-
+-Ldeckey:
+-	lwz		r0, 0($inp)
+-	lwz		r6, 4($inp)
+-	lwz		r7, 8($inp)
+-	lwz		r8, 12($inp)
+-	addi		$inp,$inp,16
+-	lwz		r9, 0($out)
+-	lwz		r10,4($out)
+-	lwz		r11,8($out)
+-	lwz		r12,12($out)
+-	stw		r0, 0($out)
+-	stw		r6, 4($out)
+-	stw		r7, 8($out)
+-	stw		r8, 12($out)
+-	subi		$out,$out,16
+-	stw		r9, -16($inp)
+-	stw		r10,-12($inp)
+-	stw		r11,-8($inp)
+-	stw		r12,-4($inp)
+-	bdnz		Ldeckey
+-
+-	xor		r3,r3,r3		# return value
+-Ldec_key_abort:
+-	addi		$sp,$sp,$FRAME
+-	blr
+-	.long		0
+-	.byte		0,12,4,1,0x80,0,3,0
+-	.long		0
+-.size	.${prefix}_set_decrypt_key,.-.${prefix}_set_decrypt_key
+-___
+-}}}
+-#########################################################################
+-{{{	# Single block en- and decrypt procedures			#
+-sub gen_block () {
+-my $dir = shift;
+-my $n   = $dir eq "de" ? "n" : "";
+-my ($inp,$out,$key,$rounds,$idx)=map("r$_",(3..7));
+-
+-$code.=<<___;
+-.globl	.${prefix}_${dir}crypt
+-	lwz		$rounds,240($key)
+-	lis		r0,0xfc00
+-	mfspr		$vrsave,256
+-	li		$idx,15			# 15 is not typo
+-	mtspr		256,r0
+-
+-	lvx		v0,0,$inp
+-	neg		r11,$out
+-	lvx		v1,$idx,$inp
+-	lvsl		v2,0,$inp		# inpperm
+-	le?vspltisb	v4,0x0f
+-	?lvsl		v3,0,r11		# outperm
+-	le?vxor		v2,v2,v4
+-	li		$idx,16
+-	vperm		v0,v0,v1,v2		# align [and byte swap in LE]
+-	lvx		v1,0,$key
+-	?lvsl		v5,0,$key		# keyperm
+-	srwi		$rounds,$rounds,1
+-	lvx		v2,$idx,$key
+-	addi		$idx,$idx,16
+-	subi		$rounds,$rounds,1
+-	?vperm		v1,v1,v2,v5		# align round key
+-
+-	vxor		v0,v0,v1
+-	lvx		v1,$idx,$key
+-	addi		$idx,$idx,16
+-	mtctr		$rounds
+-
+-Loop_${dir}c:
+-	?vperm		v2,v2,v1,v5
+-	v${n}cipher	v0,v0,v2
+-	lvx		v2,$idx,$key
+-	addi		$idx,$idx,16
+-	?vperm		v1,v1,v2,v5
+-	v${n}cipher	v0,v0,v1
+-	lvx		v1,$idx,$key
+-	addi		$idx,$idx,16
+-	bdnz		Loop_${dir}c
+-
+-	?vperm		v2,v2,v1,v5
+-	v${n}cipher	v0,v0,v2
+-	lvx		v2,$idx,$key
+-	?vperm		v1,v1,v2,v5
+-	v${n}cipherlast	v0,v0,v1
+-
+-	vspltisb	v2,-1
+-	vxor		v1,v1,v1
+-	li		$idx,15			# 15 is not typo
+-	?vperm		v2,v1,v2,v3		# outmask
+-	le?vxor		v3,v3,v4
+-	lvx		v1,0,$out		# outhead
+-	vperm		v0,v0,v0,v3		# rotate [and byte swap in LE]
+-	vsel		v1,v1,v0,v2
+-	lvx		v4,$idx,$out
+-	stvx		v1,0,$out
+-	vsel		v0,v0,v4,v2
+-	stvx		v0,$idx,$out
+-
+-	mtspr		256,$vrsave
+-	blr
+-	.long		0
+-	.byte		0,12,0x14,0,0,0,3,0
+-	.long		0
+-.size	.${prefix}_${dir}crypt,.-.${prefix}_${dir}crypt
+-___
+-}
+-&gen_block("en");
+-&gen_block("de");
+-}}}
+-
+-my $consts=1;
+-foreach(split("\n",$code)) {
+-        s/\`([^\`]*)\`/eval($1)/geo;
+-
+-	# constants table endian-specific conversion
+-	if ($consts && m/\.(long|byte)\s+(.+)\s+(\?[a-z]*)$/o) {
+-	    my $conv=$3;
+-	    my @bytes=();
+-
+-	    # convert to endian-agnostic format
+-	    if ($1 eq "long") {
+-	      foreach (split(/,\s*/,$2)) {
+-		my $l = /^0/?oct:int;
+-		push @bytes,($l>>24)&0xff,($l>>16)&0xff,($l>>8)&0xff,$l&0xff;
+-	      }
+-	    } else {
+-		@bytes = map(/^0/?oct:int,split(/,\s*/,$2));
+-	    }
+-
+-	    # little-endian conversion
+-	    if ($flavour =~ /le$/o) {
+-		SWITCH: for($conv)  {
+-		    /\?inv/ && do   { @bytes=map($_^0xf,@bytes); last; };
+-		    /\?rev/ && do   { @bytes=reverse(@bytes);    last; };
+-		}
+-	    }
+-
+-	    #emit
+-	    print ".byte\t",join(',',map (sprintf("0x%02x",$_),@bytes)),"\n";
+-	    next;
+-	}
+-	$consts=0 if (m/Lconsts:/o);	# end of table
+-
+-	# instructions prefixed with '?' are endian-specific and need
+-	# to be adjusted accordingly...
+-	if ($flavour =~ /le$/o) {	# little-endian
+-	    s/le\?//o		or
+-	    s/be\?/#be#/o	or
+-	    s/\?lvsr/lvsl/o	or
+-	    s/\?lvsl/lvsr/o	or
+-	    s/\?(vperm\s+v[0-9]+,\s*)(v[0-9]+,\s*)(v[0-9]+,\s*)(v[0-9]+)/$1$3$2$4/o or
+-	    s/\?(vsldoi\s+v[0-9]+,\s*)(v[0-9]+,)\s*(v[0-9]+,\s*)([0-9]+)/$1$3$2 16-$4/o or
+-	    s/\?(vspltw\s+v[0-9]+,\s*)(v[0-9]+,)\s*([0-9])/$1$2 3-$3/o;
+-	} else {			# big-endian
+-	    s/le\?/#le#/o	or
+-	    s/be\?//o		or
+-	    s/\?([a-z]+)/$1/o;
+-	}
+-
+-        print $_,"\n";
+-}
+-
+-close STDOUT;
+diff --git a/arch/powerpc/crypto/ghashp10-ppc.pl b/arch/powerpc/crypto/ghashp10-ppc.pl
+new file mode 100644
+index 0000000000000..27a6b0bec645f
+--- /dev/null
++++ b/arch/powerpc/crypto/ghashp10-ppc.pl
+@@ -0,0 +1,370 @@
++#!/usr/bin/env perl
++# SPDX-License-Identifier: GPL-2.0
++
++# This code is taken from the OpenSSL project but the author (Andy Polyakov)
++# has relicensed it under the GPLv2. Therefore this program is free software;
++# you can redistribute it and/or modify it under the terms of the GNU General
++# Public License version 2 as published by the Free Software Foundation.
++#
++# The original headers, including the original license headers, are
++# included below for completeness.
++
++# ====================================================================
++# Written by Andy Polyakov <appro@openssl.org> for the OpenSSL
++# project. The module is, however, dual licensed under OpenSSL and
++# CRYPTOGAMS licenses depending on where you obtain it. For further
++# details see https://www.openssl.org/~appro/cryptogams/.
++# ====================================================================
++#
++# GHASH for PowerISA v2.07.
++#
++# July 2014
++#
++# Accurate performance measurements are problematic, because it's
++# always virtualized setup with possibly throttled processor.
++# Relative comparison is therefore more informative. This initial
++# version is ~2.1x slower than hardware-assisted AES-128-CTR, ~12x
++# faster than "4-bit" integer-only compiler-generated 64-bit code.
++# "Initial version" means that there is room for futher improvement.
++
++$flavour=shift;
++$output =shift;
++
++if ($flavour =~ /64/) {
++	$SIZE_T=8;
++	$LRSAVE=2*$SIZE_T;
++	$STU="stdu";
++	$POP="ld";
++	$PUSH="std";
++} elsif ($flavour =~ /32/) {
++	$SIZE_T=4;
++	$LRSAVE=$SIZE_T;
++	$STU="stwu";
++	$POP="lwz";
++	$PUSH="stw";
++} else { die "nonsense $flavour"; }
++
++$0 =~ m/(.*[\/\\])[^\/\\]+$/; $dir=$1;
++( $xlate="${dir}ppc-xlate.pl" and -f $xlate ) or
++( $xlate="${dir}../../perlasm/ppc-xlate.pl" and -f $xlate) or
++die "can't locate ppc-xlate.pl";
++
++open STDOUT,"| $^X $xlate $flavour $output" || die "can't call $xlate: $!";
++
++my ($Xip,$Htbl,$inp,$len)=map("r$_",(3..6));	# argument block
++
++my ($Xl,$Xm,$Xh,$IN)=map("v$_",(0..3));
++my ($zero,$t0,$t1,$t2,$xC2,$H,$Hh,$Hl,$lemask)=map("v$_",(4..12));
++my ($Xl1,$Xm1,$Xh1,$IN1,$H2,$H2h,$H2l)=map("v$_",(13..19));
++my $vrsave="r12";
++my ($t4,$t5,$t6) = ($Hl,$H,$Hh);
++
++$code=<<___;
++.machine	"any"
++
++.text
++
++.globl	.gcm_init_p10
++	lis		r0,0xfff0
++	li		r8,0x10
++	mfspr		$vrsave,256
++	li		r9,0x20
++	mtspr		256,r0
++	li		r10,0x30
++	lvx_u		$H,0,r4			# load H
++	le?xor		r7,r7,r7
++	le?addi		r7,r7,0x8		# need a vperm start with 08
++	le?lvsr		5,0,r7
++	le?vspltisb	6,0x0f
++	le?vxor		5,5,6			# set a b-endian mask
++	le?vperm	$H,$H,$H,5
++
++	vspltisb	$xC2,-16		# 0xf0
++	vspltisb	$t0,1			# one
++	vaddubm		$xC2,$xC2,$xC2		# 0xe0
++	vxor		$zero,$zero,$zero
++	vor		$xC2,$xC2,$t0		# 0xe1
++	vsldoi		$xC2,$xC2,$zero,15	# 0xe1...
++	vsldoi		$t1,$zero,$t0,1		# ...1
++	vaddubm		$xC2,$xC2,$xC2		# 0xc2...
++	vspltisb	$t2,7
++	vor		$xC2,$xC2,$t1		# 0xc2....01
++	vspltb		$t1,$H,0		# most significant byte
++	vsl		$H,$H,$t0		# H<<=1
++	vsrab		$t1,$t1,$t2		# broadcast carry bit
++	vand		$t1,$t1,$xC2
++	vxor		$H,$H,$t1		# twisted H
++
++	vsldoi		$H,$H,$H,8		# twist even more ...
++	vsldoi		$xC2,$zero,$xC2,8	# 0xc2.0
++	vsldoi		$Hl,$zero,$H,8		# ... and split
++	vsldoi		$Hh,$H,$zero,8
++
++	stvx_u		$xC2,0,r3		# save pre-computed table
++	stvx_u		$Hl,r8,r3
++	stvx_u		$H, r9,r3
++	stvx_u		$Hh,r10,r3
++
++	mtspr		256,$vrsave
++	blr
++	.long		0
++	.byte		0,12,0x14,0,0,0,2,0
++	.long		0
++.size	.gcm_init_p10,.-.gcm_init_p10
++
++.globl	.gcm_init_htable
++	lis		r0,0xfff0
++	li		r8,0x10
++	mfspr		$vrsave,256
++	li		r9,0x20
++	mtspr		256,r0
++	li		r10,0x30
++	lvx_u		$H,0,r4			# load H
++
++	vspltisb	$xC2,-16		# 0xf0
++	vspltisb	$t0,1			# one
++	vaddubm		$xC2,$xC2,$xC2		# 0xe0
++	vxor		$zero,$zero,$zero
++	vor		$xC2,$xC2,$t0		# 0xe1
++	vsldoi		$xC2,$xC2,$zero,15	# 0xe1...
++	vsldoi		$t1,$zero,$t0,1		# ...1
++	vaddubm		$xC2,$xC2,$xC2		# 0xc2...
++	vspltisb	$t2,7
++	vor		$xC2,$xC2,$t1		# 0xc2....01
++	vspltb		$t1,$H,0		# most significant byte
++	vsl		$H,$H,$t0		# H<<=1
++	vsrab		$t1,$t1,$t2		# broadcast carry bit
++	vand		$t1,$t1,$xC2
++	vxor		$IN,$H,$t1		# twisted H
++
++	vsldoi		$H,$IN,$IN,8		# twist even more ...
++	vsldoi		$xC2,$zero,$xC2,8	# 0xc2.0
++	vsldoi		$Hl,$zero,$H,8		# ... and split
++	vsldoi		$Hh,$H,$zero,8
++
++	stvx_u		$xC2,0,r3		# save pre-computed table
++	stvx_u		$Hl,r8,r3
++	li		r8,0x40
++	stvx_u		$H, r9,r3
++	li		r9,0x50
++	stvx_u		$Hh,r10,r3
++	li		r10,0x60
++
++	vpmsumd		$Xl,$IN,$Hl		# H.lo·H.lo
++	vpmsumd		$Xm,$IN,$H		# H.hi·H.lo+H.lo·H.hi
++	vpmsumd		$Xh,$IN,$Hh		# H.hi·H.hi
++
++	vpmsumd		$t2,$Xl,$xC2		# 1st reduction phase
++
++	vsldoi		$t0,$Xm,$zero,8
++	vsldoi		$t1,$zero,$Xm,8
++	vxor		$Xl,$Xl,$t0
++	vxor		$Xh,$Xh,$t1
++
++	vsldoi		$Xl,$Xl,$Xl,8
++	vxor		$Xl,$Xl,$t2
++
++	vsldoi		$t1,$Xl,$Xl,8		# 2nd reduction phase
++	vpmsumd		$Xl,$Xl,$xC2
++	vxor		$t1,$t1,$Xh
++	vxor		$IN1,$Xl,$t1
++
++	vsldoi		$H2,$IN1,$IN1,8
++	vsldoi		$H2l,$zero,$H2,8
++	vsldoi		$H2h,$H2,$zero,8
++
++	stvx_u		$H2l,r8,r3		# save H^2
++	li		r8,0x70
++	stvx_u		$H2,r9,r3
++	li		r9,0x80
++	stvx_u		$H2h,r10,r3
++	li		r10,0x90
++
++	vpmsumd		$Xl,$IN,$H2l		# H.lo·H^2.lo
++	 vpmsumd	$Xl1,$IN1,$H2l		# H^2.lo·H^2.lo
++	vpmsumd		$Xm,$IN,$H2		# H.hi·H^2.lo+H.lo·H^2.hi
++	 vpmsumd	$Xm1,$IN1,$H2		# H^2.hi·H^2.lo+H^2.lo·H^2.hi
++	vpmsumd		$Xh,$IN,$H2h		# H.hi·H^2.hi
++	 vpmsumd	$Xh1,$IN1,$H2h		# H^2.hi·H^2.hi
++
++	vpmsumd		$t2,$Xl,$xC2		# 1st reduction phase
++	 vpmsumd	$t6,$Xl1,$xC2		# 1st reduction phase
++
++	vsldoi		$t0,$Xm,$zero,8
++	vsldoi		$t1,$zero,$Xm,8
++	 vsldoi		$t4,$Xm1,$zero,8
++	 vsldoi		$t5,$zero,$Xm1,8
++	vxor		$Xl,$Xl,$t0
++	vxor		$Xh,$Xh,$t1
++	 vxor		$Xl1,$Xl1,$t4
++	 vxor		$Xh1,$Xh1,$t5
++
++	vsldoi		$Xl,$Xl,$Xl,8
++	 vsldoi		$Xl1,$Xl1,$Xl1,8
++	vxor		$Xl,$Xl,$t2
++	 vxor		$Xl1,$Xl1,$t6
++
++	vsldoi		$t1,$Xl,$Xl,8		# 2nd reduction phase
++	 vsldoi		$t5,$Xl1,$Xl1,8		# 2nd reduction phase
++	vpmsumd		$Xl,$Xl,$xC2
++	 vpmsumd	$Xl1,$Xl1,$xC2
++	vxor		$t1,$t1,$Xh
++	 vxor		$t5,$t5,$Xh1
++	vxor		$Xl,$Xl,$t1
++	 vxor		$Xl1,$Xl1,$t5
++
++	vsldoi		$H,$Xl,$Xl,8
++	 vsldoi		$H2,$Xl1,$Xl1,8
++	vsldoi		$Hl,$zero,$H,8
++	vsldoi		$Hh,$H,$zero,8
++	 vsldoi		$H2l,$zero,$H2,8
++	 vsldoi		$H2h,$H2,$zero,8
++
++	stvx_u		$Hl,r8,r3		# save H^3
++	li		r8,0xa0
++	stvx_u		$H,r9,r3
++	li		r9,0xb0
++	stvx_u		$Hh,r10,r3
++	li		r10,0xc0
++	 stvx_u		$H2l,r8,r3		# save H^4
++	 stvx_u		$H2,r9,r3
++	 stvx_u		$H2h,r10,r3
++
++	mtspr		256,$vrsave
++	blr
++	.long		0
++	.byte		0,12,0x14,0,0,0,2,0
++	.long		0
++.size	.gcm_init_htable,.-.gcm_init_htable
++
++.globl	.gcm_gmult_p10
++	lis		r0,0xfff8
++	li		r8,0x10
++	mfspr		$vrsave,256
++	li		r9,0x20
++	mtspr		256,r0
++	li		r10,0x30
++	lvx_u		$IN,0,$Xip		# load Xi
++
++	lvx_u		$Hl,r8,$Htbl		# load pre-computed table
++	 le?lvsl	$lemask,r0,r0
++	lvx_u		$H, r9,$Htbl
++	 le?vspltisb	$t0,0x07
++	lvx_u		$Hh,r10,$Htbl
++	 le?vxor	$lemask,$lemask,$t0
++	lvx_u		$xC2,0,$Htbl
++	 le?vperm	$IN,$IN,$IN,$lemask
++	vxor		$zero,$zero,$zero
++
++	vpmsumd		$Xl,$IN,$Hl		# H.lo·Xi.lo
++	vpmsumd		$Xm,$IN,$H		# H.hi·Xi.lo+H.lo·Xi.hi
++	vpmsumd		$Xh,$IN,$Hh		# H.hi·Xi.hi
++
++	vpmsumd		$t2,$Xl,$xC2		# 1st phase
++
++	vsldoi		$t0,$Xm,$zero,8
++	vsldoi		$t1,$zero,$Xm,8
++	vxor		$Xl,$Xl,$t0
++	vxor		$Xh,$Xh,$t1
++
++	vsldoi		$Xl,$Xl,$Xl,8
++	vxor		$Xl,$Xl,$t2
++
++	vsldoi		$t1,$Xl,$Xl,8		# 2nd phase
++	vpmsumd		$Xl,$Xl,$xC2
++	vxor		$t1,$t1,$Xh
++	vxor		$Xl,$Xl,$t1
++
++	le?vperm	$Xl,$Xl,$Xl,$lemask
++	stvx_u		$Xl,0,$Xip		# write out Xi
++
++	mtspr		256,$vrsave
++	blr
++	.long		0
++	.byte		0,12,0x14,0,0,0,2,0
++	.long		0
++.size	.gcm_gmult_p10,.-.gcm_gmult_p10
++
++.globl	.gcm_ghash_p10
++	lis		r0,0xfff8
++	li		r8,0x10
++	mfspr		$vrsave,256
++	li		r9,0x20
++	mtspr		256,r0
++	li		r10,0x30
++	lvx_u		$Xl,0,$Xip		# load Xi
++
++	lvx_u		$Hl,r8,$Htbl		# load pre-computed table
++	 le?lvsl	$lemask,r0,r0
++	lvx_u		$H, r9,$Htbl
++	 le?vspltisb	$t0,0x07
++	lvx_u		$Hh,r10,$Htbl
++	 le?vxor	$lemask,$lemask,$t0
++	lvx_u		$xC2,0,$Htbl
++	 le?vperm	$Xl,$Xl,$Xl,$lemask
++	vxor		$zero,$zero,$zero
++
++	lvx_u		$IN,0,$inp
++	addi		$inp,$inp,16
++	subi		$len,$len,16
++	 le?vperm	$IN,$IN,$IN,$lemask
++	vxor		$IN,$IN,$Xl
++	b		Loop
++
++.align	5
++Loop:
++	 subic		$len,$len,16
++	vpmsumd		$Xl,$IN,$Hl		# H.lo·Xi.lo
++	 subfe.		r0,r0,r0		# borrow?-1:0
++	vpmsumd		$Xm,$IN,$H		# H.hi·Xi.lo+H.lo·Xi.hi
++	 and		r0,r0,$len
++	vpmsumd		$Xh,$IN,$Hh		# H.hi·Xi.hi
++	 add		$inp,$inp,r0
++
++	vpmsumd		$t2,$Xl,$xC2		# 1st phase
++
++	vsldoi		$t0,$Xm,$zero,8
++	vsldoi		$t1,$zero,$Xm,8
++	vxor		$Xl,$Xl,$t0
++	vxor		$Xh,$Xh,$t1
++
++	vsldoi		$Xl,$Xl,$Xl,8
++	vxor		$Xl,$Xl,$t2
++	 lvx_u		$IN,0,$inp
++	 addi		$inp,$inp,16
++
++	vsldoi		$t1,$Xl,$Xl,8		# 2nd phase
++	vpmsumd		$Xl,$Xl,$xC2
++	 le?vperm	$IN,$IN,$IN,$lemask
++	vxor		$t1,$t1,$Xh
++	vxor		$IN,$IN,$t1
++	vxor		$IN,$IN,$Xl
++	beq		Loop			# did $len-=16 borrow?
++
++	vxor		$Xl,$Xl,$t1
++	le?vperm	$Xl,$Xl,$Xl,$lemask
++	stvx_u		$Xl,0,$Xip		# write out Xi
++
++	mtspr		256,$vrsave
++	blr
++	.long		0
++	.byte		0,12,0x14,0,0,0,4,0
++	.long		0
++.size	.gcm_ghash_p10,.-.gcm_ghash_p10
++
++.asciz  "GHASH for PowerISA 2.07, CRYPTOGAMS by <appro\@openssl.org>"
++.align  2
++___
++
++foreach (split("\n",$code)) {
++	if ($flavour =~ /le$/o) {	# little-endian
++	    s/le\?//o		or
++	    s/be\?/#be#/o;
++	} else {
++	    s/le\?/#le#/o	or
++	    s/be\?//o;
++	}
++	print $_,"\n";
++}
++
++close STDOUT; # enforce flush
+diff --git a/arch/powerpc/crypto/ghashp8-ppc.pl b/arch/powerpc/crypto/ghashp8-ppc.pl
+deleted file mode 100644
+index b56603b4a893c..0000000000000
+--- a/arch/powerpc/crypto/ghashp8-ppc.pl
++++ /dev/null
+@@ -1,370 +0,0 @@
+-#!/usr/bin/env perl
+-# SPDX-License-Identifier: GPL-2.0
+-
+-# This code is taken from the OpenSSL project but the author (Andy Polyakov)
+-# has relicensed it under the GPLv2. Therefore this program is free software;
+-# you can redistribute it and/or modify it under the terms of the GNU General
+-# Public License version 2 as published by the Free Software Foundation.
+-#
+-# The original headers, including the original license headers, are
+-# included below for completeness.
+-
+-# ====================================================================
+-# Written by Andy Polyakov <appro@openssl.org> for the OpenSSL
+-# project. The module is, however, dual licensed under OpenSSL and
+-# CRYPTOGAMS licenses depending on where you obtain it. For further
+-# details see https://www.openssl.org/~appro/cryptogams/.
+-# ====================================================================
+-#
+-# GHASH for PowerISA v2.07.
+-#
+-# July 2014
+-#
+-# Accurate performance measurements are problematic, because it's
+-# always virtualized setup with possibly throttled processor.
+-# Relative comparison is therefore more informative. This initial
+-# version is ~2.1x slower than hardware-assisted AES-128-CTR, ~12x
+-# faster than "4-bit" integer-only compiler-generated 64-bit code.
+-# "Initial version" means that there is room for futher improvement.
+-
+-$flavour=shift;
+-$output =shift;
+-
+-if ($flavour =~ /64/) {
+-	$SIZE_T=8;
+-	$LRSAVE=2*$SIZE_T;
+-	$STU="stdu";
+-	$POP="ld";
+-	$PUSH="std";
+-} elsif ($flavour =~ /32/) {
+-	$SIZE_T=4;
+-	$LRSAVE=$SIZE_T;
+-	$STU="stwu";
+-	$POP="lwz";
+-	$PUSH="stw";
+-} else { die "nonsense $flavour"; }
+-
+-$0 =~ m/(.*[\/\\])[^\/\\]+$/; $dir=$1;
+-( $xlate="${dir}ppc-xlate.pl" and -f $xlate ) or
+-( $xlate="${dir}../../perlasm/ppc-xlate.pl" and -f $xlate) or
+-die "can't locate ppc-xlate.pl";
+-
+-open STDOUT,"| $^X $xlate $flavour $output" || die "can't call $xlate: $!";
+-
+-my ($Xip,$Htbl,$inp,$len)=map("r$_",(3..6));	# argument block
+-
+-my ($Xl,$Xm,$Xh,$IN)=map("v$_",(0..3));
+-my ($zero,$t0,$t1,$t2,$xC2,$H,$Hh,$Hl,$lemask)=map("v$_",(4..12));
+-my ($Xl1,$Xm1,$Xh1,$IN1,$H2,$H2h,$H2l)=map("v$_",(13..19));
+-my $vrsave="r12";
+-my ($t4,$t5,$t6) = ($Hl,$H,$Hh);
+-
+-$code=<<___;
+-.machine	"any"
+-
+-.text
+-
+-.globl	.gcm_init_p8
+-	lis		r0,0xfff0
+-	li		r8,0x10
+-	mfspr		$vrsave,256
+-	li		r9,0x20
+-	mtspr		256,r0
+-	li		r10,0x30
+-	lvx_u		$H,0,r4			# load H
+-	le?xor		r7,r7,r7
+-	le?addi		r7,r7,0x8		# need a vperm start with 08
+-	le?lvsr		5,0,r7
+-	le?vspltisb	6,0x0f
+-	le?vxor		5,5,6			# set a b-endian mask
+-	le?vperm	$H,$H,$H,5
+-
+-	vspltisb	$xC2,-16		# 0xf0
+-	vspltisb	$t0,1			# one
+-	vaddubm		$xC2,$xC2,$xC2		# 0xe0
+-	vxor		$zero,$zero,$zero
+-	vor		$xC2,$xC2,$t0		# 0xe1
+-	vsldoi		$xC2,$xC2,$zero,15	# 0xe1...
+-	vsldoi		$t1,$zero,$t0,1		# ...1
+-	vaddubm		$xC2,$xC2,$xC2		# 0xc2...
+-	vspltisb	$t2,7
+-	vor		$xC2,$xC2,$t1		# 0xc2....01
+-	vspltb		$t1,$H,0		# most significant byte
+-	vsl		$H,$H,$t0		# H<<=1
+-	vsrab		$t1,$t1,$t2		# broadcast carry bit
+-	vand		$t1,$t1,$xC2
+-	vxor		$H,$H,$t1		# twisted H
+-
+-	vsldoi		$H,$H,$H,8		# twist even more ...
+-	vsldoi		$xC2,$zero,$xC2,8	# 0xc2.0
+-	vsldoi		$Hl,$zero,$H,8		# ... and split
+-	vsldoi		$Hh,$H,$zero,8
+-
+-	stvx_u		$xC2,0,r3		# save pre-computed table
+-	stvx_u		$Hl,r8,r3
+-	stvx_u		$H, r9,r3
+-	stvx_u		$Hh,r10,r3
+-
+-	mtspr		256,$vrsave
+-	blr
+-	.long		0
+-	.byte		0,12,0x14,0,0,0,2,0
+-	.long		0
+-.size	.gcm_init_p8,.-.gcm_init_p8
+-
+-.globl	.gcm_init_htable
+-	lis		r0,0xfff0
+-	li		r8,0x10
+-	mfspr		$vrsave,256
+-	li		r9,0x20
+-	mtspr		256,r0
+-	li		r10,0x30
+-	lvx_u		$H,0,r4			# load H
+-
+-	vspltisb	$xC2,-16		# 0xf0
+-	vspltisb	$t0,1			# one
+-	vaddubm		$xC2,$xC2,$xC2		# 0xe0
+-	vxor		$zero,$zero,$zero
+-	vor		$xC2,$xC2,$t0		# 0xe1
+-	vsldoi		$xC2,$xC2,$zero,15	# 0xe1...
+-	vsldoi		$t1,$zero,$t0,1		# ...1
+-	vaddubm		$xC2,$xC2,$xC2		# 0xc2...
+-	vspltisb	$t2,7
+-	vor		$xC2,$xC2,$t1		# 0xc2....01
+-	vspltb		$t1,$H,0		# most significant byte
+-	vsl		$H,$H,$t0		# H<<=1
+-	vsrab		$t1,$t1,$t2		# broadcast carry bit
+-	vand		$t1,$t1,$xC2
+-	vxor		$IN,$H,$t1		# twisted H
+-
+-	vsldoi		$H,$IN,$IN,8		# twist even more ...
+-	vsldoi		$xC2,$zero,$xC2,8	# 0xc2.0
+-	vsldoi		$Hl,$zero,$H,8		# ... and split
+-	vsldoi		$Hh,$H,$zero,8
+-
+-	stvx_u		$xC2,0,r3		# save pre-computed table
+-	stvx_u		$Hl,r8,r3
+-	li		r8,0x40
+-	stvx_u		$H, r9,r3
+-	li		r9,0x50
+-	stvx_u		$Hh,r10,r3
+-	li		r10,0x60
+-
+-	vpmsumd		$Xl,$IN,$Hl		# H.lo·H.lo
+-	vpmsumd		$Xm,$IN,$H		# H.hi·H.lo+H.lo·H.hi
+-	vpmsumd		$Xh,$IN,$Hh		# H.hi·H.hi
+-
+-	vpmsumd		$t2,$Xl,$xC2		# 1st reduction phase
+-
+-	vsldoi		$t0,$Xm,$zero,8
+-	vsldoi		$t1,$zero,$Xm,8
+-	vxor		$Xl,$Xl,$t0
+-	vxor		$Xh,$Xh,$t1
+-
+-	vsldoi		$Xl,$Xl,$Xl,8
+-	vxor		$Xl,$Xl,$t2
+-
+-	vsldoi		$t1,$Xl,$Xl,8		# 2nd reduction phase
+-	vpmsumd		$Xl,$Xl,$xC2
+-	vxor		$t1,$t1,$Xh
+-	vxor		$IN1,$Xl,$t1
+-
+-	vsldoi		$H2,$IN1,$IN1,8
+-	vsldoi		$H2l,$zero,$H2,8
+-	vsldoi		$H2h,$H2,$zero,8
+-
+-	stvx_u		$H2l,r8,r3		# save H^2
+-	li		r8,0x70
+-	stvx_u		$H2,r9,r3
+-	li		r9,0x80
+-	stvx_u		$H2h,r10,r3
+-	li		r10,0x90
+-
+-	vpmsumd		$Xl,$IN,$H2l		# H.lo·H^2.lo
+-	 vpmsumd	$Xl1,$IN1,$H2l		# H^2.lo·H^2.lo
+-	vpmsumd		$Xm,$IN,$H2		# H.hi·H^2.lo+H.lo·H^2.hi
+-	 vpmsumd	$Xm1,$IN1,$H2		# H^2.hi·H^2.lo+H^2.lo·H^2.hi
+-	vpmsumd		$Xh,$IN,$H2h		# H.hi·H^2.hi
+-	 vpmsumd	$Xh1,$IN1,$H2h		# H^2.hi·H^2.hi
+-
+-	vpmsumd		$t2,$Xl,$xC2		# 1st reduction phase
+-	 vpmsumd	$t6,$Xl1,$xC2		# 1st reduction phase
+-
+-	vsldoi		$t0,$Xm,$zero,8
+-	vsldoi		$t1,$zero,$Xm,8
+-	 vsldoi		$t4,$Xm1,$zero,8
+-	 vsldoi		$t5,$zero,$Xm1,8
+-	vxor		$Xl,$Xl,$t0
+-	vxor		$Xh,$Xh,$t1
+-	 vxor		$Xl1,$Xl1,$t4
+-	 vxor		$Xh1,$Xh1,$t5
+-
+-	vsldoi		$Xl,$Xl,$Xl,8
+-	 vsldoi		$Xl1,$Xl1,$Xl1,8
+-	vxor		$Xl,$Xl,$t2
+-	 vxor		$Xl1,$Xl1,$t6
+-
+-	vsldoi		$t1,$Xl,$Xl,8		# 2nd reduction phase
+-	 vsldoi		$t5,$Xl1,$Xl1,8		# 2nd reduction phase
+-	vpmsumd		$Xl,$Xl,$xC2
+-	 vpmsumd	$Xl1,$Xl1,$xC2
+-	vxor		$t1,$t1,$Xh
+-	 vxor		$t5,$t5,$Xh1
+-	vxor		$Xl,$Xl,$t1
+-	 vxor		$Xl1,$Xl1,$t5
+-
+-	vsldoi		$H,$Xl,$Xl,8
+-	 vsldoi		$H2,$Xl1,$Xl1,8
+-	vsldoi		$Hl,$zero,$H,8
+-	vsldoi		$Hh,$H,$zero,8
+-	 vsldoi		$H2l,$zero,$H2,8
+-	 vsldoi		$H2h,$H2,$zero,8
+-
+-	stvx_u		$Hl,r8,r3		# save H^3
+-	li		r8,0xa0
+-	stvx_u		$H,r9,r3
+-	li		r9,0xb0
+-	stvx_u		$Hh,r10,r3
+-	li		r10,0xc0
+-	 stvx_u		$H2l,r8,r3		# save H^4
+-	 stvx_u		$H2,r9,r3
+-	 stvx_u		$H2h,r10,r3
+-
+-	mtspr		256,$vrsave
+-	blr
+-	.long		0
+-	.byte		0,12,0x14,0,0,0,2,0
+-	.long		0
+-.size	.gcm_init_htable,.-.gcm_init_htable
+-
+-.globl	.gcm_gmult_p8
+-	lis		r0,0xfff8
+-	li		r8,0x10
+-	mfspr		$vrsave,256
+-	li		r9,0x20
+-	mtspr		256,r0
+-	li		r10,0x30
+-	lvx_u		$IN,0,$Xip		# load Xi
+-
+-	lvx_u		$Hl,r8,$Htbl		# load pre-computed table
+-	 le?lvsl	$lemask,r0,r0
+-	lvx_u		$H, r9,$Htbl
+-	 le?vspltisb	$t0,0x07
+-	lvx_u		$Hh,r10,$Htbl
+-	 le?vxor	$lemask,$lemask,$t0
+-	lvx_u		$xC2,0,$Htbl
+-	 le?vperm	$IN,$IN,$IN,$lemask
+-	vxor		$zero,$zero,$zero
+-
+-	vpmsumd		$Xl,$IN,$Hl		# H.lo·Xi.lo
+-	vpmsumd		$Xm,$IN,$H		# H.hi·Xi.lo+H.lo·Xi.hi
+-	vpmsumd		$Xh,$IN,$Hh		# H.hi·Xi.hi
+-
+-	vpmsumd		$t2,$Xl,$xC2		# 1st phase
+-
+-	vsldoi		$t0,$Xm,$zero,8
+-	vsldoi		$t1,$zero,$Xm,8
+-	vxor		$Xl,$Xl,$t0
+-	vxor		$Xh,$Xh,$t1
+-
+-	vsldoi		$Xl,$Xl,$Xl,8
+-	vxor		$Xl,$Xl,$t2
+-
+-	vsldoi		$t1,$Xl,$Xl,8		# 2nd phase
+-	vpmsumd		$Xl,$Xl,$xC2
+-	vxor		$t1,$t1,$Xh
+-	vxor		$Xl,$Xl,$t1
+-
+-	le?vperm	$Xl,$Xl,$Xl,$lemask
+-	stvx_u		$Xl,0,$Xip		# write out Xi
+-
+-	mtspr		256,$vrsave
+-	blr
+-	.long		0
+-	.byte		0,12,0x14,0,0,0,2,0
+-	.long		0
+-.size	.gcm_gmult_p8,.-.gcm_gmult_p8
+-
+-.globl	.gcm_ghash_p8
+-	lis		r0,0xfff8
+-	li		r8,0x10
+-	mfspr		$vrsave,256
+-	li		r9,0x20
+-	mtspr		256,r0
+-	li		r10,0x30
+-	lvx_u		$Xl,0,$Xip		# load Xi
+-
+-	lvx_u		$Hl,r8,$Htbl		# load pre-computed table
+-	 le?lvsl	$lemask,r0,r0
+-	lvx_u		$H, r9,$Htbl
+-	 le?vspltisb	$t0,0x07
+-	lvx_u		$Hh,r10,$Htbl
+-	 le?vxor	$lemask,$lemask,$t0
+-	lvx_u		$xC2,0,$Htbl
+-	 le?vperm	$Xl,$Xl,$Xl,$lemask
+-	vxor		$zero,$zero,$zero
+-
+-	lvx_u		$IN,0,$inp
+-	addi		$inp,$inp,16
+-	subi		$len,$len,16
+-	 le?vperm	$IN,$IN,$IN,$lemask
+-	vxor		$IN,$IN,$Xl
+-	b		Loop
+-
+-.align	5
+-Loop:
+-	 subic		$len,$len,16
+-	vpmsumd		$Xl,$IN,$Hl		# H.lo·Xi.lo
+-	 subfe.		r0,r0,r0		# borrow?-1:0
+-	vpmsumd		$Xm,$IN,$H		# H.hi·Xi.lo+H.lo·Xi.hi
+-	 and		r0,r0,$len
+-	vpmsumd		$Xh,$IN,$Hh		# H.hi·Xi.hi
+-	 add		$inp,$inp,r0
+-
+-	vpmsumd		$t2,$Xl,$xC2		# 1st phase
+-
+-	vsldoi		$t0,$Xm,$zero,8
+-	vsldoi		$t1,$zero,$Xm,8
+-	vxor		$Xl,$Xl,$t0
+-	vxor		$Xh,$Xh,$t1
+-
+-	vsldoi		$Xl,$Xl,$Xl,8
+-	vxor		$Xl,$Xl,$t2
+-	 lvx_u		$IN,0,$inp
+-	 addi		$inp,$inp,16
+-
+-	vsldoi		$t1,$Xl,$Xl,8		# 2nd phase
+-	vpmsumd		$Xl,$Xl,$xC2
+-	 le?vperm	$IN,$IN,$IN,$lemask
+-	vxor		$t1,$t1,$Xh
+-	vxor		$IN,$IN,$t1
+-	vxor		$IN,$IN,$Xl
+-	beq		Loop			# did $len-=16 borrow?
+-
+-	vxor		$Xl,$Xl,$t1
+-	le?vperm	$Xl,$Xl,$Xl,$lemask
+-	stvx_u		$Xl,0,$Xip		# write out Xi
+-
+-	mtspr		256,$vrsave
+-	blr
+-	.long		0
+-	.byte		0,12,0x14,0,0,0,4,0
+-	.long		0
+-.size	.gcm_ghash_p8,.-.gcm_ghash_p8
+-
+-.asciz  "GHASH for PowerISA 2.07, CRYPTOGAMS by <appro\@openssl.org>"
+-.align  2
+-___
+-
+-foreach (split("\n",$code)) {
+-	if ($flavour =~ /le$/o) {	# little-endian
+-	    s/le\?//o		or
+-	    s/be\?/#be#/o;
+-	} else {
+-	    s/le\?/#le#/o	or
+-	    s/be\?//o;
+-	}
+-	print $_,"\n";
+-}
+-
+-close STDOUT; # enforce flush
+-- 
+cgit 
+

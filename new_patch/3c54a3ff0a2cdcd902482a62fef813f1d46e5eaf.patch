@@ -1,0 +1,36 @@
+From 3c54a3ff0a2cdcd902482a62fef813f1d46e5eaf Mon Sep 17 00:00:00 2001
+From: Dan Carpenter <error27@gmail.com>
+Date: Thu, 26 Jan 2023 12:29:10 +0300
+Subject: bus: mhi: ep: Fix off by one in mhi_ep_process_cmd_ring()
+
+The > comparison should be changed to >= to prevent an out of bounds
+access into the mhi_cntrl->mhi_chan[] array.  The mhi_cntrl->mhi_chan[]
+array is allocated in mhi_ep_chan_init() and has mhi_cntrl->max_chan
+elements.
+
+Fixes: 6de4941c0215 ("bus: mhi: ep: Check if the channel is supported by the controller")
+Signed-off-by: Dan Carpenter <error27@gmail.com>
+Reviewed-by: Manivannan Sadhasivam <mani@kernel.org>
+Reviewed-by: Alex Elder <elder@linaro.org>
+Link: https://lore.kernel.org/r/Y9JH5sudiZWvbODv@kili
+Signed-off-by: Manivannan Sadhasivam <manivannan.sadhasivam@linaro.org>
+---
+ drivers/bus/mhi/ep/main.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/bus/mhi/ep/main.c b/drivers/bus/mhi/ep/main.c
+index 528c00b232bf8..dffe03658ff90 100644
+--- a/drivers/bus/mhi/ep/main.c
++++ b/drivers/bus/mhi/ep/main.c
+@@ -125,7 +125,7 @@ static int mhi_ep_process_cmd_ring(struct mhi_ep_ring *ring, struct mhi_ring_ele
+ 	ch_id = MHI_TRE_GET_CMD_CHID(el);
+ 
+ 	/* Check if the channel is supported by the controller */
+-	if ((ch_id > mhi_cntrl->max_chan) || !mhi_cntrl->mhi_chan[ch_id].name) {
++	if ((ch_id >= mhi_cntrl->max_chan) || !mhi_cntrl->mhi_chan[ch_id].name) {
+ 		dev_err(dev, "Channel (%u) not supported!\n", ch_id);
+ 		return -ENODEV;
+ 	}
+-- 
+cgit 
+

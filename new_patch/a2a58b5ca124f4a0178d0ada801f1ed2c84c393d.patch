@@ -1,0 +1,62 @@
+From a2a58b5ca124f4a0178d0ada801f1ed2c84c393d Mon Sep 17 00:00:00 2001
+From: Randy Dunlap <rdunlap@infradead.org>
+Date: Sat, 29 Apr 2023 08:52:47 -0700
+Subject: RISC-V: fix sifive and thead section mismatches in errata
+
+When CONFIG_MODULES is set, __init_or_module becomes <empty>, but when
+CONFIG_MODULES is not set, __init_or_module becomes __init.
+In the latter case, it causes section mismatch warnings:
+
+WARNING: modpost: vmlinux.o: section mismatch in reference: riscv_fill_cpu_mfr_info (section: .text) -> sifive_errata_patch_func (section: .init.text)
+WARNING: modpost: vmlinux.o: section mismatch in reference: riscv_fill_cpu_mfr_info (section: .text) -> thead_errata_patch_func (section: .init.text)
+
+Fixes: bb3f89487fd9 ("RISC-V: hwprobe: Remove __init on probe_vendor_features()")
+Signed-off-by: Randy Dunlap <rdunlap@infradead.org>
+Reviewed-by: Evan Green  <evan@rivosinc.com>
+Reviewed-by: Conor Dooley <conor.dooley@microchip.com>
+Link: https://lore.kernel.org/r/20230429155247.12131-1-rdunlap@infradead.org
+Signed-off-by: Palmer Dabbelt <palmer@rivosinc.com>
+---
+ arch/riscv/errata/sifive/errata.c | 8 +++-----
+ arch/riscv/errata/thead/errata.c  | 6 +++---
+ 2 files changed, 6 insertions(+), 8 deletions(-)
+
+diff --git a/arch/riscv/errata/sifive/errata.c b/arch/riscv/errata/sifive/errata.c
+index 8d8301d7b1ecb..3d9a32d791f73 100644
+--- a/arch/riscv/errata/sifive/errata.c
++++ b/arch/riscv/errata/sifive/errata.c
+@@ -82,11 +82,9 @@ static void __init_or_module warn_miss_errata(u32 miss_errata)
+ 	pr_warn("----------------------------------------------------------------\n");
+ }
+ 
+-void __init_or_module sifive_errata_patch_func(struct alt_entry *begin,
+-					       struct alt_entry *end,
+-					       unsigned long archid,
+-					       unsigned long impid,
+-					       unsigned int stage)
++void sifive_errata_patch_func(struct alt_entry *begin, struct alt_entry *end,
++			      unsigned long archid, unsigned long impid,
++			      unsigned int stage)
+ {
+ 	struct alt_entry *alt;
+ 	u32 cpu_req_errata;
+diff --git a/arch/riscv/errata/thead/errata.c b/arch/riscv/errata/thead/errata.c
+index a86c4facc2a69..c259dc925ec1e 100644
+--- a/arch/riscv/errata/thead/errata.c
++++ b/arch/riscv/errata/thead/errata.c
+@@ -83,9 +83,9 @@ static u32 thead_errata_probe(unsigned int stage,
+ 	return cpu_req_errata;
+ }
+ 
+-void __init_or_module thead_errata_patch_func(struct alt_entry *begin, struct alt_entry *end,
+-					      unsigned long archid, unsigned long impid,
+-					      unsigned int stage)
++void thead_errata_patch_func(struct alt_entry *begin, struct alt_entry *end,
++			     unsigned long archid, unsigned long impid,
++			     unsigned int stage)
+ {
+ 	struct alt_entry *alt;
+ 	u32 cpu_req_errata = thead_errata_probe(stage, archid, impid);
+-- 
+cgit 
+

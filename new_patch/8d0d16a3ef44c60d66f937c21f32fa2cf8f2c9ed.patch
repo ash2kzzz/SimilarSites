@@ -1,0 +1,58 @@
+From 8d0d16a3ef44c60d66f937c21f32fa2cf8f2c9ed Mon Sep 17 00:00:00 2001
+From: Pranjal Ramajor Asha Kanojiya <quic_pkanojiy@quicinc.com>
+Date: Wed, 14 Jun 2023 10:15:28 -0600
+Subject: accel/qaic: Call DRM helper function to destroy prime GEM
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+smatch warning:
+	drivers/accel/qaic/qaic_data.c:620 qaic_free_object() error:
+		dereferencing freed memory 'obj->import_attach'
+
+obj->import_attach is detached and freed using dma_buf_detach().
+But used after free to decrease the dmabuf ref count using
+dma_buf_put().
+
+drm_prime_gem_destroy() handles this issue and performs the proper clean
+up instead of open coding it in the driver.
+
+Fixes: ff13be830333 ("accel/qaic: Add datapath")
+Reported-by: Sukrut Bellary <sukrut.bellary@linux.com>
+Closes: https://lore.kernel.org/all/20230610021200.377452-1-sukrut.bellary@linux.com/
+Suggested-by: Christian König <christian.koenig@amd.com>
+Signed-off-by: Pranjal Ramajor Asha Kanojiya <quic_pkanojiy@quicinc.com>
+Reviewed-by: Carl Vanderlip <quic_carlv@quicinc.com>
+Reviewed-by: Jeffrey Hugo <quic_jhugo@quicinc.com>
+Signed-off-by: Jeffrey Hugo <quic_jhugo@quicinc.com>
+Reviewed-by: Christian König <christian.koenig@amd.com>
+Link: https://patchwork.freedesktop.org/patch/msgid/20230614161528.11710-1-quic_jhugo@quicinc.com
+---
+ drivers/accel/qaic/qaic_data.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/accel/qaic/qaic_data.c b/drivers/accel/qaic/qaic_data.c
+index e42c1f9ffff85..e9a1cb779b305 100644
+--- a/drivers/accel/qaic/qaic_data.c
++++ b/drivers/accel/qaic/qaic_data.c
+@@ -23,6 +23,7 @@
+ #include <linux/wait.h>
+ #include <drm/drm_file.h>
+ #include <drm/drm_gem.h>
++#include <drm/drm_prime.h>
+ #include <drm/drm_print.h>
+ #include <uapi/drm/qaic_accel.h>
+ 
+@@ -616,8 +617,7 @@ static void qaic_free_object(struct drm_gem_object *obj)
+ 
+ 	if (obj->import_attach) {
+ 		/* DMABUF/PRIME Path */
+-		dma_buf_detach(obj->import_attach->dmabuf, obj->import_attach);
+-		dma_buf_put(obj->import_attach->dmabuf);
++		drm_prime_gem_destroy(obj, NULL);
+ 	} else {
+ 		/* Private buffer allocation path */
+ 		qaic_free_sgt(bo->sgt);
+-- 
+cgit 
+

@@ -1,0 +1,43 @@
+From 361238cdc52523fd7b1f3aa447c0579f42448b00 Mon Sep 17 00:00:00 2001
+From: Mikko Perttunen <mperttunen@nvidia.com>
+Date: Thu, 19 Jan 2023 15:38:58 +0200
+Subject: arm64: tegra: Mark host1x as dma-coherent on Tegra194/234
+
+Ensure appropriate configuration is done to make the host1x device
+and context devices DMA coherent by adding the dma-coherent flag.
+
+Fixes: b35f5b53a87b ("arm64: tegra: Add context isolation domains on Tegra234")
+Signed-off-by: Mikko Perttunen <mperttunen@nvidia.com>
+Signed-off-by: Thierry Reding <treding@nvidia.com>
+---
+ arch/arm64/boot/dts/nvidia/tegra194.dtsi | 1 +
+ arch/arm64/boot/dts/nvidia/tegra234.dtsi | 1 +
+ 2 files changed, 2 insertions(+)
+
+diff --git a/arch/arm64/boot/dts/nvidia/tegra194.dtsi b/arch/arm64/boot/dts/nvidia/tegra194.dtsi
+index 6365130a84cf5..de98068e22b45 100644
+--- a/arch/arm64/boot/dts/nvidia/tegra194.dtsi
++++ b/arch/arm64/boot/dts/nvidia/tegra194.dtsi
+@@ -1923,6 +1923,7 @@
+ 			interconnects = <&mc TEGRA194_MEMORY_CLIENT_HOST1XDMAR &emc>;
+ 			interconnect-names = "dma-mem";
+ 			iommus = <&smmu TEGRA194_SID_HOST1X>;
++			dma-coherent;
+ 
+ 			/* Context isolation domains */
+ 			iommu-map = <0 &smmu TEGRA194_SID_HOST1X_CTX0 1>,
+diff --git a/arch/arm64/boot/dts/nvidia/tegra234.dtsi b/arch/arm64/boot/dts/nvidia/tegra234.dtsi
+index 62f7c59df8c62..8fb6dd8b16643 100644
+--- a/arch/arm64/boot/dts/nvidia/tegra234.dtsi
++++ b/arch/arm64/boot/dts/nvidia/tegra234.dtsi
+@@ -2151,6 +2151,7 @@
+ 			interconnects = <&mc TEGRA234_MEMORY_CLIENT_HOST1XDMAR &emc>;
+ 			interconnect-names = "dma-mem";
+ 			iommus = <&smmu_niso1 TEGRA234_SID_HOST1X>;
++			dma-coherent;
+ 
+ 			/* Context isolation domains */
+ 			iommu-map = <0 &smmu_niso0 TEGRA234_SID_HOST1X_CTX0 1>,
+-- 
+cgit 
+

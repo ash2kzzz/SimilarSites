@@ -1,0 +1,34 @@
+From ffa28312e2837ae788855840e126fa6f8a1ac35d Mon Sep 17 00:00:00 2001
+From: Dan Carpenter <dan.carpenter@linaro.org>
+Date: Tue, 16 May 2023 11:12:51 +0300
+Subject: firmware_loader: Fix a NULL vs IS_ERR() check
+
+The crypto_alloc_shash() function doesn't return NULL, it returns
+error pointers.  Update the check accordingly.
+
+Fixes: 02fe26f25325 ("firmware_loader: Add debug message with checksum for FW file")
+Signed-off-by: Dan Carpenter <dan.carpenter@linaro.org>
+Reviewed-by: Cezary Rojewski <cezary.rojewski@intel.com>
+Acked-by: Luis Chamberlain <mcgrof@kernel.org>
+Link: https://lore.kernel.org/r/36ef6042-ce74-4e8e-9e2c-5b5c28940610@kili.mountain
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+---
+ drivers/base/firmware_loader/main.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/base/firmware_loader/main.c b/drivers/base/firmware_loader/main.c
+index 9d79d5ad91024..b58c42f1b1ce6 100644
+--- a/drivers/base/firmware_loader/main.c
++++ b/drivers/base/firmware_loader/main.c
+@@ -812,7 +812,7 @@ static void fw_log_firmware_info(const struct firmware *fw, const char *name, st
+ 	char *outbuf;
+ 
+ 	alg = crypto_alloc_shash("sha256", 0, 0);
+-	if (!alg)
++	if (IS_ERR(alg))
+ 		return;
+ 
+ 	sha256buf = kmalloc(SHA256_DIGEST_SIZE, GFP_KERNEL);
+-- 
+cgit 
+

@@ -1,0 +1,43 @@
+From 531f1ca42741f3ba391bd01bf8f5847029cd9912 Mon Sep 17 00:00:00 2001
+From: Krzysztof Kozlowski <krzysztof.kozlowski@linaro.org>
+Date: Tue, 24 Jan 2023 10:15:52 +0100
+Subject: dt-bindings: serial: 8250: correct Nuvoton NPCM850 compatible
+
+Nuvoton NPCM850 UART is compatible with NPCM750, so add proper fallback
+to match existing DTS and Linux driver.
+
+Fixes: c8177f90b7c6 ("dt-bindings: serial: 8250: Add npcm845 compatible string")
+Signed-off-by: Krzysztof Kozlowski <krzysztof.kozlowski@linaro.org>
+Acked-by: Rob Herring <robh@kernel.org>
+Link: https://lore.kernel.org/r/20230124091602.44027-3-krzysztof.kozlowski@linaro.org
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+---
+ Documentation/devicetree/bindings/serial/8250.yaml | 5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/Documentation/devicetree/bindings/serial/8250.yaml b/Documentation/devicetree/bindings/serial/8250.yaml
+index bf570f17459e6..55c39630b30f2 100644
+--- a/Documentation/devicetree/bindings/serial/8250.yaml
++++ b/Documentation/devicetree/bindings/serial/8250.yaml
+@@ -62,7 +62,6 @@ properties:
+       - const: mrvl,pxa-uart
+       - const: nuvoton,wpcm450-uart
+       - const: nuvoton,npcm750-uart
+-      - const: nuvoton,npcm845-uart
+       - const: nvidia,tegra20-uart
+       - const: nxp,lpc3220-uart
+       - items:
+@@ -92,6 +91,10 @@ properties:
+           - enum:
+               - ns16550 # Deprecated, unless the FIFO really is broken
+               - ns16550a
++      - items:
++          - enum:
++              - nuvoton,npcm845-uart
++          - const: nuvoton,npcm750-uart
+       - items:
+           - enum:
+               - ralink,mt7620a-uart
+-- 
+cgit 
+

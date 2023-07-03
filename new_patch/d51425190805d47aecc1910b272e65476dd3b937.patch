@@ -1,0 +1,52 @@
+From d51425190805d47aecc1910b272e65476dd3b937 Mon Sep 17 00:00:00 2001
+From: Chuck Lever <chuck.lever@oracle.com>
+Date: Sun, 16 Apr 2023 13:05:06 -0400
+Subject: SUNRPC: Fix failures of checksum Kunit tests
+
+Scott reports that when the new GSS krb5 Kunit tests are built as
+a separate module and loaded, the RFC 6803 and RFC 8009 checksum
+tests all fail, even though they pass when run under kunit.py.
+
+It appears that passing a buffer backed by static const memory to
+gss_krb5_checksum() is a problem. A printk in checksum_case() shows
+the correct plaintext, but by the time the buffer has been converted
+to a scatterlist and arrives at checksummer(), it contains all
+zeroes.
+
+Replacing this buffer with one that is dynamically allocated fixes
+the issue.
+
+Reported-by: Scott Mayhew <smayhew@redhat.com>
+Fixes: 02142b2ca8fc ("SUNRPC: Add checksum KUnit tests for the RFC 6803 encryption types")
+Tested-by: Scott Mayhew <smayhew@redhat.com>
+Signed-off-by: Chuck Lever <chuck.lever@oracle.com>
+---
+ net/sunrpc/auth_gss/gss_krb5_test.c | 5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/net/sunrpc/auth_gss/gss_krb5_test.c b/net/sunrpc/auth_gss/gss_krb5_test.c
+index aa6ec4e858aa8..95ca783795c5e 100644
+--- a/net/sunrpc/auth_gss/gss_krb5_test.c
++++ b/net/sunrpc/auth_gss/gss_krb5_test.c
+@@ -73,7 +73,6 @@ static void checksum_case(struct kunit *test)
+ {
+ 	const struct gss_krb5_test_param *param = test->param_value;
+ 	struct xdr_buf buf = {
+-		.head[0].iov_base	= param->plaintext->data,
+ 		.head[0].iov_len	= param->plaintext->len,
+ 		.len			= param->plaintext->len,
+ 	};
+@@ -99,6 +98,10 @@ static void checksum_case(struct kunit *test)
+ 	err = crypto_ahash_setkey(tfm, Kc.data, Kc.len);
+ 	KUNIT_ASSERT_EQ(test, err, 0);
+ 
++	buf.head[0].iov_base = kunit_kzalloc(test, buf.head[0].iov_len, GFP_KERNEL);
++	KUNIT_ASSERT_NOT_ERR_OR_NULL(test, buf.head[0].iov_base);
++	memcpy(buf.head[0].iov_base, param->plaintext->data, buf.head[0].iov_len);
++
+ 	checksum.len = gk5e->cksumlength;
+ 	checksum.data = kunit_kzalloc(test, checksum.len, GFP_KERNEL);
+ 	KUNIT_ASSERT_NOT_ERR_OR_NULL(test, checksum.data);
+-- 
+cgit 
+

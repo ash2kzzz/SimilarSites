@@ -1,0 +1,40 @@
+From 3099d2e62f9061ed57798e68e285d35837be686f Mon Sep 17 00:00:00 2001
+From: Aya Levin <ayal@nvidia.com>
+Date: Sun, 8 Jan 2023 12:53:02 +0200
+Subject: net/mlx5e: Fix memory leak on updating vport counters
+
+When updating statistics driver queries the vport's counters. On fail,
+add error path releasing the allocated buffer avoiding memory leak.
+
+Fixes: 64b68e369649 ("net/mlx5: Refactor and expand rep vport stat group")
+Signed-off-by: Aya Levin <ayal@nvidia.com>
+Reviewed-by: Maor Dickman <maord@nvidia.com>
+Signed-off-by: Saeed Mahameed <saeedm@nvidia.com>
+---
+ drivers/net/ethernet/mellanox/mlx5/core/en_rep.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/net/ethernet/mellanox/mlx5/core/en_rep.c b/drivers/net/ethernet/mellanox/mlx5/core/en_rep.c
+index 75b9e1528fd29..7d90e5b728548 100644
+--- a/drivers/net/ethernet/mellanox/mlx5/core/en_rep.c
++++ b/drivers/net/ethernet/mellanox/mlx5/core/en_rep.c
+@@ -191,7 +191,7 @@ static MLX5E_DECLARE_STATS_GRP_OP_UPDATE_STATS(vport_rep)
+ 	if (err) {
+ 		netdev_warn(priv->netdev, "vport %d error %d reading stats\n",
+ 			    rep->vport, err);
+-		return;
++		goto out;
+ 	}
+ 
+ 	#define MLX5_GET_CTR(p, x) \
+@@ -241,6 +241,7 @@ static MLX5E_DECLARE_STATS_GRP_OP_UPDATE_STATS(vport_rep)
+ 	rep_stats->tx_vport_rdma_multicast_bytes =
+ 		MLX5_GET_CTR(out, received_ib_multicast.octets);
+ 
++out:
+ 	kvfree(out);
+ }
+ 
+-- 
+cgit 
+

@@ -1,0 +1,31 @@
+From 526970be53d5dd60122141540142fb0eeb0b22d8 Mon Sep 17 00:00:00 2001
+From: Peter Zijlstra <peterz@infradead.org>
+Date: Tue, 10 Jan 2023 11:44:51 +0100
+Subject: sh/mm: Fix pmd_t for real
+
+Because typing is hard...
+
+Fixes: 0862ff059c9e ("sh/mm: Make pmd_t similar to pte_t")
+Reported-by: Guenter Roeck <linux@roeck-us.net>
+Signed-off-by: Peter Zijlstra (Intel) <peterz@infradead.org>
+Signed-off-by: Linus Torvalds <torvalds@linux-foundation.org>
+---
+ arch/sh/include/asm/pgtable-3level.h | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/arch/sh/include/asm/pgtable-3level.h b/arch/sh/include/asm/pgtable-3level.h
+index a889a3a938bab..d1ce73f3bd85e 100644
+--- a/arch/sh/include/asm/pgtable-3level.h
++++ b/arch/sh/include/asm/pgtable-3level.h
+@@ -28,7 +28,7 @@
+ #define pmd_ERROR(e) \
+ 	printk("%s:%d: bad pmd %016llx.\n", __FILE__, __LINE__, pmd_val(e))
+ 
+-typedef struct {
++typedef union {
+ 	struct {
+ 		unsigned long pmd_low;
+ 		unsigned long pmd_high;
+-- 
+cgit 
+

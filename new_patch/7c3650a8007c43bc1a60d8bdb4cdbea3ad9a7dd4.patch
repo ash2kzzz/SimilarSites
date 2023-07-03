@@ -1,0 +1,50 @@
+From 7c3650a8007c43bc1a60d8bdb4cdbea3ad9a7dd4 Mon Sep 17 00:00:00 2001
+From: Todd Brandt <todd.e.brandt@intel.com>
+Date: Tue, 14 Mar 2023 11:12:56 -0700
+Subject: HID: hid-sensor-custom: Fix buffer overrun in device name
+
+On some platforms there are some platform devices created with
+invalid names. For example: "HID-SENSOR-INT-020b?.39.auto" instead
+of "HID-SENSOR-INT-020b.39.auto"
+
+This string include some invalid characters, hence it will fail to
+properly load the driver which will handle this custom sensor. Also
+it is a problem for some user space tools, which parses the device
+names from ftrace and dmesg.
+
+This is because the string, real_usage, is not NULL terminated and
+printed with %s to form device name.
+
+To address this, initialize the real_usage string with 0s.
+
+Reported-and-tested-by: Todd Brandt <todd.e.brandt@linux.intel.com>
+Link: https://bugzilla.kernel.org/show_bug.cgi?id=217169
+Fixes: 98c062e82451 ("HID: hid-sensor-custom: Allow more custom iio sensors")
+Cc: stable@vger.kernel.org
+Suggested-by: Philipp Jungkamp <p.jungkamp@gmx.net>
+Signed-off-by: Philipp Jungkamp <p.jungkamp@gmx.net>
+Signed-off-by: Todd Brandt <todd.e.brandt@intel.com>
+Reviewed-by: Andi Shyti <andi.shyti@kernel.org>
+Reviewed-by: Jonathan Cameron <Jonathan.Cameron@huawei.com>
+Acked-by: Srinivas Pandruvada <srinivas.pandruvada@linux.intel.com>
+Signed-off-by: Jiri Kosina <jkosina@suse.cz>
+---
+ drivers/hid/hid-sensor-custom.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/hid/hid-sensor-custom.c b/drivers/hid/hid-sensor-custom.c
+index 3e3f89e01d819..d85398721659a 100644
+--- a/drivers/hid/hid-sensor-custom.c
++++ b/drivers/hid/hid-sensor-custom.c
+@@ -940,7 +940,7 @@ hid_sensor_register_platform_device(struct platform_device *pdev,
+ 				    struct hid_sensor_hub_device *hsdev,
+ 				    const struct hid_sensor_custom_match *match)
+ {
+-	char real_usage[HID_SENSOR_USAGE_LENGTH];
++	char real_usage[HID_SENSOR_USAGE_LENGTH] = { 0 };
+ 	struct platform_device *custom_pdev;
+ 	const char *dev_name;
+ 	char *c;
+-- 
+cgit 
+

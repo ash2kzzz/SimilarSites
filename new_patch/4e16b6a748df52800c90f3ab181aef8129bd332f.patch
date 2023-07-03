@@ -1,0 +1,207 @@
+From 4e16b6a748df52800c90f3ab181aef8129bd332f Mon Sep 17 00:00:00 2001
+From: Jakub Kicinski <kuba@kernel.org>
+Date: Wed, 15 Mar 2023 16:03:50 -0700
+Subject: ynl: broaden the license even more
+
+I relicensed Netlink spec code to GPL-2.0 OR BSD-3-Clause but
+we still put a slightly different license on the uAPI header
+than the rest of the code. Use the Linux-syscall-note on all
+the specs and all generated code. It's moot for kernel code,
+but should not hurt. This way the licenses match everywhere.
+
+Cc: Chuck Lever <chuck.lever@oracle.com>
+Fixes: 37d9df224d1e ("ynl: re-license uniformly under GPL-2.0 OR BSD-3-Clause")
+Reviewed-by: Chuck Lever <chuck.lever@oracle.com>
+Signed-off-by: Jakub Kicinski <kuba@kernel.org>
+---
+ Documentation/netlink/genetlink-c.yaml        | 2 +-
+ Documentation/netlink/genetlink-legacy.yaml   | 2 +-
+ Documentation/netlink/genetlink.yaml          | 2 +-
+ Documentation/netlink/specs/ethtool.yaml      | 2 +-
+ Documentation/netlink/specs/fou.yaml          | 2 +-
+ Documentation/netlink/specs/netdev.yaml       | 2 +-
+ Documentation/userspace-api/netlink/specs.rst | 3 ++-
+ include/uapi/linux/fou.h                      | 2 +-
+ include/uapi/linux/netdev.h                   | 2 +-
+ net/core/netdev-genl-gen.c                    | 2 +-
+ net/core/netdev-genl-gen.h                    | 2 +-
+ net/ipv4/fou_nl.c                             | 2 +-
+ net/ipv4/fou_nl.h                             | 2 +-
+ tools/include/uapi/linux/netdev.h             | 2 +-
+ tools/net/ynl/ynl-gen-c.py                    | 8 ++++----
+ 15 files changed, 19 insertions(+), 18 deletions(-)
+
+diff --git a/Documentation/netlink/genetlink-c.yaml b/Documentation/netlink/genetlink-c.yaml
+index f082a5ad7cf1d..5c3642b3f802d 100644
+--- a/Documentation/netlink/genetlink-c.yaml
++++ b/Documentation/netlink/genetlink-c.yaml
+@@ -1,4 +1,4 @@
+-# SPDX-License-Identifier: GPL-2.0 OR BSD-3-Clause
++# SPDX-License-Identifier: ((GPL-2.0 WITH Linux-syscall-note) OR BSD-3-Clause)
+ %YAML 1.2
+ ---
+ $id: http://kernel.org/schemas/netlink/genetlink-c.yaml#
+diff --git a/Documentation/netlink/genetlink-legacy.yaml b/Documentation/netlink/genetlink-legacy.yaml
+index c6b8c77f7d12e..5e98c6d2b9aae 100644
+--- a/Documentation/netlink/genetlink-legacy.yaml
++++ b/Documentation/netlink/genetlink-legacy.yaml
+@@ -1,4 +1,4 @@
+-# SPDX-License-Identifier: GPL-2.0 OR BSD-3-Clause
++# SPDX-License-Identifier: ((GPL-2.0 WITH Linux-syscall-note) OR BSD-3-Clause)
+ %YAML 1.2
+ ---
+ $id: http://kernel.org/schemas/netlink/genetlink-legacy.yaml#
+diff --git a/Documentation/netlink/genetlink.yaml b/Documentation/netlink/genetlink.yaml
+index b2d56ab9e615d..d35dcd6f8d82a 100644
+--- a/Documentation/netlink/genetlink.yaml
++++ b/Documentation/netlink/genetlink.yaml
+@@ -1,4 +1,4 @@
+-# SPDX-License-Identifier: GPL-2.0 OR BSD-3-Clause
++# SPDX-License-Identifier: ((GPL-2.0 WITH Linux-syscall-note) OR BSD-3-Clause)
+ %YAML 1.2
+ ---
+ $id: http://kernel.org/schemas/netlink/genetlink-legacy.yaml#
+diff --git a/Documentation/netlink/specs/ethtool.yaml b/Documentation/netlink/specs/ethtool.yaml
+index 18ecb7d90cbe5..4727c067e2ba3 100644
+--- a/Documentation/netlink/specs/ethtool.yaml
++++ b/Documentation/netlink/specs/ethtool.yaml
+@@ -1,4 +1,4 @@
+-# SPDX-License-Identifier: GPL-2.0 OR BSD-3-Clause
++# SPDX-License-Identifier: ((GPL-2.0 WITH Linux-syscall-note) OR BSD-3-Clause)
+ 
+ name: ethtool
+ 
+diff --git a/Documentation/netlink/specs/fou.yaml b/Documentation/netlink/specs/fou.yaml
+index cff104288723b..3e13826a3fdf1 100644
+--- a/Documentation/netlink/specs/fou.yaml
++++ b/Documentation/netlink/specs/fou.yaml
+@@ -1,4 +1,4 @@
+-# SPDX-License-Identifier: GPL-2.0 OR BSD-3-Clause
++# SPDX-License-Identifier: ((GPL-2.0 WITH Linux-syscall-note) OR BSD-3-Clause)
+ 
+ name: fou
+ 
+diff --git a/Documentation/netlink/specs/netdev.yaml b/Documentation/netlink/specs/netdev.yaml
+index 753e5914a8b7c..b99e7ffef7a15 100644
+--- a/Documentation/netlink/specs/netdev.yaml
++++ b/Documentation/netlink/specs/netdev.yaml
+@@ -1,4 +1,4 @@
+-# SPDX-License-Identifier: GPL-2.0 OR BSD-3-Clause
++# SPDX-License-Identifier: ((GPL-2.0 WITH Linux-syscall-note) OR BSD-3-Clause)
+ 
+ name: netdev
+ 
+diff --git a/Documentation/userspace-api/netlink/specs.rst b/Documentation/userspace-api/netlink/specs.rst
+index 2122e0c4a3998..a22442ba1d30b 100644
+--- a/Documentation/userspace-api/netlink/specs.rst
++++ b/Documentation/userspace-api/netlink/specs.rst
+@@ -24,7 +24,8 @@ YAML specifications can be found under ``Documentation/netlink/specs/``
+ This document describes details of the schema.
+ See :doc:`intro-specs` for a practical starting guide.
+ 
+-All specs must be licensed under ``GPL-2.0-only OR BSD-3-Clause``
++All specs must be licensed under
++``((GPL-2.0 WITH Linux-syscall-note) OR BSD-3-Clause)``
+ to allow for easy adoption in user space code.
+ 
+ Compatibility levels
+diff --git a/include/uapi/linux/fou.h b/include/uapi/linux/fou.h
+index 5041c35984938..b5cd3e7b3775a 100644
+--- a/include/uapi/linux/fou.h
++++ b/include/uapi/linux/fou.h
+@@ -1,4 +1,4 @@
+-/* SPDX-License-Identifier: (GPL-2.0 WITH Linux-syscall-note) OR BSD-3-Clause */
++/* SPDX-License-Identifier: ((GPL-2.0 WITH Linux-syscall-note) OR BSD-3-Clause) */
+ /* Do not edit directly, auto-generated from: */
+ /*	Documentation/netlink/specs/fou.yaml */
+ /* YNL-GEN uapi header */
+diff --git a/include/uapi/linux/netdev.h b/include/uapi/linux/netdev.h
+index ed134fbdfd32d..639524b59930b 100644
+--- a/include/uapi/linux/netdev.h
++++ b/include/uapi/linux/netdev.h
+@@ -1,4 +1,4 @@
+-/* SPDX-License-Identifier: (GPL-2.0 WITH Linux-syscall-note) OR BSD-3-Clause */
++/* SPDX-License-Identifier: ((GPL-2.0 WITH Linux-syscall-note) OR BSD-3-Clause) */
+ /* Do not edit directly, auto-generated from: */
+ /*	Documentation/netlink/specs/netdev.yaml */
+ /* YNL-GEN uapi header */
+diff --git a/net/core/netdev-genl-gen.c b/net/core/netdev-genl-gen.c
+index 9e10802587fc3..3abab70d66ddc 100644
+--- a/net/core/netdev-genl-gen.c
++++ b/net/core/netdev-genl-gen.c
+@@ -1,4 +1,4 @@
+-// SPDX-License-Identifier: GPL-2.0 OR BSD-3-Clause
++// SPDX-License-Identifier: ((GPL-2.0 WITH Linux-syscall-note) OR BSD-3-Clause)
+ /* Do not edit directly, auto-generated from: */
+ /*	Documentation/netlink/specs/netdev.yaml */
+ /* YNL-GEN kernel source */
+diff --git a/net/core/netdev-genl-gen.h b/net/core/netdev-genl-gen.h
+index 2c5fc7d1e8a74..74d74fc231679 100644
+--- a/net/core/netdev-genl-gen.h
++++ b/net/core/netdev-genl-gen.h
+@@ -1,4 +1,4 @@
+-/* SPDX-License-Identifier: GPL-2.0 OR BSD-3-Clause */
++/* SPDX-License-Identifier: ((GPL-2.0 WITH Linux-syscall-note) OR BSD-3-Clause) */
+ /* Do not edit directly, auto-generated from: */
+ /*	Documentation/netlink/specs/netdev.yaml */
+ /* YNL-GEN kernel header */
+diff --git a/net/ipv4/fou_nl.c b/net/ipv4/fou_nl.c
+index 5c14fe030eda5..6c37c4f98ccab 100644
+--- a/net/ipv4/fou_nl.c
++++ b/net/ipv4/fou_nl.c
+@@ -1,4 +1,4 @@
+-// SPDX-License-Identifier: GPL-2.0 OR BSD-3-Clause
++// SPDX-License-Identifier: ((GPL-2.0 WITH Linux-syscall-note) OR BSD-3-Clause)
+ /* Do not edit directly, auto-generated from: */
+ /*	Documentation/netlink/specs/fou.yaml */
+ /* YNL-GEN kernel source */
+diff --git a/net/ipv4/fou_nl.h b/net/ipv4/fou_nl.h
+index 58b1e1ed4b3bb..dbd0780a5d34c 100644
+--- a/net/ipv4/fou_nl.h
++++ b/net/ipv4/fou_nl.h
+@@ -1,4 +1,4 @@
+-/* SPDX-License-Identifier: GPL-2.0 OR BSD-3-Clause */
++/* SPDX-License-Identifier: ((GPL-2.0 WITH Linux-syscall-note) OR BSD-3-Clause) */
+ /* Do not edit directly, auto-generated from: */
+ /*	Documentation/netlink/specs/fou.yaml */
+ /* YNL-GEN kernel header */
+diff --git a/tools/include/uapi/linux/netdev.h b/tools/include/uapi/linux/netdev.h
+index ed134fbdfd32d..639524b59930b 100644
+--- a/tools/include/uapi/linux/netdev.h
++++ b/tools/include/uapi/linux/netdev.h
+@@ -1,4 +1,4 @@
+-/* SPDX-License-Identifier: (GPL-2.0 WITH Linux-syscall-note) OR BSD-3-Clause */
++/* SPDX-License-Identifier: ((GPL-2.0 WITH Linux-syscall-note) OR BSD-3-Clause) */
+ /* Do not edit directly, auto-generated from: */
+ /*	Documentation/netlink/specs/netdev.yaml */
+ /* YNL-GEN uapi header */
+diff --git a/tools/net/ynl/ynl-gen-c.py b/tools/net/ynl/ynl-gen-c.py
+index d47376f19de72..3b4d03a50fc1b 100755
+--- a/tools/net/ynl/ynl-gen-c.py
++++ b/tools/net/ynl/ynl-gen-c.py
+@@ -1,5 +1,5 @@
+ #!/usr/bin/env python3
+-# SPDX-License-Identifier: GPL-2.0 OR BSD-3-Clause
++# SPDX-License-Identifier: ((GPL-2.0 WITH Linux-syscall-note) OR BSD-3-Clause)
+ 
+ import argparse
+ import collections
+@@ -2068,12 +2068,12 @@ def main():
+ 
+     _, spec_kernel = find_kernel_root(args.spec)
+     if args.mode == 'uapi':
+-        cw.p('/* SPDX-License-Identifier: (GPL-2.0 WITH Linux-syscall-note) OR BSD-3-Clause */')
++        cw.p('/* SPDX-License-Identifier: ((GPL-2.0 WITH Linux-syscall-note) OR BSD-3-Clause) */')
+     else:
+         if args.header:
+-            cw.p('/* SPDX-License-Identifier: GPL-2.0 OR BSD-3-Clause */')
++            cw.p('/* SPDX-License-Identifier: ((GPL-2.0 WITH Linux-syscall-note) OR BSD-3-Clause) */')
+         else:
+-            cw.p('// SPDX-License-Identifier: GPL-2.0 OR BSD-3-Clause')
++            cw.p('// SPDX-License-Identifier: ((GPL-2.0 WITH Linux-syscall-note) OR BSD-3-Clause)')
+     cw.p("/* Do not edit directly, auto-generated from: */")
+     cw.p(f"/*\t{spec_kernel} */")
+     cw.p(f"/* YNL-GEN {args.mode} {'header' if args.header else 'source'} */")
+-- 
+cgit 
+

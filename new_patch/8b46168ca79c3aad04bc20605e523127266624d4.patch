@@ -1,0 +1,68 @@
+From 8b46168ca79c3aad04bc20605e523127266624d4 Mon Sep 17 00:00:00 2001
+From: Huanhuan Wang <huanhuan.wang@corigine.com>
+Date: Thu, 2 Mar 2023 10:58:29 +0100
+Subject: nfp: fix incorrectly set csum flag for nfdk path
+
+The csum flag of IPsec packet are set repeatedly. Therefore, the csum
+flag set of IPsec and non-IPsec packet need to be distinguished.
+
+As the ipv6 header does not have a csum field, so l3-csum flag is not
+required to be set for ipv6 case.
+
+Fixes: 436396f26d50 ("nfp: support IPsec offloading for NFP3800")
+Signed-off-by: Huanhuan Wang <huanhuan.wang@corigine.com>
+Reviewed-by: Louis Peens <louis.peens@corigine.com>
+Signed-off-by: Simon Horman <simon.horman@corigine.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ drivers/net/ethernet/netronome/nfp/nfdk/dp.c    | 6 ++++--
+ drivers/net/ethernet/netronome/nfp/nfdk/ipsec.c | 8 ++++++--
+ 2 files changed, 10 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/net/ethernet/netronome/nfp/nfdk/dp.c b/drivers/net/ethernet/netronome/nfp/nfdk/dp.c
+index d60c0e991a91c..33b6d74adb4b5 100644
+--- a/drivers/net/ethernet/netronome/nfp/nfdk/dp.c
++++ b/drivers/net/ethernet/netronome/nfp/nfdk/dp.c
+@@ -387,7 +387,8 @@ netdev_tx_t nfp_nfdk_tx(struct sk_buff *skb, struct net_device *netdev)
+ 	if (!skb_is_gso(skb)) {
+ 		real_len = skb->len;
+ 		/* Metadata desc */
+-		metadata = nfp_nfdk_tx_csum(dp, r_vec, 1, skb, metadata);
++		if (!ipsec)
++			metadata = nfp_nfdk_tx_csum(dp, r_vec, 1, skb, metadata);
+ 		txd->raw = cpu_to_le64(metadata);
+ 		txd++;
+ 	} else {
+@@ -395,7 +396,8 @@ netdev_tx_t nfp_nfdk_tx(struct sk_buff *skb, struct net_device *netdev)
+ 		(txd + 1)->raw = nfp_nfdk_tx_tso(r_vec, txbuf, skb);
+ 		real_len = txbuf->real_len;
+ 		/* Metadata desc */
+-		metadata = nfp_nfdk_tx_csum(dp, r_vec, txbuf->pkt_cnt, skb, metadata);
++		if (!ipsec)
++			metadata = nfp_nfdk_tx_csum(dp, r_vec, txbuf->pkt_cnt, skb, metadata);
+ 		txd->raw = cpu_to_le64(metadata);
+ 		txd += 2;
+ 		txbuf++;
+diff --git a/drivers/net/ethernet/netronome/nfp/nfdk/ipsec.c b/drivers/net/ethernet/netronome/nfp/nfdk/ipsec.c
+index 58d8f59eb8854..cec199f4c852f 100644
+--- a/drivers/net/ethernet/netronome/nfp/nfdk/ipsec.c
++++ b/drivers/net/ethernet/netronome/nfp/nfdk/ipsec.c
+@@ -9,9 +9,13 @@
+ u64 nfp_nfdk_ipsec_tx(u64 flags, struct sk_buff *skb)
+ {
+ 	struct xfrm_state *x = xfrm_input_state(skb);
++	struct iphdr *iph = ip_hdr(skb);
+ 
+-	if (x->xso.dev && (x->xso.dev->features & NETIF_F_HW_ESP_TX_CSUM))
+-		flags |= NFDK_DESC_TX_L3_CSUM | NFDK_DESC_TX_L4_CSUM;
++	if (x->xso.dev && (x->xso.dev->features & NETIF_F_HW_ESP_TX_CSUM)) {
++		if (iph->version == 4)
++			flags |= NFDK_DESC_TX_L3_CSUM;
++		flags |= NFDK_DESC_TX_L4_CSUM;
++	}
+ 
+ 	return flags;
+ }
+-- 
+cgit 
+

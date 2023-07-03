@@ -1,0 +1,34 @@
+From 12efdeec570c24e205484c1191265593f1dd4679 Mon Sep 17 00:00:00 2001
+From: Neil Armstrong <neil.armstrong@linaro.org>
+Date: Tue, 7 Feb 2023 11:06:58 +0100
+Subject: arm64: dts: qcom: pmk8550: fix PON compatible
+
+The right compatible is qcom,pmk8350-pon, it matches the
+reg resources associated to the node and the subnodes compatible
+properties.
+
+Fixes: e9c0a4e48489 ("arm64: dts: qcom: Add PMK8550 pmic dtsi")
+Signed-off-by: Neil Armstrong <neil.armstrong@linaro.org>
+Reviewed-by: Dmitry Baryshkov <dmitry.baryshkov@linaro.org>
+Signed-off-by: Bjorn Andersson <andersson@kernel.org>
+Link: https://lore.kernel.org/r/20230207-topic-sm8550-upstream-sm8550-dt-fix-v1-2-698d132ab285@linaro.org
+---
+ arch/arm64/boot/dts/qcom/pmk8550.dtsi | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/arch/arm64/boot/dts/qcom/pmk8550.dtsi b/arch/arm64/boot/dts/qcom/pmk8550.dtsi
+index 47213d05bf920..201efeda7d2d9 100644
+--- a/arch/arm64/boot/dts/qcom/pmk8550.dtsi
++++ b/arch/arm64/boot/dts/qcom/pmk8550.dtsi
+@@ -16,7 +16,7 @@
+ 		#size-cells = <0>;
+ 
+ 		pmk8550_pon: pon@1300 {
+-			compatible = "qcom,pm8998-pon";
++			compatible = "qcom,pmk8350-pon";
+ 			reg = <0x1300>, <0x800>;
+ 			reg-names = "hlos", "pbs";
+ 
+-- 
+cgit 
+

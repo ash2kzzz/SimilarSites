@@ -1,0 +1,54 @@
+From 9ff3eec958cf365857ae8a630237ece4f83bb337 Mon Sep 17 00:00:00 2001
+From: Dan Williams <dan.j.williams@intel.com>
+Date: Mon, 3 Apr 2023 15:01:20 -0700
+Subject: cxl/region: Move coherence tracking into cxl_region_attach()
+
+Each time the contents of a given HPA are potentially changed in a cache
+incoherent manner the CXL core sets CXL_REGION_F_INCOHERENT to
+invalidate CPU caches before the region is used.
+
+Successful invocation of attach_target() indicates that DPA has been
+newly assigned to a given HPA in the dynamic region creation flow.
+However, attach_target() is also reused in the autodiscovery flow where
+the region was activated by platform firmware. In that case there is no
+need to invalidate caches because that region is already in active use
+and nothing about the autodiscovery flow modifies the HPA-to-DPA
+relationship.
+
+In the autodiscovery case cxl_region_attach() exits early after
+determining the endpoint decoder is already correctly attached to the
+region.
+
+Fixes: a32320b71f08 ("cxl/region: Add region autodiscovery")
+Reviewed-by: Fan Ni <fan.ni@samsung.com>
+Reviewed-by: Dave Jiang <dave.jiang@intel.com>
+Link: https://lore.kernel.org/r/168002858817.50647.1217607907088920888.stgit@dwillia2-xfh.jf.intel.com
+Signed-off-by: Dan Williams <dan.j.williams@intel.com>
+---
+ drivers/cxl/core/region.c | 3 +--
+ 1 file changed, 1 insertion(+), 2 deletions(-)
+
+diff --git a/drivers/cxl/core/region.c b/drivers/cxl/core/region.c
+index 52bbf6268d5fb..b2fd67fcebfb5 100644
+--- a/drivers/cxl/core/region.c
++++ b/drivers/cxl/core/region.c
+@@ -1674,6 +1674,7 @@ static int cxl_region_attach(struct cxl_region *cxlr,
+ 		if (rc)
+ 			goto err_decrement;
+ 		p->state = CXL_CONFIG_ACTIVE;
++		set_bit(CXL_REGION_F_INCOHERENT, &cxlr->flags);
+ 	}
+ 
+ 	cxled->cxld.interleave_ways = p->interleave_ways;
+@@ -1775,8 +1776,6 @@ static int attach_target(struct cxl_region *cxlr,
+ 
+ 	down_read(&cxl_dpa_rwsem);
+ 	rc = cxl_region_attach(cxlr, cxled, pos);
+-	if (rc == 0)
+-		set_bit(CXL_REGION_F_INCOHERENT, &cxlr->flags);
+ 	up_read(&cxl_dpa_rwsem);
+ 	up_write(&cxl_region_rwsem);
+ 	return rc;
+-- 
+cgit 
+

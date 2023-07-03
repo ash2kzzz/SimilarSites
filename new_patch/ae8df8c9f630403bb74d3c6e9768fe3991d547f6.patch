@@ -1,0 +1,35 @@
+From ae8df8c9f630403bb74d3c6e9768fe3991d547f6 Mon Sep 17 00:00:00 2001
+From: Hersen Wu <hersenxs.wu@amd.com>
+Date: Thu, 9 Mar 2023 15:58:54 -0500
+Subject: drm/amd/display: Set dcn32 caps.seamless_odm
+
+[Why & How]
+seamless_odm set was not picked up while
+merging commit 2d017189e2b3 ("drm/amd/display:
+Blank eDP on enable drv if odm enabled")
+
+Fixes: 2d017189e2b3 ("drm/amd/display: Blank eDP on enable drv if odm enabled")
+Reviewed-by: Qingqing Zhuo <qingqing.zhuo@amd.com>
+Acked-by: Qingqing Zhuo <qingqing.zhuo@amd.com>
+Signed-off-by: Hersen Wu <hersenxs.wu@amd.com>
+Tested-by: Daniel Wheeler <daniel.wheeler@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/display/dc/dcn32/dcn32_resource.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/drivers/gpu/drm/amd/display/dc/dcn32/dcn32_resource.c b/drivers/gpu/drm/amd/display/dc/dcn32/dcn32_resource.c
+index 6334913317220..1715909b1225e 100644
+--- a/drivers/gpu/drm/amd/display/dc/dcn32/dcn32_resource.c
++++ b/drivers/gpu/drm/amd/display/dc/dcn32/dcn32_resource.c
+@@ -2185,6 +2185,7 @@ static bool dcn32_resource_construct(
+ 	dc->caps.edp_dsc_support = true;
+ 	dc->caps.extended_aux_timeout_support = true;
+ 	dc->caps.dmcub_support = true;
++	dc->caps.seamless_odm = true;
+ 
+ 	/* Color pipeline capabilities */
+ 	dc->caps.color.dpp.dcn_arch = 1;
+-- 
+cgit 
+

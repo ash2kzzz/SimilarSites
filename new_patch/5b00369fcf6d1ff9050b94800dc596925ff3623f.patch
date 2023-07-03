@@ -1,0 +1,47 @@
+From 5b00369fcf6d1ff9050b94800dc596925ff3623f Mon Sep 17 00:00:00 2001
+From: Su Hui <suhui@nfschina.com>
+Date: Thu, 8 Jun 2023 10:19:34 +0800
+Subject: iommu/amd: Fix possible memory leak of 'domain'
+
+Move allocation code down to avoid memory leak.
+
+Fixes: 29f54745f245 ("iommu/amd: Add missing domain type checks")
+Signed-off-by: Su Hui <suhui@nfschina.com>
+Reviewed-by: Jason Gunthorpe <jgg@nvidia.com>
+Reviewed-by: Jerry Snitselaar <jsnitsel@redhat.com>
+Reviewed-by: Vasant Hegde <vasant.hegde@amd.com>
+Link: https://lore.kernel.org/r/20230608021933.856045-1-suhui@nfschina.com
+Signed-off-by: Joerg Roedel <jroedel@suse.de>
+---
+ drivers/iommu/amd/iommu.c | 8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/iommu/amd/iommu.c b/drivers/iommu/amd/iommu.c
+index dc1ec68497754..e8a2e5984acb7 100644
+--- a/drivers/iommu/amd/iommu.c
++++ b/drivers/iommu/amd/iommu.c
+@@ -2078,10 +2078,6 @@ static struct protection_domain *protection_domain_alloc(unsigned int type)
+ 	int mode = DEFAULT_PGTABLE_LEVEL;
+ 	int ret;
+ 
+-	domain = kzalloc(sizeof(*domain), GFP_KERNEL);
+-	if (!domain)
+-		return NULL;
+-
+ 	/*
+ 	 * Force IOMMU v1 page table when iommu=pt and
+ 	 * when allocating domain for pass-through devices.
+@@ -2097,6 +2093,10 @@ static struct protection_domain *protection_domain_alloc(unsigned int type)
+ 		return NULL;
+ 	}
+ 
++	domain = kzalloc(sizeof(*domain), GFP_KERNEL);
++	if (!domain)
++		return NULL;
++
+ 	switch (pgtable) {
+ 	case AMD_IOMMU_V1:
+ 		ret = protection_domain_init_v1(domain, mode);
+-- 
+cgit 
+

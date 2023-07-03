@@ -1,0 +1,58 @@
+From b57841fb0b564c61508222e885ac8f30a2811089 Mon Sep 17 00:00:00 2001
+From: "Rafael J. Wysocki" <rafael.j.wysocki@intel.com>
+Date: Tue, 28 Mar 2023 20:43:26 +0200
+Subject: thermal: core: Drop excessive lockdep_assert_held() calls
+
+The lockdep_assert_held() calls added to cooling_device_stats_setup()
+and cooling_device_stats_destroy() by commit 790930f44289 ("thermal:
+core: Introduce thermal_cooling_device_update()") trigger false-positive
+lockdep reports in code paths that are not subject to race conditions
+(before cooling device registration and after cooling device removal).
+
+For this reason, remove the lockdep_assert_held() calls from both
+cooling_device_stats_setup() and cooling_device_stats_destroy() and
+add one to thermal_cooling_device_stats_reinit() that has to be called
+under the cdev lock.
+
+Fixes: 790930f44289 ("thermal: core: Introduce thermal_cooling_device_update()")
+Link: https://lore.kernel.org/linux-acpi/ZCIDTLFt27Ei7+V6@ideak-desk.fi.intel.com
+Reported-by: Imre Deak <imre.deak@intel.com>
+Signed-off-by: Rafael J. Wysocki <rafael.j.wysocki@intel.com>
+---
+ drivers/thermal/thermal_sysfs.c | 6 ++----
+ 1 file changed, 2 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/thermal/thermal_sysfs.c b/drivers/thermal/thermal_sysfs.c
+index a4aba7b8bb8b9..6c20c9f90a05a 100644
+--- a/drivers/thermal/thermal_sysfs.c
++++ b/drivers/thermal/thermal_sysfs.c
+@@ -876,8 +876,6 @@ static void cooling_device_stats_setup(struct thermal_cooling_device *cdev)
+ 	unsigned long states = cdev->max_state + 1;
+ 	int var;
+ 
+-	lockdep_assert_held(&cdev->lock);
+-
+ 	var = sizeof(*stats);
+ 	var += sizeof(*stats->time_in_state) * states;
+ 	var += sizeof(*stats->trans_table) * states * states;
+@@ -903,8 +901,6 @@ out:
+ 
+ static void cooling_device_stats_destroy(struct thermal_cooling_device *cdev)
+ {
+-	lockdep_assert_held(&cdev->lock);
+-
+ 	kfree(cdev->stats);
+ 	cdev->stats = NULL;
+ }
+@@ -931,6 +927,8 @@ void thermal_cooling_device_destroy_sysfs(struct thermal_cooling_device *cdev)
+ 
+ void thermal_cooling_device_stats_reinit(struct thermal_cooling_device *cdev)
+ {
++	lockdep_assert_held(&cdev->lock);
++
+ 	cooling_device_stats_destroy(cdev);
+ 	cooling_device_stats_setup(cdev);
+ }
+-- 
+cgit 
+

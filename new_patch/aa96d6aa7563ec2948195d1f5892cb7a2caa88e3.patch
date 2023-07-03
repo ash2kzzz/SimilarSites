@@ -1,0 +1,42 @@
+From aa96d6aa7563ec2948195d1f5892cb7a2caa88e3 Mon Sep 17 00:00:00 2001
+From: Hector Martin <marcan@marcan.st>
+Date: Wed, 4 Jan 2023 18:21:49 +0900
+Subject: nvme-apple: add NVME_QUIRK_IDENTIFY_CNS quirk to fix regression
+
+From the get-go, this driver and the ANS syslog have been complaining
+about namespace identification. In 6.2-rc1, commit 811f4de0344d ("nvme:
+avoid fallback to sequential scan due to transient issues") regressed
+the driver by no longer allowing fallback to sequential namespace scans,
+leaving us with no namespaces.
+
+It turns out that the real problem is that this controller claiming
+NVMe 1.1 compat is treating the CNS field as a binary field, as in NVMe
+1.0. This already has a quirk, NVME_QUIRK_IDENTIFY_CNS, so set it for
+the controller to fix all this nonsense (including other errors
+triggered by other CNS commands).
+
+Fixes: 811f4de0344d ("nvme: avoid fallback to sequential scan due to transient issues")
+Fixes: 5bd2927aceba ("nvme-apple: Add initial Apple SoC NVMe driver")
+Signed-off-by: Hector Martin <marcan@marcan.st>
+Reviewed-by: Sven Peter <sven@svenpeter.dev>
+Signed-off-by: Christoph Hellwig <hch@lst.de>
+---
+ drivers/nvme/host/apple.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/nvme/host/apple.c b/drivers/nvme/host/apple.c
+index e36aeb50b4edc..bf1c60edb7f9a 100644
+--- a/drivers/nvme/host/apple.c
++++ b/drivers/nvme/host/apple.c
+@@ -1493,7 +1493,7 @@ static int apple_nvme_probe(struct platform_device *pdev)
+ 	}
+ 
+ 	ret = nvme_init_ctrl(&anv->ctrl, anv->dev, &nvme_ctrl_ops,
+-			     NVME_QUIRK_SKIP_CID_GEN);
++			     NVME_QUIRK_SKIP_CID_GEN | NVME_QUIRK_IDENTIFY_CNS);
+ 	if (ret) {
+ 		dev_err_probe(dev, ret, "Failed to initialize nvme_ctrl");
+ 		goto put_dev;
+-- 
+cgit 
+

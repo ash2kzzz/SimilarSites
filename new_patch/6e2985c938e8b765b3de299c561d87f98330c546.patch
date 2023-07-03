@@ -1,0 +1,34 @@
+From 6e2985c938e8b765b3de299c561d87f98330c546 Mon Sep 17 00:00:00 2001
+From: "Darrick J. Wong" <djwong@kernel.org>
+Date: Fri, 17 Feb 2023 15:44:25 -0800
+Subject: xfs: restore old agirotor behavior
+
+Prior to the removal of xfs_ialloc_next_ag, we would increment the agi
+rotor and return the *old* value.  atomic_inc_return returns the new
+value, which causes mkfs to allocate the root directory in AG 1.  Put
+back the old behavior (at least for mkfs) by subtracting 1 here.
+
+Fixes: 20a5eab49d35 ("xfs: convert xfs_ialloc_next_ag() to an atomic")
+Signed-off-by: Darrick J. Wong <djwong@kernel.org>
+Reviewed-by: Dave Chinner <dchinner@redhat.com>
+---
+ fs/xfs/libxfs/xfs_ialloc.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/fs/xfs/libxfs/xfs_ialloc.c b/fs/xfs/libxfs/xfs_ialloc.c
+index 82ea6aa5af107..7ee292aecbeb0 100644
+--- a/fs/xfs/libxfs/xfs_ialloc.c
++++ b/fs/xfs/libxfs/xfs_ialloc.c
+@@ -1729,7 +1729,8 @@ xfs_dialloc(
+ 	 * an AG has enough space for file creation.
+ 	 */
+ 	if (S_ISDIR(mode))
+-		start_agno = atomic_inc_return(&mp->m_agirotor) % mp->m_maxagi;
++		start_agno = (atomic_inc_return(&mp->m_agirotor) - 1) %
++				mp->m_maxagi;
+ 	else {
+ 		start_agno = XFS_INO_TO_AGNO(mp, parent);
+ 		if (start_agno >= mp->m_maxagi)
+-- 
+cgit 
+

@@ -1,0 +1,38 @@
+From 5a84711fd734c09b7d991b00657ba61a96612254 Mon Sep 17 00:00:00 2001
+From: Dan Williams <dan.j.williams@intel.com>
+Date: Mon, 30 Jan 2023 15:39:26 -0800
+Subject: cxl/pci: Fix irq oneshot expectations
+
+The IRQ core expects that users of the default hardirq handler specify
+IRQF_ONESHOT to keep interrupts disabled until the threaded handler
+runs. That meets the CXL driver's expectations since it is an edge
+triggered MSI and this flag would have been passed by default using
+pci_request_irq() instead of devm_request_threaded_irq().
+
+Fixes: a49aa8141b65 ("cxl/mem: Wire up event interrupts")
+Reported-by: kernel test robot <lkp@intel.com>
+Reported-by: Julia Lawall <julia.lawall@lip6.fr>
+Cc: Davidlohr Bueso <dave@stgolabs.net>
+Cc: Ira Weiny <ira.weiny@intel.com>
+Signed-off-by: Dan Williams <dan.j.williams@intel.com>
+---
+ drivers/cxl/pci.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/cxl/pci.c b/drivers/cxl/pci.c
+index ad2ebe7bfaeb1..4cf9a2191602e 100644
+--- a/drivers/cxl/pci.c
++++ b/drivers/cxl/pci.c
+@@ -509,7 +509,8 @@ static int cxl_event_req_irq(struct cxl_dev_state *cxlds, u8 setting)
+ 		return irq;
+ 
+ 	return devm_request_threaded_irq(dev, irq, NULL, cxl_event_thread,
+-					 IRQF_SHARED, NULL, dev_id);
++					 IRQF_SHARED | IRQF_ONESHOT, NULL,
++					 dev_id);
+ }
+ 
+ static int cxl_event_get_int_policy(struct cxl_dev_state *cxlds,
+-- 
+cgit 
+

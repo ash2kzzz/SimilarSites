@@ -1,0 +1,35 @@
+From 6be1ff430dab9fc047762b10b2c9669399ea1f37 Mon Sep 17 00:00:00 2001
+From: Guo Ren <guoren@linux.alibaba.com>
+Date: Tue, 10 Jan 2023 03:04:19 -0500
+Subject: riscv: pgtable: Fixup comment for KERN_VIRT_SIZE
+
+KERN_VIRT_SIZE is 1/4 of the entries of the page global directory,
+not half.
+
+Fixes: f7ae02333d13 ("riscv: Move KASAN mapping next to the kernel mapping")
+Signed-off-by: Guo Ren <guoren@linux.alibaba.com>
+Signed-off-by: Guo Ren <guoren@kernel.org>
+Cc: Alexandre Ghiti <alexandre.ghiti@canonical.com>
+Reviewed-by: Alexandre Ghiti <alexghiti@rivosinc.com>
+Link: https://lore.kernel.org/r/20230110080419.931185-1-guoren@kernel.org
+Signed-off-by: Palmer Dabbelt <palmer@rivosinc.com>
+---
+ arch/riscv/include/asm/pgtable.h | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/arch/riscv/include/asm/pgtable.h b/arch/riscv/include/asm/pgtable.h
+index 4eba9a98d0e3d..2a88362dffa57 100644
+--- a/arch/riscv/include/asm/pgtable.h
++++ b/arch/riscv/include/asm/pgtable.h
+@@ -31,7 +31,7 @@
+ #define PTRS_PER_PTE    (PAGE_SIZE / sizeof(pte_t))
+ 
+ /*
+- * Half of the kernel address space (half of the entries of the page global
++ * Half of the kernel address space (1/4 of the entries of the page global
+  * directory) is for the direct mapping.
+  */
+ #define KERN_VIRT_SIZE          ((PTRS_PER_PGD / 2 * PGDIR_SIZE) / 2)
+-- 
+cgit 
+

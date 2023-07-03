@@ -1,0 +1,211 @@
+From 8bbec86ce6d66fb33530c679f7bb3a123fc9e7da Mon Sep 17 00:00:00 2001
+From: Krzysztof Kozlowski <krzysztof.kozlowski@linaro.org>
+Date: Mon, 8 May 2023 09:18:37 +0200
+Subject: dt-bindings: PCI: fsl,imx6q: fix assigned-clocks warning
+
+assigned-clocks are a dependency of clocks, however the dtschema has
+limitation and expects clocks to be present in the binding using
+assigned-clocks, not in other referenced bindings.  The clocks were
+defined in common fsl,imx6q-pcie-common.yaml, which is referenced by
+fsl,imx6q-pcie-ep.yaml.  The fsl,imx6q-pcie-ep.yaml used assigned-clocks
+thus leading to warnings:
+
+  Documentation/devicetree/bindings/pci/fsl,imx6q-pcie-ep.example.dtb: pcie-ep@33800000:
+    Unevaluated properties are not allowed ('assigned-clock-parents', 'assigned-clock-rates', 'assigned-clocks' were unexpected)
+  From schema: Documentation/devicetree/bindings/pci/fsl,imx6q-pcie-ep.yaml
+
+Fix this by moving clocks to each specific schema from the common one
+and narrowing them to strictly match what is expected for given device.
+
+Fixes: b10f82380eeb ("dt-bindings: imx6q-pcie: Restruct i.MX PCIe schema")
+Acked-by: Conor Dooley <conor.dooley@microchip.com>
+Reviewed-by: Richard Zhu <hongxing.zhu@nxp.com>
+Link: https://lore.kernel.org/r/20230508071837.68552-1-krzysztof.kozlowski@linaro.org
+Signed-off-by: Krzysztof Kozlowski <krzysztof.kozlowski@linaro.org>
+---
+ .../bindings/pci/fsl,imx6q-pcie-common.yaml        | 13 +---
+ .../devicetree/bindings/pci/fsl,imx6q-pcie-ep.yaml | 38 +++++++++++
+ .../devicetree/bindings/pci/fsl,imx6q-pcie.yaml    | 77 ++++++++++++++++++++++
+ 3 files changed, 117 insertions(+), 11 deletions(-)
+
+diff --git a/Documentation/devicetree/bindings/pci/fsl,imx6q-pcie-common.yaml b/Documentation/devicetree/bindings/pci/fsl,imx6q-pcie-common.yaml
+index 9bff8ecb653c0..d91b639ae7ae7 100644
+--- a/Documentation/devicetree/bindings/pci/fsl,imx6q-pcie-common.yaml
++++ b/Documentation/devicetree/bindings/pci/fsl,imx6q-pcie-common.yaml
+@@ -17,20 +17,11 @@ description:
+ properties:
+   clocks:
+     minItems: 3
+-    items:
+-      - description: PCIe bridge clock.
+-      - description: PCIe bus clock.
+-      - description: PCIe PHY clock.
+-      - description: Additional required clock entry for imx6sx-pcie,
+-           imx6sx-pcie-ep, imx8mq-pcie, imx8mq-pcie-ep.
++    maxItems: 4
+ 
+   clock-names:
+     minItems: 3
+-    items:
+-      - const: pcie
+-      - const: pcie_bus
+-      - enum: [ pcie_phy, pcie_aux ]
+-      - enum: [ pcie_inbound_axi, pcie_aux ]
++    maxItems: 4
+ 
+   num-lanes:
+     const: 1
+diff --git a/Documentation/devicetree/bindings/pci/fsl,imx6q-pcie-ep.yaml b/Documentation/devicetree/bindings/pci/fsl,imx6q-pcie-ep.yaml
+index f4a328ec1daa6..ee155ed5f1811 100644
+--- a/Documentation/devicetree/bindings/pci/fsl,imx6q-pcie-ep.yaml
++++ b/Documentation/devicetree/bindings/pci/fsl,imx6q-pcie-ep.yaml
+@@ -31,6 +31,19 @@ properties:
+       - const: dbi
+       - const: addr_space
+ 
++  clocks:
++    minItems: 3
++    items:
++      - description: PCIe bridge clock.
++      - description: PCIe bus clock.
++      - description: PCIe PHY clock.
++      - description: Additional required clock entry for imx6sx-pcie,
++           imx6sx-pcie-ep, imx8mq-pcie, imx8mq-pcie-ep.
++
++  clock-names:
++    minItems: 3
++    maxItems: 4
++
+   interrupts:
+     items:
+       - description: builtin eDMA interrupter.
+@@ -49,6 +62,31 @@ required:
+ allOf:
+   - $ref: /schemas/pci/snps,dw-pcie-ep.yaml#
+   - $ref: /schemas/pci/fsl,imx6q-pcie-common.yaml#
++  - if:
++      properties:
++        compatible:
++          enum:
++            - fsl,imx8mq-pcie-ep
++    then:
++      properties:
++        clocks:
++          minItems: 4
++        clock-names:
++          items:
++            - const: pcie
++            - const: pcie_bus
++            - const: pcie_phy
++            - const: pcie_aux
++    else:
++      properties:
++        clocks:
++          maxItems: 3
++        clock-names:
++          items:
++            - const: pcie
++            - const: pcie_bus
++            - const: pcie_aux
++
+ 
+ unevaluatedProperties: false
+ 
+diff --git a/Documentation/devicetree/bindings/pci/fsl,imx6q-pcie.yaml b/Documentation/devicetree/bindings/pci/fsl,imx6q-pcie.yaml
+index 2443641754d3f..81bbb8728f0f9 100644
+--- a/Documentation/devicetree/bindings/pci/fsl,imx6q-pcie.yaml
++++ b/Documentation/devicetree/bindings/pci/fsl,imx6q-pcie.yaml
+@@ -40,6 +40,19 @@ properties:
+       - const: dbi
+       - const: config
+ 
++  clocks:
++    minItems: 3
++    items:
++      - description: PCIe bridge clock.
++      - description: PCIe bus clock.
++      - description: PCIe PHY clock.
++      - description: Additional required clock entry for imx6sx-pcie,
++           imx6sx-pcie-ep, imx8mq-pcie, imx8mq-pcie-ep.
++
++  clock-names:
++    minItems: 3
++    maxItems: 4
++
+   interrupts:
+     items:
+       - description: builtin MSI controller.
+@@ -77,6 +90,70 @@ required:
+ allOf:
+   - $ref: /schemas/pci/snps,dw-pcie.yaml#
+   - $ref: /schemas/pci/fsl,imx6q-pcie-common.yaml#
++  - if:
++      properties:
++        compatible:
++          enum:
++            - fsl,imx6sx-pcie
++    then:
++      properties:
++        clocks:
++          minItems: 4
++        clock-names:
++          items:
++            - const: pcie
++            - const: pcie_bus
++            - const: pcie_phy
++            - const: pcie_inbound_axi
++
++  - if:
++      properties:
++        compatible:
++          enum:
++            - fsl,imx8mq-pcie
++    then:
++      properties:
++        clocks:
++          minItems: 4
++        clock-names:
++          items:
++            - const: pcie
++            - const: pcie_bus
++            - const: pcie_phy
++            - const: pcie_aux
++
++  - if:
++      properties:
++        compatible:
++          enum:
++            - fsl,imx6q-pcie
++            - fsl,imx6qp-pcie
++            - fsl,imx7d-pcie
++    then:
++      properties:
++        clocks:
++          maxItems: 3
++        clock-names:
++          items:
++            - const: pcie
++            - const: pcie_bus
++            - const: pcie_phy
++
++  - if:
++      properties:
++        compatible:
++          enum:
++            - fsl,imx8mm-pcie
++            - fsl,imx8mp-pcie
++    then:
++      properties:
++        clocks:
++          maxItems: 3
++        clock-names:
++          items:
++            - const: pcie
++            - const: pcie_bus
++            - const: pcie_aux
+ 
+ unevaluatedProperties: false
+ 
+-- 
+cgit 
+

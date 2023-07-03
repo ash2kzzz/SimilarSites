@@ -1,0 +1,39 @@
+From a81b1fc8ea639e03326c1d0dcde041986bc11500 Mon Sep 17 00:00:00 2001
+From: Arnd Bergmann <arnd@arndb.de>
+Date: Tue, 18 Apr 2023 09:17:51 +0200
+Subject: module: stats: fix invalid_mod_bytes typo
+
+This was caught by randconfig builds but does not show up in
+build testing without CONFIG_MODULE_DECOMPRESS:
+
+kernel/module/stats.c: In function 'mod_stat_bump_invalid':
+kernel/module/stats.c:229:42: error: 'invalid_mod_byte' undeclared (first use in this function); did you mean 'invalid_mod_bytes'?
+  229 |   atomic_long_add(info->compressed_len, &invalid_mod_byte);
+      |                                          ^~~~~~~~~~~~~~~~
+      |                                          invalid_mod_bytes
+
+Fixes: df3e764d8e5c ("module: add debug stats to help identify memory pressure")
+Signed-off-by: Arnd Bergmann <arnd@arndb.de>
+Acked-by: Randy Dunlap <rdunlap@infradead.org>
+Tested-by: Randy Dunlap <rdunlap@infradead.org>
+Signed-off-by: Luis Chamberlain <mcgrof@kernel.org>
+---
+ kernel/module/stats.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/kernel/module/stats.c b/kernel/module/stats.c
+index 6eeb35cc8d9f5..ad7b6ada29f2f 100644
+--- a/kernel/module/stats.c
++++ b/kernel/module/stats.c
+@@ -223,7 +223,7 @@ void mod_stat_bump_invalid(struct load_info *info, int flags)
+ 	atomic_inc(&failed_load_modules);
+ #if defined(CONFIG_MODULE_DECOMPRESS)
+ 	if (flags & MODULE_INIT_COMPRESSED_FILE)
+-		atomic_long_add(info->compressed_len, &invalid_mod_byte);
++		atomic_long_add(info->compressed_len, &invalid_mod_bytes);
+ #endif
+ }
+ 
+-- 
+cgit 
+

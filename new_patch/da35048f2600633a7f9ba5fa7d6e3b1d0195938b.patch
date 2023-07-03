@@ -1,0 +1,87 @@
+From da35048f2600633a7f9ba5fa7d6e3b1d0195938b Mon Sep 17 00:00:00 2001
+From: Nicholas Piggin <npiggin@gmail.com>
+Date: Thu, 12 Jan 2023 20:54:26 +1000
+Subject: kallsyms: Fix scheduling with interrupts disabled in self-test
+
+kallsyms_on_each* may schedule so must not be called with interrupts
+disabled. The iteration function could disable interrupts, but this
+also changes lookup_symbol() to match the change to the other timing
+code.
+
+Reported-by: Erhard F. <erhard_f@mailbox.org>
+Link: https://lore.kernel.org/all/bug-216902-206035@https.bugzilla.kernel.org%2F/
+Reported-by: kernel test robot <oliver.sang@intel.com>
+Link: https://lore.kernel.org/oe-lkp/202212251728.8d0872ff-oliver.sang@intel.com
+Fixes: 30f3bb09778d ("kallsyms: Add self-test facility")
+Tested-by: "Erhard F." <erhard_f@mailbox.org>
+Signed-off-by: Nicholas Piggin <npiggin@gmail.com>
+Signed-off-by: Luis Chamberlain <mcgrof@kernel.org>
+---
+ kernel/kallsyms_selftest.c | 21 ++++++---------------
+ 1 file changed, 6 insertions(+), 15 deletions(-)
+
+diff --git a/kernel/kallsyms_selftest.c b/kernel/kallsyms_selftest.c
+index f35d9cc1aab15..bfbc12da33267 100644
+--- a/kernel/kallsyms_selftest.c
++++ b/kernel/kallsyms_selftest.c
+@@ -157,14 +157,11 @@ static void test_kallsyms_compression_ratio(void)
+ static int lookup_name(void *data, const char *name, struct module *mod, unsigned long addr)
+ {
+ 	u64 t0, t1, t;
+-	unsigned long flags;
+ 	struct test_stat *stat = (struct test_stat *)data;
+ 
+-	local_irq_save(flags);
+-	t0 = sched_clock();
++	t0 = ktime_get_ns();
+ 	(void)kallsyms_lookup_name(name);
+-	t1 = sched_clock();
+-	local_irq_restore(flags);
++	t1 = ktime_get_ns();
+ 
+ 	t = t1 - t0;
+ 	if (t < stat->min)
+@@ -234,18 +231,15 @@ static int find_symbol(void *data, const char *name, struct module *mod, unsigne
+ static void test_perf_kallsyms_on_each_symbol(void)
+ {
+ 	u64 t0, t1;
+-	unsigned long flags;
+ 	struct test_stat stat;
+ 
+ 	memset(&stat, 0, sizeof(stat));
+ 	stat.max = INT_MAX;
+ 	stat.name = stub_name;
+ 	stat.perf = 1;
+-	local_irq_save(flags);
+-	t0 = sched_clock();
++	t0 = ktime_get_ns();
+ 	kallsyms_on_each_symbol(find_symbol, &stat);
+-	t1 = sched_clock();
+-	local_irq_restore(flags);
++	t1 = ktime_get_ns();
+ 	pr_info("kallsyms_on_each_symbol() traverse all: %lld ns\n", t1 - t0);
+ }
+ 
+@@ -270,17 +264,14 @@ static int match_symbol(void *data, unsigned long addr)
+ static void test_perf_kallsyms_on_each_match_symbol(void)
+ {
+ 	u64 t0, t1;
+-	unsigned long flags;
+ 	struct test_stat stat;
+ 
+ 	memset(&stat, 0, sizeof(stat));
+ 	stat.max = INT_MAX;
+ 	stat.name = stub_name;
+-	local_irq_save(flags);
+-	t0 = sched_clock();
++	t0 = ktime_get_ns();
+ 	kallsyms_on_each_match_symbol(match_symbol, stat.name, &stat);
+-	t1 = sched_clock();
+-	local_irq_restore(flags);
++	t1 = ktime_get_ns();
+ 	pr_info("kallsyms_on_each_match_symbol() traverse all: %lld ns\n", t1 - t0);
+ }
+ 
+-- 
+cgit 
+

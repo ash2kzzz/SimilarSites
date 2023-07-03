@@ -1,0 +1,39 @@
+From eddc63094855f411455db85b77eb8439201dc779 Mon Sep 17 00:00:00 2001
+From: Stephen Boyd <sboyd@kernel.org>
+Date: Thu, 16 Mar 2023 16:11:18 -0700
+Subject: clk: mediatek: Ensure fhctl code is available for COMMON_CLK_MT6795
+
+Without this select we get linker errors when linking
+clk-mt6795-apmixedsys
+
+arm-linux-gnueabi-ld: drivers/clk/mediatek/clk-mt6795-apmixedsys.o: in function `clk_mt6795_apmixed_remove':
+clk-mt6795-apmixedsys.c:(.text+0x34): undefined reference to `mtk_clk_unregister_pllfhs'
+arm-linux-gnueabi-ld: drivers/clk/mediatek/clk-mt6795-apmixedsys.o: in function `clk_mt6795_apmixed_probe':
+clk-mt6795-apmixedsys.c:(.text+0x98): undefined reference to `fhctl_parse_dt'
+arm-linux-gnueabi-ld: clk-mt6795-apmixedsys.c:(.text+0xb8): undefined reference to `mtk_clk_register_pllfhs'
+arm-linux-gnueabi-ld: clk-mt6795-apmixedsys.c:(.text+0x1c4): undefined reference to `mtk_clk_unregister_pllfhs'
+
+Fixes: f222a1baec5f ("clk: mediatek: mt6795: Add support for frequency hopping through FHCTL")
+Cc: AngeloGioacchino Del Regno <angelogioacchino.delregno@collabora.com>
+Cc: Chen-Yu Tsai <wenst@chromium.org>
+Signed-off-by: Stephen Boyd <sboyd@kernel.org>
+Link: https://lore.kernel.org/r/20230316231118.2579242-1-sboyd@kernel.org
+---
+ drivers/clk/mediatek/Kconfig | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/drivers/clk/mediatek/Kconfig b/drivers/clk/mediatek/Kconfig
+index 7a12aefb1d0b6..c707c6fe45a35 100644
+--- a/drivers/clk/mediatek/Kconfig
++++ b/drivers/clk/mediatek/Kconfig
+@@ -270,6 +270,7 @@ config COMMON_CLK_MT6795
+ 	tristate "Clock driver for MediaTek MT6795"
+ 	depends on ARCH_MEDIATEK || COMPILE_TEST
+ 	select COMMON_CLK_MEDIATEK
++	select COMMON_CLK_MEDIATEK_FHCTL
+ 	default ARCH_MEDIATEK
+ 	help
+ 	  This driver supports MediaTek MT6795 basic clocks and clocks
+-- 
+cgit 
+

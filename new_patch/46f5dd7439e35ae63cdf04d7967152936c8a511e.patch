@@ -1,0 +1,32 @@
+From 46f5dd7439e35ae63cdf04d7967152936c8a511e Mon Sep 17 00:00:00 2001
+From: Dan Carpenter <dan.carpenter@linaro.org>
+Date: Mon, 15 May 2023 13:32:47 +0300
+Subject: fbdev: omapfb: panel-tpo-td043mtea1: fix error code in probe()
+
+This was using the wrong variable, "r", instead of "ddata->vcc_reg", so
+it returned success instead of a negative error code.
+
+Fixes: 0d3dbeb8142a ("video: fbdev: omapfb: panel-tpo-td043mtea1: Make use of the helper function dev_err_probe()")
+Signed-off-by: Dan Carpenter <dan.carpenter@linaro.org>
+Signed-off-by: Helge Deller <deller@gmx.de>
+---
+ drivers/video/fbdev/omap2/omapfb/displays/panel-tpo-td043mtea1.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/video/fbdev/omap2/omapfb/displays/panel-tpo-td043mtea1.c b/drivers/video/fbdev/omap2/omapfb/displays/panel-tpo-td043mtea1.c
+index 1eaa35c278359..477789cff8e08 100644
+--- a/drivers/video/fbdev/omap2/omapfb/displays/panel-tpo-td043mtea1.c
++++ b/drivers/video/fbdev/omap2/omapfb/displays/panel-tpo-td043mtea1.c
+@@ -491,7 +491,8 @@ static int tpo_td043_probe(struct spi_device *spi)
+ 
+ 	ddata->vcc_reg = devm_regulator_get(&spi->dev, "vcc");
+ 	if (IS_ERR(ddata->vcc_reg)) {
+-		r = dev_err_probe(&spi->dev, r, "failed to get LCD VCC regulator\n");
++		r = dev_err_probe(&spi->dev, PTR_ERR(ddata->vcc_reg),
++				  "failed to get LCD VCC regulator\n");
+ 		goto err_regulator;
+ 	}
+ 
+-- 
+cgit 
+

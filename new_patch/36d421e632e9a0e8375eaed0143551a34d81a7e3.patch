@@ -1,0 +1,69 @@
+From 36d421e632e9a0e8375eaed0143551a34d81a7e3 Mon Sep 17 00:00:00 2001
+From: Zack Rusin <zackr@vmware.com>
+Date: Wed, 8 Feb 2023 13:00:50 -0500
+Subject: drm/vmwgfx: Stop accessing buffer objects which failed init
+
+ttm_bo_init_reserved on failure puts the buffer object back which
+causes it to be deleted, but kfree was still being called on the same
+buffer in vmw_bo_create leading to a double free.
+
+After the double free the vmw_gem_object_create_with_handle was
+setting the gem function objects before checking the return status
+of vmw_bo_create leading to null pointer access.
+
+Fix the entire path by relaying on ttm_bo_init_reserved to delete the
+buffer objects on failure and making sure the return status is checked
+before setting the gem function objects on the buffer object.
+
+Signed-off-by: Zack Rusin <zackr@vmware.com>
+Fixes: 8afa13a0583f ("drm/vmwgfx: Implement DRIVER_GEM")
+Reviewed-by: Maaz Mombasawala <mombasawalam@vmware.com>
+Reviewed-by: Martin Krastev <krastevm@vmware.com>
+Link: https://patchwork.freedesktop.org/patch/msgid/20230208180050.2093426-1-zack@kde.org
+---
+ drivers/gpu/drm/vmwgfx/vmwgfx_bo.c  | 4 +++-
+ drivers/gpu/drm/vmwgfx/vmwgfx_gem.c | 4 ++--
+ 2 files changed, 5 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/gpu/drm/vmwgfx/vmwgfx_bo.c b/drivers/gpu/drm/vmwgfx/vmwgfx_bo.c
+index ee8f87dcdf21d..7a00314882a31 100644
+--- a/drivers/gpu/drm/vmwgfx/vmwgfx_bo.c
++++ b/drivers/gpu/drm/vmwgfx/vmwgfx_bo.c
+@@ -416,13 +416,15 @@ int vmw_bo_create(struct vmw_private *vmw,
+ 		return -ENOMEM;
+ 	}
+ 
++	/*
++	 * vmw_bo_init will delete the *p_bo object if it fails
++	 */
+ 	ret = vmw_bo_init(vmw, *p_bo, params, vmw_bo_free);
+ 	if (unlikely(ret != 0))
+ 		goto out_error;
+ 
+ 	return ret;
+ out_error:
+-	kfree(*p_bo);
+ 	*p_bo = NULL;
+ 	return ret;
+ }
+diff --git a/drivers/gpu/drm/vmwgfx/vmwgfx_gem.c b/drivers/gpu/drm/vmwgfx/vmwgfx_gem.c
+index f042e22b8b59b..51bd1f8c5cc45 100644
+--- a/drivers/gpu/drm/vmwgfx/vmwgfx_gem.c
++++ b/drivers/gpu/drm/vmwgfx/vmwgfx_gem.c
+@@ -127,11 +127,11 @@ int vmw_gem_object_create_with_handle(struct vmw_private *dev_priv,
+ 	};
+ 
+ 	ret = vmw_bo_create(dev_priv, &params, p_vbo);
+-
+-	(*p_vbo)->tbo.base.funcs = &vmw_gem_object_funcs;
+ 	if (ret != 0)
+ 		goto out_no_bo;
+ 
++	(*p_vbo)->tbo.base.funcs = &vmw_gem_object_funcs;
++
+ 	ret = drm_gem_handle_create(filp, &(*p_vbo)->tbo.base, handle);
+ 	/* drop reference from allocate - handle holds it now */
+ 	drm_gem_object_put(&(*p_vbo)->tbo.base);
+-- 
+cgit 
+

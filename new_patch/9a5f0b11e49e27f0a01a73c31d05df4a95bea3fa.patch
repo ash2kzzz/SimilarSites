@@ -1,0 +1,67 @@
+From 9a5f0b11e49e27f0a01a73c31d05df4a95bea3fa Mon Sep 17 00:00:00 2001
+From: Douglas Anderson <dianders@chromium.org>
+Date: Fri, 16 Jun 2023 08:14:39 -0700
+Subject: arm64: dts: qcom: sc7180: Mark SCM as dma-coherent for IDP
+
+sc7180-idp is, for most intents and purposes, a trogdor device.
+Specifically, sc7180-idp is designed to run the same style of firmware
+as trogdor devices. This can be seen from the fact that IDP has the
+same "Reserved memory changes" in its device tree that trogdor has.
+
+Recently it was realized that we need to mark SCM as dma-coherent to
+match what trogdor's style of firmware (based on TF-A) does [1]. That
+means we need this dma-coherent tag on IDP as well.
+
+Without this, on newer versions of Linux, specifically those with
+commit 7bd6680b47fa ("Revert "Revert "arm64: dma: Drop cache
+invalidation from arch_dma_prep_coherent()"""), WiFi will fail to
+work. At bootup you'll see:
+
+  qcom_scm firmware:scm: Assign memory protection call failed -22
+  qcom_rmtfs_mem 94600000.memory: assign memory failed
+  qcom_rmtfs_mem: probe of 94600000.memory failed with error -22
+
+[1] https://lore.kernel.org/r/20230615145253.1.Ic62daa649b47b656b313551d646c4de9a7da4bd4@changeid
+
+Fixes: 7bd6680b47fa ("Revert "Revert "arm64: dma: Drop cache invalidation from arch_dma_prep_coherent()""")
+Fixes: f5ab220d162c ("arm64: dts: qcom: sc7180: Add remoteproc enablers")
+Signed-off-by: Douglas Anderson <dianders@chromium.org>
+Link: https://lore.kernel.org/r/20230616081440.v2.2.I3c17d546d553378aa8a0c68c3fe04bccea7cba17@changeid
+Signed-off-by: Bjorn Andersson <andersson@kernel.org>
+---
+ arch/arm64/boot/dts/qcom/sc7180-idp.dts | 5 +++++
+ arch/arm64/boot/dts/qcom/sc7180.dtsi    | 2 +-
+ 2 files changed, 6 insertions(+), 1 deletion(-)
+
+diff --git a/arch/arm64/boot/dts/qcom/sc7180-idp.dts b/arch/arm64/boot/dts/qcom/sc7180-idp.dts
+index 9f052270e0908..299ef5dc225ab 100644
+--- a/arch/arm64/boot/dts/qcom/sc7180-idp.dts
++++ b/arch/arm64/boot/dts/qcom/sc7180-idp.dts
+@@ -393,6 +393,11 @@
+ 	qcom,spare-regs = <&tcsr_regs_2 0xb3e4>;
+ };
+ 
++&scm {
++	/* TF-A firmware maps memory cached so mark dma-coherent to match. */
++	dma-coherent;
++};
++
+ &sdhc_1 {
+ 	status = "okay";
+ 
+diff --git a/arch/arm64/boot/dts/qcom/sc7180.dtsi b/arch/arm64/boot/dts/qcom/sc7180.dtsi
+index f479cab8ab45c..a65be760d1a7c 100644
+--- a/arch/arm64/boot/dts/qcom/sc7180.dtsi
++++ b/arch/arm64/boot/dts/qcom/sc7180.dtsi
+@@ -369,7 +369,7 @@
+ 	};
+ 
+ 	firmware {
+-		scm {
++		scm: scm {
+ 			compatible = "qcom,scm-sc7180", "qcom,scm";
+ 		};
+ 	};
+-- 
+cgit 
+

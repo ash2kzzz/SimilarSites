@@ -1,0 +1,33 @@
+From e43bd22cb377bf4c4e5b12daacaf02f5c24fbb16 Mon Sep 17 00:00:00 2001
+From: Srinivas Kandagatla <srinivas.kandagatla@linaro.org>
+Date: Thu, 2 Mar 2023 11:57:39 +0000
+Subject: arm64: dts: qcom: sc8280xp: fix lpass tx macro clocks
+
+Tx macro soundwire clock is for some reason is incorrectly assigned to
+va macro, fix this and use tx macro clock instead.
+
+Fixes: 1749a8ae49a3 ("arm64: dts: qcom: sc8280xp: add SoundWire and LPASS")
+Signed-off-by: Srinivas Kandagatla <srinivas.kandagatla@linaro.org>
+Reviewed-by: Konrad Dybcio <konrad.dybcio@linaro.org>
+Signed-off-by: Bjorn Andersson <andersson@kernel.org>
+Link: https://lore.kernel.org/r/20230302115741.7726-3-srinivas.kandagatla@linaro.org
+---
+ arch/arm64/boot/dts/qcom/sc8280xp.dtsi | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/arch/arm64/boot/dts/qcom/sc8280xp.dtsi b/arch/arm64/boot/dts/qcom/sc8280xp.dtsi
+index 906cbd81d268e..42bfa9fa5b967 100644
+--- a/arch/arm64/boot/dts/qcom/sc8280xp.dtsi
++++ b/arch/arm64/boot/dts/qcom/sc8280xp.dtsi
+@@ -2600,7 +2600,7 @@
+ 					      <&intc GIC_SPI 520 IRQ_TYPE_LEVEL_HIGH>;
+ 			interrupt-names = "core", "wake";
+ 
+-			clocks = <&vamacro>;
++			clocks = <&txmacro>;
+ 			clock-names = "iface";
+ 			label = "TX";
+ 			#sound-dai-cells = <1>;
+-- 
+cgit 
+

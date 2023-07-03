@@ -1,0 +1,175 @@
+From 916508c30e22f658f12dc736f8198d8a096cb24d Mon Sep 17 00:00:00 2001
+From: Michael Walle <michael@walle.cc>
+Date: Tue, 7 Feb 2023 14:10:20 +0100
+Subject: Revert "arm64: dts: ls1028a: sl28: get MAC addresses from VPD"
+
+With commit b203e6f1e833 ("arm64: dts: ls1028a: sl28: get MAC addresses
+from VPD"), the network adapter now depends on the nvmem device to be
+present, which isn't the case and thus breaks networking on this board.
+Revert it.
+
+Fixes: b203e6f1e833 ("arm64: dts: ls1028a: sl28: get MAC addresses from VPD")
+Signed-off-by: Michael Walle <michael@walle.cc>
+Signed-off-by: Shawn Guo <shawnguo@kernel.org>
+---
+ .../dts/freescale/fsl-ls1028a-kontron-kbox-a-230-ls.dts | 12 ------------
+ .../dts/freescale/fsl-ls1028a-kontron-sl28-var1.dts     |  2 --
+ .../dts/freescale/fsl-ls1028a-kontron-sl28-var2.dts     |  8 --------
+ .../dts/freescale/fsl-ls1028a-kontron-sl28-var4.dts     |  2 --
+ .../boot/dts/freescale/fsl-ls1028a-kontron-sl28.dts     | 17 -----------------
+ 5 files changed, 41 deletions(-)
+
+diff --git a/arch/arm64/boot/dts/freescale/fsl-ls1028a-kontron-kbox-a-230-ls.dts b/arch/arm64/boot/dts/freescale/fsl-ls1028a-kontron-kbox-a-230-ls.dts
+index af9194eca5564..73eb6061c73ee 100644
+--- a/arch/arm64/boot/dts/freescale/fsl-ls1028a-kontron-kbox-a-230-ls.dts
++++ b/arch/arm64/boot/dts/freescale/fsl-ls1028a-kontron-kbox-a-230-ls.dts
+@@ -56,14 +56,10 @@
+ };
+ 
+ &enetc_port2 {
+-	nvmem-cells = <&base_mac_address 2>;
+-	nvmem-cell-names = "mac-address";
+ 	status = "okay";
+ };
+ 
+ &enetc_port3 {
+-	nvmem-cells = <&base_mac_address 3>;
+-	nvmem-cell-names = "mac-address";
+ 	status = "okay";
+ };
+ 
+@@ -84,8 +80,6 @@
+ 	managed = "in-band-status";
+ 	phy-handle = <&qsgmii_phy0>;
+ 	phy-mode = "qsgmii";
+-	nvmem-cells = <&base_mac_address 4>;
+-	nvmem-cell-names = "mac-address";
+ 	status = "okay";
+ };
+ 
+@@ -94,8 +88,6 @@
+ 	managed = "in-band-status";
+ 	phy-handle = <&qsgmii_phy1>;
+ 	phy-mode = "qsgmii";
+-	nvmem-cells = <&base_mac_address 5>;
+-	nvmem-cell-names = "mac-address";
+ 	status = "okay";
+ };
+ 
+@@ -104,8 +96,6 @@
+ 	managed = "in-band-status";
+ 	phy-handle = <&qsgmii_phy2>;
+ 	phy-mode = "qsgmii";
+-	nvmem-cells = <&base_mac_address 6>;
+-	nvmem-cell-names = "mac-address";
+ 	status = "okay";
+ };
+ 
+@@ -114,8 +104,6 @@
+ 	managed = "in-band-status";
+ 	phy-handle = <&qsgmii_phy3>;
+ 	phy-mode = "qsgmii";
+-	nvmem-cells = <&base_mac_address 7>;
+-	nvmem-cell-names = "mac-address";
+ 	status = "okay";
+ };
+ 
+diff --git a/arch/arm64/boot/dts/freescale/fsl-ls1028a-kontron-sl28-var1.dts b/arch/arm64/boot/dts/freescale/fsl-ls1028a-kontron-sl28-var1.dts
+index 1f34c75534594..7cd29ab970d92 100644
+--- a/arch/arm64/boot/dts/freescale/fsl-ls1028a-kontron-sl28-var1.dts
++++ b/arch/arm64/boot/dts/freescale/fsl-ls1028a-kontron-sl28-var1.dts
+@@ -55,7 +55,5 @@
+ &enetc_port1 {
+ 	phy-handle = <&phy0>;
+ 	phy-mode = "rgmii-id";
+-	nvmem-cells = <&base_mac_address 0>;
+-	nvmem-cell-names = "mac-address";
+ 	status = "okay";
+ };
+diff --git a/arch/arm64/boot/dts/freescale/fsl-ls1028a-kontron-sl28-var2.dts b/arch/arm64/boot/dts/freescale/fsl-ls1028a-kontron-sl28-var2.dts
+index aac41192caa12..113b1df74bf87 100644
+--- a/arch/arm64/boot/dts/freescale/fsl-ls1028a-kontron-sl28-var2.dts
++++ b/arch/arm64/boot/dts/freescale/fsl-ls1028a-kontron-sl28-var2.dts
+@@ -36,14 +36,10 @@
+ };
+ 
+ &enetc_port2 {
+-	nvmem-cells = <&base_mac_address 2>;
+-	nvmem-cell-names = "mac-address";
+ 	status = "okay";
+ };
+ 
+ &enetc_port3 {
+-	nvmem-cells = <&base_mac_address 3>;
+-	nvmem-cell-names = "mac-address";
+ 	status = "okay";
+ };
+ 
+@@ -56,8 +52,6 @@
+ 	managed = "in-band-status";
+ 	phy-handle = <&phy0>;
+ 	phy-mode = "sgmii";
+-	nvmem-cells = <&base_mac_address 0>;
+-	nvmem-cell-names = "mac-address";
+ 	status = "okay";
+ };
+ 
+@@ -66,8 +60,6 @@
+ 	managed = "in-band-status";
+ 	phy-handle = <&phy1>;
+ 	phy-mode = "sgmii";
+-	nvmem-cells = <&base_mac_address 1>;
+-	nvmem-cell-names = "mac-address";
+ 	status = "okay";
+ };
+ 
+diff --git a/arch/arm64/boot/dts/freescale/fsl-ls1028a-kontron-sl28-var4.dts b/arch/arm64/boot/dts/freescale/fsl-ls1028a-kontron-sl28-var4.dts
+index a4421db3784e3..9b5e92fb753e2 100644
+--- a/arch/arm64/boot/dts/freescale/fsl-ls1028a-kontron-sl28-var4.dts
++++ b/arch/arm64/boot/dts/freescale/fsl-ls1028a-kontron-sl28-var4.dts
+@@ -43,7 +43,5 @@
+ &enetc_port1 {
+ 	phy-handle = <&phy1>;
+ 	phy-mode = "rgmii-id";
+-	nvmem-cells = <&base_mac_address 1>;
+-	nvmem-cell-names = "mac-address";
+ 	status = "okay";
+ };
+diff --git a/arch/arm64/boot/dts/freescale/fsl-ls1028a-kontron-sl28.dts b/arch/arm64/boot/dts/freescale/fsl-ls1028a-kontron-sl28.dts
+index 8b65af4a7147b..4ab17b984b03b 100644
+--- a/arch/arm64/boot/dts/freescale/fsl-ls1028a-kontron-sl28.dts
++++ b/arch/arm64/boot/dts/freescale/fsl-ls1028a-kontron-sl28.dts
+@@ -92,8 +92,6 @@
+ 	phy-handle = <&phy0>;
+ 	phy-mode = "sgmii";
+ 	managed = "in-band-status";
+-	nvmem-cells = <&base_mac_address 0>;
+-	nvmem-cell-names = "mac-address";
+ 	status = "okay";
+ };
+ 
+@@ -156,21 +154,6 @@
+ 				label = "bootloader environment";
+ 			};
+ 		};
+-
+-		otp-1 {
+-			compatible = "user-otp";
+-
+-			nvmem-layout {
+-				compatible = "kontron,sl28-vpd";
+-
+-				serial_number: serial-number {
+-				};
+-
+-				base_mac_address: base-mac-address {
+-					#nvmem-cell-cells = <1>;
+-				};
+-			};
+-		};
+ 	};
+ };
+ 
+-- 
+cgit 
+

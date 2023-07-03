@@ -1,0 +1,37 @@
+From dd172d0c2cea3c14ca9d007eeab51bec7676ece7 Mon Sep 17 00:00:00 2001
+From: Alex Elder <elder@linaro.org>
+Date: Thu, 16 Mar 2023 09:51:33 -0500
+Subject: net: ipa: reg: include <linux/bug.h>
+
+When "reg.h" got created, it included calls to WARN() and WARN_ON().
+Those macros are defined via <linux/bug.h>.  In addition, it uses
+is_power_of_2(), which is defined in <linux/log2.h>.  Include those
+files so IPA "reg.h" has access to all definitions it requires.
+
+Meanwhile, <linux/bits.h> is included but nothing defined therein
+is required directly in "reg.h", so get rid of that.
+
+Fixes: 81772e444dbe ("net: ipa: start generalizing "ipa_reg"")
+Signed-off-by: Alex Elder <elder@linaro.org>
+Signed-off-by: Jakub Kicinski <kuba@kernel.org>
+---
+ drivers/net/ipa/reg.h | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/net/ipa/reg.h b/drivers/net/ipa/reg.h
+index 57b457f39b6e2..2ee07eebca677 100644
+--- a/drivers/net/ipa/reg.h
++++ b/drivers/net/ipa/reg.h
+@@ -6,7 +6,8 @@
+ #define _REG_H_
+ 
+ #include <linux/types.h>
+-#include <linux/bits.h>
++#include <linux/log2.h>
++#include <linux/bug.h>
+ 
+ /**
+  * struct reg - A register descriptor
+-- 
+cgit 
+

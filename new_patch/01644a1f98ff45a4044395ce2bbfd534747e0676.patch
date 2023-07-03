@@ -1,0 +1,49 @@
+From 01644a1f98ff45a4044395ce2bbfd534747e0676 Mon Sep 17 00:00:00 2001
+From: David Howells <dhowells@redhat.com>
+Date: Wed, 11 Jan 2023 18:07:15 +0000
+Subject: rxrpc: Fix wrong error return in rxrpc_connect_call()
+
+Fix rxrpc_connect_call() to return -ENOMEM rather than 0 if it fails to
+look up a peer.
+
+This generated a smatch warning:
+        net/rxrpc/call_object.c:303 rxrpc_connect_call() warn: missing error code 'ret'
+
+I think this also fixes a syzbot-found bug:
+
+        rxrpc: Assertion failed - 1(0x1) == 11(0xb) is false
+        ------------[ cut here ]------------
+        kernel BUG at net/rxrpc/call_object.c:645!
+
+where the call being put is in the wrong state - as would be the case if we
+failed to clear up correctly after the error in rxrpc_connect_call().
+
+Fixes: 9d35d880e0e4 ("rxrpc: Move client call connection to the I/O thread")
+Reported-by: kernel test robot <lkp@intel.com>
+Reported-by: Dan Carpenter <error27@gmail.com>
+Reported-and-tested-by: syzbot+4bb6356bb29d6299360e@syzkaller.appspotmail.com
+Signed-off-by: David Howells <dhowells@redhat.com>
+Link: https://lore.kernel.org/r/202301111153.9eZRYLf1-lkp@intel.com/
+Reviewed-by: Alexander Duyck <alexanderduyck@fb.com>
+Link: https://lore.kernel.org/r/2438405.1673460435@warthog.procyon.org.uk
+Signed-off-by: Jakub Kicinski <kuba@kernel.org>
+---
+ net/rxrpc/call_object.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/net/rxrpc/call_object.c b/net/rxrpc/call_object.c
+index 3ded5a24627c5..f3c9f0201c156 100644
+--- a/net/rxrpc/call_object.c
++++ b/net/rxrpc/call_object.c
+@@ -294,7 +294,7 @@ static void rxrpc_put_call_slot(struct rxrpc_call *call)
+ static int rxrpc_connect_call(struct rxrpc_call *call, gfp_t gfp)
+ {
+ 	struct rxrpc_local *local = call->local;
+-	int ret = 0;
++	int ret = -ENOMEM;
+ 
+ 	_enter("{%d,%lx},", call->debug_id, call->user_call_ID);
+ 
+-- 
+cgit 
+

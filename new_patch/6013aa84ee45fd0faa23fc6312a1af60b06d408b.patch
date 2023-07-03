@@ -1,0 +1,84 @@
+From 6013aa84ee45fd0faa23fc6312a1af60b06d408b Mon Sep 17 00:00:00 2001
+From: Stanislaw Gruszka <stanislaw.gruszka@linux.intel.com>
+Date: Thu, 23 Mar 2023 13:54:58 +0100
+Subject: accel/ivpu: Cancel recovery work
+
+Prevent running recovery_work after device is removed.
+
+Fixes: 852be13f3bd3 ("accel/ivpu: Add PM support")
+Signed-off-by: Stanislaw Gruszka <stanislaw.gruszka@linux.intel.com>
+Reviewed-by: Jeffrey Hugo <quic_jhugo@quicinc.com>
+Signed-off-by: Jacek Lawrynowicz <jacek.lawrynowicz@linux.intel.com>
+Link: https://patchwork.freedesktop.org/patch/msgid/20230323125504.2586442-3-stanislaw.gruszka@linux.intel.com
+---
+ drivers/accel/ivpu/ivpu_drv.c |  2 ++
+ drivers/accel/ivpu/ivpu_pm.c  | 17 ++++++++++++++---
+ drivers/accel/ivpu/ivpu_pm.h  |  1 +
+ 3 files changed, 17 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/accel/ivpu/ivpu_drv.c b/drivers/accel/ivpu/ivpu_drv.c
+index ac06bbfca9202..d9e311b403480 100644
+--- a/drivers/accel/ivpu/ivpu_drv.c
++++ b/drivers/accel/ivpu/ivpu_drv.c
+@@ -580,6 +580,8 @@ static void ivpu_dev_fini(struct ivpu_device *vdev)
+ 	ivpu_pm_disable(vdev);
+ 	ivpu_shutdown(vdev);
+ 	ivpu_job_done_thread_fini(vdev);
++	ivpu_pm_cancel_recovery(vdev);
++
+ 	ivpu_ipc_fini(vdev);
+ 	ivpu_fw_fini(vdev);
+ 	ivpu_mmu_global_context_fini(vdev);
+diff --git a/drivers/accel/ivpu/ivpu_pm.c b/drivers/accel/ivpu/ivpu_pm.c
+index 553bcbd787b3c..7df72fa8100f9 100644
+--- a/drivers/accel/ivpu/ivpu_pm.c
++++ b/drivers/accel/ivpu/ivpu_pm.c
+@@ -98,12 +98,18 @@ retry:
+ static void ivpu_pm_recovery_work(struct work_struct *work)
+ {
+ 	struct ivpu_pm_info *pm = container_of(work, struct ivpu_pm_info, recovery_work);
+-	struct ivpu_device *vdev =  pm->vdev;
++	struct ivpu_device *vdev = pm->vdev;
+ 	char *evt[2] = {"IVPU_PM_EVENT=IVPU_RECOVER", NULL};
+ 	int ret;
+ 
+-	ret = pci_reset_function(to_pci_dev(vdev->drm.dev));
+-	if (ret)
++retry:
++	ret = pci_try_reset_function(to_pci_dev(vdev->drm.dev));
++	if (ret == -EAGAIN && !drm_dev_is_unplugged(&vdev->drm)) {
++		cond_resched();
++		goto retry;
++	}
++
++	if (ret && ret != -EAGAIN)
+ 		ivpu_err(vdev, "Failed to reset VPU: %d\n", ret);
+ 
+ 	kobject_uevent_env(&vdev->drm.dev->kobj, KOBJ_CHANGE, evt);
+@@ -306,6 +312,11 @@ int ivpu_pm_init(struct ivpu_device *vdev)
+ 	return 0;
+ }
+ 
++void ivpu_pm_cancel_recovery(struct ivpu_device *vdev)
++{
++	cancel_work_sync(&vdev->pm->recovery_work);
++}
++
+ void ivpu_pm_enable(struct ivpu_device *vdev)
+ {
+ 	struct device *dev = vdev->drm.dev;
+diff --git a/drivers/accel/ivpu/ivpu_pm.h b/drivers/accel/ivpu/ivpu_pm.h
+index dc1b3758e13f4..baca981872551 100644
+--- a/drivers/accel/ivpu/ivpu_pm.h
++++ b/drivers/accel/ivpu/ivpu_pm.h
+@@ -21,6 +21,7 @@ struct ivpu_pm_info {
+ int ivpu_pm_init(struct ivpu_device *vdev);
+ void ivpu_pm_enable(struct ivpu_device *vdev);
+ void ivpu_pm_disable(struct ivpu_device *vdev);
++void ivpu_pm_cancel_recovery(struct ivpu_device *vdev);
+ 
+ int ivpu_pm_suspend_cb(struct device *dev);
+ int ivpu_pm_resume_cb(struct device *dev);
+-- 
+cgit 
+

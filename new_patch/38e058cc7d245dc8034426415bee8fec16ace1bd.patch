@@ -1,0 +1,63 @@
+From 38e058cc7d245dc8034426415bee8fec16ace1bd Mon Sep 17 00:00:00 2001
+From: Hangbin Liu <liuhangbin@gmail.com>
+Date: Tue, 4 Apr 2023 15:24:11 +0800
+Subject: selftests: net: rps_default_mask.sh: delete veth link specifically
+
+When deleting the netns and recreating a new one while re-adding the
+veth interface, there is a small window of time during which the old
+veth interface has not yet been removed. This can cause the new addition
+to fail. To resolve this issue, we can either wait for a short while to
+ensure that the old veth interface is deleted, or we can specifically
+remove the veth interface.
+
+Before this patch:
+  # ./rps_default_mask.sh
+  empty rps_default_mask                                      [ ok ]
+  changing rps_default_mask dont affect existing devices      [ ok ]
+  changing rps_default_mask dont affect existing netns        [ ok ]
+  changing rps_default_mask affect newly created devices      [ ok ]
+  changing rps_default_mask don't affect newly child netns[II][ ok ]
+  rps_default_mask is 0 by default in child netns             [ ok ]
+  RTNETLINK answers: File exists
+  changing rps_default_mask in child ns don't affect the main one[ ok ]
+  cat: /sys/class/net/vethC11an1/queues/rx-0/rps_cpus: No such file or directory
+  changing rps_default_mask in child ns affects new childns devices./rps_default_mask.sh: line 36: [: -eq: unary operator expected
+  [fail] expected 1 found
+  changing rps_default_mask in child ns don't affect existing devices[ ok ]
+
+After this patch:
+  # ./rps_default_mask.sh
+  empty rps_default_mask                                      [ ok ]
+  changing rps_default_mask dont affect existing devices      [ ok ]
+  changing rps_default_mask dont affect existing netns        [ ok ]
+  changing rps_default_mask affect newly created devices      [ ok ]
+  changing rps_default_mask don't affect newly child netns[II][ ok ]
+  rps_default_mask is 0 by default in child netns             [ ok ]
+  changing rps_default_mask in child ns don't affect the main one[ ok ]
+  changing rps_default_mask in child ns affects new childns devices[ ok ]
+  changing rps_default_mask in child ns don't affect existing devices[ ok ]
+
+Fixes: 3a7d84eae03b ("self-tests: more rps self tests")
+Signed-off-by: Hangbin Liu <liuhangbin@gmail.com>
+Acked-by: Paolo Abeni <pabeni@redhat.com>
+Link: https://lore.kernel.org/r/20230404072411.879476-1-liuhangbin@gmail.com
+Signed-off-by: Jakub Kicinski <kuba@kernel.org>
+---
+ tools/testing/selftests/net/rps_default_mask.sh | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/tools/testing/selftests/net/rps_default_mask.sh b/tools/testing/selftests/net/rps_default_mask.sh
+index 0fd0d2db3abc1..a26c5624429fb 100755
+--- a/tools/testing/selftests/net/rps_default_mask.sh
++++ b/tools/testing/selftests/net/rps_default_mask.sh
+@@ -60,6 +60,7 @@ ip link set dev $VETH up
+ ip -n $NETNS link set dev $VETH up
+ chk_rps "changing rps_default_mask affect newly created devices" "" $VETH 3
+ chk_rps "changing rps_default_mask don't affect newly child netns[II]" $NETNS $VETH 0
++ip link del dev $VETH
+ ip netns del $NETNS
+ 
+ setup
+-- 
+cgit 
+

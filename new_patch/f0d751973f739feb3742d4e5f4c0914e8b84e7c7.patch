@@ -1,0 +1,36 @@
+From f0d751973f739feb3742d4e5f4c0914e8b84e7c7 Mon Sep 17 00:00:00 2001
+From: Jakub Kicinski <kuba@kernel.org>
+Date: Tue, 6 Jun 2023 18:08:26 -0700
+Subject: eth: ixgbe: fix the wake condition
+
+Flip the netif_carrier_ok() condition in queue wake logic.
+When I moved it to inside __netif_txq_completed_wake()
+I missed negating it.
+
+This made the condition ineffective and could probably
+lead to crashes.
+
+Fixes: 301f227fc860 ("net: piggy back on the memory barrier in bql when waking queues")
+Reviewed-by: Tony Nguyen <anthony.l.nguyen@intel.com>
+Link: https://lore.kernel.org/r/20230607010826.960226-2-kuba@kernel.org
+Signed-off-by: Jakub Kicinski <kuba@kernel.org>
+---
+ drivers/net/ethernet/intel/ixgbe/ixgbe_main.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/net/ethernet/intel/ixgbe/ixgbe_main.c b/drivers/net/ethernet/intel/ixgbe/ixgbe_main.c
+index 5d83c887a3fce..1726297f2e0df 100644
+--- a/drivers/net/ethernet/intel/ixgbe/ixgbe_main.c
++++ b/drivers/net/ethernet/intel/ixgbe/ixgbe_main.c
+@@ -1256,7 +1256,7 @@ static bool ixgbe_clean_tx_irq(struct ixgbe_q_vector *q_vector,
+ 	if (!__netif_txq_completed_wake(txq, total_packets, total_bytes,
+ 					ixgbe_desc_unused(tx_ring),
+ 					TX_WAKE_THRESHOLD,
+-					netif_carrier_ok(tx_ring->netdev) &&
++					!netif_carrier_ok(tx_ring->netdev) ||
+ 					test_bit(__IXGBE_DOWN, &adapter->state)))
+ 		++tx_ring->tx_stats.restart_queue;
+ 
+-- 
+cgit 
+

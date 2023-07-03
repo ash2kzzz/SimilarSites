@@ -1,0 +1,48 @@
+From 50ad2fb7ec2b18186b8a4fa1c0e00f78b3de5119 Mon Sep 17 00:00:00 2001
+From: Reinette Chatre <reinette.chatre@intel.com>
+Date: Fri, 14 Apr 2023 09:43:58 -0700
+Subject: selftests/resctrl: Fix incorrect error return on test complete
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+An error snuck in between two recent conflicting changes:
+Until recently ->setup() used negative values to indicate
+normal test termination. This was changed in
+commit fa10366cc6f4 ("selftests/resctrl: Allow ->setup() to return
+errors") that transitioned ->setup() to use negative values
+to indicate errors and a new END_OF_TESTS to indicate normal
+termination.
+
+commit 42e3b093eb7c ("selftests/resctrl: Fix set up schemata with 100%
+allocation on first run in MBM test") continued to use
+negative return to indicate normal test termination.
+
+Fix mbm_setup() to use the new END_OF_TESTS to indicate
+error-free test termination.
+
+Fixes: 42e3b093eb7c ("selftests/resctrl: Fix set up schemata with 100% allocation on first run in MBM test")
+Reported-by: Ilpo Järvinen <ilpo.jarvinen@linux.intel.com>
+Link: https://lore.kernel.org/lkml/bb65cce8-54d7-68c5-ef19-3364ec95392a@linux.intel.com/
+Signed-off-by: Reinette Chatre <reinette.chatre@intel.com>
+Signed-off-by: Shuah Khan <skhan@linuxfoundation.org>
+---
+ tools/testing/selftests/resctrl/mbm_test.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/tools/testing/selftests/resctrl/mbm_test.c b/tools/testing/selftests/resctrl/mbm_test.c
+index 146132fa986d9..538d35a6485ac 100644
+--- a/tools/testing/selftests/resctrl/mbm_test.c
++++ b/tools/testing/selftests/resctrl/mbm_test.c
+@@ -98,7 +98,7 @@ static int mbm_setup(int num, ...)
+ 
+ 	/* Run NUM_OF_RUNS times */
+ 	if (p->num_of_runs >= NUM_OF_RUNS)
+-		return -1;
++		return END_OF_TESTS;
+ 
+ 	/* Set up shemata with 100% allocation on the first run. */
+ 	if (p->num_of_runs == 0)
+-- 
+cgit 
+

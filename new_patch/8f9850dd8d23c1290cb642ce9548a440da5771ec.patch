@@ -1,0 +1,33 @@
+From 8f9850dd8d23c1290cb642ce9548a440da5771ec Mon Sep 17 00:00:00 2001
+From: Dan Carpenter <error27@gmail.com>
+Date: Mon, 27 Feb 2023 13:03:22 +0300
+Subject: net: phy: unlock on error in phy_probe()
+
+If genphy_c45_read_eee_adv() fails then we need to do a reset and unlock
+the &phydev->lock mutex before returning.
+
+Fixes: 3eeca4e199ce ("net: phy: do not force EEE support")
+Signed-off-by: Dan Carpenter <error27@gmail.com>
+Reviewed-by: Oleksij Rempel <o.rempel@pengutronix.de>
+Link: https://lore.kernel.org/r/Y/x/6kHCjnQHqOpF@kili
+Signed-off-by: Paolo Abeni <pabeni@redhat.com>
+---
+ drivers/net/phy/phy_device.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/net/phy/phy_device.c b/drivers/net/phy/phy_device.c
+index 3f8a64fb9d712..9e9fd8ff00f69 100644
+--- a/drivers/net/phy/phy_device.c
++++ b/drivers/net/phy/phy_device.c
+@@ -3146,7 +3146,7 @@ static int phy_probe(struct device *dev)
+ 	 */
+ 	err = genphy_c45_read_eee_adv(phydev, phydev->advertising_eee);
+ 	if (err)
+-		return err;
++		goto out;
+ 
+ 	/* There is no "enabled" flag. If PHY is advertising, assume it is
+ 	 * kind of enabled.
+-- 
+cgit 
+

@@ -1,0 +1,31 @@
+From 91d088a0304941b88c915cc800617ff4068cdd39 Mon Sep 17 00:00:00 2001
+From: Jason Gunthorpe <jgg@nvidia.com>
+Date: Thu, 9 Feb 2023 12:51:36 -0400
+Subject: RDMA/umem: Remove unused 'work' member from struct ib_umem
+
+It is not used now.
+
+Fixes: b95df5e3e459 ("drivers/IB,core: reduce scope of mmap_sem")
+Signed-off-by: Jason Gunthorpe <jgg@nvidia.com>
+Link: https://lore.kernel.org/r/0-v1-22a2667fa089+a3-umem_work_jgg@nvidia.com
+Reviewed-by: Devesh Sharma <devesh.s.sharma@oracle.com>
+Signed-off-by: Leon Romanovsky <leon@kernel.org>
+---
+ include/rdma/ib_umem.h | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/include/rdma/ib_umem.h b/include/rdma/ib_umem.h
+index 92a673cd9b4fd..95896472a82bf 100644
+--- a/include/rdma/ib_umem.h
++++ b/include/rdma/ib_umem.h
+@@ -25,7 +25,6 @@ struct ib_umem {
+ 	u32 writable : 1;
+ 	u32 is_odp : 1;
+ 	u32 is_dmabuf : 1;
+-	struct work_struct	work;
+ 	struct sg_append_table sgt_append;
+ };
+ 
+-- 
+cgit 
+

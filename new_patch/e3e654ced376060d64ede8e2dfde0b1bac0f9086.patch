@@ -1,0 +1,42 @@
+From e3e654ced376060d64ede8e2dfde0b1bac0f9086 Mon Sep 17 00:00:00 2001
+From: Konrad Dybcio <konrad.dybcio@linaro.org>
+Date: Fri, 20 Jan 2023 22:00:58 +0100
+Subject: arm64: dts: qcom: sm8350: Fix DSI PLL size
+
+As downstream indicates, DSI PLL is actually 0x27c and not 0x260-
+wide. Fix that to reserve the correct registers.
+
+Fixes: d4a4410583ed ("arm64: dts: qcom: sm8350: Add display system nodes")
+Signed-off-by: Konrad Dybcio <konrad.dybcio@linaro.org>
+Reviewed-by: Dmitry Baryshkov <dmitry.baryshkov@linaro.org>
+Signed-off-by: Bjorn Andersson <andersson@kernel.org>
+Link: https://lore.kernel.org/r/20230120210101.2146852-6-konrad.dybcio@linaro.org
+---
+ arch/arm64/boot/dts/qcom/sm8350.dtsi | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/arch/arm64/boot/dts/qcom/sm8350.dtsi b/arch/arm64/boot/dts/qcom/sm8350.dtsi
+index ae5c16cfc0e51..f5a008bb46572 100644
+--- a/arch/arm64/boot/dts/qcom/sm8350.dtsi
++++ b/arch/arm64/boot/dts/qcom/sm8350.dtsi
+@@ -2965,7 +2965,7 @@
+ 				compatible = "qcom,sm8350-dsi-phy-5nm";
+ 				reg = <0 0x0ae94400 0 0x200>,
+ 				      <0 0x0ae94600 0 0x280>,
+-				      <0 0x0ae94900 0 0x260>;
++				      <0 0x0ae94900 0 0x27c>;
+ 				reg-names = "dsi_phy",
+ 					    "dsi_phy_lane",
+ 					    "dsi_pll";
+@@ -3062,7 +3062,7 @@
+ 				compatible = "qcom,sm8350-dsi-phy-5nm";
+ 				reg = <0 0x0ae96400 0 0x200>,
+ 				      <0 0x0ae96600 0 0x280>,
+-				      <0 0x0ae96900 0 0x260>;
++				      <0 0x0ae96900 0 0x27c>;
+ 				reg-names = "dsi_phy",
+ 					    "dsi_phy_lane",
+ 					    "dsi_pll";
+-- 
+cgit 
+

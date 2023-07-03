@@ -1,0 +1,166 @@
+From d35b495ddf92c964eedf2ac86fdbf88dc3e5cbc9 Mon Sep 17 00:00:00 2001
+From: Dan Williams <dan.j.williams@intel.com>
+Date: Mon, 3 Apr 2023 14:39:16 -0700
+Subject: cxl/port: Fix find_cxl_root() for RCDs and simplify it
+
+The find_cxl_root() helper is used to lookup root decoders and other CXL
+platform topology information for a given endpoint. It turns out that
+for RCDs it has never worked. The result of find_cxl_root(&cxlmd->dev)
+is always NULL for the RCH topology case because it expects to find a
+cxl_port at the host-bridge. RCH topologies only have the root cxl_port
+object with the host-bridge as a dport. While there are no reports of
+this being a problem to date, by inspection region enumeration should
+crash as a result of this problem, and it does in a local unit test for
+this scenario.
+
+However, an observation that ever since:
+
+commit f17b558d6663 ("cxl/pmem: Refactor nvdimm device registration, delete the workqueue")
+
+...all callers of find_cxl_root() occur after the memdev connection to
+the port topology has been established. That means that find_cxl_root()
+can be simplified to a walk of the endpoint port topology to the root.
+Switch to that arrangement which also fixes the RCD bug.
+
+Fixes: a32320b71f08 ("cxl/region: Add region autodiscovery")
+Reviewed-by: Jonathan Cameron <Jonathan.Cameron@huawei.com>
+Reviewed-by: Dave Jiang <dave.jiang@intel.com>
+Link: https://lore.kernel.org/r/168002857715.50647.344876437247313909.stgit@dwillia2-xfh.jf.intel.com
+Signed-off-by: Dan Williams <dan.j.williams@intel.com>
+---
+ drivers/cxl/core/pmem.c   |  6 +++---
+ drivers/cxl/core/port.c   | 38 +++++++-------------------------------
+ drivers/cxl/core/region.c |  2 +-
+ drivers/cxl/cxl.h         |  4 ++--
+ drivers/cxl/port.c        |  2 +-
+ 5 files changed, 14 insertions(+), 38 deletions(-)
+
+diff --git a/drivers/cxl/core/pmem.c b/drivers/cxl/core/pmem.c
+index c2e4b10937884..f8c38d9972522 100644
+--- a/drivers/cxl/core/pmem.c
++++ b/drivers/cxl/core/pmem.c
+@@ -62,9 +62,9 @@ static int match_nvdimm_bridge(struct device *dev, void *data)
+ 	return is_cxl_nvdimm_bridge(dev);
+ }
+ 
+-struct cxl_nvdimm_bridge *cxl_find_nvdimm_bridge(struct device *start)
++struct cxl_nvdimm_bridge *cxl_find_nvdimm_bridge(struct cxl_memdev *cxlmd)
+ {
+-	struct cxl_port *port = find_cxl_root(start);
++	struct cxl_port *port = find_cxl_root(dev_get_drvdata(&cxlmd->dev));
+ 	struct device *dev;
+ 
+ 	if (!port)
+@@ -253,7 +253,7 @@ int devm_cxl_add_nvdimm(struct cxl_memdev *cxlmd)
+ 	struct device *dev;
+ 	int rc;
+ 
+-	cxl_nvb = cxl_find_nvdimm_bridge(&cxlmd->dev);
++	cxl_nvb = cxl_find_nvdimm_bridge(cxlmd);
+ 	if (!cxl_nvb)
+ 		return -ENODEV;
+ 
+diff --git a/drivers/cxl/core/port.c b/drivers/cxl/core/port.c
+index 8ee6b6e2e2a4e..4d1f9c5b5029a 100644
+--- a/drivers/cxl/core/port.c
++++ b/drivers/cxl/core/port.c
+@@ -823,41 +823,17 @@ static bool dev_is_cxl_root_child(struct device *dev)
+ 	return false;
+ }
+ 
+-/* Find a 2nd level CXL port that has a dport that is an ancestor of @match */
+-static int match_root_child(struct device *dev, const void *match)
++struct cxl_port *find_cxl_root(struct cxl_port *port)
+ {
+-	const struct device *iter = NULL;
+-	struct cxl_dport *dport;
+-	struct cxl_port *port;
+-
+-	if (!dev_is_cxl_root_child(dev))
+-		return 0;
+-
+-	port = to_cxl_port(dev);
+-	iter = match;
+-	while (iter) {
+-		dport = cxl_find_dport_by_dev(port, iter);
+-		if (dport)
+-			break;
+-		iter = iter->parent;
+-	}
+-
+-	return !!iter;
+-}
++	struct cxl_port *iter = port;
+ 
+-struct cxl_port *find_cxl_root(struct device *dev)
+-{
+-	struct device *port_dev;
+-	struct cxl_port *root;
++	while (iter && !is_cxl_root(iter))
++		iter = to_cxl_port(iter->dev.parent);
+ 
+-	port_dev = bus_find_device(&cxl_bus_type, NULL, dev, match_root_child);
+-	if (!port_dev)
++	if (!iter)
+ 		return NULL;
+-
+-	root = to_cxl_port(port_dev->parent);
+-	get_device(&root->dev);
+-	put_device(port_dev);
+-	return root;
++	get_device(&iter->dev);
++	return iter;
+ }
+ EXPORT_SYMBOL_NS_GPL(find_cxl_root, CXL);
+ 
+diff --git a/drivers/cxl/core/region.c b/drivers/cxl/core/region.c
+index f29028148806b..808f23ec4e2bc 100644
+--- a/drivers/cxl/core/region.c
++++ b/drivers/cxl/core/region.c
+@@ -2251,7 +2251,7 @@ static struct cxl_pmem_region *cxl_pmem_region_alloc(struct cxl_region *cxlr)
+ 		 * bridge for one device is the same for all.
+ 		 */
+ 		if (i == 0) {
+-			cxl_nvb = cxl_find_nvdimm_bridge(&cxlmd->dev);
++			cxl_nvb = cxl_find_nvdimm_bridge(cxlmd);
+ 			if (!cxl_nvb) {
+ 				cxlr_pmem = ERR_PTR(-ENODEV);
+ 				goto out;
+diff --git a/drivers/cxl/cxl.h b/drivers/cxl/cxl.h
+index aab87d74474d8..044a92d9813e2 100644
+--- a/drivers/cxl/cxl.h
++++ b/drivers/cxl/cxl.h
+@@ -658,7 +658,7 @@ struct pci_bus *cxl_port_to_pci_bus(struct cxl_port *port);
+ struct cxl_port *devm_cxl_add_port(struct device *host, struct device *uport,
+ 				   resource_size_t component_reg_phys,
+ 				   struct cxl_dport *parent_dport);
+-struct cxl_port *find_cxl_root(struct device *dev);
++struct cxl_port *find_cxl_root(struct cxl_port *port);
+ int devm_cxl_enumerate_ports(struct cxl_memdev *cxlmd);
+ void cxl_bus_rescan(void);
+ void cxl_bus_drain(void);
+@@ -760,7 +760,7 @@ struct cxl_nvdimm *to_cxl_nvdimm(struct device *dev);
+ bool is_cxl_nvdimm(struct device *dev);
+ bool is_cxl_nvdimm_bridge(struct device *dev);
+ int devm_cxl_add_nvdimm(struct cxl_memdev *cxlmd);
+-struct cxl_nvdimm_bridge *cxl_find_nvdimm_bridge(struct device *dev);
++struct cxl_nvdimm_bridge *cxl_find_nvdimm_bridge(struct cxl_memdev *cxlmd);
+ 
+ #ifdef CONFIG_CXL_REGION
+ bool is_cxl_pmem_region(struct device *dev);
+diff --git a/drivers/cxl/port.c b/drivers/cxl/port.c
+index 9c8f46ed336b0..22a7ab2bae7c7 100644
+--- a/drivers/cxl/port.c
++++ b/drivers/cxl/port.c
+@@ -119,7 +119,7 @@ static int cxl_endpoint_port_probe(struct cxl_port *port)
+ 	 * This can't fail in practice as CXL root exit unregisters all
+ 	 * descendant ports and that in turn synchronizes with cxl_port_probe()
+ 	 */
+-	root = find_cxl_root(&cxlmd->dev);
++	root = find_cxl_root(port);
+ 
+ 	/*
+ 	 * Now that all endpoint decoders are successfully enumerated, try to
+-- 
+cgit 
+

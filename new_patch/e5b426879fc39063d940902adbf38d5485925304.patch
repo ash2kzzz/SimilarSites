@@ -1,0 +1,33 @@
+From e5b426879fc39063d940902adbf38d5485925304 Mon Sep 17 00:00:00 2001
+From: Gavin Shan <gshan@redhat.com>
+Date: Wed, 18 Jan 2023 17:21:32 +0800
+Subject: KVM: selftests: Remove duplicate VM creation in memslot_perf_test
+
+Remove a spurious call to __vm_create_with_one_vcpu() that was introduced
+by a merge gone sideways.
+
+Fixes: eb5618911af0 ("Merge tag 'kvmarm-6.2' of https://git.kernel.org/pub/scm/linux/kernel/git/kvmarm/kvmarm into HEAD")
+Signed-off-by: Gavin Shan <gshan@redhat.com>
+Reviewed-by: Maciej S. Szmigiero <maciej.szmigiero@oracle.com>
+Link: https://lore.kernel.org/r/20230118092133.320003-2-gshan@redhat.com
+Signed-off-by: Sean Christopherson <seanjc@google.com>
+---
+ tools/testing/selftests/kvm/memslot_perf_test.c | 2 --
+ 1 file changed, 2 deletions(-)
+
+diff --git a/tools/testing/selftests/kvm/memslot_perf_test.c b/tools/testing/selftests/kvm/memslot_perf_test.c
+index e6587e1934905..adbbcca3e354f 100644
+--- a/tools/testing/selftests/kvm/memslot_perf_test.c
++++ b/tools/testing/selftests/kvm/memslot_perf_test.c
+@@ -308,8 +308,6 @@ static bool prepare_vm(struct vm_data *data, int nslots, uint64_t *maxslots,
+ 	data->hva_slots = malloc(sizeof(*data->hva_slots) * data->nslots);
+ 	TEST_ASSERT(data->hva_slots, "malloc() fail");
+ 
+-	data->vm = __vm_create_with_one_vcpu(&data->vcpu, mempages, guest_code);
+-
+ 	pr_info_v("Adding slots 1..%i, each slot with %"PRIu64" pages + %"PRIu64" extra pages last\n",
+ 		data->nslots, data->pages_per_slot, rempages);
+ 
+-- 
+cgit 
+

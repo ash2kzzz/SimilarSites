@@ -1,0 +1,38 @@
+From 5b8e5319affc977d24b8ce7edd295907e969e217 Mon Sep 17 00:00:00 2001
+From: Lukas Bulwahn <lukas.bulwahn@gmail.com>
+Date: Wed, 8 Mar 2023 15:36:40 +0100
+Subject: MAINTAINERS: repair a malformed T: entry in IDMAPPED MOUNTS
+
+The T: entries shall be composed of a SCM tree type (git, hg, quilt, stgit
+or topgit) and location.
+
+Add the SCM tree type to the T: entry and reorder the file entries in
+alphabetical order.
+
+Fixes: ddc84c90538e ("MAINTAINERS: update idmapping tree")
+Signed-off-by: Lukas Bulwahn <lukas.bulwahn@gmail.com>
+Signed-off-by: Christian Brauner (Microsoft) <brauner@kernel.org>
+---
+ MAINTAINERS | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/MAINTAINERS b/MAINTAINERS
+index 8d5bc223f3053..2c2e54e2cd679 100644
+--- a/MAINTAINERS
++++ b/MAINTAINERS
+@@ -9871,10 +9871,10 @@ M:	Christian Brauner <brauner@kernel.org>
+ M:	Seth Forshee <sforshee@kernel.org>
+ L:	linux-fsdevel@vger.kernel.org
+ S:	Maintained
+-T:	git://git.kernel.org/pub/scm/linux/kernel/git/vfs/idmapping.git
++T:	git git://git.kernel.org/pub/scm/linux/kernel/git/vfs/idmapping.git
+ F:	Documentation/filesystems/idmappings.rst
+-F:	tools/testing/selftests/mount_setattr/
+ F:	include/linux/mnt_idmapping.*
++F:	tools/testing/selftests/mount_setattr/
+ 
+ IDT VersaClock 5 CLOCK DRIVER
+ M:	Luca Ceresoli <luca@lucaceresoli.net>
+-- 
+cgit 
+

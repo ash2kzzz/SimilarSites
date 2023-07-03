@@ -1,0 +1,34 @@
+From 1eeb807ffd8da5180f8d64d89ce332876acb5dbd Mon Sep 17 00:00:00 2001
+From: Shannon Nelson <shannon.nelson@amd.com>
+Date: Tue, 2 May 2023 13:40:32 -0700
+Subject: pds_core: add AUXILIARY_BUS and NET_DEVLINK to Kconfig
+
+Add selecting of AUXILIARY_BUS and NET_DEVLINK to the pds_core
+Kconfig.
+
+Link: https://lore.kernel.org/netdev/ZE%2FduNH3lBLreNkJ@corigine.com/
+Fixes: ddbcb22055d1 ("pds_core: Kconfig and pds_core.rst")
+Suggested-by: Simon Horman <simon.horman@corigine.com>
+Signed-off-by: Shannon Nelson <shannon.nelson@amd.com>
+Reviewed-by: Simon Horman <simon.horman@corigine.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ drivers/net/ethernet/amd/Kconfig | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/drivers/net/ethernet/amd/Kconfig b/drivers/net/ethernet/amd/Kconfig
+index 235fcacef5c5b..f8cc8925161c8 100644
+--- a/drivers/net/ethernet/amd/Kconfig
++++ b/drivers/net/ethernet/amd/Kconfig
+@@ -189,6 +189,8 @@ config AMD_XGBE_HAVE_ECC
+ config PDS_CORE
+ 	tristate "AMD/Pensando Data Systems Core Device Support"
+ 	depends on 64BIT && PCI
++	select AUXILIARY_BUS
++	select NET_DEVLINK
+ 	help
+ 	  This enables the support for the AMD/Pensando Core device family of
+ 	  adapters.  More specific information on this driver can be
+-- 
+cgit 
+

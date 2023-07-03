@@ -1,0 +1,39 @@
+From 2d2f5f1e8fd91fe848aacde28f738fb8e8d95a27 Mon Sep 17 00:00:00 2001
+From: Dan Carpenter <dan.carpenter@linaro.org>
+Date: Wed, 3 May 2023 13:41:27 +0300
+Subject: accel/qaic: silence some uninitialized variable warnings
+
+Smatch complains that these are not initialized if get_cntl_version()
+fails but we still print them in the debug message.  Not the end of
+the world, but true enough.  Let's just initialize them to a dummy value
+to make the checker happy.
+
+Fixes: c501ca23a6a3 ("accel/qaic: Add uapi and core driver file")
+Signed-off-by: Dan Carpenter <dan.carpenter@linaro.org>
+Reviewed-by: Jeffrey Hugo <quic_jhugo@quicinc.com>
+Reviewed-by: Carl Vanderlip <quic_carlv@quicinc.com>
+Reviewed-by: Pranjal Ramajor Asha Kanojiya <quic_pkanojiy@quicinc.com>
+[jhugo: Add fixes and reorder varable declarations for style]
+Signed-off-by: Jeffrey Hugo <quic_jhugo@quicinc.com>
+Link: https://patchwork.freedesktop.org/patch/msgid/d11ee378-7b06-4b5e-b56f-d66174be1ab3@kili.mountain
+---
+ drivers/accel/qaic/qaic_drv.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/accel/qaic/qaic_drv.c b/drivers/accel/qaic/qaic_drv.c
+index ff80eb5717290..2d0828db28d8e 100644
+--- a/drivers/accel/qaic/qaic_drv.c
++++ b/drivers/accel/qaic/qaic_drv.c
+@@ -262,8 +262,8 @@ static void qaic_destroy_drm_device(struct qaic_device *qdev, s32 partition_id)
+ 
+ static int qaic_mhi_probe(struct mhi_device *mhi_dev, const struct mhi_device_id *id)
+ {
++	u16 major = -1, minor = -1;
+ 	struct qaic_device *qdev;
+-	u16 major, minor;
+ 	int ret;
+ 
+ 	/*
+-- 
+cgit 
+

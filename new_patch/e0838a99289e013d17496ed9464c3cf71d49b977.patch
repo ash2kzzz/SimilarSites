@@ -1,0 +1,38 @@
+From e0838a99289e013d17496ed9464c3cf71d49b977 Mon Sep 17 00:00:00 2001
+From: Randy Dunlap <rdunlap@infradead.org>
+Date: Sun, 5 Feb 2023 08:37:52 -0800
+Subject: parisc: update kbuild doc. aliases for parisc64
+
+ARCH=parisc64 is now supported for 64-bit parisc builds, so add
+this alias to the kbuild.rst documentation.
+
+Fixes: 3dcfb729b5f4 ("parisc: Make CONFIG_64BIT available for ARCH=parisc64 only")
+Signed-off-by: Randy Dunlap <rdunlap@infradead.org>
+Cc: "James E.J. Bottomley" <James.Bottomley@HansenPartnership.com>
+Cc: Helge Deller <deller@gmx.de>
+Cc: linux-parisc@vger.kernel.org
+Cc: Masahiro Yamada <masahiroy@kernel.org>
+Cc: linux-kbuild@vger.kernel.org
+Cc: Jonathan Corbet <corbet@lwn.net>
+Cc: linux-doc@vger.kernel.org
+Acked-by: Masahiro Yamada <masahiroy@kernel.org>
+Signed-off-by: Helge Deller <deller@gmx.de>
+---
+ Documentation/kbuild/kbuild.rst | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/Documentation/kbuild/kbuild.rst b/Documentation/kbuild/kbuild.rst
+index e22621f4af0b9..2a22ddb1b8482 100644
+--- a/Documentation/kbuild/kbuild.rst
++++ b/Documentation/kbuild/kbuild.rst
+@@ -160,6 +160,7 @@ directory name found in the arch/ directory.
+ But some architectures such as x86 and sparc have aliases.
+ 
+ - x86: i386 for 32 bit, x86_64 for 64 bit
++- parisc: parisc64 for 64 bit
+ - sparc: sparc32 for 32 bit, sparc64 for 64 bit
+ 
+ CROSS_COMPILE
+-- 
+cgit 
+

@@ -1,0 +1,82 @@
+From 1f2030ff6e4958780af9e65a22c39fa8082f292b Mon Sep 17 00:00:00 2001
+From: Qu Wenruo <wqu@suse.com>
+Date: Tue, 6 Jun 2023 10:05:04 +0800
+Subject: btrfs: scrub: respect the read-only flag during repair
+
+[BUG]
+With recent scrub rework, the scrub operation no longer respects the
+read-only flag passed by "-r" option of "btrfs scrub start" command.
+
+  # mkfs.btrfs -f -d raid1 $dev1 $dev2
+  # mount $dev1 $mnt
+  # xfs_io -f -d -c "pwrite -b 128K -S 0xaa 0 128k" $mnt/file
+  # sync
+  # xfs_io -c "pwrite -S 0xff $phy1 64k" $dev1
+  # xfs_io -c "pwrite -S 0xff $((phy2 + 65536)) 64k" $dev2
+  # mount $dev1 $mnt -o ro
+  # btrfs scrub start -BrRd $mnt
+  Scrub device $dev1 (id 1) done
+  Scrub started:    Tue Jun  6 09:59:14 2023
+  Status:           finished
+  Duration:         0:00:00
+         [...]
+  	corrected_errors: 16 <<< Still has corrupted sectors
+  	last_physical: 1372585984
+
+  Scrub device $dev2 (id 2) done
+  Scrub started:    Tue Jun  6 09:59:14 2023
+  Status:           finished
+  Duration:         0:00:00
+         [...]
+  	corrected_errors: 16 <<< Still has corrupted sectors
+  	last_physical: 1351614464
+
+  # btrfs scrub start -BrRd $mnt
+  Scrub device $dev1 (id 1) done
+  Scrub started:    Tue Jun  6 10:00:17 2023
+  Status:           finished
+  Duration:         0:00:00
+         [...]
+  	corrected_errors: 0 <<< No more errors
+  	last_physical: 1372585984
+
+  Scrub device $dev2 (id 2) done
+         [...]
+  	corrected_errors: 0 <<< No more errors
+  	last_physical: 1372585984
+
+[CAUSE]
+In the newly reworked scrub code, repair is always submitted no matter
+if we're doing a read-only scrub.
+
+[FIX]
+Fix it by skipping the write submission if the scrub is a read-only one.
+
+Unfortunately for the report part, even for a read-only scrub we will
+still report it as corrected errors, as we know it's repairable, even we
+won't really submit the write.
+
+Fixes: e02ee89baa66 ("btrfs: scrub: switch scrub_simple_mirror() to scrub_stripe infrastructure")
+Signed-off-by: Qu Wenruo <wqu@suse.com>
+Reviewed-by: David Sterba <dsterba@suse.com>
+Signed-off-by: David Sterba <dsterba@suse.com>
+---
+ fs/btrfs/scrub.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/fs/btrfs/scrub.c b/fs/btrfs/scrub.c
+index 7c666517d3d33..72c2c093df4bb 100644
+--- a/fs/btrfs/scrub.c
++++ b/fs/btrfs/scrub.c
+@@ -1730,7 +1730,7 @@ static int flush_scrub_stripes(struct scrub_ctx *sctx)
+ 				break;
+ 			}
+ 		}
+-	} else {
++	} else if (!sctx->readonly) {
+ 		for (int i = 0; i < nr_stripes; i++) {
+ 			unsigned long repaired;
+ 
+-- 
+cgit 
+

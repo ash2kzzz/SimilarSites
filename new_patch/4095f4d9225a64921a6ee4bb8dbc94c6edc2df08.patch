@@ -1,0 +1,61 @@
+From 4095f4d9225a64921a6ee4bb8dbc94c6edc2df08 Mon Sep 17 00:00:00 2001
+From: Tudor Ambarus <tudor.ambarus@linaro.org>
+Date: Thu, 18 May 2023 08:54:40 +0000
+Subject: mtd: spi-nor: Fix divide by zero for spi-nor-generic flashes
+
+We failed to initialize n_banks for spi-nor-generic flashes, which
+caused a devide by zero when computing the bank_size.
+
+By default we consider that all chips have a single bank. Initialize
+the default number of banks for spi-nor-generic flashes. Even if the
+bug is fixed with this simple initialization, check the n_banks value
+before dividing so that we make sure this kind of bug won't occur again
+if some other struct instance is created uninitialized.
+
+Suggested-by: Todd Brandt <todd.e.brandt@linux.intel.com>
+Reported-by: Todd Brandt <todd.e.brandt@linux.intel.com>
+Closes: https://bugzilla.kernel.org/show_bug.cgi?id=217448
+Fixes: 9d6c5d64f028 ("mtd: spi-nor: Introduce the concept of bank")
+Link: https://lore.kernel.org/all/20230516225108.29194-1-todd.e.brandt@intel.com/
+Signed-off-by: Tudor Ambarus <tudor.ambarus@linaro.org>
+Tested-by: Todd Brandt <todd.e.brandt@linux.intel.com>
+Reviewed-by: Miquel Raynal <miquel.raynal@bootlin.com>
+Signed-off-by: Miquel Raynal <miquel.raynal@bootlin.com>
+Link: https://lore.kernel.org/linux-mtd/20230518085440.2363676-1-tudor.ambarus@linaro.org
+---
+ drivers/mtd/spi-nor/core.c | 5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/mtd/spi-nor/core.c b/drivers/mtd/spi-nor/core.c
+index 0bb0ad14a2fc0..5f29fac8669a3 100644
+--- a/drivers/mtd/spi-nor/core.c
++++ b/drivers/mtd/spi-nor/core.c
+@@ -2018,6 +2018,7 @@ static const struct spi_nor_manufacturer *manufacturers[] = {
+ 
+ static const struct flash_info spi_nor_generic_flash = {
+ 	.name = "spi-nor-generic",
++	.n_banks = 1,
+ 	/*
+ 	 * JESD216 rev A doesn't specify the page size, therefore we need a
+ 	 * sane default.
+@@ -2921,7 +2922,8 @@ static void spi_nor_late_init_params(struct spi_nor *nor)
+ 	if (nor->flags & SNOR_F_HAS_LOCK && !nor->params->locking_ops)
+ 		spi_nor_init_default_locking_ops(nor);
+ 
+-	nor->params->bank_size = div64_u64(nor->params->size, nor->info->n_banks);
++	if (nor->info->n_banks > 1)
++		params->bank_size = div64_u64(params->size, nor->info->n_banks);
+ }
+ 
+ /**
+@@ -2987,6 +2989,7 @@ static void spi_nor_init_default_params(struct spi_nor *nor)
+ 	/* Set SPI NOR sizes. */
+ 	params->writesize = 1;
+ 	params->size = (u64)info->sector_size * info->n_sectors;
++	params->bank_size = params->size;
+ 	params->page_size = info->page_size;
+ 
+ 	if (!(info->flags & SPI_NOR_NO_FR)) {
+-- 
+cgit 
+

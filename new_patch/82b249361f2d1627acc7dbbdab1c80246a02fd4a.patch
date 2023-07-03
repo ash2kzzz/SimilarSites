@@ -1,0 +1,53 @@
+From 82b249361f2d1627acc7dbbdab1c80246a02fd4a Mon Sep 17 00:00:00 2001
+From: Vernon Yang <vernon2gm@gmail.com>
+Date: Wed, 11 Jan 2023 21:20:36 +0800
+Subject: mm/mmap: fix comment of unmapped_area{_topdown}
+
+The low_limit of unmapped area information is inclusive, and the
+hight_limit is not, so make symbol to be [ instead of (.
+
+And replace hight_limit to high_limit.
+
+Link: https://lkml.kernel.org/r/20230111132036.801404-1-vernon2gm@gmail.com
+Fixes: 3499a13168da ("mm/mmap: use maple tree for unmapped_area{_topdown}")
+Signed-off-by: Vernon Yang <vernon2gm@gmail.com>
+Cc: Liam R. Howlett <Liam.Howlett@oracle.com>
+Cc: Matthew Wilcox <willy@infradead.org>
+Signed-off-by: Andrew Morton <akpm@linux-foundation.org>
+---
+ mm/mmap.c | 10 +++++-----
+ 1 file changed, 5 insertions(+), 5 deletions(-)
+
+diff --git a/mm/mmap.c b/mm/mmap.c
+index 0641e6e0016c4..335ba3df9898e 100644
+--- a/mm/mmap.c
++++ b/mm/mmap.c
+@@ -1558,8 +1558,8 @@ static inline int accountable_mapping(struct file *file, vm_flags_t vm_flags)
+  * the correct alignment and offset, all from @info. Note: current->mm is used
+  * for the search.
+  *
+- * @info: The unmapped area information including the range (low_limit -
+- * hight_limit), the alignment offset and mask.
++ * @info: The unmapped area information including the range [low_limit -
++ * high_limit), the alignment offset and mask.
+  *
+  * Return: A memory address or -ENOMEM.
+  */
+@@ -1585,11 +1585,11 @@ static unsigned long unmapped_area(struct vm_unmapped_area_info *info)
+ 
+ /**
+  * unmapped_area_topdown() - Find an area between the low_limit and the
+- * high_limit with * the correct alignment and offset at the highest available
++ * high_limit with the correct alignment and offset at the highest available
+  * address, all from @info. Note: current->mm is used for the search.
+  *
+- * @info: The unmapped area information including the range (low_limit -
+- * hight_limit), the alignment offset and mask.
++ * @info: The unmapped area information including the range [low_limit -
++ * high_limit), the alignment offset and mask.
+  *
+  * Return: A memory address or -ENOMEM.
+  */
+-- 
+cgit 
+

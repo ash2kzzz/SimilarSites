@@ -1,0 +1,43 @@
+From 33d74c8ff5ced854bc0ab6f94a778464dd2b905b Mon Sep 17 00:00:00 2001
+From: Arnd Bergmann <arnd@arndb.de>
+Date: Mon, 17 Apr 2023 22:55:25 +0200
+Subject: net: mscc: ocelot: remove incompatible prototypes
+
+The types for the register argument changed recently, but there are
+still incompatible prototypes that got left behind, and gcc-13 warns
+about these:
+
+In file included from drivers/net/ethernet/mscc/ocelot.c:13:
+drivers/net/ethernet/mscc/ocelot.h:97:5: error: conflicting types for 'ocelot_port_readl' due to enum/integer mismatch; have 'u32(struct ocelot_port *, u32)' {aka 'unsigned int(struct ocelot_port *, unsigned int)'} [-Werror=enum-int-mismatch]
+   97 | u32 ocelot_port_readl(struct ocelot_port *port, u32 reg);
+      |     ^~~~~~~~~~~~~~~~~
+
+Just remove the two prototypes, and rely on the copy in the global
+header.
+
+Fixes: 9ecd05794b8d ("net: mscc: ocelot: strengthen type of "u32 reg" in I/O accessors")
+Signed-off-by: Arnd Bergmann <arnd@arndb.de>
+Reviewed-by: Vladimir Oltean <vladimir.oltean@nxp.com>
+Link: https://lore.kernel.org/r/20230417205531.1880657-1-arnd@kernel.org
+Signed-off-by: Jakub Kicinski <kuba@kernel.org>
+---
+ drivers/net/ethernet/mscc/ocelot.h | 3 ---
+ 1 file changed, 3 deletions(-)
+
+diff --git a/drivers/net/ethernet/mscc/ocelot.h b/drivers/net/ethernet/mscc/ocelot.h
+index 14440a3b04c3c..87f2055c242c9 100644
+--- a/drivers/net/ethernet/mscc/ocelot.h
++++ b/drivers/net/ethernet/mscc/ocelot.h
+@@ -94,9 +94,6 @@ int ocelot_mact_forget(struct ocelot *ocelot,
+ struct net_device *ocelot_port_to_netdev(struct ocelot *ocelot, int port);
+ int ocelot_netdev_to_port(struct net_device *dev);
+ 
+-u32 ocelot_port_readl(struct ocelot_port *port, u32 reg);
+-void ocelot_port_writel(struct ocelot_port *port, u32 val, u32 reg);
+-
+ int ocelot_probe_port(struct ocelot *ocelot, int port, struct regmap *target,
+ 		      struct device_node *portnp);
+ void ocelot_release_port(struct ocelot_port *ocelot_port);
+-- 
+cgit 
+

@@ -1,0 +1,112 @@
+From 2ddade322925641ee2a75f13665c51f2e74d7791 Mon Sep 17 00:00:00 2001
+From: Magnus Karlsson <magnus.karlsson@intel.com>
+Date: Tue, 18 Apr 2023 16:36:17 +0200
+Subject: selftests/xsk: Fix munmap for hugepage allocated umem
+
+Fix the unmapping of hugepage allocated umems so that they are
+properly unmapped. The new test referred to in the fixes label,
+introduced a test that allocated a umem that is not a multiple of a 2M
+hugepage size. This is fine for mmap() that rounds the size up the
+nearest multiple of 2M. But munmap() requires the size to be a
+multiple of the hugepage size in order for it to unmap the region. The
+current behaviour of not properly unmapping the umem, was discovered
+when further additions of tests that require hugepages (unaligned mode
+tests only) started failing as the system was running out of
+hugepages.
+
+Fixes: c0801598e543 ("selftests: xsk: Add test UNALIGNED_INV_DESC_4K1_FRAME_SIZE")
+Signed-off-by: Magnus Karlsson <magnus.karlsson@intel.com>
+Signed-off-by: Daniel Borkmann <daniel@iogearbox.net>
+Link: https://lore.kernel.org/bpf/20230418143617.27762-1-magnus.karlsson@gmail.com
+---
+ tools/testing/selftests/bpf/xskxceiver.c | 19 +++++++++++++++----
+ tools/testing/selftests/bpf/xskxceiver.h |  1 +
+ 2 files changed, 16 insertions(+), 4 deletions(-)
+
+diff --git a/tools/testing/selftests/bpf/xskxceiver.c b/tools/testing/selftests/bpf/xskxceiver.c
+index 5a9691e942de0..a59d04118842a 100644
+--- a/tools/testing/selftests/bpf/xskxceiver.c
++++ b/tools/testing/selftests/bpf/xskxceiver.c
+@@ -77,6 +77,7 @@
+ #include <linux/if_link.h>
+ #include <linux/if_ether.h>
+ #include <linux/ip.h>
++#include <linux/mman.h>
+ #include <linux/udp.h>
+ #include <arpa/inet.h>
+ #include <net/if.h>
+@@ -1286,16 +1287,19 @@ static void thread_common_ops(struct test_spec *test, struct ifobject *ifobject)
+ 	u64 umem_sz = ifobject->umem->num_frames * ifobject->umem->frame_size;
+ 	int mmap_flags = MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE;
+ 	LIBBPF_OPTS(bpf_xdp_query_opts, opts);
++	off_t mmap_offset = 0;
+ 	void *bufs;
+ 	int ret;
+ 
+-	if (ifobject->umem->unaligned_mode)
++	if (ifobject->umem->unaligned_mode) {
+ 		mmap_flags |= MAP_HUGETLB;
++		mmap_offset = MAP_HUGE_2MB;
++	}
+ 
+ 	if (ifobject->shared_umem)
+ 		umem_sz *= 2;
+ 
+-	bufs = mmap(NULL, umem_sz, PROT_READ | PROT_WRITE, mmap_flags, -1, 0);
++	bufs = mmap(NULL, umem_sz, PROT_READ | PROT_WRITE, mmap_flags, -1, mmap_offset);
+ 	if (bufs == MAP_FAILED)
+ 		exit_with_error(errno);
+ 
+@@ -1379,6 +1383,11 @@ static void *worker_testapp_validate_rx(void *arg)
+ 	pthread_exit(NULL);
+ }
+ 
++static u64 ceil_u64(u64 a, u64 b)
++{
++	return (a + b - 1) / b;
++}
++
+ static void testapp_clean_xsk_umem(struct ifobject *ifobj)
+ {
+ 	u64 umem_sz = ifobj->umem->num_frames * ifobj->umem->frame_size;
+@@ -1386,6 +1395,7 @@ static void testapp_clean_xsk_umem(struct ifobject *ifobj)
+ 	if (ifobj->shared_umem)
+ 		umem_sz *= 2;
+ 
++	umem_sz = ceil_u64(umem_sz, HUGEPAGE_SIZE) * HUGEPAGE_SIZE;
+ 	xsk_umem__delete(ifobj->umem->umem);
+ 	munmap(ifobj->umem->buffer, umem_sz);
+ }
+@@ -1619,14 +1629,15 @@ static void testapp_stats_fill_empty(struct test_spec *test)
+ /* Simple test */
+ static bool hugepages_present(struct ifobject *ifobject)
+ {
+-	const size_t mmap_sz = 2 * ifobject->umem->num_frames * ifobject->umem->frame_size;
++	size_t mmap_sz = 2 * ifobject->umem->num_frames * ifobject->umem->frame_size;
+ 	void *bufs;
+ 
+ 	bufs = mmap(NULL, mmap_sz, PROT_READ | PROT_WRITE,
+-		    MAP_PRIVATE | MAP_ANONYMOUS | MAP_HUGETLB, -1, 0);
++		    MAP_PRIVATE | MAP_ANONYMOUS | MAP_HUGETLB, -1, MAP_HUGE_2MB);
+ 	if (bufs == MAP_FAILED)
+ 		return false;
+ 
++	mmap_sz = ceil_u64(mmap_sz, HUGEPAGE_SIZE) * HUGEPAGE_SIZE;
+ 	munmap(bufs, mmap_sz);
+ 	return true;
+ }
+diff --git a/tools/testing/selftests/bpf/xskxceiver.h b/tools/testing/selftests/bpf/xskxceiver.h
+index 919327807a4ee..c535aeab2ca35 100644
+--- a/tools/testing/selftests/bpf/xskxceiver.h
++++ b/tools/testing/selftests/bpf/xskxceiver.h
+@@ -56,6 +56,7 @@
+ #define RX_FULL_RXQSIZE 32
+ #define UMEM_HEADROOM_TEST_SIZE 128
+ #define XSK_UMEM__INVALID_FRAME_SIZE (XSK_UMEM__DEFAULT_FRAME_SIZE + 1)
++#define HUGEPAGE_SIZE (2 * 1024 * 1024)
+ 
+ #define print_verbose(x...) do { if (opt_verbose) ksft_print_msg(x); } while (0)
+ 
+-- 
+cgit 
+

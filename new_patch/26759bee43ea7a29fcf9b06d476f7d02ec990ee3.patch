@@ -1,0 +1,35 @@
+From 26759bee43ea7a29fcf9b06d476f7d02ec990ee3 Mon Sep 17 00:00:00 2001
+From: Lorenzo Bianconi <lorenzo@kernel.org>
+Date: Mon, 6 Feb 2023 19:00:06 +0100
+Subject: net, xdp: Add missing xdp_features description
+
+Add missing xdp_features field description in the struct net_device
+documentation. This patch fix the following warning:
+
+  [...]
+  ./include/linux/netdevice.h:2375: warning: Function parameter or member 'xdp_features' not described in 'net_device'
+  [...]
+
+Fixes: d3d854fd6a1d ("netdev-genl: create a simple family for netdev stuff")
+Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
+Signed-off-by: Daniel Borkmann <daniel@iogearbox.net>
+Link: https://lore.kernel.org/bpf/7878544903d855b49e838c9d59f715bde0b5e63b.1675705948.git.lorenzo@kernel.org
+---
+ include/linux/netdevice.h | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/include/linux/netdevice.h b/include/linux/netdevice.h
+index 0f7967591288a..9bb11da36ef0b 100644
+--- a/include/linux/netdevice.h
++++ b/include/linux/netdevice.h
+@@ -1819,6 +1819,7 @@ enum netdev_ml_priv_type {
+  *			of Layer 2 headers.
+  *
+  *	@flags:		Interface flags (a la BSD)
++ *	@xdp_features:	XDP capability supported by the device
+  *	@priv_flags:	Like 'flags' but invisible to userspace,
+  *			see if.h for the definitions
+  *	@gflags:	Global flags ( kept as legacy )
+-- 
+cgit 
+

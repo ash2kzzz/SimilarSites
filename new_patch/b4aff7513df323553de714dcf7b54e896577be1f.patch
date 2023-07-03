@@ -1,0 +1,88 @@
+From b4aff7513df323553de714dcf7b54e896577be1f Mon Sep 17 00:00:00 2001
+From: Pankaj Raghav <p.raghav@samsung.com>
+Date: Thu, 13 Apr 2023 14:00:55 -0700
+Subject: scripts/gdb: use mem instead of core_layout to get the module address
+
+commit ac3b43283923 ("module: replace module_layout with module_memory")
+changed the struct module data structure from module_layout to
+module_memory. The core_layout member which is used while loading
+modules are not available anymore leading to the following error while
+running gdb:
+
+(gdb) lx-symbols
+loading vmlinux
+Python Exception <class 'gdb.error'>: There is no member named core_layout.
+Error occurred in Python: There is no member named core_layout.
+
+Replace core_layout with its new counterpart mem[MOD_TEXT].
+
+Fixes: ac3b43283923 ("module: replace module_layout with module_memory")
+Signed-off-by: Pankaj Raghav <p.raghav@samsung.com>
+Signed-off-by: Luis Chamberlain <mcgrof@kernel.org>
+---
+ scripts/gdb/linux/constants.py.in | 3 +++
+ scripts/gdb/linux/modules.py      | 4 ++--
+ scripts/gdb/linux/symbols.py      | 4 ++--
+ 3 files changed, 7 insertions(+), 4 deletions(-)
+
+diff --git a/scripts/gdb/linux/constants.py.in b/scripts/gdb/linux/constants.py.in
+index 2efbec6b6b8db..8085d3693a055 100644
+--- a/scripts/gdb/linux/constants.py.in
++++ b/scripts/gdb/linux/constants.py.in
+@@ -54,6 +54,9 @@ LX_VALUE(SB_NODIRATIME)
+ /* linux/htimer.h */
+ LX_GDBPARSED(hrtimer_resolution)
+ 
++/* linux/module.h */
++LX_GDBPARSED(MOD_TEXT)
++
+ /* linux/mount.h */
+ LX_VALUE(MNT_NOSUID)
+ LX_VALUE(MNT_NODEV)
+diff --git a/scripts/gdb/linux/modules.py b/scripts/gdb/linux/modules.py
+index 441b232398965..261f28640f4cd 100644
+--- a/scripts/gdb/linux/modules.py
++++ b/scripts/gdb/linux/modules.py
+@@ -13,7 +13,7 @@
+ 
+ import gdb
+ 
+-from linux import cpus, utils, lists
++from linux import cpus, utils, lists, constants
+ 
+ 
+ module_type = utils.CachedType("struct module")
+@@ -73,7 +73,7 @@ class LxLsmod(gdb.Command):
+                 "        " if utils.get_long_type().sizeof == 8 else ""))
+ 
+         for module in module_list():
+-            layout = module['core_layout']
++            layout = module['mem'][constants.LX_MOD_TEXT]
+             gdb.write("{address} {name:<19} {size:>8}  {ref}".format(
+                 address=str(layout['base']).split()[0],
+                 name=module['name'].string(),
+diff --git a/scripts/gdb/linux/symbols.py b/scripts/gdb/linux/symbols.py
+index dc07b6d12e300..fdad3f32c7476 100644
+--- a/scripts/gdb/linux/symbols.py
++++ b/scripts/gdb/linux/symbols.py
+@@ -15,7 +15,7 @@ import gdb
+ import os
+ import re
+ 
+-from linux import modules, utils
++from linux import modules, utils, constants
+ 
+ 
+ if hasattr(gdb, 'Breakpoint'):
+@@ -109,7 +109,7 @@ lx-symbols command."""
+ 
+     def load_module_symbols(self, module):
+         module_name = module['name'].string()
+-        module_addr = str(module['core_layout']['base']).split()[0]
++        module_addr = str(module['mem'][constants.LX_MOD_TEXT]['base']).split()[0]
+ 
+         module_file = self._get_module_file(module_name)
+         if not module_file and not self.module_files_updated:
+-- 
+cgit 
+

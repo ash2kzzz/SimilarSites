@@ -1,0 +1,54 @@
+From d374a16539b14dde0b8a3e69fb9169a7454a806c Mon Sep 17 00:00:00 2001
+From: Heiko Stuebner <heiko.stuebner@vrull.eu>
+Date: Thu, 5 Jan 2023 20:26:10 +0100
+Subject: RISC-V: fix compile error from deduplicated __ALTERNATIVE_CFG_2
+
+On the non-assembler-side wrapping alternative-macros inside other macros
+to prevent duplication of code works, as the end result will just be a
+string that gets fed to the asm instruction.
+
+In real assembler code, wrapping .macro blocks inside other .macro blocks
+brings more restrictions on usage it seems and the optimization done by
+commit 2ba8c7dc71c0 ("riscv: Don't duplicate __ALTERNATIVE_CFG in __ALTERNATIVE_CFG_2")
+results in a compile error like:
+
+../arch/riscv/lib/strcmp.S: Assembler messages:
+../arch/riscv/lib/strcmp.S:15: Error: too many positional arguments
+../arch/riscv/lib/strcmp.S:15: Error: backward ref to unknown label "886:"
+../arch/riscv/lib/strcmp.S:15: Error: backward ref to unknown label "887:"
+../arch/riscv/lib/strcmp.S:15: Error: backward ref to unknown label "886:"
+../arch/riscv/lib/strcmp.S:15: Error: backward ref to unknown label "887:"
+../arch/riscv/lib/strcmp.S:15: Error: backward ref to unknown label "886:"
+../arch/riscv/lib/strcmp.S:15: Error: attempt to move .org backwards
+
+Wrapping the variables containing assembler code in quotes solves this issue,
+compilation and the code in question still works and objdump also shows sane
+decompiled results of the affected code.
+
+Fixes: 2ba8c7dc71c0 ("riscv: Don't duplicate __ALTERNATIVE_CFG in __ALTERNATIVE_CFG_2")
+Signed-off-by: Heiko Stuebner <heiko.stuebner@vrull.eu>
+Reviewed-by: Palmer Dabbelt <palmer@rivosinc.com>
+Reviewed-by: Andrew Jones <ajones@ventanamicro.com>
+Link: https://lore.kernel.org/r/20230105192610.1940841-1-heiko@sntech.de
+Cc: stable@vger.kernel.org
+Signed-off-by: Palmer Dabbelt <palmer@rivosinc.com>
+---
+ arch/riscv/include/asm/alternative-macros.h | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/arch/riscv/include/asm/alternative-macros.h b/arch/riscv/include/asm/alternative-macros.h
+index 7226e2462584b..2c0f4c887289a 100644
+--- a/arch/riscv/include/asm/alternative-macros.h
++++ b/arch/riscv/include/asm/alternative-macros.h
+@@ -46,7 +46,7 @@
+ 
+ .macro ALTERNATIVE_CFG_2 old_c, new_c_1, vendor_id_1, errata_id_1, enable_1,	\
+ 				new_c_2, vendor_id_2, errata_id_2, enable_2
+-	ALTERNATIVE_CFG \old_c, \new_c_1, \vendor_id_1, \errata_id_1, \enable_1
++	ALTERNATIVE_CFG "\old_c", "\new_c_1", \vendor_id_1, \errata_id_1, \enable_1
+ 	ALT_NEW_CONTENT \vendor_id_2, \errata_id_2, \enable_2, \new_c_2
+ .endm
+ 
+-- 
+cgit 
+

@@ -1,0 +1,44 @@
+From d94ffb99a379a6307af99b6f59b08ec3d58eb958 Mon Sep 17 00:00:00 2001
+From: Geert Uytterhoeven <geert+renesas@glider.be>
+Date: Thu, 9 Mar 2023 15:41:13 +0100
+Subject: sh: mach-x3proto: Add missing #include <linux/gpio/driver.h>
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+shx3_defconfig:
+
+    arch/sh/boards/mach-x3proto/setup.c: In function ‘x3proto_devices_setup’:
+    arch/sh/boards/mach-x3proto/setup.c:246:62: error: invalid use of undefined type ‘struct gpio_chip’
+      246 |                 baseboard_buttons[i].gpio = x3proto_gpio_chip.base + i;
+	  |                                                              ^
+
+Fix this by replacing the include of the legacy <linux/gpio.h> by
+<linux/gpio/driver.h>.
+
+Reported-by: Linux Kernel Functional Testing <lkft@linaro.org>
+Link: https://lore.kernel.org/r/CA+G9fYs7suzGsEDK40G0pzxXyR1o2V4Pn-oy1owTsTWRVEVHog@mail.gmail.com
+Fixes: 21d9526d13b5467b ("gpiolib: Make the legacy <linux/gpio.h> consumer-only")
+Signed-off-by: Geert Uytterhoeven <geert+renesas@glider.be>
+Reviewed-by: Linus Walleij <linus.walleij@linaro.org>
+Signed-off-by: Andy Shevchenko <andriy.shevchenko@linux.intel.com>
+---
+ arch/sh/boards/mach-x3proto/setup.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/arch/sh/boards/mach-x3proto/setup.c b/arch/sh/boards/mach-x3proto/setup.c
+index 95b85f2e13dda..ca2802d305650 100644
+--- a/arch/sh/boards/mach-x3proto/setup.c
++++ b/arch/sh/boards/mach-x3proto/setup.c
+@@ -16,7 +16,7 @@
+ #include <linux/input.h>
+ #include <linux/usb/r8a66597.h>
+ #include <linux/usb/m66592.h>
+-#include <linux/gpio.h>
++#include <linux/gpio/driver.h>
+ #include <linux/gpio_keys.h>
+ #include <mach/ilsel.h>
+ #include <mach/hardware.h>
+-- 
+cgit 
+

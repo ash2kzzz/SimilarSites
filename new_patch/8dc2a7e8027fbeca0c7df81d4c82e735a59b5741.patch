@@ -1,0 +1,49 @@
+From 8dc2a7e8027fbeca0c7df81d4c82e735a59b5741 Mon Sep 17 00:00:00 2001
+From: Alexandre Ghiti <alexghiti@rivosinc.com>
+Date: Fri, 26 May 2023 17:46:30 +0200
+Subject: riscv: Fix relocatable kernels with early alternatives using -fno-pie
+
+Early alternatives are called with the mmu disabled, and then should not
+access any global symbols through the GOT since it requires relocations,
+relocations that we do before but *virtually*. So only use medany code
+model for this early code.
+
+Signed-off-by: Alexandre Ghiti <alexghiti@rivosinc.com>
+Tested-by: Conor Dooley <conor.dooley@microchip.com> # booted on nezha & unmatched
+Fixes: 39b33072941f ("riscv: Introduce CONFIG_RELOCATABLE")
+Link: https://lore.kernel.org/r/20230526154630.289374-1-alexghiti@rivosinc.com
+Signed-off-by: Palmer Dabbelt <palmer@rivosinc.com>
+---
+ arch/riscv/errata/Makefile | 4 ++++
+ arch/riscv/kernel/Makefile | 4 ++++
+ 2 files changed, 8 insertions(+)
+
+diff --git a/arch/riscv/errata/Makefile b/arch/riscv/errata/Makefile
+index a1055965fbee6..7b2637c8c3326 100644
+--- a/arch/riscv/errata/Makefile
++++ b/arch/riscv/errata/Makefile
+@@ -1,2 +1,6 @@
++ifdef CONFIG_RELOCATABLE
++KBUILD_CFLAGS += -fno-pie
++endif
++
+ obj-$(CONFIG_ERRATA_SIFIVE) += sifive/
+ obj-$(CONFIG_ERRATA_THEAD) += thead/
+diff --git a/arch/riscv/kernel/Makefile b/arch/riscv/kernel/Makefile
+index fbdccc21418a5..153864e4f3996 100644
+--- a/arch/riscv/kernel/Makefile
++++ b/arch/riscv/kernel/Makefile
+@@ -23,6 +23,10 @@ ifdef CONFIG_FTRACE
+ CFLAGS_REMOVE_alternative.o = $(CC_FLAGS_FTRACE)
+ CFLAGS_REMOVE_cpufeature.o = $(CC_FLAGS_FTRACE)
+ endif
++ifdef CONFIG_RELOCATABLE
++CFLAGS_alternative.o += -fno-pie
++CFLAGS_cpufeature.o += -fno-pie
++endif
+ ifdef CONFIG_KASAN
+ KASAN_SANITIZE_alternative.o := n
+ KASAN_SANITIZE_cpufeature.o := n
+-- 
+cgit 
+

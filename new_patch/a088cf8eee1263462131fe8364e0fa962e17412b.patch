@@ -1,0 +1,44 @@
+From a088cf8eee1263462131fe8364e0fa962e17412b Mon Sep 17 00:00:00 2001
+From: Ard Biesheuvel <ardb@kernel.org>
+Date: Sat, 4 Feb 2023 11:18:07 +0100
+Subject: arm64: kprobes: Drop ID map text from kprobes blacklist
+
+The ID mapped text region is never accessed via the normal kernel
+mapping of text, and so it was moved into .rodata instead. This means it
+is no longer considered as a suitable place for kprobes by default, and
+the explicit blacklist is unnecessary, and actually results in an error
+message at boot:
+
+  kprobes: Failed to populate blacklist (error -22), kprobes not restricted, be careful using them!
+
+So stop blacklisting the ID map text explicitly.
+
+Fixes: af7249b317e4 ("arm64: kernel: move identity map out of .text mapping")
+Reported-by: Nathan Chancellor <nathan@kernel.org>
+Signed-off-by: Ard Biesheuvel <ardb@kernel.org>
+Tested-by: Nathan Chancellor <nathan@kernel.org>
+Acked-by: Mark Rutland <mark.rutland@arm.com>
+Link: https://lore.kernel.org/r/20230204101807.2862321-1-ardb@kernel.org
+Signed-off-by: Catalin Marinas <catalin.marinas@arm.com>
+---
+ arch/arm64/kernel/probes/kprobes.c | 4 ----
+ 1 file changed, 4 deletions(-)
+
+diff --git a/arch/arm64/kernel/probes/kprobes.c b/arch/arm64/kernel/probes/kprobes.c
+index f35d059a9a366..70b91a8c6bb3f 100644
+--- a/arch/arm64/kernel/probes/kprobes.c
++++ b/arch/arm64/kernel/probes/kprobes.c
+@@ -387,10 +387,6 @@ int __init arch_populate_kprobe_blacklist(void)
+ 					(unsigned long)__irqentry_text_end);
+ 	if (ret)
+ 		return ret;
+-	ret = kprobe_add_area_blacklist((unsigned long)__idmap_text_start,
+-					(unsigned long)__idmap_text_end);
+-	if (ret)
+-		return ret;
+ 	ret = kprobe_add_area_blacklist((unsigned long)__hyp_text_start,
+ 					(unsigned long)__hyp_text_end);
+ 	if (ret || is_kernel_in_hyp_mode())
+-- 
+cgit 
+

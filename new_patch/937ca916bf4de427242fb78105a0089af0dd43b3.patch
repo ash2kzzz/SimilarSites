@@ -1,0 +1,35 @@
+From 937ca916bf4de427242fb78105a0089af0dd43b3 Mon Sep 17 00:00:00 2001
+From: William Zhang <william.zhang@broadcom.com>
+Date: Sun, 12 Feb 2023 12:50:54 -0800
+Subject: MAINTAINERS: Remove file reference for Broadcom Broadband SoC HS SPI
+ driver entry
+
+brcm,bcm63xx-hsspi-peripheral-props.yaml is not in use at least for now.
+Remove it from the maintainer entry.
+
+Fixes: 80323599e33f ("MAINTAINERS: Add entry for Broadcom Broadband SoC HS SPI drivers")
+Reported-by: kernel test robot <lkp@intel.com>
+https://lore.kernel.org/oe-kbuild-all/202302121840.GtduUT37-lkp@intel.com/
+
+Signed-off-by: William Zhang <william.zhang@broadcom.com>
+Link: https://lore.kernel.org/r/20230212205054.26348-1-william.zhang@broadcom.com
+Signed-off-by: Mark Brown <broonie@kernel.org>
+---
+ MAINTAINERS | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/MAINTAINERS b/MAINTAINERS
+index c6a2c3175ea39..df1c71ca1a691 100644
+--- a/MAINTAINERS
++++ b/MAINTAINERS
+@@ -4306,7 +4306,6 @@ M:	Jonas Gorski <jonas.gorski@gmail.com>
+ R:	Broadcom internal kernel review list <bcm-kernel-feedback-list@broadcom.com>
+ L:	linux-spi@vger.kernel.org
+ S:	Maintained
+-F:	Documentation/devicetree/bindings/spi/brcm,bcm63xx-hsspi-peripheral-props.yaml
+ F:	Documentation/devicetree/bindings/spi/brcm,bcm63xx-hsspi.yaml
+ F:	drivers/spi/spi-bcm63xx-hsspi.c
+ F:	drivers/spi/spi-bcmbca-hsspi.c
+-- 
+cgit 
+

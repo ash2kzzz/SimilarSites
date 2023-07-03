@@ -1,0 +1,36 @@
+From 7c75661c42a06fe35e1774373194f646b5a9e5c9 Mon Sep 17 00:00:00 2001
+From: Ming Lei <ming.lei@redhat.com>
+Date: Thu, 20 Apr 2023 17:11:04 +0800
+Subject: ublk: don't return 0 in case of any failure
+
+Commit 2d786e66c966 ("block: ublk: switch to ioctl command encoding")
+starts to reset local variable of 'ret' as zero, then if any failure
+happens when handling the three IO commands, 0 can be returned to ublk
+server.
+
+Fix it by returning -EINVAL in case of command handling failure.
+
+Cc: Christoph Hellwig <hch@lst.de>
+Fixes: 2d786e66c966 ("block: ublk: switch to ioctl command encoding")
+Signed-off-by: Ming Lei <ming.lei@redhat.com>
+Link: https://lore.kernel.org/r/20230420091104.1092972-1-ming.lei@redhat.com
+Signed-off-by: Jens Axboe <axboe@kernel.dk>
+---
+ drivers/block/ublk_drv.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/drivers/block/ublk_drv.c b/drivers/block/ublk_drv.c
+index 5da5876a44434..253008b2091d6 100644
+--- a/drivers/block/ublk_drv.c
++++ b/drivers/block/ublk_drv.c
+@@ -1315,6 +1315,7 @@ static int ublk_ch_uring_cmd(struct io_uring_cmd *cmd, unsigned int issue_flags)
+ 	if (ret)
+ 		goto out;
+ 
++	ret = -EINVAL;
+ 	switch (_IOC_NR(cmd_op)) {
+ 	case UBLK_IO_FETCH_REQ:
+ 		/* UBLK_IO_FETCH_REQ is only allowed before queue is setup */
+-- 
+cgit 
+

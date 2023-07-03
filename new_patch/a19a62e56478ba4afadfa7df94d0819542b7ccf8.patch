@@ -1,0 +1,47 @@
+From a19a62e56478ba4afadfa7df94d0819542b7ccf8 Mon Sep 17 00:00:00 2001
+From: Jesper Dangaard Brouer <brouer@redhat.com>
+Date: Wed, 1 Feb 2023 18:31:55 +0100
+Subject: selftests/bpf: xdp_hw_metadata cleanup cause segfault
+
+Using xdp_hw_metadata I experince Segmentation fault after seeing
+"detaching bpf program....".
+
+On my system the segfault happened when accessing bpf_obj->skeleton
+in xdp_hw_metadata__destroy(bpf_obj) call. That doesn't make any sense
+as this memory have not been freed by program at this point in time.
+
+Prior to calling xdp_hw_metadata__destroy(bpf_obj) the function
+close_xsk() is called for each RX-queue xsk.  The real bug lays
+in close_xsk() that unmap via munmap() the wrong memory pointer.
+The call xsk_umem__delete(xsk->umem) will free xsk->umem, thus
+the call to munmap(xsk->umem, UMEM_SIZE) will have unpredictable
+behavior. And man page explain subsequent references to these
+pages will generate SIGSEGV.
+
+Unmapping xsk->umem_area instead removes the segfault.
+
+Fixes: 297a3f124155 ("selftests/bpf: Simple program to dump XDP RX metadata")
+Signed-off-by: Jesper Dangaard Brouer <brouer@redhat.com>
+Signed-off-by: Daniel Borkmann <daniel@iogearbox.net>
+Acked-by: Stanislav Fomichev <sdf@google.com>
+Link: https://lore.kernel.org/bpf/167527271533.937063.5717065138099679142.stgit@firesoul
+---
+ tools/testing/selftests/bpf/xdp_hw_metadata.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/tools/testing/selftests/bpf/xdp_hw_metadata.c b/tools/testing/selftests/bpf/xdp_hw_metadata.c
+index 3823b1c499cc4..438083e34cce5 100644
+--- a/tools/testing/selftests/bpf/xdp_hw_metadata.c
++++ b/tools/testing/selftests/bpf/xdp_hw_metadata.c
+@@ -121,7 +121,7 @@ static void close_xsk(struct xsk *xsk)
+ 		xsk_umem__delete(xsk->umem);
+ 	if (xsk->socket)
+ 		xsk_socket__delete(xsk->socket);
+-	munmap(xsk->umem, UMEM_SIZE);
++	munmap(xsk->umem_area, UMEM_SIZE);
+ }
+ 
+ static void refill_rx(struct xsk *xsk, __u64 addr)
+-- 
+cgit 
+

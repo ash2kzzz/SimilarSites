@@ -1,0 +1,105 @@
+From 36be5cba99f6f9984a9a9f0454f95a38f4184d3e Mon Sep 17 00:00:00 2001
+From: Marco Elver <elver@google.com>
+Date: Fri, 24 Feb 2023 09:59:40 +0100
+Subject: kasan: treat meminstrinsic as builtins in uninstrumented files
+
+Where the compiler instruments meminstrinsics by generating calls to
+__asan/__hwasan_ prefixed functions, let the compiler consider
+memintrinsics as builtin again.
+
+To do so, never override memset/memmove/memcpy if the compiler does the
+correct instrumentation - even on !GENERIC_ENTRY architectures.
+
+[elver@google.com: powerpc: don't rename memintrinsics if compiler adds prefixes]
+  Link: https://lore.kernel.org/all/20230224085942.1791837-1-elver@google.com/ [1]
+  Link: https://lkml.kernel.org/r/20230227094726.3833247-1-elver@google.com
+Link: https://lkml.kernel.org/r/20230224085942.1791837-2-elver@google.com
+Fixes: 69d4c0d32186 ("entry, kasan, x86: Disallow overriding mem*() functions")
+Signed-off-by: Marco Elver <elver@google.com>
+Reviewed-by: Andrey Konovalov <andreyknvl@gmail.com>
+Tested-by: Linux Kernel Functional Testing <lkft@linaro.org>
+Tested-by: Naresh Kamboju <naresh.kamboju@linaro.org>
+Acked-by: Michael Ellerman <mpe@ellerman.id.au> (powerpc)
+Cc: Alexander Potapenko <glider@google.com>
+Cc: Andrey Ryabinin <ryabinin.a.a@gmail.com>
+Cc: Borislav Petkov (AMD) <bp@alien8.de>
+Cc: Dave Hansen <dave.hansen@linux.intel.com>
+Cc: Dmitry Vyukov <dvyukov@google.com>
+Cc: Ingo Molnar <mingo@redhat.com>
+Cc: Jakub Jelinek <jakub@redhat.com>
+Cc: Kees Cook <keescook@chromium.org>
+Cc: Nathan Chancellor <nathan@kernel.org>
+Cc: Nick Desaulniers <ndesaulniers@google.com>
+Cc: Nicolas Schier <nicolas@fjasle.eu>
+Cc: Peter Zijlstra (Intel) <peterz@infradead.org>
+Cc: Thomas Gleixner <tglx@linutronix.de>
+Cc: Vincenzo Frascino <vincenzo.frascino@arm.com>
+Signed-off-by: Andrew Morton <akpm@linux-foundation.org>
+---
+ lib/Kconfig.kasan      | 9 +++++++++
+ mm/kasan/shadow.c      | 5 ++++-
+ scripts/Makefile.kasan | 9 +++++++++
+ 3 files changed, 22 insertions(+), 1 deletion(-)
+
+diff --git a/lib/Kconfig.kasan b/lib/Kconfig.kasan
+index be6ee60202908..fdca89c057452 100644
+--- a/lib/Kconfig.kasan
++++ b/lib/Kconfig.kasan
+@@ -49,6 +49,15 @@ menuconfig KASAN
+ 
+ if KASAN
+ 
++config CC_HAS_KASAN_MEMINTRINSIC_PREFIX
++	def_bool (CC_IS_CLANG && $(cc-option,-fsanitize=kernel-address -mllvm -asan-kernel-mem-intrinsic-prefix=1)) || \
++		 (CC_IS_GCC && $(cc-option,-fsanitize=kernel-address --param asan-kernel-mem-intrinsic-prefix=1))
++	# Don't define it if we don't need it: compilation of the test uses
++	# this variable to decide how the compiler should treat builtins.
++	depends on !KASAN_HW_TAGS
++	help
++	  The compiler is able to prefix memintrinsics with __asan or __hwasan.
++
+ choice
+ 	prompt "KASAN mode"
+ 	default KASAN_GENERIC
+diff --git a/mm/kasan/shadow.c b/mm/kasan/shadow.c
+index 90186122b21b0..c8b86f3273b50 100644
+--- a/mm/kasan/shadow.c
++++ b/mm/kasan/shadow.c
+@@ -38,11 +38,14 @@ bool __kasan_check_write(const volatile void *p, unsigned int size)
+ }
+ EXPORT_SYMBOL(__kasan_check_write);
+ 
+-#ifndef CONFIG_GENERIC_ENTRY
++#if !defined(CONFIG_CC_HAS_KASAN_MEMINTRINSIC_PREFIX) && !defined(CONFIG_GENERIC_ENTRY)
+ /*
+  * CONFIG_GENERIC_ENTRY relies on compiler emitted mem*() calls to not be
+  * instrumented. KASAN enabled toolchains should emit __asan_mem*() functions
+  * for the sites they want to instrument.
++ *
++ * If we have a compiler that can instrument meminstrinsics, never override
++ * these, so that non-instrumented files can safely consider them as builtins.
+  */
+ #undef memset
+ void *memset(void *addr, int c, size_t len)
+diff --git a/scripts/Makefile.kasan b/scripts/Makefile.kasan
+index fa9f836f8039d..c186110ffa209 100644
+--- a/scripts/Makefile.kasan
++++ b/scripts/Makefile.kasan
+@@ -1,5 +1,14 @@
+ # SPDX-License-Identifier: GPL-2.0
++
++ifdef CONFIG_CC_HAS_KASAN_MEMINTRINSIC_PREFIX
++# Safe for compiler to generate meminstrinsic calls in uninstrumented files.
++CFLAGS_KASAN_NOSANITIZE :=
++else
++# Don't let compiler generate memintrinsic calls in uninstrumented files
++# because they are instrumented.
+ CFLAGS_KASAN_NOSANITIZE := -fno-builtin
++endif
++
+ KASAN_SHADOW_OFFSET ?= $(CONFIG_KASAN_SHADOW_OFFSET)
+ 
+ cc-param = $(call cc-option, -mllvm -$(1), $(call cc-option, --param $(1)))
+-- 
+cgit 
+

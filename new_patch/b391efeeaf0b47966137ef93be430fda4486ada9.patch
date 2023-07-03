@@ -1,0 +1,36 @@
+From b391efeeaf0b47966137ef93be430fda4486ada9 Mon Sep 17 00:00:00 2001
+From: Douglas Anderson <dianders@chromium.org>
+Date: Fri, 7 Apr 2023 14:29:14 -0700
+Subject: pinctrl: qcom: Add "and" to PIN_CONFIG_INPUT_ENABLE comment
+
+The comment recently added talking about PIN_CONFIG_INPUT_ENABLE is
+clearly missing the word "and". Comments live forever, so let's fix
+it.
+
+Fixes: e49eabe3e13f ("pinctrl: qcom: Support OUTPUT_ENABLE; deprecate INPUT_ENABLE")
+Reported-by: Stephen Boyd <swboyd@chromium.org>
+Link: https://chromium-review.googlesource.com/c/chromiumos/third_party/kernel/+/4409769/comment/9a1d5def_e1e71db7/
+Signed-off-by: Douglas Anderson <dianders@chromium.org>
+Reviewed-by: Stephen Boyd <swboyd@chromium.org>
+Link: https://lore.kernel.org/r/20230407142859.1.Ia5d70e320b60d6707c6182879097708e49b8b519@changeid
+Signed-off-by: Linus Walleij <linus.walleij@linaro.org>
+---
+ drivers/pinctrl/qcom/pinctrl-msm.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/pinctrl/qcom/pinctrl-msm.c b/drivers/pinctrl/qcom/pinctrl-msm.c
+index 65a172786ae0f..c5f52d4f7781b 100644
+--- a/drivers/pinctrl/qcom/pinctrl-msm.c
++++ b/drivers/pinctrl/qcom/pinctrl-msm.c
+@@ -517,7 +517,7 @@ static int msm_config_group_set(struct pinctrl_dev *pctldev,
+ 			 * The points above, explain why this _should_ be a
+ 			 * no-op. However, for historical reasons and to
+ 			 * support old device trees, we'll violate the docs
+-			 * still affect the output.
++			 * and still affect the output.
+ 			 *
+ 			 * It should further be noted that this old historical
+ 			 * behavior actually overrides arg to 0. That means
+-- 
+cgit 
+

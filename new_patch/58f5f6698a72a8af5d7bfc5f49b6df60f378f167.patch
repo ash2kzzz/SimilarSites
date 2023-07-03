@@ -1,0 +1,45 @@
+From 58f5f6698a72a8af5d7bfc5f49b6df60f378f167 Mon Sep 17 00:00:00 2001
+From: Christoph Hellwig <hch@lst.de>
+Date: Wed, 3 May 2023 17:45:26 +0200
+Subject: afs: fix the afs_dir_get_folio return value
+
+Keep returning NULL on failure instead of letting an ERR_PTR escape to
+callers that don't expect it.
+
+Link: https://lkml.kernel.org/r/20230503154526.1223095-2-hch@lst.de
+Fixes: 66dabbb65d67 ("mm: return an ERR_PTR from __filemap_get_folio")
+Signed-off-by: Christoph Hellwig <hch@lst.de>
+Reported-by: Jan Kara <jack@suse.cz>
+Reviewed-by: Jan Kara <jack@suse.cz>
+Reviewed-by: David Howells <dhowells@redhat.com>
+Tested-by: David Howells <dhowells@redhat.com>
+Cc: Marc Dionne <marc.dionne@auristor.com>
+Cc: Matthew Wilcox <willy@infradead.org>
+Signed-off-by: Andrew Morton <akpm@linux-foundation.org>
+---
+ fs/afs/dir_edit.c | 7 ++++---
+ 1 file changed, 4 insertions(+), 3 deletions(-)
+
+diff --git a/fs/afs/dir_edit.c b/fs/afs/dir_edit.c
+index f0eddccbdd954..e2fa577b66fe0 100644
+--- a/fs/afs/dir_edit.c
++++ b/fs/afs/dir_edit.c
+@@ -115,11 +115,12 @@ static struct folio *afs_dir_get_folio(struct afs_vnode *vnode, pgoff_t index)
+ 	folio = __filemap_get_folio(mapping, index,
+ 				    FGP_LOCK | FGP_ACCESSED | FGP_CREAT,
+ 				    mapping->gfp_mask);
+-	if (IS_ERR(folio))
++	if (IS_ERR(folio)) {
+ 		clear_bit(AFS_VNODE_DIR_VALID, &vnode->flags);
+-	else if (folio && !folio_test_private(folio))
++		return NULL;
++	}
++	if (!folio_test_private(folio))
+ 		folio_attach_private(folio, (void *)1);
+-
+ 	return folio;
+ }
+ 
+-- 
+cgit 
+

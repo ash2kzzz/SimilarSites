@@ -1,0 +1,73 @@
+From 0f230bc24b6e1399b86b95642704a962d8aa40e6 Mon Sep 17 00:00:00 2001
+From: Peter Xu <peterx@redhat.com>
+Date: Mon, 17 Apr 2023 15:53:13 -0400
+Subject: mm/hugetlb: fix uffd-wp bit lost when unsharing happens
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+When we try to unshare a pinned page for a private hugetlb, uffd-wp bit
+can get lost during unsharing.
+
+When above condition met, one can lose uffd-wp bit on the privately mapped
+hugetlb page.  It allows the page to be writable even if it should still be
+wr-protected.  I assume it can mean data loss.
+
+This should be very rare, only if an unsharing happened on a private
+hugetlb page with uffd-wp protected (e.g.  in a child which shares the
+same page with parent with UFFD_FEATURE_EVENT_FORK enabled).
+
+When I wrote the reproducer (provided in the last patch) I needed to
+use the newest gup_test cmd introduced by David to trigger it because I
+don't even know another way to do a proper RO longerm pin.
+
+Besides that, it needs a bunch of other conditions all met:
+
+        (1) hugetlb being mapped privately,
+        (2) userfaultfd registered with WP and EVENT_FORK,
+        (3) the user app fork()s, then,
+        (4) RO longterm pin onto a wr-protected anonymous page.
+
+If it's not impossible to hit in production I'd say extremely rare.
+
+Link: https://lkml.kernel.org/r/20230417195317.898696-3-peterx@redhat.com
+Fixes: 166f3ecc0daf ("mm/hugetlb: hook page faults for uffd write protection")
+Signed-off-by: Peter Xu <peterx@redhat.com>
+Reported-by: Mike Kravetz <mike.kravetz@oracle.com>
+Reviewed-by: David Hildenbrand <david@redhat.com>
+Reviewed-by: Mike Kravetz <mike.kravetz@oracle.com>
+Cc: Andrea Arcangeli <aarcange@redhat.com>
+Cc: Axel Rasmussen <axelrasmussen@google.com>
+Cc: Mika Penttilä <mpenttil@redhat.com>
+Cc: Nadav Amit <nadav.amit@gmail.com>
+Signed-off-by: Andrew Morton <akpm@linux-foundation.org>
+---
+ mm/hugetlb.c | 7 +++++--
+ 1 file changed, 5 insertions(+), 2 deletions(-)
+
+diff --git a/mm/hugetlb.c b/mm/hugetlb.c
+index d105b0b6a2746..7747160f6de83 100644
+--- a/mm/hugetlb.c
++++ b/mm/hugetlb.c
+@@ -5644,13 +5644,16 @@ retry_avoidcopy:
+ 	spin_lock(ptl);
+ 	ptep = hugetlb_walk(vma, haddr, huge_page_size(h));
+ 	if (likely(ptep && pte_same(huge_ptep_get(ptep), pte))) {
++		pte_t newpte = make_huge_pte(vma, &new_folio->page, !unshare);
++
+ 		/* Break COW or unshare */
+ 		huge_ptep_clear_flush(vma, haddr, ptep);
+ 		mmu_notifier_invalidate_range(mm, range.start, range.end);
+ 		page_remove_rmap(old_page, vma, true);
+ 		hugepage_add_new_anon_rmap(new_folio, vma, haddr);
+-		set_huge_pte_at(mm, haddr, ptep,
+-				make_huge_pte(vma, &new_folio->page, !unshare));
++		if (huge_pte_uffd_wp(pte))
++			newpte = huge_pte_mkuffd_wp(newpte);
++		set_huge_pte_at(mm, haddr, ptep, newpte);
+ 		folio_set_hugetlb_migratable(new_folio);
+ 		/* Make the old page be freed below */
+ 		new_folio = page_folio(old_page);
+-- 
+cgit 
+

@@ -1,0 +1,38 @@
+From 3c90b1ba8cc49b3c485e4477b9977e52a16509d3 Mon Sep 17 00:00:00 2001
+From: Krzysztof Kozlowski <krzysztof.kozlowski@linaro.org>
+Date: Fri, 30 Dec 2022 14:56:37 +0100
+Subject: dt-bindings: pinctrl: qcom,sc8280xp-lpass-lpi: correct pins pattern
+
+SC8280XP LPASS LPI pin controller has GPIO 0-18:
+
+  sa8540p-ride.dtb: pinctrl@33c0000: tx-swr-default-state: 'oneOf' conditional failed, one must be fixed:
+    'pins' is a required property
+    'function' is a required property
+    'clk-pins', 'data-pins' do not match any of the regexes: 'pinctrl-[0-9]+'
+    'bias-bus-hold' does not match any of the regexes: 'pinctrl-[0-9]+'
+    'gpio2' does not match '^gpio([0-1]|1[0-8])$'
+
+Fixes: 958bb025f5b3 ("dt-bindings: pinctrl: qcom: Add sc8280xp lpass lpi pinctrl bindings")
+Reviewed-by: Rob Herring <robh@kernel.org>
+Link: https://lore.kernel.org/r/20221230135645.56401-1-krzysztof.kozlowski@linaro.org
+Signed-off-by: Krzysztof Kozlowski <krzysztof.kozlowski@linaro.org>
+---
+ .../devicetree/bindings/pinctrl/qcom,sc8280xp-lpass-lpi-pinctrl.yaml    | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/Documentation/devicetree/bindings/pinctrl/qcom,sc8280xp-lpass-lpi-pinctrl.yaml b/Documentation/devicetree/bindings/pinctrl/qcom,sc8280xp-lpass-lpi-pinctrl.yaml
+index 7d2589387e1ae..309d3dd9013ba 100644
+--- a/Documentation/devicetree/bindings/pinctrl/qcom,sc8280xp-lpass-lpi-pinctrl.yaml
++++ b/Documentation/devicetree/bindings/pinctrl/qcom,sc8280xp-lpass-lpi-pinctrl.yaml
+@@ -65,7 +65,7 @@ $defs:
+           List of gpio pins affected by the properties specified in this
+           subnode.
+         items:
+-          pattern: "^gpio([0-1]|1[0-8])$"
++          pattern: "^gpio([0-9]|1[0-8])$"
+ 
+       function:
+         enum: [ swr_tx_clk, swr_tx_data, swr_rx_clk, swr_rx_data,
+-- 
+cgit 
+

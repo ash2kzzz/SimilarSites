@@ -1,0 +1,129 @@
+From 2cf1338454a8a9a0b3c1271ccb521afa2d6ae241 Mon Sep 17 00:00:00 2001
+From: David Stevens <stevensd@chromium.org>
+Date: Fri, 13 Jan 2023 11:30:11 +0900
+Subject: mm: fix khugepaged with shmem_enabled=advise
+
+Pass vm_flags as a parameter to shmem_is_huge, rather than reading the
+flags from the vm_area_struct in question.  This allows the updated flags
+from hugepage_madvise to be passed to the check, which is necessary
+because madvise does not update the vm_area_struct's flags until after
+hugepage_madvise returns.
+
+This fixes an issue when shmem_enabled=madvise, where MADV_HUGEPAGE on
+shmem was not able to register the mm_struct with khugepaged.  Prior to
+cd89fb065099, the mm_struct was registered by MADV_HUGEPAGE regardless of
+the value of shmem_enabled (which was only checked when scanning vmas).
+
+Link: https://lkml.kernel.org/r/20230113023011.1784015-1-stevensd@google.com
+Fixes: cd89fb065099 ("mm,thp,shmem: make khugepaged obey tmpfs mount flags")
+Signed-off-by: David Stevens <stevensd@chromium.org>
+Cc: David Stevens <stevensd@chromium.org>
+Cc: Hugh Dickins <hughd@google.com>
+Cc: Rik van Riel <riel@surriel.com>
+Signed-off-by: Andrew Morton <akpm@linux-foundation.org>
+---
+ include/linux/shmem_fs.h | 10 ++--------
+ mm/huge_memory.c         |  3 ++-
+ mm/shmem.c               | 18 +++++++++---------
+ 3 files changed, 13 insertions(+), 18 deletions(-)
+
+diff --git a/include/linux/shmem_fs.h b/include/linux/shmem_fs.h
+index d500ea967dc73..d09d54be4ffd9 100644
+--- a/include/linux/shmem_fs.h
++++ b/include/linux/shmem_fs.h
+@@ -92,14 +92,8 @@ extern struct page *shmem_read_mapping_page_gfp(struct address_space *mapping,
+ extern void shmem_truncate_range(struct inode *inode, loff_t start, loff_t end);
+ int shmem_unuse(unsigned int type);
+ 
+-extern bool shmem_is_huge(struct vm_area_struct *vma, struct inode *inode,
+-			  pgoff_t index, bool shmem_huge_force);
+-static inline bool shmem_huge_enabled(struct vm_area_struct *vma,
+-				      bool shmem_huge_force)
+-{
+-	return shmem_is_huge(vma, file_inode(vma->vm_file), vma->vm_pgoff,
+-			     shmem_huge_force);
+-}
++extern bool shmem_is_huge(struct inode *inode, pgoff_t index, bool shmem_huge_force,
++			  struct mm_struct *mm, unsigned long vm_flags);
+ extern unsigned long shmem_swap_usage(struct vm_area_struct *vma);
+ extern unsigned long shmem_partial_swap_usage(struct address_space *mapping,
+ 						pgoff_t start, pgoff_t end);
+diff --git a/mm/huge_memory.c b/mm/huge_memory.c
+index 868fcccdff728..1d6977dc6b31b 100644
+--- a/mm/huge_memory.c
++++ b/mm/huge_memory.c
+@@ -119,7 +119,8 @@ bool hugepage_vma_check(struct vm_area_struct *vma, unsigned long vm_flags,
+ 	 * own flags.
+ 	 */
+ 	if (!in_pf && shmem_file(vma->vm_file))
+-		return shmem_huge_enabled(vma, !enforce_sysfs);
++		return shmem_is_huge(file_inode(vma->vm_file), vma->vm_pgoff,
++				     !enforce_sysfs, vma->vm_mm, vm_flags);
+ 
+ 	/* Enforce sysfs THP requirements as necessary */
+ 	if (enforce_sysfs &&
+diff --git a/mm/shmem.c b/mm/shmem.c
+index c5048c6c83ddf..9e1015cbad29f 100644
+--- a/mm/shmem.c
++++ b/mm/shmem.c
+@@ -468,15 +468,14 @@ static bool shmem_confirm_swap(struct address_space *mapping,
+ 
+ static int shmem_huge __read_mostly = SHMEM_HUGE_NEVER;
+ 
+-bool shmem_is_huge(struct vm_area_struct *vma, struct inode *inode,
+-		   pgoff_t index, bool shmem_huge_force)
++bool shmem_is_huge(struct inode *inode, pgoff_t index, bool shmem_huge_force,
++		   struct mm_struct *mm, unsigned long vm_flags)
+ {
+ 	loff_t i_size;
+ 
+ 	if (!S_ISREG(inode->i_mode))
+ 		return false;
+-	if (vma && ((vma->vm_flags & VM_NOHUGEPAGE) ||
+-	    test_bit(MMF_DISABLE_THP, &vma->vm_mm->flags)))
++	if (mm && ((vm_flags & VM_NOHUGEPAGE) || test_bit(MMF_DISABLE_THP, &mm->flags)))
+ 		return false;
+ 	if (shmem_huge == SHMEM_HUGE_DENY)
+ 		return false;
+@@ -493,7 +492,7 @@ bool shmem_is_huge(struct vm_area_struct *vma, struct inode *inode,
+ 			return true;
+ 		fallthrough;
+ 	case SHMEM_HUGE_ADVISE:
+-		if (vma && (vma->vm_flags & VM_HUGEPAGE))
++		if (mm && (vm_flags & VM_HUGEPAGE))
+ 			return true;
+ 		fallthrough;
+ 	default:
+@@ -676,8 +675,8 @@ static long shmem_unused_huge_count(struct super_block *sb,
+ 
+ #define shmem_huge SHMEM_HUGE_DENY
+ 
+-bool shmem_is_huge(struct vm_area_struct *vma, struct inode *inode,
+-		   pgoff_t index, bool shmem_huge_force)
++bool shmem_is_huge(struct inode *inode, pgoff_t index, bool shmem_huge_force,
++		   struct mm_struct *mm, unsigned long vm_flags)
+ {
+ 	return false;
+ }
+@@ -1068,7 +1067,7 @@ static int shmem_getattr(struct user_namespace *mnt_userns,
+ 			STATX_ATTR_NODUMP);
+ 	generic_fillattr(&init_user_ns, inode, stat);
+ 
+-	if (shmem_is_huge(NULL, inode, 0, false))
++	if (shmem_is_huge(inode, 0, false, NULL, 0))
+ 		stat->blksize = HPAGE_PMD_SIZE;
+ 
+ 	if (request_mask & STATX_BTIME) {
+@@ -1926,7 +1925,8 @@ repeat:
+ 		return 0;
+ 	}
+ 
+-	if (!shmem_is_huge(vma, inode, index, false))
++	if (!shmem_is_huge(inode, index, false,
++			   vma ? vma->vm_mm : NULL, vma ? vma->vm_flags : 0))
+ 		goto alloc_nohuge;
+ 
+ 	huge_gfp = vma_thp_gfp_mask(vma);
+-- 
+cgit 
+

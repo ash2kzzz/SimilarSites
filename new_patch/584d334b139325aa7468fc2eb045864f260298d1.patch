@@ -1,0 +1,51 @@
+From 584d334b139325aa7468fc2eb045864f260298d1 Mon Sep 17 00:00:00 2001
+From: Joerg Roedel <jroedel@suse.de>
+Date: Fri, 13 Jan 2023 19:56:40 +0100
+Subject: iommu/ipmmu-vmsa: Remove ipmmu_utlb_disable()
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+The function is unused after commit 1b932ceddd19 ("iommu:
+Remove detach_dev callbacks") and so compilation fails with
+
+drivers/iommu/ipmmu-vmsa.c:305:13: error: ‘ipmmu_utlb_disable’ defined but not used [-Werror=unused-function]
+  305 | static void ipmmu_utlb_disable(struct ipmmu_vmsa_domain *domain,
+      |             ^~~~~~~~~~~~~~~~~~
+
+Remove the function to fix the compile error.
+
+Fixes: 1b932ceddd19 ("iommu: Remove detach_dev callbacks")
+Signed-off-by: Joerg Roedel <jroedel@suse.de>
+Reviewed-by: Jason Gunthorpe <jgg@nvidia.com>
+Link: https://lore.kernel.org/r/20230113185640.8050-1-joro@8bytes.org
+---
+ drivers/iommu/ipmmu-vmsa.c | 12 ------------
+ 1 file changed, 12 deletions(-)
+
+diff --git a/drivers/iommu/ipmmu-vmsa.c b/drivers/iommu/ipmmu-vmsa.c
+index 3112822ac7be8..bdf1a4e5eae00 100644
+--- a/drivers/iommu/ipmmu-vmsa.c
++++ b/drivers/iommu/ipmmu-vmsa.c
+@@ -299,18 +299,6 @@ static void ipmmu_utlb_enable(struct ipmmu_vmsa_domain *domain,
+ 	mmu->utlb_ctx[utlb] = domain->context_id;
+ }
+ 
+-/*
+- * Disable MMU translation for the microTLB.
+- */
+-static void ipmmu_utlb_disable(struct ipmmu_vmsa_domain *domain,
+-			       unsigned int utlb)
+-{
+-	struct ipmmu_vmsa_device *mmu = domain->mmu;
+-
+-	ipmmu_imuctr_write(mmu, utlb, 0);
+-	mmu->utlb_ctx[utlb] = IPMMU_CTX_INVALID;
+-}
+-
+ static void ipmmu_tlb_flush_all(void *cookie)
+ {
+ 	struct ipmmu_vmsa_domain *domain = cookie;
+-- 
+cgit 
+

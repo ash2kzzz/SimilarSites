@@ -1,0 +1,48 @@
+From 5291099e0f61a4a1f4d2e11ac2af8123ece17e0e Mon Sep 17 00:00:00 2001
+From: Vladimir Oltean <vladimir.oltean@nxp.com>
+Date: Tue, 21 Mar 2023 03:03:25 +0200
+Subject: net: mscc: ocelot: add TX_MM_HOLD to ocelot_mm_stats_layout
+
+The lack of a definition for this counter is what initially prompted me
+to investigate a problem which really manifested itself as the previous
+change, "net: mscc: ocelot: fix transfer from region->buf to ocelot->stats".
+
+When TX_MM_HOLD is defined in enum ocelot_stat but not in struct
+ocelot_stat_layout ocelot_mm_stats_layout, this creates a hole, which
+due to the aforementioned bug, makes all counters following TX_MM_HOLD
+be recorded off by one compared to their correct position. So for
+example, a non-zero TX_PMAC_OCTETS would be reported as TX_MERGE_FRAGMENTS,
+TX_PMAC_UNICAST would be reported as TX_PMAC_OCTETS, TX_PMAC_64 would be
+reported as TX_PMAC_PAUSE, etc etc. This is because the size of the hole
+(1) is much smaller than the size of the region, so the phenomenon where
+the stats are off-by-one, rather than lost, prevails.
+
+However, the phenomenon where stats are lost can be seen too, for
+example with DROP_LOCAL, which is at the beginning of its own region
+(offset 0x000400 vs the previous 0x0002b0 constitutes a discontinuity).
+This is also reported as off by one and saved to TX_PMAC_1527_MAX, but
+that counter is not reported to the unstructured "ethtool -S", as
+opposed to DROP_LOCAL which is (as "drop_local").
+
+Fixes: ab3f97a9610a ("net: mscc: ocelot: export ethtool MAC Merge stats for Felix VSC9959")
+Signed-off-by: Vladimir Oltean <vladimir.oltean@nxp.com>
+Signed-off-by: Jakub Kicinski <kuba@kernel.org>
+---
+ drivers/net/ethernet/mscc/ocelot_stats.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/drivers/net/ethernet/mscc/ocelot_stats.c b/drivers/net/ethernet/mscc/ocelot_stats.c
+index f18371154475e..d0e6cd8dbe5c9 100644
+--- a/drivers/net/ethernet/mscc/ocelot_stats.c
++++ b/drivers/net/ethernet/mscc/ocelot_stats.c
+@@ -274,6 +274,7 @@ static const struct ocelot_stat_layout ocelot_mm_stats_layout[OCELOT_NUM_STATS]
+ 	OCELOT_STAT(RX_ASSEMBLY_OK),
+ 	OCELOT_STAT(RX_MERGE_FRAGMENTS),
+ 	OCELOT_STAT(TX_MERGE_FRAGMENTS),
++	OCELOT_STAT(TX_MM_HOLD),
+ 	OCELOT_STAT(RX_PMAC_OCTETS),
+ 	OCELOT_STAT(RX_PMAC_UNICAST),
+ 	OCELOT_STAT(RX_PMAC_MULTICAST),
+-- 
+cgit 
+

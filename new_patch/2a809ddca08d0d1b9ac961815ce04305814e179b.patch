@@ -1,0 +1,90 @@
+From 2a809ddca08d0d1b9ac961815ce04305814e179b Mon Sep 17 00:00:00 2001
+From: Binbin Zhou <zhoubinbin@loongson.cn>
+Date: Wed, 24 May 2023 09:49:24 +0800
+Subject: clk: clk-loongson2: Zero init clk_init_data
+
+As clk_core_populate_parent_map() checks clk_init_data.num_parents
+first, and checks clk_init_data.parent_names[] before
+clk_init_data.parent_data[] and clk_init_data.parent_hws[].
+
+Therefore the clk_init_data structure needs to be explicitly initialised
+to prevent an unexpected crash if clk_init_data.parent_names[] is a
+random value.
+
+ CPU 0 Unable to handle kernel paging request at virtual address 0000000000000dc0, era == 9000000002986290, ra == 900000000298624c
+ Oops[#1]:
+ CPU: 0 PID: 1 Comm: swapper/0 Not tainted 6.4.0-rc2+ #4582
+ pc 9000000002986290 ra 900000000298624c tp 9000000100094000 sp 9000000100097a60
+ a0 9000000104541e00 a1 0000000000000000 a2 0000000000000dc0 a3 0000000000000001
+ a4 90000001000979f0 a5 90000001800977d7 a6 0000000000000000 a7 900000000362a000
+ t0 90000000034f3548 t1 6f8c2a9cb5ab5f64 t2 0000000000011340 t3 90000000031cf5b0
+ t4 0000000000000dc0 t5 0000000000000004 t6 0000000000011300 t7 9000000104541e40
+ t8 000000000005a4f8 u0 9000000104541e00 s9 9000000104541e00 s0 9000000104bc4700
+ s1 9000000104541da8 s2 0000000000000001 s3 900000000356f9d8 s4 ffffffffffffffff
+ s5 0000000000000000 s6 0000000000000dc0 s7 90000000030d0a88 s8 0000000000000000
+    ra: 900000000298624c __clk_register+0x228/0x84c
+   ERA: 9000000002986290 __clk_register+0x26c/0x84c
+  CRMD: 000000b0 (PLV0 -IE -DA +PG DACF=CC DACM=CC -WE)
+  PRMD: 00000004 (PPLV0 +PIE -PWE)
+  EUEN: 00000000 (-FPE -SXE -ASXE -BTE)
+  ECFG: 00071c1c (LIE=2-4,10-12 VS=7)
+ ESTAT: 00010000 [PIL] (IS= ECode=1 EsubCode=0)
+  BADV: 0000000000000dc0
+  PRID: 0014a000 (Loongson-64bit, )
+ Modules linked in:
+ Process swapper/0 (pid: 1, threadinfo=(____ptrval____), task=(____ptrval____))
+ Stack : 90000000031c1810 90000000030d0a88 900000000325bac0 90000000034f3548
+         90000001002ab410 9000000104541e00 0000000000000dc0 9000000003150098
+         90000000031c1810 90000000031a0460 900000000362a000 90000001002ab410
+         900000000362a000 9000000104541da8 9000000104541de8 90000001002ab410
+         900000000362a000 9000000002986a68 90000000034f3ed8 90000000030d0aa8
+         9000000104541da8 900000000298d3b8 90000000031c1810 0000000000000000
+         90000000034f3ed8 90000000030d0aa8 0000000000000dc0 90000000030d0a88
+         90000001002ab410 900000000298d401 0000000000000000 6f8c2a9cb5ab5f64
+         90000000034f4000 90000000030d0a88 9000000003a48a58 90000001002ab410
+         9000000104bd81a8 900000000298d484 9000000100020260 0000000000000000
+         ...
+ Call Trace:
+ [<9000000002986290>] __clk_register+0x26c/0x84c
+ [<9000000002986a68>] devm_clk_hw_register+0x5c/0xe0
+ [<900000000298d3b8>] loongson2_clk_register.constprop.0+0xdc/0x10c
+ [<900000000298d484>] loongson2_clk_probe+0x9c/0x4ac
+ [<9000000002a4eba4>] platform_probe+0x68/0xc8
+ [<9000000002a4bf80>] really_probe+0xbc/0x2f0
+ [<9000000002a4c23c>] __driver_probe_device+0x88/0x128
+ [<9000000002a4c318>] driver_probe_device+0x3c/0x11c
+ [<9000000002a4c5dc>] __driver_attach+0x98/0x18c
+ [<9000000002a49ca0>] bus_for_each_dev+0x80/0xe0
+ [<9000000002a4b0dc>] bus_add_driver+0xfc/0x1ec
+ [<9000000002a4d4a8>] driver_register+0x68/0x134
+ [<90000000020f0110>] do_one_initcall+0x50/0x188
+ [<9000000003150f00>] kernel_init_freeable+0x224/0x294
+ [<90000000030240fc>] kernel_init+0x20/0x110
+ [<90000000020f1568>] ret_from_kernel_thread+0xc/0xa4
+
+Fixes: acc0ccffec50 ("clk: clk-loongson2: add clock controller driver support")
+Cc: stable@vger.kernel.org
+Cc: Yinbo Zhu <zhuyinbo@loongson.cn>
+Signed-off-by: Binbin Zhou <zhoubinbin@loongson.cn>
+Link: https://lore.kernel.org/r/20230524014924.2869051-1-zhoubinbin@loongson.cn
+Signed-off-by: Stephen Boyd <sboyd@kernel.org>
+---
+ drivers/clk/clk-loongson2.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/clk/clk-loongson2.c b/drivers/clk/clk-loongson2.c
+index 70ae1dd2e474c..bacdcbb287ac6 100644
+--- a/drivers/clk/clk-loongson2.c
++++ b/drivers/clk/clk-loongson2.c
+@@ -40,7 +40,7 @@ static struct clk_hw *loongson2_clk_register(struct device *dev,
+ {
+ 	int ret;
+ 	struct clk_hw *hw;
+-	struct clk_init_data init;
++	struct clk_init_data init = { };
+ 
+ 	hw = devm_kzalloc(dev, sizeof(*hw), GFP_KERNEL);
+ 	if (!hw)
+-- 
+cgit 
+

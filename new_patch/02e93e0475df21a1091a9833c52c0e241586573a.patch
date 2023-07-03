@@ -1,0 +1,56 @@
+From 02e93e0475df21a1091a9833c52c0e241586573a Mon Sep 17 00:00:00 2001
+From: Magnus Karlsson <magnus.karlsson@intel.com>
+Date: Fri, 21 Apr 2023 08:22:08 +0200
+Subject: selftests/xsk: Put MAP_HUGE_2MB in correct argument
+
+Put the flag MAP_HUGE_2MB in the correct flags argument instead of the
+wrong offset argument.
+
+Fixes: 2ddade322925 ("selftests/xsk: Fix munmap for hugepage allocated umem")
+Reported-by: Kal Cutter Conley <kal.conley@dectris.com>
+Signed-off-by: Magnus Karlsson <magnus.karlsson@intel.com>
+Signed-off-by: Daniel Borkmann <daniel@iogearbox.net>
+Link: https://lore.kernel.org/bpf/20230421062208.3772-1-magnus.karlsson@gmail.com
+---
+ tools/testing/selftests/bpf/xskxceiver.c | 11 ++++-------
+ 1 file changed, 4 insertions(+), 7 deletions(-)
+
+diff --git a/tools/testing/selftests/bpf/xskxceiver.c b/tools/testing/selftests/bpf/xskxceiver.c
+index a59d04118842a..f144d0604ddf9 100644
+--- a/tools/testing/selftests/bpf/xskxceiver.c
++++ b/tools/testing/selftests/bpf/xskxceiver.c
+@@ -1287,19 +1287,16 @@ static void thread_common_ops(struct test_spec *test, struct ifobject *ifobject)
+ 	u64 umem_sz = ifobject->umem->num_frames * ifobject->umem->frame_size;
+ 	int mmap_flags = MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE;
+ 	LIBBPF_OPTS(bpf_xdp_query_opts, opts);
+-	off_t mmap_offset = 0;
+ 	void *bufs;
+ 	int ret;
+ 
+-	if (ifobject->umem->unaligned_mode) {
+-		mmap_flags |= MAP_HUGETLB;
+-		mmap_offset = MAP_HUGE_2MB;
+-	}
++	if (ifobject->umem->unaligned_mode)
++		mmap_flags |= MAP_HUGETLB | MAP_HUGE_2MB;
+ 
+ 	if (ifobject->shared_umem)
+ 		umem_sz *= 2;
+ 
+-	bufs = mmap(NULL, umem_sz, PROT_READ | PROT_WRITE, mmap_flags, -1, mmap_offset);
++	bufs = mmap(NULL, umem_sz, PROT_READ | PROT_WRITE, mmap_flags, -1, 0);
+ 	if (bufs == MAP_FAILED)
+ 		exit_with_error(errno);
+ 
+@@ -1633,7 +1630,7 @@ static bool hugepages_present(struct ifobject *ifobject)
+ 	void *bufs;
+ 
+ 	bufs = mmap(NULL, mmap_sz, PROT_READ | PROT_WRITE,
+-		    MAP_PRIVATE | MAP_ANONYMOUS | MAP_HUGETLB, -1, MAP_HUGE_2MB);
++		    MAP_PRIVATE | MAP_ANONYMOUS | MAP_HUGETLB | MAP_HUGE_2MB, -1, 0);
+ 	if (bufs == MAP_FAILED)
+ 		return false;
+ 
+-- 
+cgit 
+

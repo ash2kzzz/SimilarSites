@@ -1,0 +1,37 @@
+From c24a34f5a3d7dec595635ad54167a8c471e4e24f Mon Sep 17 00:00:00 2001
+From: Oleksij Rempel <o.rempel@pengutronix.de>
+Date: Wed, 15 Feb 2023 06:04:53 +0100
+Subject: net: phy: c45: genphy_c45_an_config_aneg(): fix uninitialized symbol
+ error
+
+Fix warning:
+drivers/net/phy/phy-c45.c:712 genphy_c45_write_eee_adv() error: uninitialized symbol 'changed'
+
+Reported-by: kernel test robot <lkp@intel.com>
+Reported-by: Dan Carpenter <error27@gmail.com>
+Link: https://lore.kernel.org/r/202302150232.q6idsV8s-lkp@intel.com/
+Fixes: 022c3f87f88e ("net: phy: add genphy_c45_ethtool_get/set_eee() support")
+Signed-off-by: Oleksij Rempel <o.rempel@pengutronix.de>
+Reviewed-by: Andrew Lunn <andrew@lunn.ch>
+Link: https://lore.kernel.org/r/20230215050453.2251360-1-o.rempel@pengutronix.de
+Signed-off-by: Jakub Kicinski <kuba@kernel.org>
+---
+ drivers/net/phy/phy-c45.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/net/phy/phy-c45.c b/drivers/net/phy/phy-c45.c
+index ef36582adbebc..f9b128cecc3f8 100644
+--- a/drivers/net/phy/phy-c45.c
++++ b/drivers/net/phy/phy-c45.c
+@@ -256,7 +256,7 @@ static int genphy_c45_baset1_an_config_aneg(struct phy_device *phydev)
+  */
+ int genphy_c45_an_config_aneg(struct phy_device *phydev)
+ {
+-	int changed, ret;
++	int changed = 0, ret;
+ 	u32 adv;
+ 
+ 	linkmode_and(phydev->advertising, phydev->advertising,
+-- 
+cgit 
+

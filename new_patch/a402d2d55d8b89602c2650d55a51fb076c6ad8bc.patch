@@ -1,0 +1,33 @@
+From a402d2d55d8b89602c2650d55a51fb076c6ad8bc Mon Sep 17 00:00:00 2001
+From: Bartosz Golaszewski <bartosz.golaszewski@linaro.org>
+Date: Fri, 27 Jan 2023 10:26:15 +0100
+Subject: dt-bindings: interconnect: qcom,sa8775p-rpmh: fix a typo
+
+The name of the chip is sa8775p, not sa8875p.
+
+Reported-by: Eric Chanudet <echanude@redhat.com>
+Link: https://lore.kernel.org/lkml/20230126203618.nbqwppaddncq7on7@echanude/
+Fixes: 2579af94c813 ("dt-bindings: interconnect: qcom: document the interconnects for sa8775p")
+Signed-off-by: Bartosz Golaszewski <bartosz.golaszewski@linaro.org>
+Link: https://lore.kernel.org/r/20230127092615.39690-1-brgl@bgdev.pl
+Signed-off-by: Georgi Djakov <djakov@kernel.org>
+---
+ Documentation/devicetree/bindings/interconnect/qcom,sa8775p-rpmh.yaml | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/Documentation/devicetree/bindings/interconnect/qcom,sa8775p-rpmh.yaml b/Documentation/devicetree/bindings/interconnect/qcom,sa8775p-rpmh.yaml
+index 672c7aaa8ed73..2e0c0bc7a3765 100644
+--- a/Documentation/devicetree/bindings/interconnect/qcom,sa8775p-rpmh.yaml
++++ b/Documentation/devicetree/bindings/interconnect/qcom,sa8775p-rpmh.yaml
+@@ -4,7 +4,7 @@
+ $id: http://devicetree.org/schemas/interconnect/qcom,sa8775p-rpmh.yaml#
+ $schema: http://devicetree.org/meta-schemas/core.yaml#
+ 
+-title: Qualcomm RPMh Network-On-Chip Interconnect on SA8875P
++title: Qualcomm RPMh Network-On-Chip Interconnect on SA8775P
+ 
+ maintainers:
+   - Bartosz Golaszewski <bartosz.golaszewski@linaro.org>
+-- 
+cgit 
+

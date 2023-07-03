@@ -1,0 +1,31 @@
+From ec4a1d9301100c011312357ea25627b98eb293d5 Mon Sep 17 00:00:00 2001
+From: Yoshihiro Shimoda <yoshihiro.shimoda.uh@renesas.com>
+Date: Mon, 26 Dec 2022 15:42:16 +0900
+Subject: phy: renesas: r8a779f0-eth-serdes: Fix register setting
+
+Fix register setting which is typo in r8a779f0_eth_serdes_chan_setting().
+
+Fixes: 742859441d44 ("phy: renesas: Add Renesas Ethernet SERDES driver for R-Car S4-8")
+Signed-off-by: Yoshihiro Shimoda <yoshihiro.shimoda.uh@renesas.com>
+Link: https://lore.kernel.org/r/20221226064216.3895421-1-yoshihiro.shimoda.uh@renesas.com
+Signed-off-by: Vinod Koul <vkoul@kernel.org>
+---
+ drivers/phy/renesas/r8a779f0-ether-serdes.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/phy/renesas/r8a779f0-ether-serdes.c b/drivers/phy/renesas/r8a779f0-ether-serdes.c
+index ec6594e6dc275..e7588a940d699 100644
+--- a/drivers/phy/renesas/r8a779f0-ether-serdes.c
++++ b/drivers/phy/renesas/r8a779f0-ether-serdes.c
+@@ -126,7 +126,7 @@ r8a779f0_eth_serdes_chan_setting(struct r8a779f0_eth_serdes_channel *channel)
+ 		r8a779f0_eth_serdes_write32(channel->addr, 0x0160, 0x180, 0x0007);
+ 		r8a779f0_eth_serdes_write32(channel->addr, 0x01ac, 0x180, 0x0000);
+ 		r8a779f0_eth_serdes_write32(channel->addr, 0x00c4, 0x180, 0x0310);
+-		r8a779f0_eth_serdes_write32(channel->addr, 0x00c8, 0x380, 0x0101);
++		r8a779f0_eth_serdes_write32(channel->addr, 0x00c8, 0x180, 0x0101);
+ 		ret = r8a779f0_eth_serdes_reg_wait(channel, 0x00c8, 0x0180, BIT(0), 0);
+ 		if (ret)
+ 			return ret;
+-- 
+cgit 
+

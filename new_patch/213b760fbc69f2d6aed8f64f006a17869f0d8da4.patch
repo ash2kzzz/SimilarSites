@@ -1,0 +1,84 @@
+From 213b760fbc69f2d6aed8f64f006a17869f0d8da4 Mon Sep 17 00:00:00 2001
+From: Arnaldo Carvalho de Melo <acme@redhat.com>
+Date: Mon, 9 Jan 2023 11:59:30 -0300
+Subject: perf tools: Don't install libtraceevent plugins as its not anymore in
+ the kernel sources
+
+While doing 'make -C tools/perf build-test' one can notice error
+messages while trying to install libtraceevent plugins, stop doing that
+as libtraceevent isn't anymore a homie.
+
+These are the warnings dealt with:
+
+   make_install_prefix_slash_O: make install prefix=/tmp/krava/
+    failed to find: /tmp/krava/etc/bash_completion.d/perf
+    failed to find: /tmp/krava/lib64/traceevent/plugins/plugin_cfg80211.so
+    failed to find: /tmp/krava/lib64/traceevent/plugins/plugin_scsi.so
+    failed to find: /tmp/krava/lib64/traceevent/plugins/plugin_xen.so
+    failed to find: /tmp/krava/lib64/traceevent/plugins/plugin_function.so
+    failed to find: /tmp/krava/lib64/traceevent/plugins/plugin_sched_switch.so
+    failed to find: /tmp/krava/lib64/traceevent/plugins/plugin_mac80211.so
+    failed to find: /tmp/krava/lib64/traceevent/plugins/plugin_kvm.so
+    failed to find: /tmp/krava/lib64/traceevent/plugins/plugin_kmem.so
+    failed to find: /tmp/krava/lib64/traceevent/plugins/plugin_hrtimer.so
+    failed to find: /tmp/krava/lib64/traceevent/plugins/plugin_jbd2.so
+
+Fixes: 4171925aa9f3f7bf ("tools lib traceevent: Remove libtraceevent")
+Acked-by: Ian Rogers <irogers@google.com>
+Cc: Adrian Hunter <adrian.hunter@intel.com>
+Cc: Jiri Olsa <jolsa@kernel.org>
+Cc: Namhyung Kim <namhyung@kernel.org>
+Cc: Steven Rostedt <rostedt@goodmis.org>
+Link: http://lore.kernel.org/lkml/Y7xXz+TSpiCbQGjw@kernel.org
+Signed-off-by: Arnaldo Carvalho de Melo <acme@redhat.com>
+---
+ tools/perf/Makefile.config |  8 --------
+ tools/perf/tests/make      | 12 ------------
+ 2 files changed, 20 deletions(-)
+
+diff --git a/tools/perf/Makefile.config b/tools/perf/Makefile.config
+index c2504c39bdcb8..156440ea01914 100644
+--- a/tools/perf/Makefile.config
++++ b/tools/perf/Makefile.config
+@@ -1314,14 +1314,6 @@ tip_instdir_SQ = $(subst ','\'',$(tip_instdir))
+ 
+ export perfexec_instdir_SQ
+ 
+-# If we install to $(HOME) we keep the traceevent default:
+-# $(HOME)/.traceevent/plugins
+-# Otherwise we install plugins into the global $(libdir).
+-ifdef DESTDIR
+-plugindir=$(libdir)/traceevent/plugins
+-plugindir_SQ= $(subst ','\'',$(plugindir))
+-endif
+-
+ print_var = $(eval $(print_var_code)) $(info $(MSG))
+ define print_var_code
+     MSG = $(shell printf '...%40s: %s' $(1) $($(1)))
+diff --git a/tools/perf/tests/make b/tools/perf/tests/make
+index 05e818a8bbad1..009d6efb673ce 100644
+--- a/tools/perf/tests/make
++++ b/tools/perf/tests/make
+@@ -222,19 +222,7 @@ installed_files_bin := bin/perf
+ installed_files_bin += etc/bash_completion.d/perf
+ installed_files_bin += libexec/perf-core/perf-archive
+ 
+-installed_files_plugins := $(lib)/traceevent/plugins/plugin_cfg80211.so
+-installed_files_plugins += $(lib)/traceevent/plugins/plugin_scsi.so
+-installed_files_plugins += $(lib)/traceevent/plugins/plugin_xen.so
+-installed_files_plugins += $(lib)/traceevent/plugins/plugin_function.so
+-installed_files_plugins += $(lib)/traceevent/plugins/plugin_sched_switch.so
+-installed_files_plugins += $(lib)/traceevent/plugins/plugin_mac80211.so
+-installed_files_plugins += $(lib)/traceevent/plugins/plugin_kvm.so
+-installed_files_plugins += $(lib)/traceevent/plugins/plugin_kmem.so
+-installed_files_plugins += $(lib)/traceevent/plugins/plugin_hrtimer.so
+-installed_files_plugins += $(lib)/traceevent/plugins/plugin_jbd2.so
+-
+ installed_files_all := $(installed_files_bin)
+-installed_files_all += $(installed_files_plugins)
+ 
+ test_make_install       := $(call test_dest_files,$(installed_files_all))
+ test_make_install_O     := $(call test_dest_files,$(installed_files_all))
+-- 
+cgit 
+

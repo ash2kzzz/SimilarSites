@@ -1,0 +1,49 @@
+From b50f2d048ecf1512ff85128ea4153bceb0e60590 Mon Sep 17 00:00:00 2001
+From: Qu Wenruo <wqu@suse.com>
+Date: Wed, 14 Jun 2023 14:49:35 +0800
+Subject: btrfs: scrub: fix a return value overwrite in scrub_stripe()
+
+[RETURN VALUE OVERWRITE]
+Inside scrub_stripe(), we would submit all the remaining stripes after
+iterating all extents.
+
+But since flush_scrub_stripes() can return error, we need to avoid
+overwriting the existing @ret if there is any error.
+
+However the existing check is doing the wrong check:
+
+	ret2 = flush_scrub_stripes();
+	if (!ret2)
+		ret = ret2;
+
+This would overwrite the existing @ret to 0 as long as the final flush
+detects no critical errors.
+
+[FIX]
+We should check @ret other than @ret2 in that case.
+
+Fixes: 8eb3dd17eadd ("btrfs: dev-replace: error out if we have unrepaired metadata error during")
+Reviewed-by: Christoph Hellwig <hch@lst.de>
+Signed-off-by: Qu Wenruo <wqu@suse.com>
+Reviewed-by: David Sterba <dsterba@suse.com>
+Signed-off-by: David Sterba <dsterba@suse.com>
+---
+ fs/btrfs/scrub.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/fs/btrfs/scrub.c b/fs/btrfs/scrub.c
+index 50c241aba1a13..bceaa8c2007e6 100644
+--- a/fs/btrfs/scrub.c
++++ b/fs/btrfs/scrub.c
+@@ -2266,7 +2266,7 @@ next:
+ 	}
+ out:
+ 	ret2 = flush_scrub_stripes(sctx);
+-	if (!ret2)
++	if (!ret)
+ 		ret = ret2;
+ 	if (sctx->raid56_data_stripes) {
+ 		for (int i = 0; i < nr_data_stripes(map); i++)
+-- 
+cgit 
+

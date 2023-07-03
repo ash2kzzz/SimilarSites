@@ -1,0 +1,49 @@
+From a3cf6b946e7eddaab7a2c2f61caf9c1763dcbed7 Mon Sep 17 00:00:00 2001
+From: Ilpo Järvinen <ilpo.jarvinen@linux.intel.com>
+Date: Mon, 23 Jan 2023 19:38:56 +0200
+Subject: serial: qcom_geni: Fix variable naming
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Commit 2aaa43c70778 ("tty: serial: qcom-geni-serial: add support for
+serial engine DMA") renamed rx_fifo member to rf_buf which caused a
+build failure when b8caf69a6946 ("tty: serial: qcom-geni-serial: fix
+slab-out-of-bounds on RX FIFO buffer") from tty-linus was merged into
+tty-next.
+
+Fix the member variable name.
+
+Fixes: 7a6aa989f2e8 ("Merge 6.2-rc5 into tty-next")
+Reported-by: Stephen Rothwell <sfr@canb.auug.org.au>
+Signed-off-by: Ilpo Järvinen <ilpo.jarvinen@linux.intel.com>
+Link: https://lore.kernel.org/r/20230123173857.40695-2-ilpo.jarvinen@linux.intel.com
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+---
+ drivers/tty/serial/qcom_geni_serial.c | 10 +++++-----
+ 1 file changed, 5 insertions(+), 5 deletions(-)
+
+diff --git a/drivers/tty/serial/qcom_geni_serial.c b/drivers/tty/serial/qcom_geni_serial.c
+index d98e0a8aae7c5..7c49194ec8ac4 100644
+--- a/drivers/tty/serial/qcom_geni_serial.c
++++ b/drivers/tty/serial/qcom_geni_serial.c
+@@ -1055,11 +1055,11 @@ static int setup_fifos(struct qcom_geni_serial_port *port)
+ 	uport->fifosize =
+ 		(port->tx_fifo_depth * port->tx_fifo_width) / BITS_PER_BYTE;
+ 
+-	if (port->rx_fifo && (old_rx_fifo_depth != port->rx_fifo_depth) && port->rx_fifo_depth) {
+-		port->rx_fifo = devm_krealloc(uport->dev, port->rx_fifo,
+-					      port->rx_fifo_depth * sizeof(u32),
+-					      GFP_KERNEL);
+-		if (!port->rx_fifo)
++	if (port->rx_buf && (old_rx_fifo_depth != port->rx_fifo_depth) && port->rx_fifo_depth) {
++		port->rx_buf = devm_krealloc(uport->dev, port->rx_buf,
++					     port->rx_fifo_depth * sizeof(u32),
++					     GFP_KERNEL);
++		if (!port->rx_buf)
+ 			return -ENOMEM;
+ 	}
+ 
+-- 
+cgit 
+

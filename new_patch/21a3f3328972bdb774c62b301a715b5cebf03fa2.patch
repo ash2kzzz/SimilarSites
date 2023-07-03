@@ -1,0 +1,52 @@
+From 21a3f3328972bdb774c62b301a715b5cebf03fa2 Mon Sep 17 00:00:00 2001
+From: Azeem Shaikh <azeemshaikh38@gmail.com>
+Date: Mon, 15 May 2023 02:40:44 +0000
+Subject: NFSD: Remove open coding of string copy
+
+Instead of open coding a __dynamic_array(), use the __string() and
+__assign_str() helper macros that exist for this kind of use case.
+
+Part of an effort to remove deprecated strlcpy() [1] completely from the
+kernel[2].
+
+[1] https://www.kernel.org/doc/html/latest/process/deprecated.html#strlcpy
+[2] https://github.com/KSPP/linux/issues/89
+
+Fixes: 3c92fba557c6 ("NFSD: Enhance the nfsd_cb_setup tracepoint")
+Signed-off-by: Azeem Shaikh <azeemshaikh38@gmail.com>
+Reviewed-by: Jeff Layton <jlayton@kernel.org>
+Signed-off-by: Chuck Lever <chuck.lever@oracle.com>
+---
+ fs/nfsd/trace.h | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/fs/nfsd/trace.h b/fs/nfsd/trace.h
+index 4183819ea0829..72a906a053dcd 100644
+--- a/fs/nfsd/trace.h
++++ b/fs/nfsd/trace.h
+@@ -1365,19 +1365,19 @@ TRACE_EVENT(nfsd_cb_setup,
+ 		__field(u32, cl_id)
+ 		__field(unsigned long, authflavor)
+ 		__sockaddr(addr, clp->cl_cb_conn.cb_addrlen)
+-		__array(unsigned char, netid, 8)
++		__string(netid, netid)
+ 	),
+ 	TP_fast_assign(
+ 		__entry->cl_boot = clp->cl_clientid.cl_boot;
+ 		__entry->cl_id = clp->cl_clientid.cl_id;
+-		strlcpy(__entry->netid, netid, sizeof(__entry->netid));
++		__assign_str(netid, netid);
+ 		__entry->authflavor = authflavor;
+ 		__assign_sockaddr(addr, &clp->cl_cb_conn.cb_addr,
+ 				  clp->cl_cb_conn.cb_addrlen)
+ 	),
+ 	TP_printk("addr=%pISpc client %08x:%08x proto=%s flavor=%s",
+ 		__get_sockaddr(addr), __entry->cl_boot, __entry->cl_id,
+-		__entry->netid, show_nfsd_authflavor(__entry->authflavor))
++		__get_str(netid), show_nfsd_authflavor(__entry->authflavor))
+ );
+ 
+ TRACE_EVENT(nfsd_cb_setup_err,
+-- 
+cgit 
+

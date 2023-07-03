@@ -1,0 +1,33 @@
+From c14f161c1feda6f654978025fb64efd7280c3223 Mon Sep 17 00:00:00 2001
+From: Krzysztof Kozlowski <krzysztof.kozlowski@linaro.org>
+Date: Mon, 9 Jan 2023 09:39:48 +0100
+Subject: dt-bindings: soc: samsung: exynos-sysreg: correct indentation for
+ deprecated
+
+"deprecated" keyword was indentend wrong - entire list of compatibles
+starting with generic Exynos SoC compatible is deprecated.
+
+Reported-by: Rob Herring <robh@kernel.org>
+Fixes: 0a2af7bdeeb4 ("dt-bindings: soc: samsung: exynos-sysreg: add dedicated SYSREG compatibles to Exynos850")
+Link: https://lore.kernel.org/r/20230109083948.77462-1-krzysztof.kozlowski@linaro.org
+Signed-off-by: Krzysztof Kozlowski <krzysztof.kozlowski@linaro.org>
+---
+ .../devicetree/bindings/soc/samsung/samsung,exynos-sysreg.yaml          | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/Documentation/devicetree/bindings/soc/samsung/samsung,exynos-sysreg.yaml b/Documentation/devicetree/bindings/soc/samsung/samsung,exynos-sysreg.yaml
+index 60958dac0345e..163e912e9cadc 100644
+--- a/Documentation/devicetree/bindings/soc/samsung/samsung,exynos-sysreg.yaml
++++ b/Documentation/devicetree/bindings/soc/samsung/samsung,exynos-sysreg.yaml
+@@ -36,7 +36,7 @@ properties:
+               - samsung,exynos850-sysreg
+               - samsung,exynosautov9-sysreg
+           - const: syscon
+-            deprecated: true
++        deprecated: true
+       - items:
+           - enum:
+               - samsung,exynos850-cmgp-sysreg
+-- 
+cgit 
+

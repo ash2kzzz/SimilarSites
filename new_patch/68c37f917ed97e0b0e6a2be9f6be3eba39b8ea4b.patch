@@ -1,0 +1,38 @@
+From 68c37f917ed97e0b0e6a2be9f6be3eba39b8ea4b Mon Sep 17 00:00:00 2001
+From: Randy Dunlap <rdunlap@infradead.org>
+Date: Sun, 5 Mar 2023 20:00:31 -0800
+Subject: sh: SH2007: drop the bad URL info
+
+This URL provided is no longer functional, so drop it.
+
+Fixes: 3a598264436e ("sh: SH-2007 board support.")
+Signed-off-by: Randy Dunlap <rdunlap@infradead.org>
+Cc: John Paul Adrian Glaubitz <glaubitz@physik.fu-berlin.de>
+Cc: Yoshinori Sato <ysato@users.sourceforge.jp>
+Cc: Rich Felker <dalias@libc.org>
+Cc: Geert Uytterhoeven <geert+renesas@glider.be>
+Cc: Hitoshi Mitake <mitake@dcl.info.waseda.ac.jp>
+Cc: linux-sh@vger.kernel.org
+Reviewed-by: Geert Uytterhoeven <geert+renesas@glider.be>
+Reviewed-by: John Paul Adrian Glaubitz <glaubitz@physik.fu-berlin.de>
+Link: https://lore.kernel.org/r/20230306040037.20350-2-rdunlap@infradead.org
+Signed-off-by: John Paul Adrian Glaubitz <glaubitz@physik.fu-berlin.de>
+---
+ arch/sh/boards/Kconfig | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/arch/sh/boards/Kconfig b/arch/sh/boards/Kconfig
+index 83bcb6d2dacad..fafe15d3ba1dc 100644
+--- a/arch/sh/boards/Kconfig
++++ b/arch/sh/boards/Kconfig
+@@ -358,7 +358,6 @@ config SH_SH2007
+ 	  intended for embedded applications.
+ 	  It has an Ethernet interface (SMC9118), direct connected
+ 	  Compact Flash socket, two serial ports and PC-104 bus.
+-	  More information at <http://sh2000.sh-linux.org>.
+ 
+ config SH_APSH4A3A
+ 	bool "AP-SH4A-3A"
+-- 
+cgit 
+

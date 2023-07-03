@@ -1,0 +1,57 @@
+From 6cb9430be1471d631e1b6b138e6d26657a9caa81 Mon Sep 17 00:00:00 2001
+From: Daniel Müller <deso@posteo.net>
+Date: Wed, 15 Mar 2023 17:15:50 +0000
+Subject: libbpf: Ignore warnings about "inefficient alignment"
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Some consumers of libbpf compile the code base with different warnings
+enabled. In a report for perf, for example, -Wpacked was set which
+caused warnings about "inefficient alignment" to be emitted on a subset
+of supported architectures.
+
+With this change we silence specifically those warnings, as we intentionally
+worked with packed structs.
+
+This is a similar resolution as in b2f10cd4e805 ("perf cpumap: Fix alignment
+for masks in event encoding").
+
+Fixes: 1eebcb60633f ("libbpf: Implement basic zip archive parsing support")
+Reported-by: Linux Kernel Functional Testing <lkft@linaro.org>
+Signed-off-by: Daniel Müller <deso@posteo.net>
+Signed-off-by: Daniel Borkmann <daniel@iogearbox.net>
+Cc: Ian Rogers <irogers@google.com>
+Link: https://lore.kernel.org/bpf/CA+G9fYtBnwxAWXi2+GyNByApxnf_DtP1-6+_zOKAdJKnJBexjg@mail.gmail.com/
+Link: https://lore.kernel.org/bpf/20230315171550.1551603-1-deso@posteo.net
+---
+ tools/lib/bpf/zip.c | 6 ++++++
+ 1 file changed, 6 insertions(+)
+
+diff --git a/tools/lib/bpf/zip.c b/tools/lib/bpf/zip.c
+index f561aa07438f5..3f26d629b2b49 100644
+--- a/tools/lib/bpf/zip.c
++++ b/tools/lib/bpf/zip.c
+@@ -16,6 +16,10 @@
+ #include "libbpf_internal.h"
+ #include "zip.h"
+ 
++#pragma GCC diagnostic push
++#pragma GCC diagnostic ignored "-Wpacked"
++#pragma GCC diagnostic ignored "-Wattributes"
++
+ /* Specification of ZIP file format can be found here:
+  * https://pkware.cachefly.net/webdocs/casestudies/APPNOTE.TXT
+  * For a high level overview of the structure of a ZIP file see
+@@ -119,6 +123,8 @@ struct local_file_header {
+ 	__u16 extra_field_length;
+ } __attribute__((packed));
+ 
++#pragma GCC diagnostic pop
++
+ struct zip_archive {
+ 	void *data;
+ 	__u32 size;
+-- 
+cgit 
+

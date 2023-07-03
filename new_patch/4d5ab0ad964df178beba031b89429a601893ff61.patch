@@ -1,0 +1,161 @@
+From 4d5ab0ad964df178beba031b89429a601893ff61 Mon Sep 17 00:00:00 2001
+From: Lorenzo Bianconi <lorenzo@kernel.org>
+Date: Thu, 9 Mar 2023 13:25:31 +0100
+Subject: net/mlx5e: take into account device reconfiguration for xdp_features
+ flag
+
+Take into account LRO and GRO configuration setting device xdp_features
+flag. Consider channel rq_wq_type enabling rx scatter-gatter support in
+xdp_features flag and disable NETDEV_XDP_ACT_NDO_XMIT_SG since it is not
+supported yet by the driver.
+Moreover always enable NETDEV_XDP_ACT_NDO_XMIT as the ndo_xdp_xmit
+callback does not require to load a dummy xdp program on the NIC.
+
+Fixes: 66c0e13ad236 ("drivers: net: turn on XDP features")
+Co-developed-by: Tariq Toukan <tariqt@nvidia.com>
+Signed-off-by: Tariq Toukan <tariqt@nvidia.com>
+Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
+Signed-off-by: Jakub Kicinski <kuba@kernel.org>
+---
+ drivers/net/ethernet/mellanox/mlx5/core/en.h       |  1 +
+ .../net/ethernet/mellanox/mlx5/core/en_ethtool.c   | 10 +++++-
+ drivers/net/ethernet/mellanox/mlx5/core/en_main.c  | 37 +++++++++++++++-------
+ drivers/net/ethernet/mellanox/mlx5/core/en_rep.c   |  3 ++
+ 4 files changed, 39 insertions(+), 12 deletions(-)
+
+diff --git a/drivers/net/ethernet/mellanox/mlx5/core/en.h b/drivers/net/ethernet/mellanox/mlx5/core/en.h
+index 88460b7796e55..4276c6eb68201 100644
+--- a/drivers/net/ethernet/mellanox/mlx5/core/en.h
++++ b/drivers/net/ethernet/mellanox/mlx5/core/en.h
+@@ -1243,6 +1243,7 @@ void mlx5e_build_nic_params(struct mlx5e_priv *priv, struct mlx5e_xsk *xsk, u16
+ void mlx5e_rx_dim_work(struct work_struct *work);
+ void mlx5e_tx_dim_work(struct work_struct *work);
+ 
++void mlx5e_set_xdp_feature(struct net_device *netdev);
+ netdev_features_t mlx5e_features_check(struct sk_buff *skb,
+ 				       struct net_device *netdev,
+ 				       netdev_features_t features);
+diff --git a/drivers/net/ethernet/mellanox/mlx5/core/en_ethtool.c b/drivers/net/ethernet/mellanox/mlx5/core/en_ethtool.c
+index 7708acc9b2ab3..79fd21ecb9cbc 100644
+--- a/drivers/net/ethernet/mellanox/mlx5/core/en_ethtool.c
++++ b/drivers/net/ethernet/mellanox/mlx5/core/en_ethtool.c
+@@ -1985,6 +1985,7 @@ static int set_pflag_rx_striding_rq(struct net_device *netdev, bool enable)
+ 	struct mlx5e_priv *priv = netdev_priv(netdev);
+ 	struct mlx5_core_dev *mdev = priv->mdev;
+ 	struct mlx5e_params new_params;
++	int err;
+ 
+ 	if (enable) {
+ 		/* Checking the regular RQ here; mlx5e_validate_xsk_param called
+@@ -2005,7 +2006,14 @@ static int set_pflag_rx_striding_rq(struct net_device *netdev, bool enable)
+ 	MLX5E_SET_PFLAG(&new_params, MLX5E_PFLAG_RX_STRIDING_RQ, enable);
+ 	mlx5e_set_rq_type(mdev, &new_params);
+ 
+-	return mlx5e_safe_switch_params(priv, &new_params, NULL, NULL, true);
++	err = mlx5e_safe_switch_params(priv, &new_params, NULL, NULL, true);
++	if (err)
++		return err;
++
++	/* update XDP supported features */
++	mlx5e_set_xdp_feature(netdev);
++
++	return 0;
+ }
+ 
+ static int set_pflag_rx_no_csum_complete(struct net_device *netdev, bool enable)
+diff --git a/drivers/net/ethernet/mellanox/mlx5/core/en_main.c b/drivers/net/ethernet/mellanox/mlx5/core/en_main.c
+index 76a9c5194a704..51b5f3cca5047 100644
+--- a/drivers/net/ethernet/mellanox/mlx5/core/en_main.c
++++ b/drivers/net/ethernet/mellanox/mlx5/core/en_main.c
+@@ -4004,6 +4004,25 @@ static int mlx5e_handle_feature(struct net_device *netdev,
+ 	return 0;
+ }
+ 
++void mlx5e_set_xdp_feature(struct net_device *netdev)
++{
++	struct mlx5e_priv *priv = netdev_priv(netdev);
++	struct mlx5e_params *params = &priv->channels.params;
++	xdp_features_t val;
++
++	if (params->packet_merge.type != MLX5E_PACKET_MERGE_NONE) {
++		xdp_clear_features_flag(netdev);
++		return;
++	}
++
++	val = NETDEV_XDP_ACT_BASIC | NETDEV_XDP_ACT_REDIRECT |
++	      NETDEV_XDP_ACT_XSK_ZEROCOPY |
++	      NETDEV_XDP_ACT_NDO_XMIT;
++	if (params->rq_wq_type == MLX5_WQ_TYPE_CYCLIC)
++		val |= NETDEV_XDP_ACT_RX_SG;
++	xdp_set_features_flag(netdev, val);
++}
++
+ int mlx5e_set_features(struct net_device *netdev, netdev_features_t features)
+ {
+ 	netdev_features_t oper_features = features;
+@@ -4030,6 +4049,9 @@ int mlx5e_set_features(struct net_device *netdev, netdev_features_t features)
+ 		return -EINVAL;
+ 	}
+ 
++	/* update XDP supported features */
++	mlx5e_set_xdp_feature(netdev);
++
+ 	return 0;
+ }
+ 
+@@ -4761,13 +4783,6 @@ static int mlx5e_xdp_set(struct net_device *netdev, struct bpf_prog *prog)
+ 	if (old_prog)
+ 		bpf_prog_put(old_prog);
+ 
+-	if (reset) {
+-		if (prog)
+-			xdp_features_set_redirect_target(netdev, true);
+-		else
+-			xdp_features_clear_redirect_target(netdev);
+-	}
+-
+ 	if (!test_bit(MLX5E_STATE_OPENED, &priv->state) || reset)
+ 		goto unlock;
+ 
+@@ -5163,13 +5178,10 @@ static void mlx5e_build_nic_netdev(struct net_device *netdev)
+ 	netdev->features         |= NETIF_F_HIGHDMA;
+ 	netdev->features         |= NETIF_F_HW_VLAN_STAG_FILTER;
+ 
+-	netdev->xdp_features = NETDEV_XDP_ACT_BASIC | NETDEV_XDP_ACT_REDIRECT |
+-			       NETDEV_XDP_ACT_XSK_ZEROCOPY |
+-			       NETDEV_XDP_ACT_RX_SG;
+-
+ 	netdev->priv_flags       |= IFF_UNICAST_FLT;
+ 
+ 	netif_set_tso_max_size(netdev, GSO_MAX_SIZE);
++	mlx5e_set_xdp_feature(netdev);
+ 	mlx5e_set_netdev_dev_addr(netdev);
+ 	mlx5e_macsec_build_netdev(priv);
+ 	mlx5e_ipsec_build_netdev(priv);
+@@ -5241,6 +5253,9 @@ static int mlx5e_nic_init(struct mlx5_core_dev *mdev,
+ 		mlx5_core_err(mdev, "TLS initialization failed, %d\n", err);
+ 
+ 	mlx5e_health_create_reporters(priv);
++	/* update XDP supported features */
++	mlx5e_set_xdp_feature(netdev);
++
+ 	return 0;
+ }
+ 
+diff --git a/drivers/net/ethernet/mellanox/mlx5/core/en_rep.c b/drivers/net/ethernet/mellanox/mlx5/core/en_rep.c
+index 9b92034430854..43fd12fb87b87 100644
+--- a/drivers/net/ethernet/mellanox/mlx5/core/en_rep.c
++++ b/drivers/net/ethernet/mellanox/mlx5/core/en_rep.c
+@@ -747,6 +747,9 @@ static void mlx5e_build_rep_params(struct net_device *netdev)
+ 	/* RQ */
+ 	mlx5e_build_rq_params(mdev, params);
+ 
++	/* update XDP supported features */
++	mlx5e_set_xdp_feature(netdev);
++
+ 	/* CQ moderation params */
+ 	params->rx_dim_enabled = MLX5_CAP_GEN(mdev, cq_moderation);
+ 	mlx5e_set_rx_cq_mode_params(params, cq_period_mode);
+-- 
+cgit 
+

@@ -1,0 +1,84 @@
+From 71562809e401b2f5ad371d99ce0323e988406fd6 Mon Sep 17 00:00:00 2001
+From: David Howells <dhowells@redhat.com>
+Date: Tue, 28 Feb 2023 22:38:38 +0000
+Subject: cifs: Fix memory leak in direct I/O
+
+When __cifs_readv() and __cifs_writev() extract pages from a user-backed
+iterator into a BVEC-type iterator, they set ->bv_need_unpin to note
+whether they need to unpin the pages later.  However, in both cases they
+examine the BVEC-type iterator and not the source iterator - and so
+bv_need_unpin doesn't get set and the pages are leaked.
+
+I think this may be responsible for the generic/208 xfstest failing
+occasionally with:
+
+	WARNING: CPU: 0 PID: 3064 at mm/gup.c:218 try_grab_page+0x65/0x100
+	RIP: 0010:try_grab_page+0x65/0x100
+	follow_page_pte+0x1a7/0x570
+	__get_user_pages+0x1a2/0x650
+	__gup_longterm_locked+0xdc/0xb50
+	internal_get_user_pages_fast+0x17f/0x310
+	pin_user_pages_fast+0x46/0x60
+	iov_iter_extract_pages+0xc9/0x510
+	? __kmalloc_large_node+0xb1/0x120
+	? __kmalloc_node+0xbe/0x130
+	netfs_extract_user_iter+0xbf/0x200 [netfs]
+	__cifs_writev+0x150/0x330 [cifs]
+	vfs_write+0x2a8/0x3c0
+	ksys_pwrite64+0x65/0xa0
+
+with the page refcount going negative.  This is less unlikely than it seems
+because the page is being pinned, not simply got, and so the refcount
+increased by 1024 each time, and so only needs to be called around ~2097152
+for the refcount to go negative.
+
+Further, the test program (aio-dio-invalidate-failure) uses a 32MiB static
+buffer and all the PTEs covering it refer to the same page because it's
+never written to.
+
+The warning in try_grab_page():
+
+	if (WARN_ON_ONCE(folio_ref_count(folio) <= 0))
+		return -ENOMEM;
+
+then trips and prevents us ever using the page again for DIO at least.
+
+Fixes: d08089f649a0 ("cifs: Change the I/O paths to use an iterator rather than a page list")
+Reported-by: Murphy Zhou <jencce.kernel@gmail.com>
+Link: https://lore.kernel.org/r/CAH2r5mvaTsJ---n=265a4zqRA7pP+o4MJ36WCQUS6oPrOij8cw@mail.gmail.com
+Signed-off-by: David Howells <dhowells@redhat.com>
+Reviewed-by: Paulo Alcantara (SUSE) <pc@manguebit.com>
+cc: Shyam Prasad N <nspmangalore@gmail.com>
+cc: Rohith Surabattula <rohiths.msft@gmail.com>
+cc: Jeff Layton <jlayton@kernel.org>
+cc: linux-cifs@vger.kernel.org
+Signed-off-by: Steve French <stfrench@microsoft.com>
+---
+ fs/cifs/file.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/fs/cifs/file.c b/fs/cifs/file.c
+index ec0694a65c7b6..4d4a2d82636d2 100644
+--- a/fs/cifs/file.c
++++ b/fs/cifs/file.c
+@@ -3612,7 +3612,7 @@ static ssize_t __cifs_writev(
+ 
+ 		ctx->nr_pinned_pages = rc;
+ 		ctx->bv = (void *)ctx->iter.bvec;
+-		ctx->bv_need_unpin = iov_iter_extract_will_pin(&ctx->iter);
++		ctx->bv_need_unpin = iov_iter_extract_will_pin(from);
+ 	} else if ((iov_iter_is_bvec(from) || iov_iter_is_kvec(from)) &&
+ 		   !is_sync_kiocb(iocb)) {
+ 		/*
+@@ -4148,7 +4148,7 @@ static ssize_t __cifs_readv(
+ 
+ 		ctx->nr_pinned_pages = rc;
+ 		ctx->bv = (void *)ctx->iter.bvec;
+-		ctx->bv_need_unpin = iov_iter_extract_will_pin(&ctx->iter);
++		ctx->bv_need_unpin = iov_iter_extract_will_pin(to);
+ 		ctx->should_dirty = true;
+ 	} else if ((iov_iter_is_bvec(to) || iov_iter_is_kvec(to)) &&
+ 		   !is_sync_kiocb(iocb)) {
+-- 
+cgit 
+

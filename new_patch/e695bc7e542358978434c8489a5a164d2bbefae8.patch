@@ -1,0 +1,778 @@
+From 1bdeb321d1f856346fe0078af09c9e7ffbd2ca7a Mon Sep 17 00:00:00 2001
+From: Yang Li <yang.lee@linux.alibaba.com>
+Date: Tue, 15 Nov 2022 09:49:02 +0800
+Subject: drm/msm/dpu: Fix some kernel-doc comments
+
+Make the description of @init to @p in dpu_encoder_phys_wb_init()
+and remove @wb_roi in dpu_encoder_phys_wb_setup_fb() to clear the below
+warnings:
+
+drivers/gpu/drm/msm/disp/dpu1/dpu_encoder_phys_wb.c:139: warning: Excess function parameter 'wb_roi' description in 'dpu_encoder_phys_wb_setup_fb'
+drivers/gpu/drm/msm/disp/dpu1/dpu_encoder_phys_wb.c:699: warning: Function parameter or member 'p' not described in 'dpu_encoder_phys_wb_init'
+drivers/gpu/drm/msm/disp/dpu1/dpu_encoder_phys_wb.c:699: warning: Excess function parameter 'init' description in 'dpu_encoder_phys_wb_init'
+
+Link: https://bugzilla.openanolis.cn/show_bug.cgi?id=3067
+Reported-by: Abaci Robot <abaci@linux.alibaba.com>
+Signed-off-by: Yang Li <yang.lee@linux.alibaba.com>
+Fixes: d7d0e73f7de3 ("drm/msm/dpu: introduce the dpu_encoder_phys_* for writeback")
+Reviewed-by: Abhinav Kumar <quic_abhinavk@quicinc.com>
+Patchwork: https://patchwork.freedesktop.org/patch/511605/
+Link: https://lore.kernel.org/r/20221115014902.45240-1-yang.lee@linux.alibaba.com
+Signed-off-by: Abhinav Kumar <quic_abhinavk@quicinc.com>
+---
+ drivers/gpu/drm/msm/disp/dpu1/dpu_encoder_phys_wb.c | 3 +--
+ 1 file changed, 1 insertion(+), 2 deletions(-)
+
+diff --git a/drivers/gpu/drm/msm/disp/dpu1/dpu_encoder_phys_wb.c b/drivers/gpu/drm/msm/disp/dpu1/dpu_encoder_phys_wb.c
+index 7cbcef6efe171..62f6ff6abf410 100644
+--- a/drivers/gpu/drm/msm/disp/dpu1/dpu_encoder_phys_wb.c
++++ b/drivers/gpu/drm/msm/disp/dpu1/dpu_encoder_phys_wb.c
+@@ -132,7 +132,6 @@ static void dpu_encoder_phys_wb_set_qos(struct dpu_encoder_phys *phys_enc)
+  * dpu_encoder_phys_wb_setup_fb - setup output framebuffer
+  * @phys_enc:	Pointer to physical encoder
+  * @fb:		Pointer to output framebuffer
+- * @wb_roi:	Pointer to output region of interest
+  */
+ static void dpu_encoder_phys_wb_setup_fb(struct dpu_encoder_phys *phys_enc,
+ 		struct drm_framebuffer *fb)
+@@ -692,7 +691,7 @@ static void dpu_encoder_phys_wb_init_ops(struct dpu_encoder_phys_ops *ops)
+ 
+ /**
+  * dpu_encoder_phys_wb_init - initialize writeback encoder
+- * @init:	Pointer to init info structure with initialization params
++ * @p:	Pointer to init info structure with initialization params
+  */
+ struct dpu_encoder_phys *dpu_encoder_phys_wb_init(
+ 		struct dpu_enc_phys_init_params *p)
+-- 
+cgit 
+
+
+From a2117773c839a8439a3771e0c040b5c505b083a7 Mon Sep 17 00:00:00 2001
+From: Konrad Dybcio <konrad.dybcio@linaro.org>
+Date: Wed, 30 Nov 2022 14:58:07 +0100
+Subject: dt-bindings: msm/dsi: Don't require vcca-supply on 14nm PHY
+
+On some SoCs (hello SM6115) vcca-supply is not wired to any smd-rpm
+or rpmh regulator, but instead powered by the VDD_MX line, which is
+voted for in the DSI ctrl node.
+
+Signed-off-by: Konrad Dybcio <konrad.dybcio@linaro.org>
+Acked-by: Krzysztof Kozlowski <krzysztof.kozlowski@linaro.org>
+Reviewed-by: Dmitry Baryshkov <dmitry.baryshkov@linaro.org>
+Fixes: 8fc939e72ff8 ("dt-bindings: msm: dsi: add yaml schemas for DSI PHY bindings")
+Reviewed-by: Abhinav Kumar <quic_abhinavk@quicinc.com>
+Patchwork: https://patchwork.freedesktop.org/patch/513555/
+Link: https://lore.kernel.org/r/20221130135807.45028-1-konrad.dybcio@linaro.org
+Signed-off-by: Abhinav Kumar <quic_abhinavk@quicinc.com>
+---
+ Documentation/devicetree/bindings/display/msm/dsi-phy-14nm.yaml | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/Documentation/devicetree/bindings/display/msm/dsi-phy-14nm.yaml b/Documentation/devicetree/bindings/display/msm/dsi-phy-14nm.yaml
+index 819de5ce0bc91..a43e11d3b00d2 100644
+--- a/Documentation/devicetree/bindings/display/msm/dsi-phy-14nm.yaml
++++ b/Documentation/devicetree/bindings/display/msm/dsi-phy-14nm.yaml
+@@ -39,7 +39,6 @@ required:
+   - compatible
+   - reg
+   - reg-names
+-  - vcca-supply
+ 
+ unevaluatedProperties: false
+ 
+-- 
+cgit 
+
+
+From ef11cb7a29c0e13031c968190ea8f86104e7fb6a Mon Sep 17 00:00:00 2001
+From: Konrad Dybcio <konrad.dybcio@linaro.org>
+Date: Wed, 16 Nov 2022 17:32:18 +0100
+Subject: dt-bindings: msm/dsi: Don't require vdds-supply on 10nm PHY
+
+On some SoCs (hello SM6350) vdds-supply is not wired to any smd-rpm
+or rpmh regulator, but instead powered by the VDD_MX/mx.lvl line,
+which is voted for in the DSI ctrl node.
+
+Signed-off-by: Konrad Dybcio <konrad.dybcio@linaro.org>
+Acked-by: Rob Herring <robh@kernel.org>
+Fixes: 8fc939e72ff8 ("dt-bindings: msm: dsi: add yaml schemas for DSI PHY bindings")
+Reviewed-by: Abhinav Kumar <quic_abhinavk@quicinc.com>
+Patchwork: https://patchwork.freedesktop.org/patch/511889/
+Link: https://lore.kernel.org/r/20221116163218.42449-1-konrad.dybcio@linaro.org
+Signed-off-by: Abhinav Kumar <quic_abhinavk@quicinc.com>
+---
+ Documentation/devicetree/bindings/display/msm/dsi-phy-10nm.yaml | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/Documentation/devicetree/bindings/display/msm/dsi-phy-10nm.yaml b/Documentation/devicetree/bindings/display/msm/dsi-phy-10nm.yaml
+index d9ad8b659f58e..3ec466c3ab38b 100644
+--- a/Documentation/devicetree/bindings/display/msm/dsi-phy-10nm.yaml
++++ b/Documentation/devicetree/bindings/display/msm/dsi-phy-10nm.yaml
+@@ -69,7 +69,6 @@ required:
+   - compatible
+   - reg
+   - reg-names
+-  - vdds-supply
+ 
+ unevaluatedProperties: false
+ 
+-- 
+cgit 
+
+
+From e5266ca38294c6eba48f5c9cd3d0402d619d7c05 Mon Sep 17 00:00:00 2001
+From: Adam Skladowski <a39.skl@gmail.com>
+Date: Wed, 30 Nov 2022 21:09:39 +0100
+Subject: dt-bindings: display: msm: Rename mdss node name in example
+
+Follow other YAMLs and replace mdss name into display-subystem.
+
+Signed-off-by: Adam Skladowski <a39.skl@gmail.com>
+Acked-by: Krzysztof Kozlowski <krzysztof.kozlowski@linaro.org>
+Reviewed-by: Dmitry Baryshkov <dmitry.baryshkov@linaro.org>
+Fixes: b93bdff44a85 ("dt-bindings: display/msm: add support for SM6115")
+Fixes: 06097b13ef97 ("dt-bindings: display/msm: split dpu-qcm2290 into DPU and MDSS parts")
+Reviewed-by: Abhinav Kumar <quic_abhinavk@quicinc.com>
+Patchwork: https://patchwork.freedesktop.org/patch/513585/
+Link: https://lore.kernel.org/r/20221130200950.144618-2-a39.skl@gmail.com
+Signed-off-by: Abhinav Kumar <quic_abhinavk@quicinc.com>
+---
+ Documentation/devicetree/bindings/display/msm/qcom,qcm2290-mdss.yaml | 2 +-
+ Documentation/devicetree/bindings/display/msm/qcom,sm6115-mdss.yaml  | 2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/Documentation/devicetree/bindings/display/msm/qcom,qcm2290-mdss.yaml b/Documentation/devicetree/bindings/display/msm/qcom,qcm2290-mdss.yaml
+index d6f043a4b08d2..4795e13c7b597 100644
+--- a/Documentation/devicetree/bindings/display/msm/qcom,qcm2290-mdss.yaml
++++ b/Documentation/devicetree/bindings/display/msm/qcom,qcm2290-mdss.yaml
+@@ -72,7 +72,7 @@ examples:
+     #include <dt-bindings/interconnect/qcom,qcm2290.h>
+     #include <dt-bindings/power/qcom-rpmpd.h>
+ 
+-    mdss@5e00000 {
++    display-subsystem@5e00000 {
+         #address-cells = <1>;
+         #size-cells = <1>;
+         compatible = "qcom,qcm2290-mdss";
+diff --git a/Documentation/devicetree/bindings/display/msm/qcom,sm6115-mdss.yaml b/Documentation/devicetree/bindings/display/msm/qcom,sm6115-mdss.yaml
+index a86d7f53fa84d..886858ef67000 100644
+--- a/Documentation/devicetree/bindings/display/msm/qcom,sm6115-mdss.yaml
++++ b/Documentation/devicetree/bindings/display/msm/qcom,sm6115-mdss.yaml
+@@ -62,7 +62,7 @@ examples:
+     #include <dt-bindings/interrupt-controller/arm-gic.h>
+     #include <dt-bindings/power/qcom-rpmpd.h>
+ 
+-    mdss@5e00000 {
++    display-subsystem@5e00000 {
+         #address-cells = <1>;
+         #size-cells = <1>;
+         compatible = "qcom,sm6115-mdss";
+-- 
+cgit 
+
+
+From 45dac1352b55b1d8cb17f218936b2bc2bc1fb4ee Mon Sep 17 00:00:00 2001
+From: Miaoqian Lin <linmq006@gmail.com>
+Date: Wed, 7 Dec 2022 10:59:22 +0400
+Subject: drm/msm/dpu: Fix memory leak in msm_mdss_parse_data_bus_icc_path
+
+of_icc_get() alloc resources for path1, we should release it when not
+need anymore. Early return when IS_ERR_OR_NULL(path0) may leak path1.
+Defer getting path1 to fix this.
+
+Fixes: b9364eed9232 ("drm/msm/dpu: Move min BW request and full BW disable back to mdss")
+Signed-off-by: Miaoqian Lin <linmq006@gmail.com>
+Reviewed-by: Douglas Anderson <dianders@chromium.org>
+Reviewed-by: Abhinav Kumar <quic_abhinavk@quicinc.com>
+Patchwork: https://patchwork.freedesktop.org/patch/514264/
+Link: https://lore.kernel.org/r/20221207065922.2086368-1-linmq006@gmail.com
+Signed-off-by: Abhinav Kumar <quic_abhinavk@quicinc.com>
+---
+ drivers/gpu/drm/msm/msm_mdss.c | 6 ++++--
+ 1 file changed, 4 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/gpu/drm/msm/msm_mdss.c b/drivers/gpu/drm/msm/msm_mdss.c
+index 86b28add1ffff..2527afef9c199 100644
+--- a/drivers/gpu/drm/msm/msm_mdss.c
++++ b/drivers/gpu/drm/msm/msm_mdss.c
+@@ -47,15 +47,17 @@ struct msm_mdss {
+ static int msm_mdss_parse_data_bus_icc_path(struct device *dev,
+ 					    struct msm_mdss *msm_mdss)
+ {
+-	struct icc_path *path0 = of_icc_get(dev, "mdp0-mem");
+-	struct icc_path *path1 = of_icc_get(dev, "mdp1-mem");
++	struct icc_path *path0;
++	struct icc_path *path1;
+ 
++	path0 = of_icc_get(dev, "mdp0-mem");
+ 	if (IS_ERR_OR_NULL(path0))
+ 		return PTR_ERR_OR_ZERO(path0);
+ 
+ 	msm_mdss->path[0] = path0;
+ 	msm_mdss->num_paths = 1;
+ 
++	path1 = of_icc_get(dev, "mdp1-mem");
+ 	if (!IS_ERR_OR_NULL(path1)) {
+ 		msm_mdss->path[1] = path1;
+ 		msm_mdss->num_paths++;
+-- 
+cgit 
+
+
+From 4164843261d28f86910a5c2727faddce066334c5 Mon Sep 17 00:00:00 2001
+From: Christophe JAILLET <christophe.jaillet@wanadoo.fr>
+Date: Tue, 13 Dec 2022 07:15:33 +0100
+Subject: drm/msm/hdmi: Fix the error handling path of msm_hdmi_dev_probe()
+
+If an error occurs after a successful msm_hdmi_get_phy() call, it must be
+undone by a corresponding msm_hdmi_put_phy(), as already done in the
+remove function.
+
+Fixes: 437365464043 ("drm/msm/hdmi: move msm_hdmi_get_phy() to msm_hdmi_dev_probe()")
+Signed-off-by: Christophe JAILLET <christophe.jaillet@wanadoo.fr>
+Reviewed-by: Abhinav Kumar <quic_abhinavk@quicinc.com>
+Patchwork: https://patchwork.freedesktop.org/patch/514847/
+Link: https://lore.kernel.org/r/b3f9da097851e2e42a40dc61458aa98c41c88d0d.1670741386.git.christophe.jaillet@wanadoo.fr
+Signed-off-by: Abhinav Kumar <quic_abhinavk@quicinc.com>
+---
+ drivers/gpu/drm/msm/hdmi/hdmi.c | 12 ++++++++++--
+ 1 file changed, 10 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/gpu/drm/msm/hdmi/hdmi.c b/drivers/gpu/drm/msm/hdmi/hdmi.c
+index 4d3fdc806befd..97372bb241d89 100644
+--- a/drivers/gpu/drm/msm/hdmi/hdmi.c
++++ b/drivers/gpu/drm/msm/hdmi/hdmi.c
+@@ -532,11 +532,19 @@ static int msm_hdmi_dev_probe(struct platform_device *pdev)
+ 
+ 	ret = devm_pm_runtime_enable(&pdev->dev);
+ 	if (ret)
+-		return ret;
++		goto err_put_phy;
+ 
+ 	platform_set_drvdata(pdev, hdmi);
+ 
+-	return component_add(&pdev->dev, &msm_hdmi_ops);
++	ret = component_add(&pdev->dev, &msm_hdmi_ops);
++	if (ret)
++		goto err_put_phy;
++
++	return 0;
++
++err_put_phy:
++	msm_hdmi_put_phy(hdmi);
++	return ret;
+ }
+ 
+ static int msm_hdmi_dev_remove(struct platform_device *pdev)
+-- 
+cgit 
+
+
+From 1cba0d150fa102439114a91b3e215909efc9f169 Mon Sep 17 00:00:00 2001
+From: Kuogee Hsieh <quic_khsieh@quicinc.com>
+Date: Tue, 27 Dec 2022 18:16:24 -0800
+Subject: drm/msm/dp: do not complete dp_aux_cmd_fifo_tx() if irq is not for
+ aux transfer
+
+There are 3 possible interrupt sources are handled by DP controller,
+HPDstatus, Controller state changes and Aux read/write transaction.
+At every irq, DP controller have to check isr status of every interrupt
+sources and service the interrupt if its isr status bits shows interrupts
+are pending. There is potential race condition may happen at current aux
+isr handler implementation since it is always complete dp_aux_cmd_fifo_tx()
+even irq is not for aux read or write transaction. This may cause aux read
+transaction return premature if host aux data read is in the middle of
+waiting for sink to complete transferring data to host while irq happen.
+This will cause host's receiving buffer contains unexpected data. This
+patch fixes this problem by checking aux isr and return immediately at
+aux isr handler if there are no any isr status bits set.
+
+Current there is a bug report regrading eDP edid corruption happen during
+system booting up. After lengthy debugging to found that VIDEO_READY
+interrupt was continuously firing during system booting up which cause
+dp_aux_isr() to complete dp_aux_cmd_fifo_tx() prematurely to retrieve data
+from aux hardware buffer which is not yet contains complete data transfer
+from sink. This cause edid corruption.
+
+Follows are the signature at kernel logs when problem happen,
+EDID has corrupt header
+panel-simple-dp-aux aux-aea0000.edp: Couldn't identify panel via EDID
+
+Changes in v2:
+-- do complete if (ret == IRQ_HANDLED) ay dp-aux_isr()
+-- add more commit text
+
+Changes in v3:
+-- add Stephen suggested
+-- dp_aux_isr() return IRQ_XXX back to caller
+-- dp_ctrl_isr() return IRQ_XXX back to caller
+
+Changes in v4:
+-- split into two patches
+
+Changes in v5:
+-- delete empty line between tags
+
+Changes in v6:
+-- remove extra "that" and fixed line more than 75 char at commit text
+
+Fixes: c943b4948b58 ("drm/msm/dp: add displayPort driver support")
+Signed-off-by: Kuogee Hsieh <quic_khsieh@quicinc.com>
+Tested-by: Douglas Anderson <dianders@chromium.org>
+Reviewed-by: Abhinav Kumar <quic_abhinavk@quicinc.com>
+Reviewed-by: Dmitry Baryshkov <dmitry.baryshkov@linaro.org>
+Patchwork: https://patchwork.freedesktop.org/patch/516121/
+Link: https://lore.kernel.org/r/1672193785-11003-2-git-send-email-quic_khsieh@quicinc.com
+Signed-off-by: Abhinav Kumar <quic_abhinavk@quicinc.com>
+---
+ drivers/gpu/drm/msm/dp/dp_aux.c | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/drivers/gpu/drm/msm/dp/dp_aux.c b/drivers/gpu/drm/msm/dp/dp_aux.c
+index d030a93a08c36..cc3efed593aa1 100644
+--- a/drivers/gpu/drm/msm/dp/dp_aux.c
++++ b/drivers/gpu/drm/msm/dp/dp_aux.c
+@@ -423,6 +423,10 @@ void dp_aux_isr(struct drm_dp_aux *dp_aux)
+ 
+ 	isr = dp_catalog_aux_get_irq(aux->catalog);
+ 
++	/* no interrupts pending, return immediately */
++	if (!isr)
++		return;
++
+ 	if (!aux->cmd_busy)
+ 		return;
+ 
+-- 
+cgit 
+
+
+From be79f805a1e1b95605c825f1c513bdd2c8b167ed Mon Sep 17 00:00:00 2001
+From: Bryan O'Donoghue <bryan.odonoghue@linaro.org>
+Date: Thu, 29 Dec 2022 12:44:38 +0000
+Subject: dt-bindings: msm: dsi-phy-28nm: Add missing qcom,
+ dsi-phy-regulator-ldo-mode
+
+Add in missing qcom,dsi-phy-regulator-ldo-mode to the 28nm DSI PHY.
+When converting from .txt to .yaml we missed this one.
+
+Fixes: 4dbe55c97741 ("dt-bindings: msm: dsi: add yaml schemas for DSI bindings")
+Reviewed-by: Dmitry Baryshkov <dmitry.baryshkov@linaro.org>
+Signed-off-by: Bryan O'Donoghue <bryan.odonoghue@linaro.org>
+Patchwork: https://patchwork.freedesktop.org/patch/516205/
+Link: https://lore.kernel.org/r/20221229124438.504770-2-bryan.odonoghue@linaro.org
+Signed-off-by: Abhinav Kumar <quic_abhinavk@quicinc.com>
+---
+ Documentation/devicetree/bindings/display/msm/dsi-phy-28nm.yaml | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/Documentation/devicetree/bindings/display/msm/dsi-phy-28nm.yaml b/Documentation/devicetree/bindings/display/msm/dsi-phy-28nm.yaml
+index 3d8540a06fe22..2f1fd140c87df 100644
+--- a/Documentation/devicetree/bindings/display/msm/dsi-phy-28nm.yaml
++++ b/Documentation/devicetree/bindings/display/msm/dsi-phy-28nm.yaml
+@@ -34,6 +34,10 @@ properties:
+   vddio-supply:
+     description: Phandle to vdd-io regulator device node.
+ 
++  qcom,dsi-phy-regulator-ldo-mode:
++    type: boolean
++    description: Indicates if the LDO mode PHY regulator is wanted.
++
+ required:
+   - compatible
+   - reg
+-- 
+cgit 
+
+
+From cdf64343f91a1225e9e3d4ce4261962cd41b4ddd Mon Sep 17 00:00:00 2001
+From: Bryan O'Donoghue <bryan.odonoghue@linaro.org>
+Date: Fri, 23 Dec 2022 02:10:08 +0000
+Subject: dt-bindings: msm: dsi-controller-main: Fix operating-points-v2
+ constraint
+
+The existing msm8916.dtsi does not depend on nor require operating points.
+
+Fixes: 4dbe55c97741 ("dt-bindings: msm: dsi: add yaml schemas for DSI bindings")
+Reviewed-by: Dmitry Baryshkov <dmitry.baryshkov@linaro.org>
+Acked-by: Krzysztof Kozlowski <krzysztof.kozlowski@linaro.org>
+Signed-off-by: Bryan O'Donoghue <bryan.odonoghue@linaro.org>
+Patchwork: https://patchwork.freedesktop.org/patch/515940/
+Link: https://lore.kernel.org/r/20221223021025.1646636-2-bryan.odonoghue@linaro.org
+Signed-off-by: Abhinav Kumar <quic_abhinavk@quicinc.com>
+---
+ Documentation/devicetree/bindings/display/msm/dsi-controller-main.yaml | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/Documentation/devicetree/bindings/display/msm/dsi-controller-main.yaml b/Documentation/devicetree/bindings/display/msm/dsi-controller-main.yaml
+index f2c143730a551..55bfe1101d6f4 100644
+--- a/Documentation/devicetree/bindings/display/msm/dsi-controller-main.yaml
++++ b/Documentation/devicetree/bindings/display/msm/dsi-controller-main.yaml
+@@ -138,7 +138,6 @@ required:
+   - assigned-clocks
+   - assigned-clock-parents
+   - power-domains
+-  - operating-points-v2
+   - ports
+ 
+ additionalProperties: false
+-- 
+cgit 
+
+
+From a6f033938beb31f893302a93f83ec0b6460c6cac Mon Sep 17 00:00:00 2001
+From: Bryan O'Donoghue <bryan.odonoghue@linaro.org>
+Date: Fri, 23 Dec 2022 02:10:09 +0000
+Subject: dt-bindings: msm: dsi-controller-main: Fix power-domain constraint
+
+power-domain is required for the sc7180 dispcc GDSC but not every qcom SoC
+has a similar dependency for example the apq8064.
+
+Most Qcom SoC's using mdss-dsi-ctrl seem to have the ability to
+power-collapse the MDP without collapsing DSI.
+
+For example the qcom vendor kernel commit for apq8084, msm8226, msm8916,
+msm8974.
+
+https://review.carbonrom.org/plugins/gitiles/CarbonROM/android_kernel_oneplus_msm8994/+/7b5c011a770daa2811778937ed646237a28a8694
+
+"ARM: dts: msm: add mdss gdsc supply to dsi controller device
+
+ It is possible for the DSI controller to be active when MDP is
+ power collapsed. DSI controller needs to have it's own vote for
+ mdss gdsc to ensure that gdsc remains on in such cases."
+
+This however doesn't appear to be the case for the apq8064 so we shouldn't
+be marking power-domain as required in yaml checks.
+
+Fixes: 4dbe55c97741 ("dt-bindings: msm: dsi: add yaml schemas for DSI bindings")
+Reviewed-by: Dmitry Baryshkov <dmitry.baryshkov@linaro.org>
+Acked-by: Krzysztof Kozlowski <krzysztof.kozlowski@linaro.org>
+Signed-off-by: Bryan O'Donoghue <bryan.odonoghue@linaro.org>
+Patchwork: https://patchwork.freedesktop.org/patch/515958/
+Link: https://lore.kernel.org/r/20221223021025.1646636-3-bryan.odonoghue@linaro.org
+Signed-off-by: Abhinav Kumar <quic_abhinavk@quicinc.com>
+---
+ Documentation/devicetree/bindings/display/msm/dsi-controller-main.yaml | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/Documentation/devicetree/bindings/display/msm/dsi-controller-main.yaml b/Documentation/devicetree/bindings/display/msm/dsi-controller-main.yaml
+index 55bfe1101d6f4..8ba61fef576a5 100644
+--- a/Documentation/devicetree/bindings/display/msm/dsi-controller-main.yaml
++++ b/Documentation/devicetree/bindings/display/msm/dsi-controller-main.yaml
+@@ -137,7 +137,6 @@ required:
+   - phys
+   - assigned-clocks
+   - assigned-clock-parents
+-  - power-domains
+   - ports
+ 
+ additionalProperties: false
+-- 
+cgit 
+
+
+From 654ffe4b793b42ed6b5909daff0b91809916d94e Mon Sep 17 00:00:00 2001
+From: Bryan O'Donoghue <bryan.odonoghue@linaro.org>
+Date: Fri, 23 Dec 2022 02:10:10 +0000
+Subject: dt-bindings: msm: dsi-controller-main: Fix description of core clock
+
+There's a typo in describing the core clock as an 'escape' clock. The
+accurate description is 'core'.
+
+Fixes: 4dbe55c97741 ("dt-bindings: msm: dsi: add yaml schemas for DSI bindings")
+Reviewed-by: Dmitry Baryshkov <dmitry.baryshkov@linaro.org>
+Acked-by: Krzysztof Kozlowski <krzysztof.kozlowski@linaro.org>
+Signed-off-by: Bryan O'Donoghue <bryan.odonoghue@linaro.org>
+Patchwork: https://patchwork.freedesktop.org/patch/515938/
+Link: https://lore.kernel.org/r/20221223021025.1646636-4-bryan.odonoghue@linaro.org
+Signed-off-by: Abhinav Kumar <quic_abhinavk@quicinc.com>
+---
+ Documentation/devicetree/bindings/display/msm/dsi-controller-main.yaml | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/Documentation/devicetree/bindings/display/msm/dsi-controller-main.yaml b/Documentation/devicetree/bindings/display/msm/dsi-controller-main.yaml
+index 8ba61fef576a5..6e2fd6e9fa7f0 100644
+--- a/Documentation/devicetree/bindings/display/msm/dsi-controller-main.yaml
++++ b/Documentation/devicetree/bindings/display/msm/dsi-controller-main.yaml
+@@ -32,7 +32,7 @@ properties:
+       - description: Display byte clock
+       - description: Display byte interface clock
+       - description: Display pixel clock
+-      - description: Display escape clock
++      - description: Display core clock
+       - description: Display AHB clock
+       - description: Display AXI clock
+ 
+-- 
+cgit 
+
+
+From 00dd060ab3cf95ca6ede7853bc14397014971b5e Mon Sep 17 00:00:00 2001
+From: Dmitry Baryshkov <dmitry.baryshkov@linaro.org>
+Date: Thu, 5 Jan 2023 03:47:43 +0200
+Subject: drm/msm: another fix for the headless Adreno GPU
+
+Fix another oops reproducible when rebooting the board with the Adreno
+GPU working in the headless mode (e.g. iMX platforms).
+
+Unable to handle kernel NULL pointer dereference at virtual address 00000000 when read
+[00000000] *pgd=74936831, *pte=00000000, *ppte=00000000
+Internal error: Oops: 17 [#1] ARM
+CPU: 0 PID: 51 Comm: reboot Not tainted 6.2.0-rc1-dirty #11
+Hardware name: Freescale i.MX53 (Device Tree Support)
+PC is at msm_atomic_commit_tail+0x50/0x970
+LR is at commit_tail+0x9c/0x188
+pc : [<c06aa430>]    lr : [<c067a214>]    psr: 600e0013
+sp : e0851d30  ip : ee4eb7eb  fp : 00090acc
+r10: 00000058  r9 : c2193014  r8 : c4310000
+r7 : c4759380  r6 : 07bef61d  r5 : 00000000  r4 : 00000000
+r3 : c44cc440  r2 : 00000000  r1 : 00000000  r0 : 00000000
+Flags: nZCv  IRQs on  FIQs on  Mode SVC_32  ISA ARM  Segment none
+Control: 10c5387d  Table: 74910019  DAC: 00000051
+Register r0 information: NULL pointer
+Register r1 information: NULL pointer
+Register r2 information: NULL pointer
+Register r3 information: slab kmalloc-1k start c44cc400 pointer offset 64 size 1024
+Register r4 information: NULL pointer
+Register r5 information: NULL pointer
+Register r6 information: non-paged memory
+Register r7 information: slab kmalloc-128 start c4759380 pointer offset 0 size 128
+Register r8 information: slab kmalloc-2k start c4310000 pointer offset 0 size 2048
+Register r9 information: non-slab/vmalloc memory
+Register r10 information: non-paged memory
+Register r11 information: non-paged memory
+Register r12 information: non-paged memory
+Process reboot (pid: 51, stack limit = 0xc80046d9)
+Stack: (0xe0851d30 to 0xe0852000)
+1d20:                                     c4759380 fbd77200 000005ff 002b9c70
+1d40: c4759380 c4759380 00000000 07bef61d 00000600 c0d6fe7c c2193014 00000058
+1d60: 00090acc c067a214 00000000 c4759380 c4310000 00000000 c44cc854 c067a89c
+1d80: 00000000 00000000 00000000 c4310468 00000000 c4759380 c4310000 c4310468
+1da0: c4310470 c0643258 c4759380 00000000 00000000 c0c4ee24 00000000 c44cc810
+1dc0: 00000000 c0c4ee24 00000000 c44cc810 00000000 0347d2a8 e0851e00 e0851e00
+1de0: c4759380 c067ad20 c4310000 00000000 c44cc810 c27f8718 c44cc854 c067adb8
+1e00: c4933000 00000002 00000001 00000000 00000000 c2130850 00000000 c2130854
+1e20: c25fc488 00000000 c0ff162c 00000000 00000001 00000002 00000000 00000000
+1e40: c43102c0 c43102c0 00000000 0347d2a8 c44cc810 c44cc814 c2133da8 c06d1a60
+1e60: 00000000 00000000 00079028 c2012f24 fee1dead c4933000 00000058 c01431e4
+1e80: 01234567 c0143a20 00000000 00000000 00000000 00000000 00000000 00000000
+1ea0: 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000
+1ec0: 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000
+1ee0: 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000
+1f00: 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000
+1f20: 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000
+1f40: 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000
+1f60: 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000
+1f80: 00000000 00000000 00000000 0347d2a8 00000002 00000004 00000078 00000058
+1fa0: c010028c c0100060 00000002 00000004 fee1dead 28121969 01234567 00079028
+1fc0: 00000002 00000004 00000078 00000058 0002fdc5 00000000 00000000 00090acc
+1fe0: 00000058 becc9c64 b6e97e05 b6e0e5f6 600e0030 fee1dead 00000000 00000000
+ msm_atomic_commit_tail from commit_tail+0x9c/0x188
+ commit_tail from drm_atomic_helper_commit+0x160/0x188
+ drm_atomic_helper_commit from drm_atomic_commit+0xac/0xe0
+ drm_atomic_commit from drm_atomic_helper_disable_all+0x1b0/0x1c0
+ drm_atomic_helper_disable_all from drm_atomic_helper_shutdown+0x88/0x140
+ drm_atomic_helper_shutdown from device_shutdown+0x16c/0x240
+ device_shutdown from kernel_restart+0x38/0x90
+ kernel_restart from __do_sys_reboot+0x174/0x224
+ __do_sys_reboot from ret_fast_syscall+0x0/0x1c
+Exception stack(0xe0851fa8 to 0xe0851ff0)
+1fa0:                   00000002 00000004 fee1dead 28121969 01234567 00079028
+1fc0: 00000002 00000004 00000078 00000058 0002fdc5 00000000 00000000 00090acc
+1fe0: 00000058 becc9c64 b6e97e05 b6e0e5f6
+Code: 15922088 1184421c e1500003 1afffff8 (e5953000)
+---[ end trace 0000000000000000 ]---
+
+Fixes: 0a58d2ae572a ("drm/msm: Make .remove and .shutdown HW shutdown consistent")
+Reported-by: kernel test robot <lkp@intel.com>
+Signed-off-by: Dmitry Baryshkov <dmitry.baryshkov@linaro.org>
+Reviewed-by: Rob Clark <robdclark@gmail.com>
+Reviewed-by: Abhinav Kumar <quic_abhinavk@quicinc.com>
+Patchwork: https://patchwork.freedesktop.org/patch/516909/
+Link: https://lore.kernel.org/r/20230105014743.1478110-1-dmitry.baryshkov@linaro.org
+Signed-off-by: Abhinav Kumar <quic_abhinavk@quicinc.com>
+---
+ drivers/gpu/drm/msm/msm_drv.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/msm/msm_drv.c b/drivers/gpu/drm/msm/msm_drv.c
+index cffba9ca7ec24..5737364fbb542 100644
+--- a/drivers/gpu/drm/msm/msm_drv.c
++++ b/drivers/gpu/drm/msm/msm_drv.c
+@@ -1279,7 +1279,7 @@ void msm_drv_shutdown(struct platform_device *pdev)
+ 	 * msm_drm_init, drm_dev->registered is used as an indicator that the
+ 	 * shutdown will be successful.
+ 	 */
+-	if (drm && drm->registered)
++	if (drm && drm->registered && priv->kms)
+ 		drm_atomic_helper_shutdown(drm);
+ }
+ 
+-- 
+cgit 
+
+
+From 13ef096e342b00e30b95a90c6c13eee1f0bec4c5 Mon Sep 17 00:00:00 2001
+From: Konrad Dybcio <konrad.dybcio@linaro.org>
+Date: Mon, 2 Jan 2023 11:02:00 +0100
+Subject: drm/msm/adreno: Make adreno quirks not overwrite each other
+
+So far the adreno quirks have all been assigned with an OR operator,
+which is problematic, because they were assigned consecutive integer
+values, which makes checking them with an AND operator kind of no bueno..
+
+Switch to using BIT(n) so that only the quirks that the programmer chose
+are taken into account when evaluating info->quirks & ADRENO_QUIRK_...
+
+Fixes: 370063ee427a ("drm/msm/adreno: Add A540 support")
+Reviewed-by: Dmitry Baryshkov <dmitry.baryshkov@linaro.org>
+Reviewed-by: Marijn Suijten <marijn.suijten@somainline.org>
+Reviewed-by: Rob Clark <robdclark@gmail.com>
+Signed-off-by: Konrad Dybcio <konrad.dybcio@linaro.org>
+Reviewed-by: Akhil P Oommen <quic_akhilpo@quicinc.com>
+Patchwork: https://patchwork.freedesktop.org/patch/516456/
+Link: https://lore.kernel.org/r/20230102100201.77286-1-konrad.dybcio@linaro.org
+Signed-off-by: Rob Clark <robdclark@chromium.org>
+---
+ drivers/gpu/drm/msm/adreno/adreno_gpu.h | 10 ++++------
+ 1 file changed, 4 insertions(+), 6 deletions(-)
+
+diff --git a/drivers/gpu/drm/msm/adreno/adreno_gpu.h b/drivers/gpu/drm/msm/adreno/adreno_gpu.h
+index 5d4b1c95033ff..b4f9b1343d637 100644
+--- a/drivers/gpu/drm/msm/adreno/adreno_gpu.h
++++ b/drivers/gpu/drm/msm/adreno/adreno_gpu.h
+@@ -29,11 +29,9 @@ enum {
+ 	ADRENO_FW_MAX,
+ };
+ 
+-enum adreno_quirks {
+-	ADRENO_QUIRK_TWO_PASS_USE_WFI = 1,
+-	ADRENO_QUIRK_FAULT_DETECT_MASK = 2,
+-	ADRENO_QUIRK_LMLOADKILL_DISABLE = 3,
+-};
++#define ADRENO_QUIRK_TWO_PASS_USE_WFI		BIT(0)
++#define ADRENO_QUIRK_FAULT_DETECT_MASK		BIT(1)
++#define ADRENO_QUIRK_LMLOADKILL_DISABLE		BIT(2)
+ 
+ struct adreno_rev {
+ 	uint8_t  core;
+@@ -65,7 +63,7 @@ struct adreno_info {
+ 	const char *name;
+ 	const char *fw[ADRENO_FW_MAX];
+ 	uint32_t gmem;
+-	enum adreno_quirks quirks;
++	u64 quirks;
+ 	struct msm_gpu *(*init)(struct drm_device *dev);
+ 	const char *zapfw;
+ 	u32 inactive_period;
+-- 
+cgit 
+
+
+From f4a75b5933c998e60fd812a7680e0971eb1c7cee Mon Sep 17 00:00:00 2001
+From: Akhil P Oommen <quic_akhilpo@quicinc.com>
+Date: Fri, 16 Dec 2022 22:33:14 +0530
+Subject: drm/msm/a6xx: Avoid gx gbit halt during rpm suspend
+
+As per the downstream driver, gx gbif halt is required only during
+recovery sequence. So lets avoid it during regular rpm suspend.
+
+Signed-off-by: Akhil P Oommen <quic_akhilpo@quicinc.com>
+Patchwork: https://patchwork.freedesktop.org/patch/515279/
+Link: https://lore.kernel.org/r/20221216223253.1.Ice9c47bfeb1fddb8dc377a3491a043a3ee7fca7d@changeid
+Signed-off-by: Rob Clark <robdclark@chromium.org>
+---
+ drivers/gpu/drm/msm/adreno/a6xx_gmu.c | 15 +++++++++------
+ drivers/gpu/drm/msm/adreno/a6xx_gpu.c |  7 +++++++
+ drivers/gpu/drm/msm/adreno/a6xx_gpu.h |  1 +
+ 3 files changed, 17 insertions(+), 6 deletions(-)
+
+diff --git a/drivers/gpu/drm/msm/adreno/a6xx_gmu.c b/drivers/gpu/drm/msm/adreno/a6xx_gmu.c
+index 6484b97c5344f..f3c9600221d48 100644
+--- a/drivers/gpu/drm/msm/adreno/a6xx_gmu.c
++++ b/drivers/gpu/drm/msm/adreno/a6xx_gmu.c
+@@ -876,7 +876,8 @@ static void a6xx_gmu_rpmh_off(struct a6xx_gmu *gmu)
+ #define GBIF_CLIENT_HALT_MASK             BIT(0)
+ #define GBIF_ARB_HALT_MASK                BIT(1)
+ 
+-static void a6xx_bus_clear_pending_transactions(struct adreno_gpu *adreno_gpu)
++static void a6xx_bus_clear_pending_transactions(struct adreno_gpu *adreno_gpu,
++		bool gx_off)
+ {
+ 	struct msm_gpu *gpu = &adreno_gpu->base;
+ 
+@@ -889,9 +890,11 @@ static void a6xx_bus_clear_pending_transactions(struct adreno_gpu *adreno_gpu)
+ 		return;
+ 	}
+ 
+-	/* Halt the gx side of GBIF */
+-	gpu_write(gpu, REG_A6XX_RBBM_GBIF_HALT, 1);
+-	spin_until(gpu_read(gpu, REG_A6XX_RBBM_GBIF_HALT_ACK) & 1);
++	if (gx_off) {
++		/* Halt the gx side of GBIF */
++		gpu_write(gpu, REG_A6XX_RBBM_GBIF_HALT, 1);
++		spin_until(gpu_read(gpu, REG_A6XX_RBBM_GBIF_HALT_ACK) & 1);
++	}
+ 
+ 	/* Halt new client requests on GBIF */
+ 	gpu_write(gpu, REG_A6XX_GBIF_HALT, GBIF_CLIENT_HALT_MASK);
+@@ -929,7 +932,7 @@ static void a6xx_gmu_force_off(struct a6xx_gmu *gmu)
+ 	/* Halt the gmu cm3 core */
+ 	gmu_write(gmu, REG_A6XX_GMU_CM3_SYSRESET, 1);
+ 
+-	a6xx_bus_clear_pending_transactions(adreno_gpu);
++	a6xx_bus_clear_pending_transactions(adreno_gpu, true);
+ 
+ 	/* Reset GPU core blocks */
+ 	gpu_write(gpu, REG_A6XX_RBBM_SW_RESET_CMD, 1);
+@@ -1083,7 +1086,7 @@ static void a6xx_gmu_shutdown(struct a6xx_gmu *gmu)
+ 			return;
+ 		}
+ 
+-		a6xx_bus_clear_pending_transactions(adreno_gpu);
++		a6xx_bus_clear_pending_transactions(adreno_gpu, a6xx_gpu->hung);
+ 
+ 		/* tell the GMU we want to slumber */
+ 		ret = a6xx_gmu_notify_slumber(gmu);
+diff --git a/drivers/gpu/drm/msm/adreno/a6xx_gpu.c b/drivers/gpu/drm/msm/adreno/a6xx_gpu.c
+index e87196457b9aa..33bba81d5a22b 100644
+--- a/drivers/gpu/drm/msm/adreno/a6xx_gpu.c
++++ b/drivers/gpu/drm/msm/adreno/a6xx_gpu.c
+@@ -1277,6 +1277,12 @@ static void a6xx_recover(struct msm_gpu *gpu)
+ 	if (hang_debug)
+ 		a6xx_dump(gpu);
+ 
++	/*
++	 * To handle recovery specific sequences during the rpm suspend we are
++	 * about to trigger
++	 */
++	a6xx_gpu->hung = true;
++
+ 	/* Halt SQE first */
+ 	gpu_write(gpu, REG_A6XX_CP_SQE_CNTL, 3);
+ 
+@@ -1319,6 +1325,7 @@ static void a6xx_recover(struct msm_gpu *gpu)
+ 	mutex_unlock(&gpu->active_lock);
+ 
+ 	msm_gpu_hw_init(gpu);
++	a6xx_gpu->hung = false;
+ }
+ 
+ static const char *a6xx_uche_fault_block(struct msm_gpu *gpu, u32 mid)
+diff --git a/drivers/gpu/drm/msm/adreno/a6xx_gpu.h b/drivers/gpu/drm/msm/adreno/a6xx_gpu.h
+index ab853f61db632..eea2e60ce3b7b 100644
+--- a/drivers/gpu/drm/msm/adreno/a6xx_gpu.h
++++ b/drivers/gpu/drm/msm/adreno/a6xx_gpu.h
+@@ -32,6 +32,7 @@ struct a6xx_gpu {
+ 	void *llc_slice;
+ 	void *htw_llc_slice;
+ 	bool have_mmu500;
++	bool hung;
+ };
+ 
+ #define to_a6xx_gpu(x) container_of(x, struct a6xx_gpu, base)
+-- 
+cgit 
+

@@ -1,0 +1,38 @@
+From 86bdfa267a222c85f95664208e039b94e2ac913b Mon Sep 17 00:00:00 2001
+From: Takashi Sakamoto <o-takashi@sakamocchi.jp>
+Date: Thu, 9 Feb 2023 09:25:48 +0900
+Subject: ALSA: ppc: fix unused function local variable
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+The function local variable is not used anymore, while it is left.
+
+This commit deletes it.
+
+Fixes: 25a5a77ae0bc ("ALSA: core: Make snd_card_free() return void")
+Reported-by: Stephen Rothwell <sfr@canb.auug.org.au>
+Link: https://lore.kernel.org/r/20230209104823.45899e76@canb.auug.org.au/
+Cc: Uwe Kleine-König <u.kleine-koenig@pengutronix.de>
+Signed-off-by: Takashi Sakamoto <o-takashi@sakamocchi.jp>
+Link: https://lore.kernel.org/r/20230209002548.94496-1-o-takashi@sakamocchi.jp
+Signed-off-by: Takashi Iwai <tiwai@suse.de>
+---
+ sound/ppc/snd_ps3.c | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/sound/ppc/snd_ps3.c b/sound/ppc/snd_ps3.c
+index 8d349231205e7..a6cff2c46ac7e 100644
+--- a/sound/ppc/snd_ps3.c
++++ b/sound/ppc/snd_ps3.c
+@@ -1046,7 +1046,6 @@ clean_open:
+ /* called when module removal */
+ static void snd_ps3_driver_remove(struct ps3_system_bus_device *dev)
+ {
+-	int ret;
+ 	pr_info("%s:start id=%d\n", __func__,  dev->match_id);
+ 
+ 	/*
+-- 
+cgit 
+

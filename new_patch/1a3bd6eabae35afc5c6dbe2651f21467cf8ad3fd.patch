@@ -1,0 +1,39 @@
+From 1a3bd6eabae35afc5c6dbe2651f21467cf8ad3fd Mon Sep 17 00:00:00 2001
+From: Xuan Zhuo <xuanzhuo@linux.alibaba.com>
+Date: Wed, 15 Mar 2023 09:52:23 +0800
+Subject: virtio_net: free xdp shinfo frags when build_skb_from_xdp_buff()
+ fails
+
+build_skb_from_xdp_buff() may return NULL, in this case
+we need to free the frags of xdp shinfo.
+
+Fixes: fab89bafa95b ("virtio-net: support multi-buffer xdp")
+Signed-off-by: Xuan Zhuo <xuanzhuo@linux.alibaba.com>
+Acked-by: Michael S. Tsirkin <mst@redhat.com>
+Reviewed-by: Yunsheng Lin <linyunsheng@huawei.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ drivers/net/virtio_net.c | 5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/net/virtio_net.c b/drivers/net/virtio_net.c
+index 8ecf7a341d543..2396c28c01221 100644
+--- a/drivers/net/virtio_net.c
++++ b/drivers/net/virtio_net.c
+@@ -1273,9 +1273,12 @@ static struct sk_buff *receive_mergeable(struct net_device *dev,
+ 
+ 		switch (act) {
+ 		case XDP_PASS:
++			head_skb = build_skb_from_xdp_buff(dev, vi, &xdp, xdp_frags_truesz);
++			if (unlikely(!head_skb))
++				goto err_xdp_frags;
++
+ 			if (unlikely(xdp_page != page))
+ 				put_page(page);
+-			head_skb = build_skb_from_xdp_buff(dev, vi, &xdp, xdp_frags_truesz);
+ 			rcu_read_unlock();
+ 			return head_skb;
+ 		case XDP_TX:
+-- 
+cgit 
+

@@ -1,0 +1,32 @@
+From 2ffd04ca2ae66c274eb116d5f0330af14cb63383 Mon Sep 17 00:00:00 2001
+From: Andy Shevchenko <andriy.shevchenko@linux.intel.com>
+Date: Tue, 14 Mar 2023 12:55:09 +0200
+Subject: gpio: mm-lantiq: Fix typo in the newly added header filename
+
+The header with legacy struct of_mmio_gpio_chip and accompanying
+APIs is called legacy-of-mm-gpiochip.h. Remove repetitive '.h'
+at the end.
+
+Fixes: a99cc66807d6 ("gpiolib: split of_mm_gpio_chip out of linux/of_gpio.h")
+Reported-by: kernel test robot <lkp@intel.com>
+Signed-off-by: Andy Shevchenko <andriy.shevchenko@linux.intel.com>
+---
+ drivers/gpio/gpio-mm-lantiq.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/gpio/gpio-mm-lantiq.c b/drivers/gpio/gpio-mm-lantiq.c
+index 27ff84c5d1626..f3c1582596368 100644
+--- a/drivers/gpio/gpio-mm-lantiq.c
++++ b/drivers/gpio/gpio-mm-lantiq.c
+@@ -10,7 +10,7 @@
+ #include <linux/platform_device.h>
+ #include <linux/mutex.h>
+ #include <linux/gpio/driver.h>
+-#include <linux/gpio/legacy-of-mm-gpiochip.h.h>
++#include <linux/gpio/legacy-of-mm-gpiochip.h>
+ #include <linux/of.h>
+ #include <linux/io.h>
+ #include <linux/slab.h>
+-- 
+cgit 
+

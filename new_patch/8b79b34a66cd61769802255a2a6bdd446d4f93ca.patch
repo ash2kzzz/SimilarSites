@@ -1,0 +1,35 @@
+From 8b79b34a66cd61769802255a2a6bdd446d4f93ca Mon Sep 17 00:00:00 2001
+From: Stanislav Fomichev <sdf@google.com>
+Date: Wed, 1 Feb 2023 15:36:40 -0800
+Subject: selftests/bpf: Don't refill on completion in xdp_metadata
+
+We only need to consume TX completion instead of refilling 'fill' ring.
+It's currently not an issue because we never RX more than 8 packets.
+
+Fixes: e2a46d54d7a1 ("selftests/bpf: Verify xdp_metadata xdp->af_xdp path")
+Signed-off-by: Stanislav Fomichev <sdf@google.com>
+Signed-off-by: Daniel Borkmann <daniel@iogearbox.net>
+Link: https://lore.kernel.org/bpf/20230201233640.367646-1-sdf@google.com
+---
+ tools/testing/selftests/bpf/prog_tests/xdp_metadata.c | 5 ++---
+ 1 file changed, 2 insertions(+), 3 deletions(-)
+
+diff --git a/tools/testing/selftests/bpf/prog_tests/xdp_metadata.c b/tools/testing/selftests/bpf/prog_tests/xdp_metadata.c
+index 241909d71c7e3..aa4beae99f4f6 100644
+--- a/tools/testing/selftests/bpf/prog_tests/xdp_metadata.c
++++ b/tools/testing/selftests/bpf/prog_tests/xdp_metadata.c
+@@ -205,9 +205,8 @@ static void complete_tx(struct xsk *xsk)
+ 	if (ASSERT_EQ(xsk_ring_cons__peek(&xsk->comp, 1, &idx), 1, "xsk_ring_cons__peek")) {
+ 		addr = *xsk_ring_cons__comp_addr(&xsk->comp, idx);
+ 
+-		printf("%p: refill idx=%u addr=%llx\n", xsk, idx, addr);
+-		*xsk_ring_prod__fill_addr(&xsk->fill, idx) = addr;
+-		xsk_ring_prod__submit(&xsk->fill, 1);
++		printf("%p: complete tx idx=%u addr=%llx\n", xsk, idx, addr);
++		xsk_ring_cons__release(&xsk->comp, 1);
+ 	}
+ }
+ 
+-- 
+cgit 
+

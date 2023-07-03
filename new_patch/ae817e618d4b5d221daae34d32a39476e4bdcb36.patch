@@ -1,0 +1,54 @@
+From ae817e618d4b5d221daae34d32a39476e4bdcb36 Mon Sep 17 00:00:00 2001
+From: David Arcari <darcari@redhat.com>
+Date: Thu, 30 Mar 2023 09:42:18 -0400
+Subject: thermal: intel: powerclamp: Fix cpumask and max_idle module
+ parameters
+
+When cpumask is specified as a module parameter the value is
+overwritten by the module init routine.  This can easily be fixed
+by checking to see if the mask has already been allocated in the
+init routine.
+
+When max_idle is specified as a module parameter a panic will occur.
+The problem is that the idle_injection_cpu_mask is not allocated until
+the module init routine executes. This can easily be fixed by allocating
+the cpumask if it's not already allocated.
+
+Fixes: ebf519710218 ("thermal: intel: powerclamp: Add two module parameters")
+Signed-off-by: David Arcari <darcari@redhat.com>
+Reviewed-by: Srinivas Pandruvada<srinivas.pandruvada@linux.intel.com>
+Signed-off-by: Rafael J. Wysocki <rafael.j.wysocki@intel.com>
+---
+ drivers/thermal/intel/intel_powerclamp.c | 9 ++++++++-
+ 1 file changed, 8 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/thermal/intel/intel_powerclamp.c b/drivers/thermal/intel/intel_powerclamp.c
+index c7ba5680cd483..91fc7e2394971 100644
+--- a/drivers/thermal/intel/intel_powerclamp.c
++++ b/drivers/thermal/intel/intel_powerclamp.c
+@@ -235,6 +235,12 @@ static int max_idle_set(const char *arg, const struct kernel_param *kp)
+ 		goto skip_limit_set;
+ 	}
+ 
++	if (!cpumask_available(idle_injection_cpu_mask)) {
++		ret = allocate_copy_idle_injection_mask(cpu_present_mask);
++		if (ret)
++			goto skip_limit_set;
++	}
++
+ 	if (check_invalid(idle_injection_cpu_mask, new_max_idle)) {
+ 		ret = -EINVAL;
+ 		goto skip_limit_set;
+@@ -791,7 +797,8 @@ static int __init powerclamp_init(void)
+ 		return retval;
+ 
+ 	mutex_lock(&powerclamp_lock);
+-	retval = allocate_copy_idle_injection_mask(cpu_present_mask);
++	if (!cpumask_available(idle_injection_cpu_mask))
++		retval = allocate_copy_idle_injection_mask(cpu_present_mask);
+ 	mutex_unlock(&powerclamp_lock);
+ 
+ 	if (retval)
+-- 
+cgit 
+

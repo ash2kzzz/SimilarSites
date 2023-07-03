@@ -1,0 +1,31 @@
+From 052750a4444577e6067bdf73dd5ff92876f59ef6 Mon Sep 17 00:00:00 2001
+From: Jianhua Lu <lujianhua000@gmail.com>
+Date: Tue, 21 Feb 2023 20:36:33 +0800
+Subject: arm64: dts: qcom: sm8250-xiaomi-elish: Correct venus firmware path
+
+Missing vendor name for venus firmware path. Add it.
+
+Fixes: a41b617530bf ("arm64: dts: qcom: sm8250: Add device tree for Xiaomi Mi Pad 5 Pro")
+Signed-off-by: Jianhua Lu <lujianhua000@gmail.com>
+Reviewed-by: Konrad Dybcio <konrad.dybcio@linaro.org>
+Signed-off-by: Bjorn Andersson <andersson@kernel.org>
+Link: https://lore.kernel.org/r/20230221123633.25145-1-lujianhua000@gmail.com
+---
+ arch/arm64/boot/dts/qcom/sm8250-xiaomi-elish.dts | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/arch/arm64/boot/dts/qcom/sm8250-xiaomi-elish.dts b/arch/arm64/boot/dts/qcom/sm8250-xiaomi-elish.dts
+index acaa99c5ff8b1..a85d47f7a9e82 100644
+--- a/arch/arm64/boot/dts/qcom/sm8250-xiaomi-elish.dts
++++ b/arch/arm64/boot/dts/qcom/sm8250-xiaomi-elish.dts
+@@ -625,6 +625,6 @@
+ };
+ 
+ &venus {
+-	firmware-name = "qcom/sm8250/elish/venus.mbn";
++	firmware-name = "qcom/sm8250/xiaomi/elish/venus.mbn";
+ 	status = "okay";
+ };
+-- 
+cgit 
+

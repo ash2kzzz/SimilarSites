@@ -1,0 +1,41 @@
+From 95a9359ee22ff2efbad6b090fcfa3a97f5902f95 Mon Sep 17 00:00:00 2001
+From: Peter Ujfalusi <peter.ujfalusi@linux.intel.com>
+Date: Wed, 17 May 2023 15:29:31 +0300
+Subject: tpm: tpm_tis: Disable interrupts for AEON UPX-i11
+
+Interrupts got recently enabled for tpm_tis.
+
+The interrupts initially works on the device but they will stop arriving
+after circa ~200 interrupts. On system reboot/shutdown this will cause a
+long wait (120000 jiffies).
+
+[jarkko@kernel.org: fix a merge conflict and adjust the commit message]
+Fixes: e644b2f498d2 ("tpm, tpm_tis: Enable interrupt test")
+Signed-off-by: Peter Ujfalusi <peter.ujfalusi@linux.intel.com>
+Reviewed-by: Jarkko Sakkinen <jarkko@kernel.org>
+Signed-off-by: Jarkko Sakkinen <jarkko@kernel.org>
+---
+ drivers/char/tpm/tpm_tis.c | 7 +++++++
+ 1 file changed, 7 insertions(+)
+
+diff --git a/drivers/char/tpm/tpm_tis.c b/drivers/char/tpm/tpm_tis.c
+index 709b4e13bd6ec..7db3593941eaa 100644
+--- a/drivers/char/tpm/tpm_tis.c
++++ b/drivers/char/tpm/tpm_tis.c
+@@ -138,6 +138,13 @@ static const struct dmi_system_id tpm_tis_dmi_table[] = {
+ 			DMI_MATCH(DMI_PRODUCT_VERSION, "ThinkPad L490"),
+ 		},
+ 	},
++	{
++		.callback = tpm_tis_disable_irq,
++		.ident = "UPX-TGL",
++		.matches = {
++			DMI_MATCH(DMI_SYS_VENDOR, "AAEON"),
++		},
++	},
+ 	{}
+ };
+ 
+-- 
+cgit 
+

@@ -1,0 +1,43 @@
+From d59655d3c014fd08896b01a4602bbd8ee67db944 Mon Sep 17 00:00:00 2001
+From: Devi Priya <quic_devipriy@quicinc.com>
+Date: Mon, 17 Apr 2023 11:43:37 +0530
+Subject: dt-bindings: pinctrl: qcom: Add few missing functions
+
+Added the missing functions cri_trng2, gpio and removed the
+duplicate entry qdss_tracedata_b
+
+Fixes: 5b63ccb69ee8 ("dt-bindings: pinctrl: qcom: Add support for IPQ9574")
+Acked-by: Krzysztof Kozlowski <krzysztof.kozlowski@linaro.org>
+Signed-off-by: Devi Priya <quic_devipriy@quicinc.com>
+Link: https://lore.kernel.org/r/20230417061337.6552-1-quic_devipriy@quicinc.com
+Signed-off-by: Linus Walleij <linus.walleij@linaro.org>
+---
+ Documentation/devicetree/bindings/pinctrl/qcom,ipq9574-tlmm.yaml | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/Documentation/devicetree/bindings/pinctrl/qcom,ipq9574-tlmm.yaml b/Documentation/devicetree/bindings/pinctrl/qcom,ipq9574-tlmm.yaml
+index f32239d08c32a..673713debac28 100644
+--- a/Documentation/devicetree/bindings/pinctrl/qcom,ipq9574-tlmm.yaml
++++ b/Documentation/devicetree/bindings/pinctrl/qcom,ipq9574-tlmm.yaml
+@@ -74,15 +74,15 @@ $defs:
+                 blsp1_i2c, blsp1_spi, blsp1_uart, blsp2_i2c, blsp2_spi,
+                 blsp2_uart, blsp3_i2c, blsp3_spi, blsp3_uart, blsp4_i2c,
+                 blsp4_spi, blsp4_uart, blsp5_i2c, blsp5_uart, cri_trng0,
+-                cri_trng1, cri_trng3, cxc0, cxc1, dbg_out, dwc_ddrphy,
+-                gcc_plltest, gcc_tlmm, mac, mdc, mdio, pcie0_clk, pcie0_wake,
++                cri_trng1, cri_trng2, cri_trng3, cxc0, cxc1, dbg_out, dwc_ddrphy,
++                gcc_plltest, gcc_tlmm, gpio, mac, mdc, mdio, pcie0_clk, pcie0_wake,
+                 pcie1_clk, pcie1_wake, pcie2_clk, pcie2_wake, pcie3_clk, pcie3_wake,
+                 prng_rosc0, prng_rosc1, prng_rosc2, prng_rosc3, pta, pwm,
+                 qdss_cti_trig_in_a0, qdss_cti_trig_in_a1, qdss_cti_trig_in_b0,
+                 qdss_cti_trig_in_b1, qdss_cti_trig_out_a0, qdss_cti_trig_out_a1,
+                 qdss_cti_trig_out_b0, qdss_cti_trig_out_b1, qdss_traceclk_a,
+                 qdss_traceclk_b, qdss_tracectl_a, qdss_tracectl_b, qdss_tracedata_a,
+-                qdss_tracedata_b, qdss_tracedata_b, qspi_clk, qspi_cs, qspi_data,
++                qdss_tracedata_b, qspi_clk, qspi_cs, qspi_data,
+                 rx0, rx1, sdc_clk, sdc_cmd, sdc_data, sdc_rclk, tsens_max,
+                 wci20, wci21, wsa_swrm ]
+ 
+-- 
+cgit 
+

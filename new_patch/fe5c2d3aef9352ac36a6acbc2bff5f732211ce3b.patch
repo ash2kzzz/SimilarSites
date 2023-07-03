@@ -1,0 +1,38 @@
+From fe5c2d3aef9352ac36a6acbc2bff5f732211ce3b Mon Sep 17 00:00:00 2001
+From: Yevgeny Kliteynik <kliteyn@nvidia.com>
+Date: Wed, 17 May 2023 17:54:30 +0300
+Subject: net/mlx5: DR, Add missing mutex init/destroy in pattern manager
+
+Add missing mutex init/destroy as caught by the lock's debug warning:
+ DEBUG_LOCKS_WARN_ON(lock->magic != lock)
+
+Fixes: da5d0027d666 ("net/mlx5: DR, Add cache for modify header pattern")
+Signed-off-by: Yevgeny Kliteynik <kliteyn@nvidia.com>
+Signed-off-by: Saeed Mahameed <saeedm@nvidia.com>
+---
+ drivers/net/ethernet/mellanox/mlx5/core/steering/dr_ptrn.c | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/drivers/net/ethernet/mellanox/mlx5/core/steering/dr_ptrn.c b/drivers/net/ethernet/mellanox/mlx5/core/steering/dr_ptrn.c
+index 13e06a6a6b22a..d6947fe13d560 100644
+--- a/drivers/net/ethernet/mellanox/mlx5/core/steering/dr_ptrn.c
++++ b/drivers/net/ethernet/mellanox/mlx5/core/steering/dr_ptrn.c
+@@ -213,6 +213,8 @@ struct mlx5dr_ptrn_mgr *mlx5dr_ptrn_mgr_create(struct mlx5dr_domain *dmn)
+ 	}
+ 
+ 	INIT_LIST_HEAD(&mgr->ptrn_list);
++	mutex_init(&mgr->modify_hdr_mutex);
++
+ 	return mgr;
+ 
+ free_mgr:
+@@ -237,5 +239,6 @@ void mlx5dr_ptrn_mgr_destroy(struct mlx5dr_ptrn_mgr *mgr)
+ 	}
+ 
+ 	mlx5dr_icm_pool_destroy(mgr->ptrn_icm_pool);
++	mutex_destroy(&mgr->modify_hdr_mutex);
+ 	kfree(mgr);
+ }
+-- 
+cgit 
+

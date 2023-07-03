@@ -1,0 +1,37 @@
+From 8f0edf45bb676ec3558d6b668ad3f6a7d54cf601 Mon Sep 17 00:00:00 2001
+From: Keith Busch <kbusch@kernel.org>
+Date: Fri, 10 Feb 2023 10:03:46 -0800
+Subject: nvme-pci: fix freeing single sgl
+
+There may only be a single DMA mapped entry from multiple physical
+segments, which means we don't allocate a separte SGL list. Check the
+number of allocations prior to know if we need to free something.
+
+Freeing a single list allocation is the same for both PRP and SGL
+usages, so we don't need to check the use_sgl flag anymore.
+
+Fixes: 01df742d8c5c0 ("nvme-pci: remove SGL segment descriptors")
+Reported-by: Niklas Schnelle <schnelle@linux.ibm.com>
+Signed-off-by: Keith Busch <kbusch@kernel.org>
+Signed-off-by: Christoph Hellwig <hch@lst.de>
+Tested-by: Niklas Schnelle <schnelle@linux.ibm.com>
+---
+ drivers/nvme/host/pci.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/nvme/host/pci.c b/drivers/nvme/host/pci.c
+index a331fbfa9a667..47d6b0023e3a8 100644
+--- a/drivers/nvme/host/pci.c
++++ b/drivers/nvme/host/pci.c
+@@ -556,7 +556,7 @@ static void nvme_unmap_data(struct nvme_dev *dev, struct request *req)
+ 	if (iod->nr_allocations == 0)
+ 		dma_pool_free(dev->prp_small_pool, iod->list[0].sg_list,
+ 			      iod->first_dma);
+-	else if (iod->use_sgl)
++	else if (iod->nr_allocations == 1)
+ 		dma_pool_free(dev->prp_page_pool, iod->list[0].sg_list,
+ 			      iod->first_dma);
+ 	else
+-- 
+cgit 
+

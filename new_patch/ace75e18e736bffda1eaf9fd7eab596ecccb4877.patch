@@ -1,0 +1,72 @@
+From ace75e18e736bffda1eaf9fd7eab596ecccb4877 Mon Sep 17 00:00:00 2001
+From: Mika Westerberg <mika.westerberg@linux.intel.com>
+Date: Mon, 23 Jan 2023 08:28:20 +0200
+Subject: thunderbolt: Handle bandwidth allocation mode enablement notification
+
+When the graphics side enables bandwidth allocation mode the DP IN
+adapter sends notification to the connection manager about this.
+Currently the handler misses this and tries to allocate 0 Mb/s that then
+makes the graphics side to think the request failed.
+
+Fix this by properly handling the enablement notification.
+
+Fixes: 6ce3563520be ("thunderbolt: Add support for DisplayPort bandwidth allocation mode")
+Signed-off-by: Mika Westerberg <mika.westerberg@linux.intel.com>
+---
+ drivers/thunderbolt/tb.c   | 10 +++++++---
+ drivers/thunderbolt/usb4.c |  7 ++++---
+ 2 files changed, 11 insertions(+), 6 deletions(-)
+
+diff --git a/drivers/thunderbolt/tb.c b/drivers/thunderbolt/tb.c
+index cdd1daaa5da11..bd5d119d7f641 100644
+--- a/drivers/thunderbolt/tb.c
++++ b/drivers/thunderbolt/tb.c
+@@ -1746,11 +1746,15 @@ static void tb_handle_dp_bandwidth_request(struct work_struct *work)
+ 		goto unlock;
+ 	}
+ 
+-	requested_bw = usb4_dp_port_requested_bw(in);
+-	if (requested_bw < 0) {
+-		tb_port_dbg(in, "no bandwidth request active\n");
++	ret = usb4_dp_port_requested_bw(in);
++	if (ret < 0) {
++		if (ret == -ENODATA)
++			tb_port_dbg(in, "no bandwidth request active\n");
++		else
++			tb_port_warn(in, "failed to read requested bandwidth\n");
+ 		goto unlock;
+ 	}
++	requested_bw = ret;
+ 
+ 	tb_port_dbg(in, "requested bandwidth %d Mb/s\n", requested_bw);
+ 
+diff --git a/drivers/thunderbolt/usb4.c b/drivers/thunderbolt/usb4.c
+index 2a9266fb5c0f0..1e5e9c147a310 100644
+--- a/drivers/thunderbolt/usb4.c
++++ b/drivers/thunderbolt/usb4.c
+@@ -2732,7 +2732,8 @@ int usb4_dp_port_allocate_bw(struct tb_port *port, int bw)
+  * Reads the DPCD (graphics driver) requested bandwidth and returns it
+  * in Mb/s. Takes the programmed granularity into account. In case of
+  * error returns negative errno. Specifically returns %-EOPNOTSUPP if
+- * the adapter does not support bandwidth allocation mode.
++ * the adapter does not support bandwidth allocation mode, and %ENODATA
++ * if there is no active bandwidth request from the graphics driver.
+  */
+ int usb4_dp_port_requested_bw(struct tb_port *port)
+ {
+@@ -2750,10 +2751,10 @@ int usb4_dp_port_requested_bw(struct tb_port *port)
+ 	ret = tb_port_read(port, &val, TB_CFG_PORT,
+ 			   port->cap_adap + ADP_DP_CS_8, 1);
+ 	if (ret)
+-		return 0;
++		return ret;
+ 
+ 	if (!(val & ADP_DP_CS_8_DR))
+-		return 0;
++		return -ENODATA;
+ 
+ 	return (val & ADP_DP_CS_8_REQUESTED_BW_MASK) * granularity;
+ }
+-- 
+cgit 
+

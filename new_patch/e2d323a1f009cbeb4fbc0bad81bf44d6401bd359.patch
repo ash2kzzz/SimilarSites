@@ -1,0 +1,45 @@
+From e2d323a1f009cbeb4fbc0bad81bf44d6401bd359 Mon Sep 17 00:00:00 2001
+From: Bagas Sanjaya <bagasdotme@gmail.com>
+Date: Wed, 15 Feb 2023 19:32:52 +0700
+Subject: Documentation: bpf: Add missing line break separator in node_data
+ struct code block
+
+Stephen Rothwell reported htmldocs warning when merging bpf-next tree,
+which was the same warning as reported by kernel test robot:
+
+Documentation/bpf/graph_ds_impl.rst:62: ERROR: Error in "code-block" directive:
+maximum 1 argument(s) allowed, 12 supplied.
+
+The error is due to Sphinx confuses node_data struct declaration with
+code-block directive option.
+
+Fix the warning by separating the code-block marker with node_data struct
+declaration.
+
+Link: https://lore.kernel.org/linux-next/20230215144505.4751d823@canb.auug.org.au/
+Link: https://lore.kernel.org/linux-doc/202302151123.wUE5FYFx-lkp@intel.com/
+Fixes: c31315c3aa0929 ("bpf, documentation: Add graph documentation for non-owning refs")
+Reported-by: Stephen Rothwell <sfr@canb.auug.org.au>
+Reported-by: kernel test robot <lkp@intel.com>
+Signed-off-by: Bagas Sanjaya <bagasdotme@gmail.com>
+Link: https://lore.kernel.org/r/20230215123253.41552-3-bagasdotme@gmail.com
+Signed-off-by: Alexei Starovoitov <ast@kernel.org>
+---
+ Documentation/bpf/graph_ds_impl.rst | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/Documentation/bpf/graph_ds_impl.rst b/Documentation/bpf/graph_ds_impl.rst
+index 8bbf1815efe78..61274622b71d8 100644
+--- a/Documentation/bpf/graph_ds_impl.rst
++++ b/Documentation/bpf/graph_ds_impl.rst
+@@ -60,6 +60,7 @@ The new-style data structures are intrusive and are defined similarly to their
+ vanilla kernel counterparts:
+ 
+ .. code-block:: c
++
+         struct node_data {
+           long key;
+           long data;
+-- 
+cgit 
+

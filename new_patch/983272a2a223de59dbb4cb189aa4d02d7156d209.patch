@@ -1,0 +1,38 @@
+From 983272a2a223de59dbb4cb189aa4d02d7156d209 Mon Sep 17 00:00:00 2001
+From: Tom Rix <trix@redhat.com>
+Date: Sat, 4 Feb 2023 17:57:33 -0800
+Subject: ASoC: codecs: aw88395: initialize cur_scene_id to 0
+
+cppcheck reports
+sound/soc/codecs/aw88395/aw88395_lib.c:789:6: error: Uninitialized variable: cur_scene_id [uninitvar]
+ if (cur_scene_id == 0) {
+     ^
+
+Passing a garbage value to aw_dev_parse_data_by_sec_type_v1() will cause a crash
+when the value is used as an array index.  This check assumes cur_scene_id is
+initialized to 0, so initialize it to 0.
+
+Fixes: 4345865b003b ("ASoC: codecs: ACF bin parsing and check library file for aw88395")
+Signed-off-by: Tom Rix <trix@redhat.com>
+Link: https://lore.kernel.org/r/20230205015733.1721009-1-trix@redhat.com
+Signed-off-by: Mark Brown <broonie@kernel.org>
+---
+ sound/soc/codecs/aw88395/aw88395_lib.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/sound/soc/codecs/aw88395/aw88395_lib.c b/sound/soc/codecs/aw88395/aw88395_lib.c
+index 64dde972f3f0b..d7c31a202adc7 100644
+--- a/sound/soc/codecs/aw88395/aw88395_lib.c
++++ b/sound/soc/codecs/aw88395/aw88395_lib.c
+@@ -769,7 +769,7 @@ static int aw_dev_parse_dev_type_v1(struct aw_device *aw_dev,
+ {
+ 	struct aw_cfg_dde_v1 *cfg_dde =
+ 		(struct aw_cfg_dde_v1 *)((char *)prof_hdr + prof_hdr->hdr_offset);
+-	int cur_scene_id;
++	int cur_scene_id = 0;
+ 	unsigned int i;
+ 	int ret;
+ 
+-- 
+cgit 
+

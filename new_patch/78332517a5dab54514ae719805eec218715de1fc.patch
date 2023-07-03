@@ -1,0 +1,57 @@
+From 78332517a5dab54514ae719805eec218715de1fc Mon Sep 17 00:00:00 2001
+From: Jing Zhang <jingzhangos@google.com>
+Date: Tue, 17 Jan 2023 14:27:07 -0800
+Subject: KVM: selftests: Stop assuming stats are contiguous in
+ kvm_binary_stats_test
+
+Remove the assumption from kvm_binary_stats_test that all stats are
+laid out contiguously in memory. The current stats in KVM are
+contiguously laid out in memory, but that may change in the future and
+the ABI specifically allows holes in the stats data (since each stat
+exposes its own offset).
+
+While here drop the check that each stats' offset is less than
+size_data, as that is now always true by construction.
+
+Link: https://lore.kernel.org/kvm/20221208193857.4090582-9-dmatlack@google.com/
+Fixes: 0b45d58738cd ("KVM: selftests: Add selftest for KVM statistics data binary interface")
+Signed-off-by: Jing Zhang <jingzhangos@google.com>
+[dmatlack: Re-worded the commit message.]
+Signed-off-by: David Matlack <dmatlack@google.com>
+Link: https://lore.kernel.org/r/20230117222707.3949974-1-dmatlack@google.com
+Signed-off-by: Sean Christopherson <seanjc@google.com>
+---
+ tools/testing/selftests/kvm/kvm_binary_stats_test.c | 10 +---------
+ 1 file changed, 1 insertion(+), 9 deletions(-)
+
+diff --git a/tools/testing/selftests/kvm/kvm_binary_stats_test.c b/tools/testing/selftests/kvm/kvm_binary_stats_test.c
+index 894417c96f701..a7001e29dc06a 100644
+--- a/tools/testing/selftests/kvm/kvm_binary_stats_test.c
++++ b/tools/testing/selftests/kvm/kvm_binary_stats_test.c
+@@ -134,7 +134,7 @@ static void stats_test(int stats_fd)
+ 				    "Bucket size of stats (%s) is not zero",
+ 				    pdesc->name);
+ 		}
+-		size_data += pdesc->size * sizeof(*stats_data);
++		size_data = max(size_data, pdesc->offset + pdesc->size * sizeof(*stats_data));
+ 	}
+ 
+ 	/*
+@@ -149,14 +149,6 @@ static void stats_test(int stats_fd)
+ 	TEST_ASSERT(size_data >= header.num_desc * sizeof(*stats_data),
+ 		    "Data size is not correct");
+ 
+-	/* Check stats offset */
+-	for (i = 0; i < header.num_desc; ++i) {
+-		pdesc = get_stats_descriptor(stats_desc, i, &header);
+-		TEST_ASSERT(pdesc->offset < size_data,
+-			    "Invalid offset (%u) for stats: %s",
+-			    pdesc->offset, pdesc->name);
+-	}
+-
+ 	/* Allocate memory for stats data */
+ 	stats_data = malloc(size_data);
+ 	TEST_ASSERT(stats_data, "Allocate memory for stats data");
+-- 
+cgit 
+

@@ -1,0 +1,58 @@
+From 9c2598d43510eff09c658f9c0e0f921ba1871c4b Mon Sep 17 00:00:00 2001
+From: Björn Töpel <bjorn@rivosinc.com>
+Date: Mon, 3 Apr 2023 08:52:07 +0200
+Subject: riscv: entry: Save a0 prior syscall_enter_from_user_mode()
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+The RISC-V calling convention passes the first argument, and the
+return value in the a0 register. For this reason, the a0 register
+needs some extra care; When handling syscalls, the a0 register is
+saved into regs->orig_a0, so a0 can be properly restored for,
+e.g. interrupted syscalls.
+
+This functionality was broken with the introduction of the generic
+entry patches. Here, a0 was saved into orig_a0 after calling
+syscall_enter_from_user_mode(), which can change regs->a0 for some
+paths, incorrectly restoring a0.
+
+This is resolved, by saving a0 prior doing the
+syscall_enter_from_user_mode() call.
+
+Fixes: f0bddf50586d ("riscv: entry: Convert to generic entry")
+Reviewed-by: Heiko Stuebner <heiko.stuebner@vrull.eu>
+Tested-by: Heiko Stuebner <heiko.stuebner@vrull.eu>
+Signed-off-by: Björn Töpel <bjorn@rivosinc.com>
+Reported-by: Conor Dooley <conor.dooley@microchip.com>
+Reviewed-by: Conor Dooley <conor.dooley@microchip.com>
+Tested-by: Conor Dooley <conor.dooley@microchip.com>
+Tested-by: Geert Uytterhoeven <geert+renesas@glider.be>
+Tested-by: Andy Chiu <andy.chiu@sifive.com>
+Link: https://lore.kernel.org/r/20230403065207.1070974-1-bjorn@kernel.org
+Signed-off-by: Palmer Dabbelt <palmer@rivosinc.com>
+---
+ arch/riscv/kernel/traps.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/arch/riscv/kernel/traps.c b/arch/riscv/kernel/traps.c
+index 1f4e37be7eb38..8c258b78c925c 100644
+--- a/arch/riscv/kernel/traps.c
++++ b/arch/riscv/kernel/traps.c
+@@ -270,11 +270,11 @@ asmlinkage __visible __trap_section void do_trap_ecall_u(struct pt_regs *regs)
+ 	if (user_mode(regs)) {
+ 		ulong syscall = regs->a7;
+ 
+-		syscall = syscall_enter_from_user_mode(regs, syscall);
+-
+ 		regs->epc += 4;
+ 		regs->orig_a0 = regs->a0;
+ 
++		syscall = syscall_enter_from_user_mode(regs, syscall);
++
+ 		if (syscall < NR_syscalls)
+ 			syscall_handler(regs, syscall);
+ 		else
+-- 
+cgit 
+

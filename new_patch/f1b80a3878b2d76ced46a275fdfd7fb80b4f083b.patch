@@ -1,0 +1,40 @@
+From f1b80a3878b2d76ced46a275fdfd7fb80b4f083b Mon Sep 17 00:00:00 2001
+From: Ido Schimmel <idosch@nvidia.com>
+Date: Tue, 14 Mar 2023 17:50:10 +0200
+Subject: thermal: core: Restore behavior regarding invalid trip points
+
+Commit 7c3d5c20dc16 ("thermal/core: Add a generic thermal_zone_get_trip()
+function") stopped marking trip points with a zero temperature as
+disabled, behavior that was originally introduced in commit 81ad4276b505
+("Thermal: Ignore invalid trip points").
+
+When using the mlxsw driver we see that when such trip points are not
+disabled, the thermal subsystem repeatedly tries to set the state of the
+associated cooling devices to the maximum state.
+
+Address this by restoring the original behavior and mark trip points
+with a zero temperature as disabled.
+
+Fixes: 7c3d5c20dc16 ("thermal/core: Add a generic thermal_zone_get_trip() function")
+Signed-off-by: Ido Schimmel <idosch@nvidia.com>
+Signed-off-by: Rafael J. Wysocki <rafael.j.wysocki@intel.com>
+---
+ drivers/thermal/thermal_core.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/thermal/thermal_core.c b/drivers/thermal/thermal_core.c
+index 55679fd86505d..b50931f84aaa0 100644
+--- a/drivers/thermal/thermal_core.c
++++ b/drivers/thermal/thermal_core.c
+@@ -1309,7 +1309,7 @@ thermal_zone_device_register_with_trips(const char *type, struct thermal_trip *t
+ 		struct thermal_trip trip;
+ 
+ 		result = thermal_zone_get_trip(tz, count, &trip);
+-		if (result)
++		if (result || !trip.temperature)
+ 			set_bit(count, &tz->trips_disabled);
+ 	}
+ 
+-- 
+cgit 
+

@@ -1,0 +1,46 @@
+From 1a261a6e10e80cd7c69c3f5bdf47cd41f928fd08 Mon Sep 17 00:00:00 2001
+From: Ruihan Li <lrh2000@pku.edu.cn>
+Date: Tue, 25 Apr 2023 00:21:10 +0800
+Subject: scripts: Remove ICC-related dead code
+
+Intel compiler support has already been completely removed in commit
+95207db8166a ("Remove Intel compiler support").  However, it appears
+that there is still some ICC-related code in scripts/cc-version.sh.
+There is no harm in leaving the code as it is, but removing the dead
+code makes the codebase a bit cleaner.
+
+Hopefully all ICC-related stuff in the build scripts will be removed
+after this commit, given the grep output as below:
+
+	(linux/scripts) $ grep -i -w -R 'icc'
+	cc-version.sh:ICC)
+	cc-version.sh:	min_version=$($min_tool_version icc)
+	dtc/include-prefixes/arm64/qcom/sm6350.dtsi:#include <dt-bindings/interconnect/qcom,icc.h>
+
+Fixes: 95207db8166a ("Remove Intel compiler support")
+Signed-off-by: Ruihan Li <lrh2000@pku.edu.cn>
+Reviewed-by: Nick Desaulniers <ndesaulniers@google.com>
+Reviewed-by: Nathan Chancellor <nathan@kernel.org>
+Signed-off-by: Linus Torvalds <torvalds@linux-foundation.org>
+---
+ scripts/cc-version.sh | 4 ----
+ 1 file changed, 4 deletions(-)
+
+diff --git a/scripts/cc-version.sh b/scripts/cc-version.sh
+index 0573c92e841d3..a7e28b6a514e5 100755
+--- a/scripts/cc-version.sh
++++ b/scripts/cc-version.sh
+@@ -45,10 +45,6 @@ Clang)
+ 	version=$2.$3.$4
+ 	min_version=$($min_tool_version llvm)
+ 	;;
+-ICC)
+-	version=$(($2 / 100)).$(($2 % 100)).$3
+-	min_version=$($min_tool_version icc)
+-	;;
+ *)
+ 	echo "$orig_args: unknown C compiler" >&2
+ 	exit 1
+-- 
+cgit 
+

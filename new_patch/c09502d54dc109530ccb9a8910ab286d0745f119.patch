@@ -1,0 +1,36 @@
+From c09502d54dc109530ccb9a8910ab286d0745f119 Mon Sep 17 00:00:00 2001
+From: Oz Shlomo <ozsh@nvidia.com>
+Date: Thu, 8 Dec 2022 08:31:48 +0000
+Subject: net/mlx5e: TC, Restore pkt rate policing support
+
+The offending commit removed the support for all packet rate metering.
+Restore the pkt rate metering support by removing the restriction.
+
+Fixes: 3603f26633e7 ("net/mlx5e: TC, allow meter jump control action")
+Signed-off-by: Oz Shlomo <ozsh@nvidia.com>
+Reviewed-by: Roi Dayan <roid@nvidia.com>
+Signed-off-by: Saeed Mahameed <saeedm@nvidia.com>
+---
+ drivers/net/ethernet/mellanox/mlx5/core/en/tc/act/police.c | 6 ------
+ 1 file changed, 6 deletions(-)
+
+diff --git a/drivers/net/ethernet/mellanox/mlx5/core/en/tc/act/police.c b/drivers/net/ethernet/mellanox/mlx5/core/en/tc/act/police.c
+index 512d431489228..c4378afdec09e 100644
+--- a/drivers/net/ethernet/mellanox/mlx5/core/en/tc/act/police.c
++++ b/drivers/net/ethernet/mellanox/mlx5/core/en/tc/act/police.c
+@@ -34,12 +34,6 @@ static int police_act_validate(const struct flow_action_entry *act,
+ 		return -EOPNOTSUPP;
+ 	}
+ 
+-	if (act->police.rate_pkt_ps) {
+-		NL_SET_ERR_MSG_MOD(extack,
+-				   "QoS offload not support packets per second");
+-		return -EOPNOTSUPP;
+-	}
+-
+ 	return 0;
+ }
+ 
+-- 
+cgit 
+

@@ -1,0 +1,36 @@
+From 82655f90701de5e0f7381b16534602bc2b8fe920 Mon Sep 17 00:00:00 2001
+From: Fabio Estevam <festevam@denx.de>
+Date: Tue, 28 Mar 2023 15:51:46 -0300
+Subject: ARM: dts: imx7d-remarkable2: Remove unnecessary
+ #address-cells/#size-cells
+
+Building with W=1 leads to the following dtc warning:
+
+arch/arm/boot/dts/imx7d-remarkable2.dts:319.19-335.4: Warning (avoid_unnecessary_addr_size): /soc/bus@30800000/i2c@30a50000/pmic@62: unnecessary #address-cells/#size-cells without "ranges" or child "reg" property
+
+Remove unnecessary #address-cells/#size-cells to fix it.
+
+Fixes: 9076cbaa7757 ("ARM: dts: imx7d-remarkable2: Enable silergy,sy7636a")
+Signed-off-by: Fabio Estevam <festevam@denx.de>
+Reviewed-by: Alistair Francis <alistair@alistair23.me>
+Signed-off-by: Shawn Guo <shawnguo@kernel.org>
+---
+ arch/arm/boot/dts/imx7d-remarkable2.dts | 2 --
+ 1 file changed, 2 deletions(-)
+
+diff --git a/arch/arm/boot/dts/imx7d-remarkable2.dts b/arch/arm/boot/dts/imx7d-remarkable2.dts
+index 8b2f11e85e05c..427f8d04ec89a 100644
+--- a/arch/arm/boot/dts/imx7d-remarkable2.dts
++++ b/arch/arm/boot/dts/imx7d-remarkable2.dts
+@@ -118,8 +118,6 @@
+ 		reg = <0x62>;
+ 		pinctrl-names = "default";
+ 		pinctrl-0 = <&pinctrl_epdpmic>;
+-		#address-cells = <1>;
+-		#size-cells = <0>;
+ 		#thermal-sensor-cells = <0>;
+ 		epd-pwr-good-gpios = <&gpio6 21 GPIO_ACTIVE_HIGH>;
+ 
+-- 
+cgit 
+

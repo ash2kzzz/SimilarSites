@@ -1,0 +1,38 @@
+From 710ddfbfda939b84794fa3912047bbc6754cbddc Mon Sep 17 00:00:00 2001
+From: Dan Carpenter <error27@gmail.com>
+Date: Sat, 25 Mar 2023 14:08:02 +0300
+Subject: platform/x86: ISST: unlock on error path in tpmi_sst_init()
+
+Call mutex_unlock(&isst_tpmi_dev_lock) before returning on this
+error path.
+
+Fixes: d805456c712f ("platform/x86: ISST: Enumerate TPMI SST and create framework")
+Signed-off-by: Dan Carpenter <error27@gmail.com>
+Acked-by: Srinivas Pandruvada <srinivas.pandruvada@linux.intel.com>
+Link: https://lore.kernel.org/r/dcdebbb7-7de6-4d04-8e7a-43d5ca043484@kili.mountain
+Reviewed-by: Hans de Goede <hdegoede@redhat.com>
+Signed-off-by: Hans de Goede <hdegoede@redhat.com>
+---
+ drivers/platform/x86/intel/speed_select_if/isst_tpmi_core.c | 6 ++++--
+ 1 file changed, 4 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/platform/x86/intel/speed_select_if/isst_tpmi_core.c b/drivers/platform/x86/intel/speed_select_if/isst_tpmi_core.c
+index cdb56a18ea17a..664d2ee60385a 100644
+--- a/drivers/platform/x86/intel/speed_select_if/isst_tpmi_core.c
++++ b/drivers/platform/x86/intel/speed_select_if/isst_tpmi_core.c
+@@ -1399,8 +1399,10 @@ int tpmi_sst_init(void)
+ 	isst_common.sst_inst = kcalloc(topology_max_packages(),
+ 				       sizeof(*isst_common.sst_inst),
+ 				       GFP_KERNEL);
+-	if (!isst_common.sst_inst)
+-		return -ENOMEM;
++	if (!isst_common.sst_inst) {
++		ret = -ENOMEM;
++		goto init_done;
++	}
+ 
+ 	memset(&cb, 0, sizeof(cb));
+ 	cb.cmd_size = sizeof(struct isst_if_io_reg);
+-- 
+cgit 
+

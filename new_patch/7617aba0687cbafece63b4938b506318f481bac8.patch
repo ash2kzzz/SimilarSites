@@ -1,0 +1,42 @@
+From 7617aba0687cbafece63b4938b506318f481bac8 Mon Sep 17 00:00:00 2001
+From: Dmitry Baryshkov <dmitry.baryshkov@linaro.org>
+Date: Wed, 18 Jan 2023 05:17:15 +0200
+Subject: dt-bindings: display/msm: add qcom, sc8280xp-edp to list of eDP
+ devices
+
+Add qcom,sc8280xp-edp to the list of eDP devices, unblocking `aux-bus'
+property and fobidding `#sound-dai-cells' property. Also since
+sc8280xp-edp, overriding sc8280xp-dp, will contain 5 reg resources, drop
+the reg contraint (as it will become equivalent to the top-level one,
+requiring min 4 and max 5 reg entries).
+
+Fixes: b6f8c4debc00 ("dt-bindings: msm/dp: Add SDM845 and SC8280XP compatibles")
+Signed-off-by: Dmitry Baryshkov <dmitry.baryshkov@linaro.org>
+Acked-by: Rob Herring <robh@kernel.org>
+Patchwork: https://patchwork.freedesktop.org/patch/518797/
+Link: https://lore.kernel.org/r/20230118031718.1714861-1-dmitry.baryshkov@linaro.org
+Signed-off-by: Dmitry Baryshkov <dmitry.baryshkov@linaro.org>
+---
+ Documentation/devicetree/bindings/display/msm/dp-controller.yaml | 3 +--
+ 1 file changed, 1 insertion(+), 2 deletions(-)
+
+diff --git a/Documentation/devicetree/bindings/display/msm/dp-controller.yaml b/Documentation/devicetree/bindings/display/msm/dp-controller.yaml
+index f2515af8256f0..413a219d60785 100644
+--- a/Documentation/devicetree/bindings/display/msm/dp-controller.yaml
++++ b/Documentation/devicetree/bindings/display/msm/dp-controller.yaml
+@@ -127,11 +127,10 @@ allOf:
+             enum:
+               - qcom,sc7280-edp
+               - qcom,sc8180x-edp
++              - qcom,sc8280xp-edp
+     then:
+       properties:
+         "#sound-dai-cells": false
+-        reg:
+-          maxItems: 4
+     else:
+       properties:
+         aux-bus: false
+-- 
+cgit 
+

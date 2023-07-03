@@ -1,0 +1,34 @@
+From 0696532e12524855fa8044590d374079f271f216 Mon Sep 17 00:00:00 2001
+From: Dan Carpenter <error27@gmail.com>
+Date: Wed, 15 Feb 2023 17:05:32 +0300
+Subject: spi: bcmbca-hsspi: Fix error code in probe() function
+
+This code accidentally returns success instead of a negative error code.
+
+Fixes: a38a2233f23b ("spi: bcmbca-hsspi: Add driver for newer HSSPI controller")
+Signed-off-by: Dan Carpenter <error27@gmail.com>
+Reviewed-by: Florian Fainelli <f.fainelli@gmail.com>
+Reviewed-by: William Zhang <william.zhang@broadcom.com>
+Link: https://lore.kernel.org/r/Y+zmrNJ9zjNQpzWq@kili
+Signed-off-by: Mark Brown <broonie@kernel.org>
+---
+ drivers/spi/spi-bcmbca-hsspi.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/spi/spi-bcmbca-hsspi.c b/drivers/spi/spi-bcmbca-hsspi.c
+index e255241319ab1..3f9e6131ad863 100644
+--- a/drivers/spi/spi-bcmbca-hsspi.c
++++ b/drivers/spi/spi-bcmbca-hsspi.c
+@@ -548,7 +548,8 @@ static int bcmbca_hsspi_probe(struct platform_device *pdev)
+ 
+ 	pm_runtime_enable(&pdev->dev);
+ 
+-	if (sysfs_create_group(&pdev->dev.kobj, &bcmbca_hsspi_group)) {
++	ret = sysfs_create_group(&pdev->dev.kobj, &bcmbca_hsspi_group);
++	if (ret) {
+ 		dev_err(&pdev->dev, "couldn't register sysfs group\n");
+ 		goto out_pm_disable;
+ 	}
+-- 
+cgit 
+

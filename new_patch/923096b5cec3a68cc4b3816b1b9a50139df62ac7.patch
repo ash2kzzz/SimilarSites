@@ -1,0 +1,59 @@
+From 923096b5cec3a68cc4b3816b1b9a50139df62ac7 Mon Sep 17 00:00:00 2001
+From: Alexander Lobakin <alexandr.lobakin@intel.com>
+Date: Fri, 10 Feb 2023 18:06:15 +0100
+Subject: ice: Remove two impossible branches on XDP Tx cleaning
+
+The tagged commit started sending %XDP_TX frames from XSk Rx ring
+directly without converting it to an &xdp_frame. However, when XSk is
+enabled on a queue pair, it has its separate Tx cleaning functions, so
+neither ice_clean_xdp_irq() nor ice_unmap_and_free_tx_buf() ever happens
+there.
+Remove impossible branches in order to reduce the diffstat of the
+upcoming change.
+
+Fixes: a24b4c6e9aab ("ice: xsk: Do not convert to buff to frame for XDP_TX")
+Suggested-by: Maciej Fijalkowski <maciej.fijalkowski@intel.com>
+Signed-off-by: Alexander Lobakin <alexandr.lobakin@intel.com>
+Signed-off-by: Daniel Borkmann <daniel@iogearbox.net>
+Acked-by: Maciej Fijalkowski <maciej.fijalkowski@intel.com>
+Link: https://lore.kernel.org/bpf/20230210170618.1973430-4-alexandr.lobakin@intel.com
+---
+ drivers/net/ethernet/intel/ice/ice_txrx.c     | 5 +----
+ drivers/net/ethernet/intel/ice/ice_txrx_lib.c | 5 +----
+ 2 files changed, 2 insertions(+), 8 deletions(-)
+
+diff --git a/drivers/net/ethernet/intel/ice/ice_txrx.c b/drivers/net/ethernet/intel/ice/ice_txrx.c
+index 466113c86e6fd..6b99adb695e7e 100644
+--- a/drivers/net/ethernet/intel/ice/ice_txrx.c
++++ b/drivers/net/ethernet/intel/ice/ice_txrx.c
+@@ -116,10 +116,7 @@ ice_unmap_and_free_tx_buf(struct ice_tx_ring *ring, struct ice_tx_buf *tx_buf)
+ 		if (tx_buf->tx_flags & ICE_TX_FLAGS_DUMMY_PKT) {
+ 			devm_kfree(ring->dev, tx_buf->raw_buf);
+ 		} else if (ice_ring_is_xdp(ring)) {
+-			if (ring->xsk_pool)
+-				xsk_buff_free(tx_buf->xdp);
+-			else
+-				page_frag_free(tx_buf->raw_buf);
++			page_frag_free(tx_buf->raw_buf);
+ 		} else {
+ 			dev_kfree_skb_any(tx_buf->skb);
+ 		}
+diff --git a/drivers/net/ethernet/intel/ice/ice_txrx_lib.c b/drivers/net/ethernet/intel/ice/ice_txrx_lib.c
+index 784f2f9ebb2d2..6371acb0deb08 100644
+--- a/drivers/net/ethernet/intel/ice/ice_txrx_lib.c
++++ b/drivers/net/ethernet/intel/ice/ice_txrx_lib.c
+@@ -275,10 +275,7 @@ static u32 ice_clean_xdp_irq(struct ice_tx_ring *xdp_ring)
+ 		ready_frames -= frags + 1;
+ 		xdp_tx++;
+ 
+-		if (xdp_ring->xsk_pool)
+-			xsk_buff_free(tx_buf->xdp);
+-		else
+-			ice_clean_xdp_tx_buf(xdp_ring, tx_buf);
++		ice_clean_xdp_tx_buf(xdp_ring, tx_buf);
+ 		ntc++;
+ 		if (ntc == cnt)
+ 			ntc = 0;
+-- 
+cgit 
+

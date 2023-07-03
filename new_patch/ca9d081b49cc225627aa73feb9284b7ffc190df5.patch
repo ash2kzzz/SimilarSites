@@ -1,0 +1,42 @@
+From ca9d081b49cc225627aa73feb9284b7ffc190df5 Mon Sep 17 00:00:00 2001
+From: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+Date: Tue, 18 Apr 2023 15:47:15 +0200
+Subject: zram: fix up permission for the hot_add sysfs file
+
+Commit 75a2d4226b53 ("driver core: class: mark the struct class for
+sysfs callbacks as constant") changed the attribute to use
+CLASS_ATTR_RO() which changed the permission from 0400 to 0444.  But
+this atribute is "special" in that reading it modifies the system state,
+so it MUST be set to 0400 so that only root processes can muck around
+with it.
+
+Fix this all up, AND document this so that I don't change it again in
+3-4 years when I stumble across it and wonder why it's an open-coded
+_ATTR() macro.
+
+Reported-by: Denis Efremov <efremov@linux.com>
+Fixes: 75a2d4226b53 ("driver core: class: mark the struct class for sysfs callbacks as constant")
+Link: https://lore.kernel.org/r/2023041810-angelic-conical-52d8@gregkh
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+---
+ drivers/block/zram/zram_drv.c | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/block/zram/zram_drv.c b/drivers/block/zram/zram_drv.c
+index 3feadfb961142..d8217529be6fc 100644
+--- a/drivers/block/zram/zram_drv.c
++++ b/drivers/block/zram/zram_drv.c
+@@ -2438,7 +2438,9 @@ static ssize_t hot_add_show(const struct class *class,
+ 		return ret;
+ 	return scnprintf(buf, PAGE_SIZE, "%d\n", ret);
+ }
+-static CLASS_ATTR_RO(hot_add);
++/* This attribute must be set to 0400, so CLASS_ATTR_RO() can not be used */
++static struct class_attribute class_attr_hot_add =
++	__ATTR(hot_add, 0400, hot_add_show, NULL);
+ 
+ static ssize_t hot_remove_store(const struct class *class,
+ 			const struct class_attribute *attr,
+-- 
+cgit 
+

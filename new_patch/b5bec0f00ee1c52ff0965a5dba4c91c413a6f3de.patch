@@ -1,0 +1,40 @@
+From b5bec0f00ee1c52ff0965a5dba4c91c413a6f3de Mon Sep 17 00:00:00 2001
+From: Krzysztof Kozlowski <krzysztof.kozlowski@linaro.org>
+Date: Wed, 8 Feb 2023 11:15:43 +0100
+Subject: dt-bindings: soc: qcom,apr: correct qcom,intents type
+
+The qcom,intents property is a list of pairs, thus it should be defined
+as uint32-matrix.
+
+Fixes: b2d7616e13c4 ("dt-bindings: soc: qcom: apr: add missing properties")
+Signed-off-by: Krzysztof Kozlowski <krzysztof.kozlowski@linaro.org>
+Acked-by: Rob Herring <robh@kernel.org>
+Signed-off-by: Bjorn Andersson <andersson@kernel.org>
+Link: https://lore.kernel.org/r/20230208101545.45711-5-krzysztof.kozlowski@linaro.org
+---
+ Documentation/devicetree/bindings/soc/qcom/qcom,apr.yaml | 9 ++++++++-
+ 1 file changed, 8 insertions(+), 1 deletion(-)
+
+diff --git a/Documentation/devicetree/bindings/soc/qcom/qcom,apr.yaml b/Documentation/devicetree/bindings/soc/qcom/qcom,apr.yaml
+index 6026c21736d88..4502458b06690 100644
+--- a/Documentation/devicetree/bindings/soc/qcom/qcom,apr.yaml
++++ b/Documentation/devicetree/bindings/soc/qcom/qcom,apr.yaml
+@@ -62,7 +62,14 @@ properties:
+     maxItems: 1
+ 
+   qcom,intents:
+-    $ref: /schemas/types.yaml#/definitions/uint32-array
++    $ref: /schemas/types.yaml#/definitions/uint32-matrix
++    minItems: 1
++    maxItems: 32
++    items:
++      items:
++        - description: size of each intent to preallocate
++        - description: amount of intents to preallocate
++          minimum: 1
+     description:
+       List of (size, amount) pairs describing what intents should be
+       preallocated for this virtual channel. This can be used to tweak the
+-- 
+cgit 
+

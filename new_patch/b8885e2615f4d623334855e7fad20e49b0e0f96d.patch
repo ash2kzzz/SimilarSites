@@ -1,0 +1,112 @@
+From b8885e2615f4d623334855e7fad20e49b0e0f96d Mon Sep 17 00:00:00 2001
+From: Randy Dunlap <rdunlap@infradead.org>
+Date: Tue, 14 Feb 2023 16:57:26 -0800
+Subject: Documentation: front page: use recommended heading adornments
+
+Convert the Documentation front page to use the heading adornments
+that are documented in doc-guide/sphinx.rst for document title and
+chapters. I.e., convert most section headings to chapters.
+
+This leaves "Indices and tables" as a chapter entry at the same level
+as the other chapters.
+
+The only visual difference from before to after is that the "Indices
+and tables" heading is smaller and has more vertical whitespace
+preceding it (although that may depend on the web browser being used).
+
+Fixes: 0c7b4366f1ab ("docs: Rewrite the front page")
+Signed-off-by: Randy Dunlap <rdunlap@infradead.org>
+Cc: Mauro Carvalho Chehab <mchehab@kernel.org>
+Link: https://lore.kernel.org/r/20230215005726.27320-1-rdunlap@infradead.org
+Signed-off-by: Jonathan Corbet <corbet@lwn.net>
+---
+ Documentation/index.rst | 17 +++++++++--------
+ 1 file changed, 9 insertions(+), 8 deletions(-)
+
+diff --git a/Documentation/index.rst b/Documentation/index.rst
+index bf6aa681c9608..76d1a3ec9be3d 100644
+--- a/Documentation/index.rst
++++ b/Documentation/index.rst
+@@ -2,6 +2,7 @@
+ 
+ .. _linux_doc:
+ 
++==============================
+ The Linux Kernel documentation
+ ==============================
+ 
+@@ -13,7 +14,7 @@ documentation are welcome; join the linux-doc list at vger.kernel.org if
+ you want to help out.
+ 
+ Working with the development community
+---------------------------------------
++======================================
+ 
+ The essential guides for interacting with the kernel's development
+ community and getting your work upstream.
+@@ -29,7 +30,7 @@ community and getting your work upstream.
+ 
+ 
+ Internal API manuals
+---------------------
++====================
+ 
+ Manuals for use by developers working to interface with the rest of the
+ kernel.
+@@ -43,7 +44,7 @@ kernel.
+    Locking in the kernel <locking/index>
+ 
+ Development tools and processes
+--------------------------------
++===============================
+ 
+ Various other manuals with useful information for all kernel developers.
+ 
+@@ -62,7 +63,7 @@ Various other manuals with useful information for all kernel developers.
+ 
+ 
+ User-oriented documentation
+----------------------------
++===========================
+ 
+ The following manuals are written for *users* of the kernel — those who are
+ trying to get it to work optimally on a given system and application
+@@ -81,7 +82,7 @@ See also: the `Linux man pages <https://www.kernel.org/doc/man-pages/>`_,
+ which are kept separately from the kernel's own documentation.
+ 
+ Firmware-related documentation
+-------------------------------
++==============================
+ The following holds information on the kernel's expectations regarding the
+ platform firmwares.
+ 
+@@ -93,7 +94,7 @@ platform firmwares.
+ 
+ 
+ Architecture-specific documentation
+------------------------------------
++===================================
+ 
+ .. toctree::
+    :maxdepth: 2
+@@ -102,7 +103,7 @@ Architecture-specific documentation
+ 
+ 
+ Other documentation
+--------------------
++===================
+ 
+ There are several unsorted documents that don't seem to fit on other parts
+ of the documentation body, or may require some adjustments and/or conversion
+@@ -115,7 +116,7 @@ to ReStructured Text format, or are simply too old.
+ 
+ 
+ Translations
+-------------
++============
+ 
+ .. toctree::
+    :maxdepth: 2
+-- 
+cgit 
+

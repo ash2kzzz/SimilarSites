@@ -1,0 +1,38 @@
+From 8a3d95ea42921a8021b2459e22f91b4f49495e57 Mon Sep 17 00:00:00 2001
+From: Arnd Bergmann <arnd@arndb.de>
+Date: Tue, 14 Feb 2023 14:18:47 +0100
+Subject: dax/hmem: build hmem device support as module if possible
+
+When device_hmem.o is enabled but dax itself is a loadable module, the
+dax_hmem support fails to link because Kbuild never compiles built-in
+code under drivers/dax:
+
+ERROR: modpost: "walk_hmem_resources" [drivers/dax/hmem/dax_hmem.ko] undefined!
+
+Make sure that drivers/dax is entered for compiling built-in code
+even with CONFIG_DAX=m.
+
+Fixes: 7dab174e2e27 ("dax/hmem: Move hmem device registration to dax_hmem.ko")
+Signed-off-by: Arnd Bergmann <arnd@arndb.de>
+Link: https://lore.kernel.org/r/20230214131913.1431969-1-arnd@kernel.org
+Signed-off-by: Dan Williams <dan.j.williams@intel.com>
+---
+ drivers/Makefile | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/Makefile b/drivers/Makefile
+index bdf1c66141c9b..9beeee5200733 100644
+--- a/drivers/Makefile
++++ b/drivers/Makefile
+@@ -71,7 +71,7 @@ obj-$(CONFIG_FB_INTEL)          += video/fbdev/intelfb/
+ obj-$(CONFIG_PARPORT)		+= parport/
+ obj-y				+= base/ block/ misc/ mfd/ nfc/
+ obj-$(CONFIG_LIBNVDIMM)		+= nvdimm/
+-obj-$(CONFIG_DAX)		+= dax/
++obj-y				+= dax/
+ obj-$(CONFIG_DMA_SHARED_BUFFER) += dma-buf/
+ obj-$(CONFIG_NUBUS)		+= nubus/
+ obj-y				+= cxl/
+-- 
+cgit 
+

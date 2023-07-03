@@ -1,0 +1,66 @@
+From 3bc879e355da4ff925e9d82278a829547d9d54bf Mon Sep 17 00:00:00 2001
+From: Geert Uytterhoeven <geert+renesas@glider.be>
+Date: Mon, 8 May 2023 18:05:19 +0200
+Subject: arm64: perf: Mark all accessor functions inline
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+When just including <asm/arm_pmuv3.h>:
+
+    arch/arm64/include/asm/arm_pmuv3.h:31:13: error: ‘write_pmevtypern’ defined but not used [-Werror=unused-function]
+       31 | static void write_pmevtypern(int n, unsigned long val)
+	  |             ^~~~~~~~~~~~~~~~
+    arch/arm64/include/asm/arm_pmuv3.h:24:13: error: ‘write_pmevcntrn’ defined but not used [-Werror=unused-function]
+       24 | static void write_pmevcntrn(int n, unsigned long val)
+	  |             ^~~~~~~~~~~~~~~
+    arch/arm64/include/asm/arm_pmuv3.h:16:22: error: ‘read_pmevcntrn’ defined but not used [-Werror=unused-function]
+       16 | static unsigned long read_pmevcntrn(int n)
+	  |                      ^~~~~~~~~~~~~~
+
+Fix this by adding the missing "inline" keywords to the three accessor
+functions that lack them.
+
+Fixes: df29ddf4f04b ("arm64: perf: Abstract system register accesses away")
+Signed-off-by: Geert Uytterhoeven <geert+renesas@glider.be>
+Reviewed-by: Marc Zyngier <maz@kernel.org>
+Acked-by: Mark Rutland <mark.rutland@arm.com>
+Link: https://lore.kernel.org/r/d53a19043c0c3bd25f6c203e73a2fb08a9661824.1683561482.git.geert+renesas@glider.be
+Signed-off-by: Will Deacon <will@kernel.org>
+---
+ arch/arm64/include/asm/arm_pmuv3.h | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/arch/arm64/include/asm/arm_pmuv3.h b/arch/arm64/include/asm/arm_pmuv3.h
+index d6b51deb7bf0f..18dc2fb3d7b7b 100644
+--- a/arch/arm64/include/asm/arm_pmuv3.h
++++ b/arch/arm64/include/asm/arm_pmuv3.h
+@@ -13,7 +13,7 @@
+ 
+ #define RETURN_READ_PMEVCNTRN(n) \
+ 	return read_sysreg(pmevcntr##n##_el0)
+-static unsigned long read_pmevcntrn(int n)
++static inline unsigned long read_pmevcntrn(int n)
+ {
+ 	PMEVN_SWITCH(n, RETURN_READ_PMEVCNTRN);
+ 	return 0;
+@@ -21,14 +21,14 @@ static unsigned long read_pmevcntrn(int n)
+ 
+ #define WRITE_PMEVCNTRN(n) \
+ 	write_sysreg(val, pmevcntr##n##_el0)
+-static void write_pmevcntrn(int n, unsigned long val)
++static inline void write_pmevcntrn(int n, unsigned long val)
+ {
+ 	PMEVN_SWITCH(n, WRITE_PMEVCNTRN);
+ }
+ 
+ #define WRITE_PMEVTYPERN(n) \
+ 	write_sysreg(val, pmevtyper##n##_el0)
+-static void write_pmevtypern(int n, unsigned long val)
++static inline void write_pmevtypern(int n, unsigned long val)
+ {
+ 	PMEVN_SWITCH(n, WRITE_PMEVTYPERN);
+ }
+-- 
+cgit 
+

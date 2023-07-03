@@ -1,0 +1,60 @@
+From 0719bc3a5c77091192c57e440896a969cd1cf885 Mon Sep 17 00:00:00 2001
+From: Dmitry Torokhov <dmitry.torokhov@gmail.com>
+Date: Wed, 1 Feb 2023 13:53:20 -0800
+Subject: net: fec: do not double-parse 'phy-reset-active-high' property
+
+Conversion to gpiod API done in commit 468ba54bd616 ("fec: convert
+to gpio descriptor") clashed with gpiolib applying the same quirk to the
+reset GPIO polarity (introduced in commit b02c85c9458c). This results in
+the reset line being left active/device being left in reset state when
+reset line is "active low".
+
+Remove handling of 'phy-reset-active-high' property from the driver and
+rely on gpiolib to apply needed adjustments to avoid ending up with the
+double inversion/flipped logic.
+
+Fixes: 468ba54bd616 ("fec: convert to gpio descriptor")
+Signed-off-by: Dmitry Torokhov <dmitry.torokhov@gmail.com>
+Reviewed-by: Andrew Lunn <andrew@lunn.ch>
+Link: https://lore.kernel.org/r/20230201215320.528319-2-dmitry.torokhov@gmail.com
+Signed-off-by: Jakub Kicinski <kuba@kernel.org>
+---
+ drivers/net/ethernet/freescale/fec_main.c | 7 ++-----
+ 1 file changed, 2 insertions(+), 5 deletions(-)
+
+diff --git a/drivers/net/ethernet/freescale/fec_main.c b/drivers/net/ethernet/freescale/fec_main.c
+index 00115b55d0ff2..c73e25f8995eb 100644
+--- a/drivers/net/ethernet/freescale/fec_main.c
++++ b/drivers/net/ethernet/freescale/fec_main.c
+@@ -4036,7 +4036,6 @@ free_queue_mem:
+ static int fec_reset_phy(struct platform_device *pdev)
+ {
+ 	struct gpio_desc *phy_reset;
+-	bool active_high = false;
+ 	int msec = 1, phy_post_delay = 0;
+ 	struct device_node *np = pdev->dev.of_node;
+ 	int err;
+@@ -4054,10 +4053,8 @@ static int fec_reset_phy(struct platform_device *pdev)
+ 	if (!err && phy_post_delay > 1000)
+ 		return -EINVAL;
+ 
+-	active_high = of_property_read_bool(np, "phy-reset-active-high");
+-
+ 	phy_reset = devm_gpiod_get_optional(&pdev->dev, "phy-reset",
+-			active_high ? GPIOD_OUT_HIGH : GPIOD_OUT_LOW);
++					    GPIOD_OUT_HIGH);
+ 	if (IS_ERR(phy_reset))
+ 		return dev_err_probe(&pdev->dev, PTR_ERR(phy_reset),
+ 				     "failed to get phy-reset-gpios\n");
+@@ -4070,7 +4067,7 @@ static int fec_reset_phy(struct platform_device *pdev)
+ 	else
+ 		usleep_range(msec * 1000, msec * 1000 + 1000);
+ 
+-	gpiod_set_value_cansleep(phy_reset, !active_high);
++	gpiod_set_value_cansleep(phy_reset, 0);
+ 
+ 	if (!phy_post_delay)
+ 		return 0;
+-- 
+cgit 
+

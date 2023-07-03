@@ -1,0 +1,59 @@
+From 670b7d6569bf439c90d7aac48ec36ee3e3013754 Mon Sep 17 00:00:00 2001
+From: Srinivas Kandagatla <srinivas.kandagatla@linaro.org>
+Date: Thu, 2 Mar 2023 11:57:38 +0000
+Subject: arm64: dts: qcom: sc8280xp: fix rx frame shapping info
+
+Some of the SoundWire frameshapping data seems incorrect, fix these values.
+
+Fixes: 1749a8ae49a3 ("arm64: dts: qcom: sc8280xp: add SoundWire and LPASS")
+Signed-off-by: Srinivas Kandagatla <srinivas.kandagatla@linaro.org>
+Signed-off-by: Bjorn Andersson <andersson@kernel.org>
+Link: https://lore.kernel.org/r/20230302115741.7726-2-srinivas.kandagatla@linaro.org
+---
+ arch/arm64/boot/dts/qcom/sc8280xp.dtsi | 16 ++++++++--------
+ 1 file changed, 8 insertions(+), 8 deletions(-)
+
+diff --git a/arch/arm64/boot/dts/qcom/sc8280xp.dtsi b/arch/arm64/boot/dts/qcom/sc8280xp.dtsi
+index 0d02599d88672..906cbd81d268e 100644
+--- a/arch/arm64/boot/dts/qcom/sc8280xp.dtsi
++++ b/arch/arm64/boot/dts/qcom/sc8280xp.dtsi
+@@ -2504,12 +2504,12 @@
+ 			qcom,ports-sinterval-low =	/bits/ 8 <0x03 0x1f 0x1f 0x07 0x00>;
+ 			qcom,ports-offset1 =		/bits/ 8 <0x00 0x00 0x0B 0x01 0x00>;
+ 			qcom,ports-offset2 =		/bits/ 8 <0x00 0x00 0x0B 0x00 0x00>;
+-			qcom,ports-hstart =		/bits/ 8 <0xff 0x03 0xff 0xff 0xff>;
+-			qcom,ports-hstop =		/bits/ 8 <0xff 0x06 0xff 0xff 0xff>;
++			qcom,ports-hstart =		/bits/ 8 <0xff 0x03 0x00 0xff 0xff>;
++			qcom,ports-hstop =		/bits/ 8 <0xff 0x06 0x0f 0xff 0xff>;
+ 			qcom,ports-word-length =	/bits/ 8 <0x01 0x07 0x04 0xff 0xff>;
+-			qcom,ports-block-pack-mode =	/bits/ 8 <0xff 0x00 0x01 0xff 0xff>;
++			qcom,ports-block-pack-mode =	/bits/ 8 <0xff 0xff 0x01 0xff 0xff>;
+ 			qcom,ports-lane-control =	/bits/ 8 <0x01 0x00 0x00 0x00 0x00>;
+-			qcom,ports-block-group-count =	/bits/ 8 <0xff 0xff 0xff 0xff 0x00>;
++			qcom,ports-block-group-count =	/bits/ 8 <0xff 0xff 0xff 0xff 0xff>;
+ 
+ 			#sound-dai-cells = <1>;
+ 			#address-cells = <2>;
+@@ -2609,15 +2609,15 @@
+ 
+ 			qcom,din-ports = <4>;
+ 			qcom,dout-ports = <0>;
+-			qcom,ports-sinterval-low =	/bits/ 8 <0x01 0x03 0x03 0x03>;
+-			qcom,ports-offset1 =		/bits/ 8 <0x01 0x00 0x02 0x01>;
++			qcom,ports-sinterval-low =	/bits/ 8 <0x01 0x01 0x03 0x03>;
++			qcom,ports-offset1 =		/bits/ 8 <0x01 0x00 0x02 0x00>;
+ 			qcom,ports-offset2 =		/bits/ 8 <0x00 0x00 0x00 0x00>;
+ 			qcom,ports-block-pack-mode =	/bits/ 8 <0xff 0xff 0xff 0xff>;
+ 			qcom,ports-hstart =		/bits/ 8 <0xff 0xff 0xff 0xff>;
+ 			qcom,ports-hstop =		/bits/ 8 <0xff 0xff 0xff 0xff>;
+-			qcom,ports-word-length =	/bits/ 8 <0xff 0x00 0xff 0xff>;
++			qcom,ports-word-length =	/bits/ 8 <0xff 0xff 0xff 0xff>;
+ 			qcom,ports-block-group-count =	/bits/ 8 <0xff 0xff 0xff 0xff>;
+-			qcom,ports-lane-control =	/bits/ 8 <0x00 0x01 0x00 0x00>;
++			qcom,ports-lane-control =	/bits/ 8 <0x00 0x01 0x00 0x01>;
+ 
+ 			status = "disabled";
+ 		};
+-- 
+cgit 
+

@@ -1,0 +1,85 @@
+From 82f0832af26a30ae5f21b335c5f68b538e710c29 Mon Sep 17 00:00:00 2001
+From: Dan Williams <dan.j.williams@intel.com>
+Date: Tue, 4 Apr 2023 15:34:12 -0700
+Subject: cxl/hdm: Fix double allocation of @cxlhdm
+
+devm_cxl_setup_emulated_hdm() reallocates an instance of @cxlhdm that
+was already allocated at the start of devm_cxl_setup_hdm(). Only one is
+needed and devm_cxl_setup_emulated_hdm() does not do enough to warrant
+being an explicit helper.
+
+Fixes: 4474ce565ee4 ("cxl/hdm: Create emulated cxl_hdm for devices that do not have HDM decoders")
+Tested-by: Dave Jiang <dave.jiang@intel.com>
+Reviewed-by: Dave Jiang <dave.jiang@intel.com>
+Reviewed-by: Jonathan Cameron <Jonathan.Cameron@huawei.com>
+Link: https://lore.kernel.org/r/167703067936.185722.7908921750127154779.stgit@dwillia2-xfh.jf.intel.com
+Link: https://lore.kernel.org/r/168012574357.221280.5001364964799725366.stgit@dwillia2-xfh.jf.intel.com
+Signed-off-by: Dan Williams <dan.j.williams@intel.com>
+---
+ drivers/cxl/core/hdm.c | 34 ++++++----------------------------
+ 1 file changed, 6 insertions(+), 28 deletions(-)
+
+diff --git a/drivers/cxl/core/hdm.c b/drivers/cxl/core/hdm.c
+index 45deda18ed322..038f88eae226b 100644
+--- a/drivers/cxl/core/hdm.c
++++ b/drivers/cxl/core/hdm.c
+@@ -101,27 +101,6 @@ static int map_hdm_decoder_regs(struct cxl_port *port, void __iomem *crb,
+ 				      BIT(CXL_CM_CAP_CAP_ID_HDM));
+ }
+ 
+-static struct cxl_hdm *devm_cxl_setup_emulated_hdm(struct cxl_port *port,
+-						   struct cxl_endpoint_dvsec_info *info)
+-{
+-	struct device *dev = &port->dev;
+-	struct cxl_hdm *cxlhdm;
+-
+-	if (!info->mem_enabled)
+-		return ERR_PTR(-ENODEV);
+-
+-	cxlhdm = devm_kzalloc(dev, sizeof(*cxlhdm), GFP_KERNEL);
+-	if (!cxlhdm)
+-		return ERR_PTR(-ENOMEM);
+-
+-	cxlhdm->port = port;
+-	cxlhdm->decoder_count = info->ranges;
+-	cxlhdm->target_count = info->ranges;
+-	dev_set_drvdata(&port->dev, cxlhdm);
+-
+-	return cxlhdm;
+-}
+-
+ /**
+  * devm_cxl_setup_hdm - map HDM decoder component registers
+  * @port: cxl_port to map
+@@ -138,13 +117,14 @@ struct cxl_hdm *devm_cxl_setup_hdm(struct cxl_port *port,
+ 	cxlhdm = devm_kzalloc(dev, sizeof(*cxlhdm), GFP_KERNEL);
+ 	if (!cxlhdm)
+ 		return ERR_PTR(-ENOMEM);
+-
+ 	cxlhdm->port = port;
+-	crb = ioremap(port->component_reg_phys, CXL_COMPONENT_REG_BLOCK_SIZE);
+-	if (!crb) {
+-		if (info && info->mem_enabled)
+-			return devm_cxl_setup_emulated_hdm(port, info);
++	dev_set_drvdata(dev, cxlhdm);
+ 
++	crb = ioremap(port->component_reg_phys, CXL_COMPONENT_REG_BLOCK_SIZE);
++	if (!crb && info && info->mem_enabled) {
++		cxlhdm->decoder_count = info->ranges;
++		return cxlhdm;
++	} else if (!crb) {
+ 		dev_err(dev, "No component registers mapped\n");
+ 		return ERR_PTR(-ENXIO);
+ 	}
+@@ -160,8 +140,6 @@ struct cxl_hdm *devm_cxl_setup_hdm(struct cxl_port *port,
+ 		return ERR_PTR(-ENXIO);
+ 	}
+ 
+-	dev_set_drvdata(dev, cxlhdm);
+-
+ 	return cxlhdm;
+ }
+ EXPORT_SYMBOL_NS_GPL(devm_cxl_setup_hdm, CXL);
+-- 
+cgit 
+

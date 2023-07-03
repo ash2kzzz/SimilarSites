@@ -1,0 +1,88 @@
+From 6f9aba7f0d74e8dd085f9ac11fe8f3fdd7fde4ca Mon Sep 17 00:00:00 2001
+From: Athira Rajeev <atrajeev@linux.vnet.ibm.com>
+Date: Thu, 5 Jan 2023 17:34:36 +0530
+Subject: perf tests bpf prologue: Fix bpf-script-test-prologue test compile
+ issue with clang
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+While running 'perf test' for bpf, observed that "BPF prologue
+generation" test case fails to compile with clang. Logs below from
+powerpc:
+
+  <stdin>:33:2: error: use of undeclared identifier 'fmode_t'
+          fmode_t f_mode = (fmode_t)_f_mode;
+          ^
+  <stdin>:37:6: error: use of undeclared identifier 'f_mode'; did you mean '_f_mode'?
+          if (f_mode & FMODE_WRITE)
+              ^~~~~~
+              _f_mode
+  <stdin>:30:60: note: '_f_mode' declared here
+  int bpf_func__null_lseek(void *ctx, int err, unsigned long _f_mode,
+                                                             ^
+  2 errors generated.
+
+The test code tests/bpf-script-test-prologue.c uses fmode_t.  And the
+error above is for "fmode_t" which is defined in include/linux/types.h
+as part of kernel build directory: "/lib/modules/<kernel_version>/build"
+that comes from kernel devel [ soft link to /usr/src/<kernel_version> ].
+
+Clang picks this header file from "-working-directory" build option that
+specifies this build folder.
+
+But the commit 14e4b9f4289aed2c ("perf trace: Raw augmented syscalls fix
+libbpf 1.0+ compatibility") changed the include directory to use:
+"/usr/include".
+
+Post this change, types.h from /usr/include/ is getting picked upwhich
+doesn’t contain definition of "fmode_t" and hence fails to compile.
+
+Compilation command before this commit:
+
+  /usr/bin/clang -D__KERNEL__ -D__NR_CPUS__=72 -DLINUX_VERSION_CODE=0x50e00 -xc  -I/root/lib/perf/include/bpf -nostdinc -I./arch/powerpc/include -I./arch/powerpc/include/generated  -I./include -I./arch/powerpc/include/uapi -I./arch/powerpc/include/generated/uapi -I./include/uapi -I./include/generated/uapi -include ./include/linux/compiler-version.h -include ./include/linux/kconfig.h  -Wno-unused-value -Wno-pointer-sign -working-directory /lib/modules/<ver>/build -c - -target bpf  -g -O2 -o -
+
+Compilation command after this commit:
+
+  /usr/bin/clang -D__KERNEL__ -D__NR_CPUS__=72 -DLINUX_VERSION_CODE=0x50e00 -xc  -I/usr/include/ -nostdinc -I./arch/powerpc/include -I./arch/powerpc/include/generated  -I./include -I./arch/powerpc/include/uapi -I./arch/powerpc/include/generated/uapi -I./include/uapi -I./include/generated/uapi -include ./include/linux/compiler-version.h -include ./include/linux/kconfig.h  -Wno-unused-value -Wno-pointer-sign -working-directory /lib/modules/<ver>/build -c - -target bpf  -g -O2 -o -
+
+The difference is addition of -I/usr/include/  in the first line which
+is causing the error. Fix this by adding typedef for "fmode_t" in the
+testcase to solve the compile issue.
+
+Fixes: 14e4b9f4289aed2c ("perf trace: Raw augmented syscalls fix libbpf 1.0+ compatibility")
+Signed-off-by: Athira Jajeev <atrajeev@linux.vnet.ibm.com>
+Tested-by: Arnaldo Carvalho de Melo <acme@redhat.com>
+Cc: Andi Kleen <ak@linux.intel.com>
+Cc: Disha Goel <disgoel@linux.ibm.com>
+Cc: Ian Rogers <irogers@google.com>
+Cc: James Clark <james.clark@arm.com>
+Cc: Jiri Olsa <jolsa@kernel.org>
+Cc: Kajol Jain <kjain@linux.ibm.com>
+Cc: linuxppc-dev@lists.ozlabs.org
+Cc: Madhavan Srinivasan <maddy@linux.vnet.ibm.com>
+Cc: Michael Ellerman <mpe@ellerman.id.au>
+Cc: Nageswara R Sastry <rnsastry@linux.ibm.com>
+Cc: Namhyung Kim <namhyung@kernel.org>
+Link: https://lore.kernel.org/linux-perf-users/20230105120436.92051-1-atrajeev@linux.vnet.ibm.com
+Signed-off-by: Arnaldo Carvalho de Melo <acme@redhat.com>
+---
+ tools/perf/tests/bpf-script-test-prologue.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/tools/perf/tests/bpf-script-test-prologue.c b/tools/perf/tests/bpf-script-test-prologue.c
+index bd83d364cf30d..91778b5c6125d 100644
+--- a/tools/perf/tests/bpf-script-test-prologue.c
++++ b/tools/perf/tests/bpf-script-test-prologue.c
+@@ -20,6 +20,8 @@
+ # undef if
+ #endif
+ 
++typedef unsigned int __bitwise fmode_t;
++
+ #define FMODE_READ		0x1
+ #define FMODE_WRITE		0x2
+ 
+-- 
+cgit 
+

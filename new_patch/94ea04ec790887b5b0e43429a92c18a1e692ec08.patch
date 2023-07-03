@@ -1,0 +1,34 @@
+From 94ea04ec790887b5b0e43429a92c18a1e692ec08 Mon Sep 17 00:00:00 2001
+From: Roger Quadros <rogerq@kernel.org>
+Date: Fri, 21 Apr 2023 13:17:20 +0300
+Subject: usb: typec: tps6598x: Fix fault at module removal
+
+We need to cancel the delayed workqueue if it is being used
+else it will cause paging request fault during module removal.
+
+Fixes: 0d6a119cecd7 ("usb: typec: tps6598x: Add support for polling interrupts status")
+Signed-off-by: Roger Quadros <rogerq@kernel.org>
+Reviewed-by: Heikki Krogerus <heikki.krogerus@linux.intel.com>
+Link: https://lore.kernel.org/r/20230421101720.34318-1-rogerq@kernel.org
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+---
+ drivers/usb/typec/tipd/core.c | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/drivers/usb/typec/tipd/core.c b/drivers/usb/typec/tipd/core.c
+index 8b075ca82ef6d..438cc40660a1b 100644
+--- a/drivers/usb/typec/tipd/core.c
++++ b/drivers/usb/typec/tipd/core.c
+@@ -886,6 +886,9 @@ static void tps6598x_remove(struct i2c_client *client)
+ {
+ 	struct tps6598x *tps = i2c_get_clientdata(client);
+ 
++	if (!client->irq)
++		cancel_delayed_work_sync(&tps->wq_poll);
++
+ 	tps6598x_disconnect(tps, 0);
+ 	typec_unregister_port(tps->port);
+ 	usb_role_switch_put(tps->role_sw);
+-- 
+cgit 
+

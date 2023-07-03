@@ -1,0 +1,103 @@
+From 002bbaa2f60e07d465f92a163365569481d34108 Mon Sep 17 00:00:00 2001
+From: Serge Semin <Sergey.Semin@baikalelectronics.ru>
+Date: Fri, 13 Jan 2023 20:13:45 +0300
+Subject: dmaengine: dw-edma: Convert ll/dt phys address to PCI bus/DMA address
+
+The dw_edma_region.paddr field should be a memory base address visible by
+the DW eDMA controller. If the DMA engine is embedded in the DW PCIe
+Host/Endpoint controller, the address should belong to the Local CPU/
+Application memory.  If eDMA is remotely accessible across the PCI bus via
+PCI memory IOs, the address should be part of the PCI bus memory space.
+The latter case hasn't been well covered in the corresponding glue-driver.
+
+Since pci_dev.resource[] contains resources defined in the CPU memory
+space, they need to be converted to the PCI bus address space.  Convert the
+LL, DT and CSRs PCI memory ranges with pci_bus_address().
+
+In addition, extend the dw_edma_region.paddr field size. The field normally
+contains a memory range base address to be set in the DW eDMA Linked-List
+pointer register or as a base address of the Linked-List data buffer. In
+accordance with [1] the LL range is supposed to be created in the Local
+CPU/Application memory, but depending on the DW eDMA utilization the memory
+can be created as a part of the PCI bus address space (as in the case of
+the DW PCIe Endpoint prototype kit).
+
+In the former case dw_edma_region.paddr should be a dma_addr_t, while in
+the latter one it should be a pci_bus_addr_t. Since the corresponding CSRs
+are always 64 bits wide, convert dw_edma_region.paddr to be u64, and let
+the client make sure it has a valid address visible by the DW eDMA
+controller. For instance, the DW eDMA PCIe glue-driver initializes the
+field with addresses from the PCI bus memory space.
+
+[1] DesignWare Cores PCI Express Controller Databook - DWC PCIe Root Port,
+    v.5.40a, March 2019, p.1103
+
+Link: https://lore.kernel.org/r/20230113171409.30470-4-Sergey.Semin@baikalelectronics.ru
+Fixes: 41aaff2a2ac0 ("dmaengine: Add Synopsys eDMA IP PCIe glue-logic")
+Tested-by: Manivannan Sadhasivam <manivannan.sadhasivam@linaro.org>
+Signed-off-by: Serge Semin <Sergey.Semin@baikalelectronics.ru>
+Signed-off-by: Lorenzo Pieralisi <lpieralisi@kernel.org>
+Signed-off-by: Bjorn Helgaas <bhelgaas@google.com>
+Reviewed-by: Manivannan Sadhasivam <manivannan.sadhasivam@linaro.org>
+Acked-by: Vinod Koul <vkoul@kernel.org>
+---
+ drivers/dma/dw-edma/dw-edma-pcie.c | 8 ++++----
+ include/linux/dma/edma.h           | 2 +-
+ 2 files changed, 5 insertions(+), 5 deletions(-)
+
+diff --git a/drivers/dma/dw-edma/dw-edma-pcie.c b/drivers/dma/dw-edma/dw-edma-pcie.c
+index d6b5e24638847..04c95cba1244b 100644
+--- a/drivers/dma/dw-edma/dw-edma-pcie.c
++++ b/drivers/dma/dw-edma/dw-edma-pcie.c
+@@ -231,7 +231,7 @@ static int dw_edma_pcie_probe(struct pci_dev *pdev,
+ 			return -ENOMEM;
+ 
+ 		ll_region->vaddr += ll_block->off;
+-		ll_region->paddr = pdev->resource[ll_block->bar].start;
++		ll_region->paddr = pci_bus_address(pdev, ll_block->bar);
+ 		ll_region->paddr += ll_block->off;
+ 		ll_region->sz = ll_block->sz;
+ 
+@@ -240,7 +240,7 @@ static int dw_edma_pcie_probe(struct pci_dev *pdev,
+ 			return -ENOMEM;
+ 
+ 		dt_region->vaddr += dt_block->off;
+-		dt_region->paddr = pdev->resource[dt_block->bar].start;
++		dt_region->paddr = pci_bus_address(pdev, dt_block->bar);
+ 		dt_region->paddr += dt_block->off;
+ 		dt_region->sz = dt_block->sz;
+ 	}
+@@ -256,7 +256,7 @@ static int dw_edma_pcie_probe(struct pci_dev *pdev,
+ 			return -ENOMEM;
+ 
+ 		ll_region->vaddr += ll_block->off;
+-		ll_region->paddr = pdev->resource[ll_block->bar].start;
++		ll_region->paddr = pci_bus_address(pdev, ll_block->bar);
+ 		ll_region->paddr += ll_block->off;
+ 		ll_region->sz = ll_block->sz;
+ 
+@@ -265,7 +265,7 @@ static int dw_edma_pcie_probe(struct pci_dev *pdev,
+ 			return -ENOMEM;
+ 
+ 		dt_region->vaddr += dt_block->off;
+-		dt_region->paddr = pdev->resource[dt_block->bar].start;
++		dt_region->paddr = pci_bus_address(pdev, dt_block->bar);
+ 		dt_region->paddr += dt_block->off;
+ 		dt_region->sz = dt_block->sz;
+ 	}
+diff --git a/include/linux/dma/edma.h b/include/linux/dma/edma.h
+index 7d8062e9c544c..a864978ddd27d 100644
+--- a/include/linux/dma/edma.h
++++ b/include/linux/dma/edma.h
+@@ -18,7 +18,7 @@
+ struct dw_edma;
+ 
+ struct dw_edma_region {
+-	phys_addr_t	paddr;
++	u64		paddr;
+ 	void __iomem	*vaddr;
+ 	size_t		sz;
+ };
+-- 
+cgit 
+

@@ -1,0 +1,39 @@
+From df14b7f9efcda35e59bb6f50351aac25c50f6e24 Mon Sep 17 00:00:00 2001
+From: Waiman Long <longman@redhat.com>
+Date: Fri, 3 Feb 2023 13:18:49 -0500
+Subject: sched/core: Fix a missed update of user_cpus_ptr
+
+Since commit 8f9ea86fdf99 ("sched: Always preserve the user requested
+cpumask"), a successful call to sched_setaffinity() should always save
+the user requested cpu affinity mask in a task's user_cpus_ptr. However,
+when the given cpu mask is the same as the current one, user_cpus_ptr
+is not updated. Fix this by saving the user mask in this case too.
+
+Fixes: 8f9ea86fdf99 ("sched: Always preserve the user requested cpumask")
+Signed-off-by: Waiman Long <longman@redhat.com>
+Signed-off-by: Peter Zijlstra (Intel) <peterz@infradead.org>
+Link: https://lkml.kernel.org/r/20230203181849.221943-1-longman@redhat.com
+---
+ kernel/sched/core.c | 5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/kernel/sched/core.c b/kernel/sched/core.c
+index e838feb6adc50..2a4918a1faa9e 100644
+--- a/kernel/sched/core.c
++++ b/kernel/sched/core.c
+@@ -2951,8 +2951,11 @@ static int __set_cpus_allowed_ptr_locked(struct task_struct *p,
+ 	}
+ 
+ 	if (!(ctx->flags & SCA_MIGRATE_ENABLE)) {
+-		if (cpumask_equal(&p->cpus_mask, ctx->new_mask))
++		if (cpumask_equal(&p->cpus_mask, ctx->new_mask)) {
++			if (ctx->flags & SCA_USER)
++				swap(p->user_cpus_ptr, ctx->user_mask);
+ 			goto out;
++		}
+ 
+ 		if (WARN_ON_ONCE(p == current &&
+ 				 is_migration_disabled(p) &&
+-- 
+cgit 
+

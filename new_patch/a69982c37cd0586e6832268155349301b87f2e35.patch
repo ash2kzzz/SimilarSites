@@ -1,0 +1,51 @@
+From a69982c37cd0586e6832268155349301b87f2e35 Mon Sep 17 00:00:00 2001
+From: Werner Sembach <wse@tuxedocomputers.com>
+Date: Wed, 15 Feb 2023 15:39:41 +0100
+Subject: gpiolib: acpi: Add a ignore wakeup quirk for Clevo NH5xAx
+
+The commit 1796f808e4bb ("HID: i2c-hid: acpi: Stop setting wakeup_capable")
+changed the policy such that I2C touchpads may be able to wake up the
+system by default if the system is configured as such.
+
+However for some devices there is a bug, that is causing the touchpad to
+instantly wake up the device again once it gets deactivated. The root cause
+is still under investigation (see Link tag).
+
+To workaround this problem for the time being, introduce a quirk for this
+model that will prevent the wakeup capability for being set for GPIO 16.
+
+Fixes: 1796f808e4bb ("HID: i2c-hid: acpi: Stop setting wakeup_capable")
+Link: https://lore.kernel.org/linux-acpi/20230210164636.628462-1-wse@tuxedocomputers.com/
+Signed-off-by: Werner Sembach <wse@tuxedocomputers.com>
+Cc: <stable@vger.kernel.org> # v6.1+
+Signed-off-by: Andy Shevchenko <andriy.shevchenko@linux.intel.com>
+---
+ drivers/gpio/gpiolib-acpi.c | 12 ++++++++++++
+ 1 file changed, 12 insertions(+)
+
+diff --git a/drivers/gpio/gpiolib-acpi.c b/drivers/gpio/gpiolib-acpi.c
+index 17c53f484280f..34ff048e70d0e 100644
+--- a/drivers/gpio/gpiolib-acpi.c
++++ b/drivers/gpio/gpiolib-acpi.c
+@@ -1637,6 +1637,18 @@ static const struct dmi_system_id gpiolib_acpi_quirks[] __initconst = {
+ 			.ignore_wake = "ELAN0415:00@9",
+ 		},
+ 	},
++	{
++		/*
++		 * Spurious wakeups from TP_ATTN# pin
++		 * Found in BIOS 1.7.7
++		 */
++		.matches = {
++			DMI_MATCH(DMI_BOARD_NAME, "NH5xAx"),
++		},
++		.driver_data = &(struct acpi_gpiolib_dmi_quirk) {
++			.ignore_wake = "SYNA1202:00@16",
++		},
++	},
+ 	{} /* Terminating entry */
+ };
+ 
+-- 
+cgit 
+

@@ -1,0 +1,31 @@
+From 4eb6678ab53cac74e71fc5d4e6ff4035e5c847b6 Mon Sep 17 00:00:00 2001
+From: Geert Uytterhoeven <geert+renesas@glider.be>
+Date: Tue, 7 Mar 2023 12:23:42 +0100
+Subject: regulator: rt5739: Spelling s/Rcihtek/Richtek/
+
+Fix a misspelling of "Richtek".
+
+Fixes: 4536f3b93a3373ca ("regulator: Add support for Richtek RT5739 voltage regulator")
+Signed-off-by: Geert Uytterhoeven <geert+renesas@glider.be>
+Link: https://lore.kernel.org/r/05f26d8e1e527f8b3fd2828f75ce2174e19c69e7.1678188171.git.geert+renesas@glider.be
+Signed-off-by: Mark Brown <broonie@kernel.org>
+---
+ drivers/regulator/Kconfig | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/regulator/Kconfig b/drivers/regulator/Kconfig
+index 31f8e0b7bdf14..d8ee041212df9 100644
+--- a/drivers/regulator/Kconfig
++++ b/drivers/regulator/Kconfig
+@@ -1121,7 +1121,7 @@ config REGULATOR_RT5190A
+ 	  I2C control interface.
+ 
+ config REGULATOR_RT5739
+-	tristate "Rcihtek RT5739 Regulator"
++	tristate "Richtek RT5739 Regulator"
+ 	depends on I2C
+ 	select REGMAP_I2C
+ 	help
+-- 
+cgit 
+

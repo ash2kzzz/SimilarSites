@@ -1,0 +1,52 @@
+From c956940a4ab73a87d0165e911c001dbdd2c8200f Mon Sep 17 00:00:00 2001
+From: Maor Gottlieb <maorg@nvidia.com>
+Date: Mon, 30 Jan 2023 16:25:50 +0200
+Subject: RDMA/umem: Use dma-buf locked API to solve deadlock
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+The cited commit moves umem to call the unlocked versions of dmabuf
+unmap/map attachment, but the lock is held while calling to these
+functions, hence move back to the locked versions of these APIs.
+
+Fixes: 21c9c5c0784f ("RDMA/umem: Prepare to dynamic dma-buf locking specification")
+Link: https://lore.kernel.org/r/311c2cb791f8af75486df446819071357353db1b.1675088709.git.leon@kernel.org
+Signed-off-by: Maor Gottlieb <maorg@nvidia.com>
+Reviewed-by: Christian König <christian.koenig@amd.com>
+Signed-off-by: Leon Romanovsky <leonro@nvidia.com>
+Reviewed-by: Dmitry Osipenko <dmitry.osipenko@collabora.com>
+Signed-off-by: Jason Gunthorpe <jgg@nvidia.com>
+---
+ drivers/infiniband/core/umem_dmabuf.c | 8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/infiniband/core/umem_dmabuf.c b/drivers/infiniband/core/umem_dmabuf.c
+index 43b26bc122885..39357dc2d229f 100644
+--- a/drivers/infiniband/core/umem_dmabuf.c
++++ b/drivers/infiniband/core/umem_dmabuf.c
+@@ -26,8 +26,8 @@ int ib_umem_dmabuf_map_pages(struct ib_umem_dmabuf *umem_dmabuf)
+ 	if (umem_dmabuf->sgt)
+ 		goto wait_fence;
+ 
+-	sgt = dma_buf_map_attachment_unlocked(umem_dmabuf->attach,
+-					      DMA_BIDIRECTIONAL);
++	sgt = dma_buf_map_attachment(umem_dmabuf->attach,
++				     DMA_BIDIRECTIONAL);
+ 	if (IS_ERR(sgt))
+ 		return PTR_ERR(sgt);
+ 
+@@ -103,8 +103,8 @@ void ib_umem_dmabuf_unmap_pages(struct ib_umem_dmabuf *umem_dmabuf)
+ 		umem_dmabuf->last_sg_trim = 0;
+ 	}
+ 
+-	dma_buf_unmap_attachment_unlocked(umem_dmabuf->attach, umem_dmabuf->sgt,
+-					  DMA_BIDIRECTIONAL);
++	dma_buf_unmap_attachment(umem_dmabuf->attach, umem_dmabuf->sgt,
++				 DMA_BIDIRECTIONAL);
+ 
+ 	umem_dmabuf->sgt = NULL;
+ }
+-- 
+cgit 
+

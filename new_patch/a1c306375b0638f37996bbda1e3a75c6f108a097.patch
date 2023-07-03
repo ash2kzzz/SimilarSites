@@ -1,0 +1,40 @@
+From a1c306375b0638f37996bbda1e3a75c6f108a097 Mon Sep 17 00:00:00 2001
+From: Daniel Lezcano <daniel.lezcano@linaro.org>
+Date: Mon, 3 Oct 2022 15:29:43 +0200
+Subject: thermal/drivers/exynos: Fix NULL pointer dereference when getting the
+ critical temp
+
+The driver is assuming the get_critical temperature exists as it is
+inherited by the thermal of ops. But this one has been removed in
+favor of the generic one.
+
+Use the generic thermal_zone_get_crit_temp() function instead
+
+Fixes: 13bea86623be ("thermal/of: Remove of_thermal_get_crit_temp(")
+Reported-by: Marek Szyprowski <m.szyprowski@samsung.com>
+Reviewed-by: Krzysztof Kozlowski <krzysztof.kozlowski@linaro.org>
+Tested-by: Marek Szyprowski <m.szyprowski@samsung.com>
+Signed-off-by: Daniel Lezcano <daniel.lezcano@linaro.org>
+---
+ drivers/thermal/samsung/exynos_tmu.c | 5 ++---
+ 1 file changed, 2 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/thermal/samsung/exynos_tmu.c b/drivers/thermal/samsung/exynos_tmu.c
+index 5a1ffe2f31346..37465af59262b 100644
+--- a/drivers/thermal/samsung/exynos_tmu.c
++++ b/drivers/thermal/samsung/exynos_tmu.c
+@@ -264,9 +264,8 @@ static int exynos_tmu_initialize(struct platform_device *pdev)
+ 	unsigned int status;
+ 	int ret = 0, temp;
+ 
+-	if (data->soc != SOC_ARCH_EXYNOS5433) /* FIXME */
+-		ret = tzd->ops->get_crit_temp(tzd, &temp);
+-	if (ret) {
++	ret = thermal_zone_get_crit_temp(tzd, &temp);
++	if (ret && data->soc != SOC_ARCH_EXYNOS5433) { /* FIXME */
+ 		dev_err(&pdev->dev,
+ 			"No CRITICAL trip point defined in device tree!\n");
+ 		goto out;
+-- 
+cgit 
+

@@ -1,0 +1,77 @@
+From f74dcbfd27c647af9b7b83f3711c63712c677abd Mon Sep 17 00:00:00 2001
+From: Andrew Donnellan <ajd@linux.ibm.com>
+Date: Fri, 10 Feb 2023 19:03:36 +1100
+Subject: powerpc/pseries: Fix handling of PLPKS object flushing timeout
+
+plpks_confirm_object_flushed() uses the H_PKS_CONFIRM_OBJECT_FLUSHED hcall
+to check whether changes to an object in the Platform KeyStore have been
+flushed to non-volatile storage.
+
+The hcall returns two output values, the return code and the flush status.
+plpks_confirm_object_flushed() polls the hcall until either the flush
+status has updated, the return code is an error, or a timeout has been
+exceeded.
+
+While we're still polling, the hcall is returning H_SUCCESS (0) as the
+return code. In the timeout case, this means that upon exiting the polling
+loop, rc is 0, and therefore 0 is returned to the user.
+
+Handle the timeout case separately and return ETIMEDOUT if triggered.
+
+Fixes: 2454a7af0f2a ("powerpc/pseries: define driver for Platform KeyStore")
+Reported-by: Benjamin Gray <bgray@linux.ibm.com>
+Signed-off-by: Andrew Donnellan <ajd@linux.ibm.com>
+Tested-by: Russell Currey <ruscur@russell.cc>
+Reviewed-by: Russell Currey <ruscur@russell.cc>
+Signed-off-by: Russell Currey <ruscur@russell.cc>
+Signed-off-by: Michael Ellerman <mpe@ellerman.id.au>
+Link: https://lore.kernel.org/r/20230210080401.345462-2-ajd@linux.ibm.com
+---
+ arch/powerpc/platforms/pseries/plpks.c | 11 ++++++++---
+ 1 file changed, 8 insertions(+), 3 deletions(-)
+
+diff --git a/arch/powerpc/platforms/pseries/plpks.c b/arch/powerpc/platforms/pseries/plpks.c
+index 4edd1585e2457..9e85b6d85b0b2 100644
+--- a/arch/powerpc/platforms/pseries/plpks.c
++++ b/arch/powerpc/platforms/pseries/plpks.c
+@@ -248,6 +248,7 @@ static int plpks_confirm_object_flushed(struct label *label,
+ 					struct plpks_auth *auth)
+ {
+ 	unsigned long retbuf[PLPAR_HCALL_BUFSIZE] = { 0 };
++	bool timed_out = true;
+ 	u64 timeout = 0;
+ 	u8 status;
+ 	int rc;
+@@ -259,22 +260,26 @@ static int plpks_confirm_object_flushed(struct label *label,
+ 
+ 		status = retbuf[0];
+ 		if (rc) {
++			timed_out = false;
+ 			if (rc == H_NOT_FOUND && status == 1)
+ 				rc = 0;
+ 			break;
+ 		}
+ 
+-		if (!rc && status == 1)
++		if (!rc && status == 1) {
++			timed_out = false;
+ 			break;
++		}
+ 
+ 		usleep_range(PKS_FLUSH_SLEEP,
+ 			     PKS_FLUSH_SLEEP + PKS_FLUSH_SLEEP_RANGE);
+ 		timeout = timeout + PKS_FLUSH_SLEEP;
+ 	} while (timeout < PKS_FLUSH_MAX_TIMEOUT);
+ 
+-	rc = pseries_status_to_err(rc);
++	if (timed_out)
++		return -ETIMEDOUT;
+ 
+-	return rc;
++	return pseries_status_to_err(rc);
+ }
+ 
+ int plpks_write_var(struct plpks_var var)
+-- 
+cgit 
+

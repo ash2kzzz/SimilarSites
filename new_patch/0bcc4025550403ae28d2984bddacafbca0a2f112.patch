@@ -1,0 +1,39 @@
+From 0bcc4025550403ae28d2984bddacafbca0a2f112 Mon Sep 17 00:00:00 2001
+From: David Howells <dhowells@redhat.com>
+Date: Wed, 12 Apr 2023 13:18:57 +0100
+Subject: netfs: Fix netfs_extract_iter_to_sg() for ITER_UBUF/IOVEC
+
+Fix netfs_extract_iter_to_sg() for ITER_UBUF and ITER_IOVEC to set the
+size of the page to the part of the page extracted, not the remaining
+amount of data in the extracted page array at that point.
+
+This doesn't yet affect anything as cifs, the only current user, only
+passes in non-user-backed iterators.
+
+Fixes: 018584697533 ("netfs: Add a function to extract an iterator into a scatterlist")
+Signed-off-by: David Howells <dhowells@redhat.com>
+Reviewed-by: Jeff Layton <jlayton@kernel.org>
+Cc: Steve French <sfrench@samba.org>
+Cc: Shyam Prasad N <nspmangalore@gmail.com>
+Cc: Rohith Surabattula <rohiths.msft@gmail.com>
+Signed-off-by: Linus Torvalds <torvalds@linux-foundation.org>
+---
+ fs/netfs/iterator.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/fs/netfs/iterator.c b/fs/netfs/iterator.c
+index e9a45dea748a2..8a4c866874297 100644
+--- a/fs/netfs/iterator.c
++++ b/fs/netfs/iterator.c
+@@ -139,7 +139,7 @@ static ssize_t netfs_extract_user_to_sg(struct iov_iter *iter,
+ 			size_t seg = min_t(size_t, PAGE_SIZE - off, len);
+ 
+ 			*pages++ = NULL;
+-			sg_set_page(sg, page, len, off);
++			sg_set_page(sg, page, seg, off);
+ 			sgtable->nents++;
+ 			sg++;
+ 			len -= seg;
+-- 
+cgit 
+

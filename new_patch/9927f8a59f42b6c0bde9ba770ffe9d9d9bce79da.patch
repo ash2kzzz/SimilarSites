@@ -1,0 +1,42 @@
+From 9927f8a59f42b6c0bde9ba770ffe9d9d9bce79da Mon Sep 17 00:00:00 2001
+From: Krzysztof Kozlowski <krzysztof.kozlowski@linaro.org>
+Date: Wed, 1 Feb 2023 16:43:19 +0100
+Subject: arm64: dts: qcom: sm8350-hdk: align pin config node names with
+ bindings
+
+Bindings expect pins to be named with certain pattern.
+
+Signed-off-by: Krzysztof Kozlowski <krzysztof.kozlowski@linaro.org>
+Fixes: d96d8f9192be ("arm64: dts: qcom: sm8350-hdk: Enable lt9611uxc dsi-hdmi bridge")
+Reviewed-by: Konrad Dybcio <konrad.dybcio@linaro.org>
+Signed-off-by: Bjorn Andersson <andersson@kernel.org>
+Link: https://lore.kernel.org/r/20230201154321.276419-1-krzysztof.kozlowski@linaro.org
+---
+ arch/arm64/boot/dts/qcom/sm8350-hdk.dts | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/arch/arm64/boot/dts/qcom/sm8350-hdk.dts b/arch/arm64/boot/dts/qcom/sm8350-hdk.dts
+index 315f60c1c451f..7a8556c1ced55 100644
+--- a/arch/arm64/boot/dts/qcom/sm8350-hdk.dts
++++ b/arch/arm64/boot/dts/qcom/sm8350-hdk.dts
+@@ -723,7 +723,7 @@
+ 	};
+ 
+ 	lt9611_state: lt9611-state {
+-		rst {
++		rst-pins {
+ 			pins = "gpio48";
+ 			function = "normal";
+ 
+@@ -731,7 +731,7 @@
+ 			input-disable;
+ 		};
+ 
+-		irq {
++		irq-pins {
+ 			pins = "gpio50";
+ 			function = "gpio";
+ 			bias-disable;
+-- 
+cgit 
+

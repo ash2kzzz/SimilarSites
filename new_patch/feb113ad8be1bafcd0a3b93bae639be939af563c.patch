@@ -1,0 +1,30 @@
+From feb113ad8be1bafcd0a3b93bae639be939af563c Mon Sep 17 00:00:00 2001
+From: Carlos Llamas <cmllamas@google.com>
+Date: Wed, 25 Jan 2023 18:30:47 +0000
+Subject: kbuild: fix trivial typo in comment
+
+Add missing underscore in CONFIG_DEBUG_INFO_BTF_MODULES.
+
+Fixes: f73edc8951b2 ("kbuild: unify two modpost invocations")
+Signed-off-by: Carlos Llamas <cmllamas@google.com>
+Signed-off-by: Masahiro Yamada <masahiroy@kernel.org>
+---
+ Makefile | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/Makefile b/Makefile
+index 5bd587bb30b57..93796ece1cba4 100644
+--- a/Makefile
++++ b/Makefile
+@@ -1538,7 +1538,7 @@ endif
+ # Build modules
+ #
+ 
+-# *.ko are usually independent of vmlinux, but CONFIG_DEBUG_INFOBTF_MODULES
++# *.ko are usually independent of vmlinux, but CONFIG_DEBUG_INFO_BTF_MODULES
+ # is an exception.
+ ifdef CONFIG_DEBUG_INFO_BTF_MODULES
+ KBUILD_BUILTIN := 1
+-- 
+cgit 
+

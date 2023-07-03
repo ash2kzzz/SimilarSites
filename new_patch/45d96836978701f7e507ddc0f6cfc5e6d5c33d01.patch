@@ -1,0 +1,52 @@
+From 45d96836978701f7e507ddc0f6cfc5e6d5c33d01 Mon Sep 17 00:00:00 2001
+From: Neil Armstrong <neil.armstrong@linaro.org>
+Date: Fri, 24 Mar 2023 10:28:46 +0100
+Subject: dt-bindings: display: msm: sm8450-mdss: Fix DSI compatible
+
+The DSI compatible changed between patchset revisions, but that wasn't
+reflected in the bindings. Fix it.
+
+Fixes: 0eda3c6cb1c5 ("dt-bindings: display/msm: add support for the display on SM8450")
+Signed-off-by: Neil Armstrong <neil.armstrong@linaro.org>
+Reviewed-by: Krzysztof Kozlowski <krzysztof.kozlowski@linaro.org>
+Patchwork: https://patchwork.freedesktop.org/patch/528589/
+Link: https://lore.kernel.org/r/20230323-topic-sm8450-upstream-dt-bindings-fixes-v2-1-0ca1bea1a843@linaro.org
+Signed-off-by: Dmitry Baryshkov <dmitry.baryshkov@linaro.org>
+---
+ Documentation/devicetree/bindings/display/msm/qcom,sm8450-mdss.yaml | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/Documentation/devicetree/bindings/display/msm/qcom,sm8450-mdss.yaml b/Documentation/devicetree/bindings/display/msm/qcom,sm8450-mdss.yaml
+index 4c6929e2534c2..f26eb5643aed9 100644
+--- a/Documentation/devicetree/bindings/display/msm/qcom,sm8450-mdss.yaml
++++ b/Documentation/devicetree/bindings/display/msm/qcom,sm8450-mdss.yaml
+@@ -54,7 +54,7 @@ patternProperties:
+     type: object
+     properties:
+       compatible:
+-        const: qcom,dsi-phy-5nm-8450
++        const: qcom,sm8450-dsi-phy-5nm
+ 
+ required:
+   - compatible
+@@ -254,7 +254,7 @@ examples:
+         };
+ 
+         dsi0_phy: phy@ae94400 {
+-            compatible = "qcom,dsi-phy-5nm-8450";
++            compatible = "qcom,sm8450-dsi-phy-5nm";
+             reg = <0x0ae94400 0x200>,
+                   <0x0ae94600 0x280>,
+                   <0x0ae94900 0x260>;
+@@ -325,7 +325,7 @@ examples:
+         };
+ 
+         dsi1_phy: phy@ae96400 {
+-            compatible = "qcom,dsi-phy-5nm-8450";
++            compatible = "qcom,sm8450-dsi-phy-5nm";
+             reg = <0x0ae96400 0x200>,
+                   <0x0ae96600 0x280>,
+                   <0x0ae96900 0x260>;
+-- 
+cgit 
+

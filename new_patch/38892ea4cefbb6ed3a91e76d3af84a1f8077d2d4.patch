@@ -1,0 +1,37 @@
+From 38892ea4cefbb6ed3a91e76d3af84a1f8077d2d4 Mon Sep 17 00:00:00 2001
+From: Hector Martin <marcan@marcan.st>
+Date: Wed, 4 Jan 2023 18:36:27 +0900
+Subject: spi: dt-bindings: Rename spi-cs-setup-ns to spi-cs-setup-delay-ns
+
+Other delay values follow the delay-ns naming convention, so unify the
+newly introduced spi-cs-setup-ns property for consistency.
+
+Also fix a typo while we're here.
+
+Fixes: f6c911f3308c ("spi: dt-bindings: Introduce spi-cs-setup-ns property")
+Signed-off-by: Hector Martin <marcan@marcan.st>
+Link: https://lore.kernel.org/r/20230104093631.15611-2-marcan@marcan.st
+Signed-off-by: Mark Brown <broonie@kernel.org>
+---
+ Documentation/devicetree/bindings/spi/spi-peripheral-props.yaml | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/Documentation/devicetree/bindings/spi/spi-peripheral-props.yaml b/Documentation/devicetree/bindings/spi/spi-peripheral-props.yaml
+index ead2cccf658fd..9a60c0664bbe7 100644
+--- a/Documentation/devicetree/bindings/spi/spi-peripheral-props.yaml
++++ b/Documentation/devicetree/bindings/spi/spi-peripheral-props.yaml
+@@ -44,9 +44,9 @@ properties:
+     description:
+       Maximum SPI clocking speed of the device in Hz.
+ 
+-  spi-cs-setup-ns:
++  spi-cs-setup-delay-ns:
+     description:
+-      Delay in nanosecods to be introduced by the controller after CS is
++      Delay in nanoseconds to be introduced by the controller after CS is
+       asserted.
+ 
+   spi-rx-bus-width:
+-- 
+cgit 
+

@@ -1,0 +1,71 @@
+From 8b50ac29854a04c8c35d3d0cb33d2166bf74c6e6 Mon Sep 17 00:00:00 2001
+From: Danielle Ratson <danieller@nvidia.com>
+Date: Mon, 6 Feb 2023 16:39:18 +0100
+Subject: mlxsw: spectrum: Remove pointless call to
+ devlink_param_driverinit_value_set()
+
+The "acl_region_rehash_interval" devlink parameter is a "runtime"
+parameter, making the call to devl_param_driverinit_value_set()
+pointless. Before cited commit the function simply returned an error
+(that was not checked), but now it emits a WARNING [1].
+
+Fix by removing the function call.
+
+[1]
+WARNING: CPU: 0 PID: 7 at net/devlink/leftover.c:10974
+devl_param_driverinit_value_set+0x8c/0x90
+[...]
+Call Trace:
+ <TASK>
+ mlxsw_sp2_params_register+0x83/0xb0 [mlxsw_spectrum]
+ __mlxsw_core_bus_device_register+0x5e5/0x990 [mlxsw_core]
+ mlxsw_core_bus_device_register+0x42/0x60 [mlxsw_core]
+ mlxsw_pci_probe+0x1f0/0x230 [mlxsw_pci]
+ local_pci_probe+0x1a/0x40
+ work_for_cpu_fn+0xf/0x20
+ process_one_work+0x1db/0x390
+ worker_thread+0x1d5/0x3b0
+ kthread+0xe5/0x110
+ ret_from_fork+0x1f/0x30
+ </TASK>
+
+Fixes: 85fe0b324c83 ("devlink: make devlink_param_driverinit_value_set() return void")
+Signed-off-by: Danielle Ratson <danieller@nvidia.com>
+Reviewed-by: Ido Schimmel <idosch@nvidia.com>
+Signed-off-by: Petr Machata <petrm@nvidia.com>
+Reviewed-by: Jiri Pirko <jiri@nvidia.com>
+Reviewed-by: Jacob Keller <jacob.e.keller@intel.com>
+Signed-off-by: Jakub Kicinski <kuba@kernel.org>
+---
+ drivers/net/ethernet/mellanox/mlxsw/spectrum.c | 14 ++------------
+ 1 file changed, 2 insertions(+), 12 deletions(-)
+
+diff --git a/drivers/net/ethernet/mellanox/mlxsw/spectrum.c b/drivers/net/ethernet/mellanox/mlxsw/spectrum.c
+index b0bdb9640ebf9..b150e97b97b70 100644
+--- a/drivers/net/ethernet/mellanox/mlxsw/spectrum.c
++++ b/drivers/net/ethernet/mellanox/mlxsw/spectrum.c
+@@ -3895,19 +3895,9 @@ static const struct devlink_param mlxsw_sp2_devlink_params[] = {
+ static int mlxsw_sp2_params_register(struct mlxsw_core *mlxsw_core)
+ {
+ 	struct devlink *devlink = priv_to_devlink(mlxsw_core);
+-	union devlink_param_value value;
+-	int err;
+ 
+-	err = devl_params_register(devlink, mlxsw_sp2_devlink_params,
+-				   ARRAY_SIZE(mlxsw_sp2_devlink_params));
+-	if (err)
+-		return err;
+-
+-	value.vu32 = 0;
+-	devl_param_driverinit_value_set(devlink,
+-					MLXSW_DEVLINK_PARAM_ID_ACL_REGION_REHASH_INTERVAL,
+-					value);
+-	return 0;
++	return devl_params_register(devlink, mlxsw_sp2_devlink_params,
++				    ARRAY_SIZE(mlxsw_sp2_devlink_params));
+ }
+ 
+ static void mlxsw_sp2_params_unregister(struct mlxsw_core *mlxsw_core)
+-- 
+cgit 
+

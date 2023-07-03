@@ -1,0 +1,34 @@
+From 805e640e09b08f398a218f772f9bd7fe2ad1f647 Mon Sep 17 00:00:00 2001
+From: Rob Herring <robh@kernel.org>
+Date: Thu, 19 Jan 2023 20:03:39 -0600
+Subject: dt-bindings: soc: socionext,uniphier-soc-glue: Make child node names
+ fixed names
+
+The child nodes 'pinctrl', 'usb-hub', and 'clock-controller' in the
+socionext,uniphier-soc-glue binding are not patterns, but the full node
+name, so move them to 'properties'. As patterns, they were missing start
+and end anchors so any prefix or suffix was allowed.
+
+Fixes: 0611adff8b3a ("dt-bindings: soc: socionext: Add UniPhier SoC-glue logic")
+Reviewed-by: Kunihiko Hayashi <hayashi.kunihiko@socionext.com>
+Link: https://lore.kernel.org/r/20230120020339.3223112-1-robh@kernel.org
+Signed-off-by: Rob Herring <robh@kernel.org>
+---
+ .../devicetree/bindings/soc/socionext/socionext,uniphier-soc-glue.yaml   | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/Documentation/devicetree/bindings/soc/socionext/socionext,uniphier-soc-glue.yaml b/Documentation/devicetree/bindings/soc/socionext/socionext,uniphier-soc-glue.yaml
+index 4b6852db4747b..7845dcfca986c 100644
+--- a/Documentation/devicetree/bindings/soc/socionext/socionext,uniphier-soc-glue.yaml
++++ b/Documentation/devicetree/bindings/soc/socionext/socionext,uniphier-soc-glue.yaml
+@@ -32,7 +32,6 @@ properties:
+   reg:
+     maxItems: 1
+ 
+-patternProperties:
+   pinctrl:
+     $ref: /schemas/pinctrl/socionext,uniphier-pinctrl.yaml#
+ 
+-- 
+cgit 
+

@@ -1,0 +1,48 @@
+From 7d481e0356334eb2de254414769b4bed4b2a8827 Mon Sep 17 00:00:00 2001
+From: Pavel Begunkov <asml.silence@gmail.com>
+Date: Thu, 13 Apr 2023 15:28:09 +0100
+Subject: io_uring/rsrc: fix DEFER_TASKRUN rsrc quiesce
+
+For io_rsrc_ref_quiesce() to progress it should execute all task_work
+items, including deferred ones. However, currently nobody would wake us,
+and so let's set ctx->cq_wait_nr, so io_req_local_work_add() would wake
+us up.
+
+Fixes: c0e0d6ba25f18 ("io_uring: add IORING_SETUP_DEFER_TASKRUN")
+Signed-off-by: Pavel Begunkov <asml.silence@gmail.com>
+Link: https://lore.kernel.org/r/f1a90d1bc5ebf096475b018fed52e54f3b89d4af.1681395792.git.asml.silence@gmail.com
+Signed-off-by: Jens Axboe <axboe@kernel.dk>
+---
+ io_uring/rsrc.c | 9 +++++++++
+ 1 file changed, 9 insertions(+)
+
+diff --git a/io_uring/rsrc.c b/io_uring/rsrc.c
+index f9ce4076c73d4..e634ef384724d 100644
+--- a/io_uring/rsrc.c
++++ b/io_uring/rsrc.c
+@@ -273,6 +273,11 @@ __cold static int io_rsrc_ref_quiesce(struct io_rsrc_data *data,
+ 	if (io_put_rsrc_data_ref(data))
+ 		return 0;
+ 
++	if (ctx->flags & IORING_SETUP_DEFER_TASKRUN) {
++		atomic_set(&ctx->cq_wait_nr, 1);
++		smp_mb();
++	}
++
+ 	data->quiesce = true;
+ 	do {
+ 		prepare_to_wait(&ctx->rsrc_quiesce_wq, &we, TASK_INTERRUPTIBLE);
+@@ -298,6 +303,10 @@ __cold static int io_rsrc_ref_quiesce(struct io_rsrc_data *data,
+ 
+ 	finish_wait(&ctx->rsrc_quiesce_wq, &we);
+ 	data->quiesce = false;
++	if (ctx->flags & IORING_SETUP_DEFER_TASKRUN) {
++		atomic_set(&ctx->cq_wait_nr, 0);
++		smp_mb();
++	}
+ 	return ret;
+ }
+ 
+-- 
+cgit 
+

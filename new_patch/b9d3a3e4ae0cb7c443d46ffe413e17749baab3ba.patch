@@ -1,0 +1,40 @@
+From b9d3a3e4ae0cb7c443d46ffe413e17749baab3ba Mon Sep 17 00:00:00 2001
+From: Jakub Kicinski <kuba@kernel.org>
+Date: Thu, 23 Feb 2023 10:31:40 -0800
+Subject: tools: ynl-gen: re-raise the exception instead of printing
+
+traceback.print_exception() seems tricky to call, we're missing
+some argument, so re-raise instead.
+
+Reported-by: Chuck Lever III <chuck.lever@oracle.com>
+Fixes: 3aacf8281336 ("tools: ynl: add an object hierarchy to represent parsed spec")
+Signed-off-by: Jakub Kicinski <kuba@kernel.org>
+---
+ tools/net/ynl/lib/nlspec.py | 4 +---
+ 1 file changed, 1 insertion(+), 3 deletions(-)
+
+diff --git a/tools/net/ynl/lib/nlspec.py b/tools/net/ynl/lib/nlspec.py
+index e204679ad8b7e..71da568e2c28f 100644
+--- a/tools/net/ynl/lib/nlspec.py
++++ b/tools/net/ynl/lib/nlspec.py
+@@ -3,7 +3,6 @@
+ import collections
+ import importlib
+ import os
+-import traceback
+ import yaml
+ 
+ 
+@@ -234,8 +233,7 @@ class SpecFamily(SpecElement):
+                 resolved.append(elem)
+ 
+             if len(resolved) == 0:
+-                traceback.print_exception(last_exception)
+-                raise Exception("Could not resolve any spec element, infinite loop?")
++                raise last_exception
+ 
+     def new_attr_set(self, elem):
+         return SpecAttrSet(self, elem)
+-- 
+cgit 
+

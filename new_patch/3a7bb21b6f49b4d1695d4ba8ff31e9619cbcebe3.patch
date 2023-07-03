@@ -1,0 +1,56 @@
+From 3a7bb21b6f49b4d1695d4ba8ff31e9619cbcebe3 Mon Sep 17 00:00:00 2001
+From: Jeff Layton <jlayton@kernel.org>
+Date: Tue, 16 May 2023 08:46:54 -0400
+Subject: fs: don't call posix_acl_listxattr in generic_listxattr
+
+Commit f2620f166e2a caused the kernel to start emitting POSIX ACL xattrs
+for NFSv4 inodes, which it doesn't support. The only other user of
+generic_listxattr is HFS (classic) and it doesn't support POSIX ACLs
+either.
+
+Fixes: f2620f166e2a xattr: simplify listxattr helpers
+Reported-by: Ondrej Valousek <ondrej.valousek.xm@renesas.com>
+Signed-off-by: Jeff Layton <jlayton@kernel.org>
+Message-Id: <20230516124655.82283-1-jlayton@kernel.org>
+Signed-off-by: Christian Brauner <brauner@kernel.org>
+---
+ fs/xattr.c | 15 +++++++++------
+ 1 file changed, 9 insertions(+), 6 deletions(-)
+
+diff --git a/fs/xattr.c b/fs/xattr.c
+index fcf67d80d7f9c..e7bbb7f57557d 100644
+--- a/fs/xattr.c
++++ b/fs/xattr.c
+@@ -985,9 +985,16 @@ int xattr_list_one(char **buffer, ssize_t *remaining_size, const char *name)
+ 	return 0;
+ }
+ 
+-/*
++/**
++ * generic_listxattr - run through a dentry's xattr list() operations
++ * @dentry: dentry to list the xattrs
++ * @buffer: result buffer
++ * @buffer_size: size of @buffer
++ *
+  * Combine the results of the list() operation from every xattr_handler in the
+- * list.
++ * xattr_handler stack.
++ *
++ * Note that this will not include the entries for POSIX ACLs.
+  */
+ ssize_t
+ generic_listxattr(struct dentry *dentry, char *buffer, size_t buffer_size)
+@@ -996,10 +1003,6 @@ generic_listxattr(struct dentry *dentry, char *buffer, size_t buffer_size)
+ 	ssize_t remaining_size = buffer_size;
+ 	int err = 0;
+ 
+-	err = posix_acl_listxattr(d_inode(dentry), &buffer, &remaining_size);
+-	if (err)
+-		return err;
+-
+ 	for_each_xattr_handler(handlers, handler) {
+ 		if (!handler->name || (handler->list && !handler->list(dentry)))
+ 			continue;
+-- 
+cgit 
+

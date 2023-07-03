@@ -1,0 +1,42 @@
+From 649c3fed36730a53447d8f479c14e431363563b6 Mon Sep 17 00:00:00 2001
+From: Jakub Kicinski <kuba@kernel.org>
+Date: Tue, 6 Jun 2023 18:08:25 -0700
+Subject: eth: bnxt: fix the wake condition
+
+The down condition should be the negation of the wake condition,
+IOW when I moved it from:
+
+ if (cond && wake())
+to
+ if (__netif_txq_completed_wake(cond))
+
+Cond should have been negated. Flip it now.
+
+This bug leads to occasional crashes with netconsole.
+It may also lead to queue never waking up in case BQL is not enabled.
+
+Reported-by: David Wei <davidhwei@meta.com>
+Fixes: 08a096780d92 ("bnxt: use new queue try_stop/try_wake macros")
+Reviewed-by: Michael Chan <michael.chan@broadcom.com>
+Link: https://lore.kernel.org/r/20230607010826.960226-1-kuba@kernel.org
+Signed-off-by: Jakub Kicinski <kuba@kernel.org>
+---
+ drivers/net/ethernet/broadcom/bnxt/bnxt.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/net/ethernet/broadcom/bnxt/bnxt.c b/drivers/net/ethernet/broadcom/bnxt/bnxt.c
+index dcd9367f05afd..1f04cd4cfab97 100644
+--- a/drivers/net/ethernet/broadcom/bnxt/bnxt.c
++++ b/drivers/net/ethernet/broadcom/bnxt/bnxt.c
+@@ -692,7 +692,7 @@ next_tx_int:
+ 
+ 	__netif_txq_completed_wake(txq, nr_pkts, tx_bytes,
+ 				   bnxt_tx_avail(bp, txr), bp->tx_wake_thresh,
+-				   READ_ONCE(txr->dev_state) != BNXT_DEV_STATE_CLOSING);
++				   READ_ONCE(txr->dev_state) == BNXT_DEV_STATE_CLOSING);
+ }
+ 
+ static struct page *__bnxt_alloc_rx_page(struct bnxt *bp, dma_addr_t *mapping,
+-- 
+cgit 
+

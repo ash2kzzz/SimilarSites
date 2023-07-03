@@ -1,0 +1,38 @@
+From 8d7aac5153f21108365137b76e395dcf9bb3a800 Mon Sep 17 00:00:00 2001
+From: Tony Lindgren <tony@atomide.com>
+Date: Wed, 12 Apr 2023 09:41:41 +0300
+Subject: clocksource/drivers/timer-ti-dm: Fix finding alwon timer
+
+Clean-up commit b6999fa1c847 ("clocksource/drivers/timer-ti-dm: Use
+of_address_to_resource()") caused a regression where pa is never set
+making all related SoCs fail to boot. Let's fix this by setting pa
+if found.
+
+Fixes: b6999fa1c847 ("clocksource/drivers/timer-ti-dm: Use of_address_to_resource()")
+Cc: Rob Herring <robh@kernel.org>
+Signed-off-by: Tony Lindgren <tony@atomide.com>
+Signed-off-by: Daniel Lezcano <daniel.lezcano@linaro.org>
+Link: https://lore.kernel.org/r/20230412064142.12726-1-tony@atomide.com
+---
+ drivers/clocksource/timer-ti-dm-systimer.c | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/clocksource/timer-ti-dm-systimer.c b/drivers/clocksource/timer-ti-dm-systimer.c
+index 3b98a3c04f871..4fa68f6570566 100644
+--- a/drivers/clocksource/timer-ti-dm-systimer.c
++++ b/drivers/clocksource/timer-ti-dm-systimer.c
+@@ -261,8 +261,10 @@ static void __init dmtimer_systimer_assign_alwon(void)
+ 		if (of_address_to_resource(np, 0, &res))
+ 			continue;
+ 
++		pa = res.start;
++
+ 		/* Quirky omap3 boards must use dmtimer12 */
+-		if (quirk_unreliable_oscillator && res.start == 0x48318000)
++		if (quirk_unreliable_oscillator && pa == 0x48318000)
+ 			continue;
+ 
+ 		of_node_put(np);
+-- 
+cgit 
+

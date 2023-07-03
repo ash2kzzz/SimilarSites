@@ -160,7 +160,7 @@ class SimilarSitesChecker(object):
                             if already_new_variable in line_list[index]:
                                 recheck = 1
                                 break
-                        if recheck or line_list[index].strip().startswith(r'pr_debug'):
+                        if recheck or common.is_debug_statement(line_list[index]):
                             index += 1
                             continue
                         if len(macro):

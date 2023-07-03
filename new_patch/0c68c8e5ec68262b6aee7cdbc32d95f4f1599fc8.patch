@@ -1,0 +1,43 @@
+From 0c68c8e5ec68262b6aee7cdbc32d95f4f1599fc8 Mon Sep 17 00:00:00 2001
+From: Andrew Lunn <andrew@lunn.ch>
+Date: Sun, 15 Jan 2023 17:42:03 +0100
+Subject: net: mdio: cavium: Remove unneeded simicolons
+
+The recent refactoring to split C22 and C45 introduced two unneeded
+semiconons which the kernel test bot reported. Remove them.
+
+Reported-by: kernel test robot <lkp@intel.com>
+Fixes: 93641ecbaa1f ("net: mdio: cavium: Separate C22 and C45 transactions")
+Signed-off-by: Andrew Lunn <andrew@lunn.ch>
+Reviewed-by: Michael Walle <michael@walle.cc>
+Link: https://lore.kernel.org/r/20230115164203.510615-1-andrew@lunn.ch
+Signed-off-by: Paolo Abeni <pabeni@redhat.com>
+---
+ drivers/net/mdio/mdio-cavium.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/net/mdio/mdio-cavium.c b/drivers/net/mdio/mdio-cavium.c
+index fd81546a4d3da..100e46a702ee4 100644
+--- a/drivers/net/mdio/mdio-cavium.c
++++ b/drivers/net/mdio/mdio-cavium.c
+@@ -67,7 +67,7 @@ int cavium_mdiobus_read_c22(struct mii_bus *bus, int phy_id, int regnum)
+ 	cavium_mdiobus_set_mode(p, C22);
+ 
+ 	smi_cmd.u64 = 0;
+-	smi_cmd.s.phy_op = 1; /* MDIO_CLAUSE_22_READ */;
++	smi_cmd.s.phy_op = 1; /* MDIO_CLAUSE_22_READ */
+ 	smi_cmd.s.phy_adr = phy_id;
+ 	smi_cmd.s.reg_adr = regnum;
+ 	oct_mdio_writeq(smi_cmd.u64, p->register_base + SMI_CMD);
+@@ -136,7 +136,7 @@ int cavium_mdiobus_write_c22(struct mii_bus *bus, int phy_id, int regnum,
+ 	oct_mdio_writeq(smi_wr.u64, p->register_base + SMI_WR_DAT);
+ 
+ 	smi_cmd.u64 = 0;
+-	smi_cmd.s.phy_op = 0; /* MDIO_CLAUSE_22_WRITE */;
++	smi_cmd.s.phy_op = 0; /* MDIO_CLAUSE_22_WRITE */
+ 	smi_cmd.s.phy_adr = phy_id;
+ 	smi_cmd.s.reg_adr = regnum;
+ 	oct_mdio_writeq(smi_cmd.u64, p->register_base + SMI_CMD);
+-- 
+cgit 
+

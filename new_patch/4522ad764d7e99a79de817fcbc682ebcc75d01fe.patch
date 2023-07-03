@@ -1,0 +1,125 @@
+From 4522ad764d7e99a79de817fcbc682ebcc75d01fe Mon Sep 17 00:00:00 2001
+From: Stanislaw Gruszka <stanislaw.gruszka@linux.intel.com>
+Date: Thu, 23 Mar 2023 13:54:57 +0100
+Subject: accel/ivpu: Do not access HW registers after unbind
+
+We should not access hardware after we unbind from the bus.
+
+Use drm_dev_enter() / drm_dev_exit() to mark code sections where
+hardware is accessed (and not already protected by other locks)
+and drm_dev_unplug() to mark device is gone.
+
+Fixes: 35b137630f08 ("accel/ivpu: Introduce a new DRM driver for Intel VPU")
+Signed-off-by: Stanislaw Gruszka <stanislaw.gruszka@linux.intel.com>
+Reviewed-by: Jeffrey Hugo <quic_jhugo@quicinc.com>
+Signed-off-by: Jacek Lawrynowicz <jacek.lawrynowicz@linux.intel.com>
+Link: https://patchwork.freedesktop.org/patch/msgid/20230323125504.2586442-2-stanislaw.gruszka@linux.intel.com
+---
+ drivers/accel/ivpu/ivpu_drv.c |  8 ++++++--
+ drivers/accel/ivpu/ivpu_drv.h |  1 +
+ drivers/accel/ivpu/ivpu_job.c | 11 +++++++++--
+ 3 files changed, 16 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/accel/ivpu/ivpu_drv.c b/drivers/accel/ivpu/ivpu_drv.c
+index 231f29bb50257..ac06bbfca9202 100644
+--- a/drivers/accel/ivpu/ivpu_drv.c
++++ b/drivers/accel/ivpu/ivpu_drv.c
+@@ -8,7 +8,6 @@
+ #include <linux/pci.h>
+ 
+ #include <drm/drm_accel.h>
+-#include <drm/drm_drv.h>
+ #include <drm/drm_file.h>
+ #include <drm/drm_gem.h>
+ #include <drm/drm_ioctl.h>
+@@ -118,6 +117,10 @@ static int ivpu_get_param_ioctl(struct drm_device *dev, void *data, struct drm_f
+ 	struct pci_dev *pdev = to_pci_dev(vdev->drm.dev);
+ 	struct drm_ivpu_param *args = data;
+ 	int ret = 0;
++	int idx;
++
++	if (!drm_dev_enter(dev, &idx))
++		return -ENODEV;
+ 
+ 	switch (args->param) {
+ 	case DRM_IVPU_PARAM_DEVICE_ID:
+@@ -171,6 +174,7 @@ static int ivpu_get_param_ioctl(struct drm_device *dev, void *data, struct drm_f
+ 		break;
+ 	}
+ 
++	drm_dev_exit(idx);
+ 	return ret;
+ }
+ 
+@@ -622,7 +626,7 @@ static void ivpu_remove(struct pci_dev *pdev)
+ {
+ 	struct ivpu_device *vdev = pci_get_drvdata(pdev);
+ 
+-	drm_dev_unregister(&vdev->drm);
++	drm_dev_unplug(&vdev->drm);
+ 	ivpu_dev_fini(vdev);
+ }
+ 
+diff --git a/drivers/accel/ivpu/ivpu_drv.h b/drivers/accel/ivpu/ivpu_drv.h
+index f47b4965db2e3..1b2aa05840add 100644
+--- a/drivers/accel/ivpu/ivpu_drv.h
++++ b/drivers/accel/ivpu/ivpu_drv.h
+@@ -7,6 +7,7 @@
+ #define __IVPU_DRV_H__
+ 
+ #include <drm/drm_device.h>
++#include <drm/drm_drv.h>
+ #include <drm/drm_managed.h>
+ #include <drm/drm_mm.h>
+ #include <drm/drm_print.h>
+diff --git a/drivers/accel/ivpu/ivpu_job.c b/drivers/accel/ivpu/ivpu_job.c
+index 94068aedf97cf..910301fae4351 100644
+--- a/drivers/accel/ivpu/ivpu_job.c
++++ b/drivers/accel/ivpu/ivpu_job.c
+@@ -489,12 +489,12 @@ unlock_reservations:
+ 
+ int ivpu_submit_ioctl(struct drm_device *dev, void *data, struct drm_file *file)
+ {
+-	int ret = 0;
+ 	struct ivpu_file_priv *file_priv = file->driver_priv;
+ 	struct ivpu_device *vdev = file_priv->vdev;
+ 	struct drm_ivpu_submit *params = data;
+ 	struct ivpu_job *job;
+ 	u32 *buf_handles;
++	int idx, ret;
+ 
+ 	if (params->engine > DRM_IVPU_ENGINE_COPY)
+ 		return -EINVAL;
+@@ -523,6 +523,11 @@ int ivpu_submit_ioctl(struct drm_device *dev, void *data, struct drm_file *file)
+ 		goto free_handles;
+ 	}
+ 
++	if (!drm_dev_enter(&vdev->drm, &idx)) {
++		ret = -ENODEV;
++		goto free_handles;
++	}
++
+ 	ivpu_dbg(vdev, JOB, "Submit ioctl: ctx %u buf_count %u\n",
+ 		 file_priv->ctx.id, params->buffer_count);
+ 
+@@ -530,7 +535,7 @@ int ivpu_submit_ioctl(struct drm_device *dev, void *data, struct drm_file *file)
+ 	if (!job) {
+ 		ivpu_err(vdev, "Failed to create job\n");
+ 		ret = -ENOMEM;
+-		goto free_handles;
++		goto dev_exit;
+ 	}
+ 
+ 	ret = ivpu_job_prepare_bos_for_submit(file, job, buf_handles, params->buffer_count,
+@@ -548,6 +553,8 @@ int ivpu_submit_ioctl(struct drm_device *dev, void *data, struct drm_file *file)
+ 
+ job_put:
+ 	job_put(job);
++dev_exit:
++	drm_dev_exit(idx);
+ free_handles:
+ 	kfree(buf_handles);
+ 
+-- 
+cgit 
+

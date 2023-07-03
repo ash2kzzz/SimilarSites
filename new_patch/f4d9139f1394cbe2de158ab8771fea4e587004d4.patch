@@ -1,0 +1,36 @@
+From f4d9139f1394cbe2de158ab8771fea4e587004d4 Mon Sep 17 00:00:00 2001
+From: David Hildenbrand <david@redhat.com>
+Date: Mon, 9 Jan 2023 18:12:55 +0100
+Subject: selftests/mm: define MADV_PAGEOUT to fix compilation issues
+
+If MADV_PAGEOUT is not defined (e.g., on AlmaLinux 8), compilation will
+fail.  Let's fix that like khugepaged.c does by conditionally defining
+MADV_PAGEOUT.
+
+Link: https://lkml.kernel.org/r/20230109171255.488749-1-david@redhat.com
+Fixes: 69c66add5663 ("selftests/vm: anon_cow: test COW handling of anonymous memory")
+Signed-off-by: David Hildenbrand <david@redhat.com>
+Reported-by: Mirsad Goran Todorovac <mirsad.todorovac@alu.unizg.hr>
+Cc: Shuah Khan <shuah@kernel.org>
+Signed-off-by: Andrew Morton <akpm@linux-foundation.org>
+---
+ tools/testing/selftests/mm/cow.c | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/tools/testing/selftests/mm/cow.c b/tools/testing/selftests/mm/cow.c
+index 16216d893d96d..0eb2e8180aa5b 100644
+--- a/tools/testing/selftests/mm/cow.c
++++ b/tools/testing/selftests/mm/cow.c
+@@ -30,6 +30,9 @@
+ #include "../kselftest.h"
+ #include "vm_util.h"
+ 
++#ifndef MADV_PAGEOUT
++#define MADV_PAGEOUT 21
++#endif
+ #ifndef MADV_COLLAPSE
+ #define MADV_COLLAPSE 25
+ #endif
+-- 
+cgit 
+

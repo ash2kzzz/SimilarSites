@@ -1,0 +1,65 @@
+From 1e2eb49bb14760cc7ec0c301c705410628bee8e9 Mon Sep 17 00:00:00 2001
+From: Heiko Carstens <hca@linux.ibm.com>
+Date: Thu, 2 Feb 2023 21:36:07 +0100
+Subject: s390/rethook: add local rethook header file
+
+Compiling the kernel with CONFIG_KPROBES disabled, but CONFIG_RETHOOK
+enabled, results in this sparse warning:
+
+arch/s390/kernel/rethook.c:26:15: warning: no previous prototype for 'arch_rethook_trampoline_callback' [-Wmissing-prototypes]
+    26 | unsigned long arch_rethook_trampoline_callback(struct pt_regs *regs)
+       |               ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Add a local rethook header file similar to riscv to address this.
+
+Reported-by: kernel test robot <lkp@intel.com>
+Fixes: 1a280f48c0e4 ("s390/kprobes: replace kretprobe with rethook")
+Link: https://lore.kernel.org/all/202302030102.69dZIuJk-lkp@intel.com
+Signed-off-by: Heiko Carstens <hca@linux.ibm.com>
+---
+ arch/s390/include/asm/kprobes.h | 1 -
+ arch/s390/kernel/rethook.c      | 1 +
+ arch/s390/kernel/rethook.h      | 7 +++++++
+ 3 files changed, 8 insertions(+), 1 deletion(-)
+ create mode 100644 arch/s390/kernel/rethook.h
+
+diff --git a/arch/s390/include/asm/kprobes.h b/arch/s390/include/asm/kprobes.h
+index 6af75857156b9..83f732ca3af4d 100644
+--- a/arch/s390/include/asm/kprobes.h
++++ b/arch/s390/include/asm/kprobes.h
+@@ -70,7 +70,6 @@ struct kprobe_ctlblk {
+ };
+ 
+ void arch_remove_kprobe(struct kprobe *p);
+-unsigned long arch_rethook_trampoline_callback(struct pt_regs *regs);
+ 
+ int kprobe_fault_handler(struct pt_regs *regs, int trapnr);
+ int kprobe_exceptions_notify(struct notifier_block *self,
+diff --git a/arch/s390/kernel/rethook.c b/arch/s390/kernel/rethook.c
+index f2b6237bc35df..af10e6bdd34ec 100644
+--- a/arch/s390/kernel/rethook.c
++++ b/arch/s390/kernel/rethook.c
+@@ -1,6 +1,7 @@
+ // SPDX-License-Identifier: GPL-2.0-or-later
+ #include <linux/rethook.h>
+ #include <linux/kprobes.h>
++#include "rethook.h"
+ 
+ void arch_rethook_prepare(struct rethook_node *rh, struct pt_regs *regs, bool mcount)
+ {
+diff --git a/arch/s390/kernel/rethook.h b/arch/s390/kernel/rethook.h
+new file mode 100644
+index 0000000000000..32f069eed3f32
+--- /dev/null
++++ b/arch/s390/kernel/rethook.h
+@@ -0,0 +1,7 @@
++/* SPDX-License-Identifier: GPL-2.0-only */
++#ifndef __S390_RETHOOK_H
++#define __S390_RETHOOK_H
++
++unsigned long arch_rethook_trampoline_callback(struct pt_regs *regs);
++
++#endif
+-- 
+cgit 
+

@@ -1,0 +1,39 @@
+From 560f2eb7d6a775e488832b724b25bde33ce71b9f Mon Sep 17 00:00:00 2001
+From: Lukas Bulwahn <lukas.bulwahn@gmail.com>
+Date: Thu, 23 Mar 2023 11:54:10 +0100
+Subject: leds: rgb: mt6370: Correct config name to select in LEDS_MT6370_RGB
+
+Commit 55a8a5c16eb3 ("leds: rgb: mt6370: Add MediaTek MT6370 current sink
+type LED Indicator support") introduces the config LEDS_MT6370_RGB, which
+selects the non-existing config LINEAR_RANGE. As the driver includes
+linux/linear_range.h, it is a safe guess that the config actually intends
+to select LINEAR_RANGES, which provides the library implementation for the
+function prototypes defined in the linear_range header file.
+
+Correct this naming confusion in the LEDS_MT6370_RGB config definition.
+
+Fixes: 55a8a5c16eb3 ("leds: rgb: mt6370: Add MediaTek MT6370 current sink type LED Indicator support")
+Signed-off-by: Lukas Bulwahn <lukas.bulwahn@gmail.com>
+Acked-by: Pavel Machek <pavel@ucw.cz>
+Signed-off-by: Lee Jones <lee@kernel.org>
+Link: https://lore.kernel.org/r/20230323105410.10396-1-lukas.bulwahn@gmail.com
+---
+ drivers/leds/rgb/Kconfig | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/leds/rgb/Kconfig b/drivers/leds/rgb/Kconfig
+index 7d86bb26c54b8..360c8679c6e23 100644
+--- a/drivers/leds/rgb/Kconfig
++++ b/drivers/leds/rgb/Kconfig
+@@ -29,7 +29,7 @@ config LEDS_QCOM_LPG
+ config LEDS_MT6370_RGB
+ 	tristate "LED Support for MediaTek MT6370 PMIC"
+ 	depends on MFD_MT6370
+-	select LINEAR_RANGE
++	select LINEAR_RANGES
+ 	help
+ 	  Say Y here to enable support for MT6370_RGB LED device.
+ 	  In MT6370, there are four channel current-sink LED drivers that
+-- 
+cgit 
+

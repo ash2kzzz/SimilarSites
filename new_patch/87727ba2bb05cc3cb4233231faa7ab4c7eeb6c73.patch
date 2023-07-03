@@ -1,0 +1,212 @@
+From 87727ba2bb05cc3cb4233231faa7ab4c7eeb6c73 Mon Sep 17 00:00:00 2001
+From: Will Deacon <will@kernel.org>
+Date: Thu, 20 Apr 2023 13:33:56 +0100
+Subject: KVM: arm64: Ensure CPU PMU probes before pKVM host de-privilege
+
+Although pKVM supports CPU PMU emulation for non-protected guests since
+722625c6f4c5 ("KVM: arm64: Reenable pmu in Protected Mode"), this relies
+on the PMU driver probing before the host has de-privileged so that the
+'kvm_arm_pmu_available' static key can still be enabled by patching the
+hypervisor text.
+
+As it happens, both of these events hang off device_initcall() but the
+PMU consistently won the race until 7755cec63ade ("arm64: perf: Move
+PMUv3 driver to drivers/perf"). Since then, the host will fail to boot
+when pKVM is enabled:
+
+  | hw perfevents: enabled with armv8_pmuv3_0 PMU driver, 7 counters available
+  | kvm [1]: nVHE hyp BUG at: [<ffff8000090366e0>] __kvm_nvhe_handle_host_mem_abort+0x270/0x284!
+  | kvm [1]: Cannot dump pKVM nVHE stacktrace: !CONFIG_PROTECTED_NVHE_STACKTRACE
+  | kvm [1]: Hyp Offset: 0xfffea41fbdf70000
+  | Kernel panic - not syncing: HYP panic:
+  | PS:a00003c9 PC:0000dbe04b0c66e0 ESR:00000000f2000800
+  | FAR:fffffbfffddfcf00 HPFAR:00000000010b0bf0 PAR:0000000000000000
+  | VCPU:0000000000000000
+  | CPU: 2 PID: 1 Comm: swapper/0 Not tainted 6.3.0-rc7-00083-g0bce6746d154 #1
+  | Hardware name: QEMU QEMU Virtual Machine, BIOS 0.0.0 02/06/2015
+  | Call trace:
+  |  dump_backtrace+0xec/0x108
+  |  show_stack+0x18/0x2c
+  |  dump_stack_lvl+0x50/0x68
+  |  dump_stack+0x18/0x24
+  |  panic+0x13c/0x33c
+  |  nvhe_hyp_panic_handler+0x10c/0x190
+  |  aarch64_insn_patch_text_nosync+0x64/0xc8
+  |  arch_jump_label_transform+0x4c/0x5c
+  |  __jump_label_update+0x84/0xfc
+  |  jump_label_update+0x100/0x134
+  |  static_key_enable_cpuslocked+0x68/0xac
+  |  static_key_enable+0x20/0x34
+  |  kvm_host_pmu_init+0x88/0xa4
+  |  armpmu_register+0xf0/0xf4
+  |  arm_pmu_acpi_probe+0x2ec/0x368
+  |  armv8_pmu_driver_init+0x38/0x44
+  |  do_one_initcall+0xcc/0x240
+
+Fix the race properly by deferring the de-privilege step to
+device_initcall_sync(). This will also be needed in future when probing
+IOMMU devices and allows us to separate the pKVM de-privilege logic from
+the core hypervisor initialisation path.
+
+Cc: Oliver Upton <oliver.upton@linux.dev>
+Cc: Fuad Tabba <tabba@google.com>
+Cc: Marc Zyngier <maz@kernel.org>
+Fixes: 7755cec63ade ("arm64: perf: Move PMUv3 driver to drivers/perf")
+Tested-by: Fuad Tabba <tabba@google.com>
+Acked-by: Marc Zyngier <maz@kernel.org>
+Link: https://lore.kernel.org/r/20230420123356.2708-1-will@kernel.org
+Signed-off-by: Will Deacon <will@kernel.org>
+---
+ arch/arm64/kvm/arm.c  | 45 ---------------------------------------------
+ arch/arm64/kvm/pkvm.c | 47 +++++++++++++++++++++++++++++++++++++++++++++++
+ 2 files changed, 47 insertions(+), 45 deletions(-)
+
+diff --git a/arch/arm64/kvm/arm.c b/arch/arm64/kvm/arm.c
+index 3bd732eaf0872..890f730bc3ab4 100644
+--- a/arch/arm64/kvm/arm.c
++++ b/arch/arm64/kvm/arm.c
+@@ -16,7 +16,6 @@
+ #include <linux/fs.h>
+ #include <linux/mman.h>
+ #include <linux/sched.h>
+-#include <linux/kmemleak.h>
+ #include <linux/kvm.h>
+ #include <linux/kvm_irqfd.h>
+ #include <linux/irqbypass.h>
+@@ -46,7 +45,6 @@
+ #include <kvm/arm_psci.h>
+ 
+ static enum kvm_mode kvm_mode = KVM_MODE_DEFAULT;
+-DEFINE_STATIC_KEY_FALSE(kvm_protected_mode_initialized);
+ 
+ DECLARE_KVM_HYP_PER_CPU(unsigned long, kvm_hyp_vector);
+ 
+@@ -2105,41 +2103,6 @@ out_err:
+ 	return err;
+ }
+ 
+-static void __init _kvm_host_prot_finalize(void *arg)
+-{
+-	int *err = arg;
+-
+-	if (WARN_ON(kvm_call_hyp_nvhe(__pkvm_prot_finalize)))
+-		WRITE_ONCE(*err, -EINVAL);
+-}
+-
+-static int __init pkvm_drop_host_privileges(void)
+-{
+-	int ret = 0;
+-
+-	/*
+-	 * Flip the static key upfront as that may no longer be possible
+-	 * once the host stage 2 is installed.
+-	 */
+-	static_branch_enable(&kvm_protected_mode_initialized);
+-	on_each_cpu(_kvm_host_prot_finalize, &ret, 1);
+-	return ret;
+-}
+-
+-static int __init finalize_hyp_mode(void)
+-{
+-	if (!is_protected_kvm_enabled())
+-		return 0;
+-
+-	/*
+-	 * Exclude HYP sections from kmemleak so that they don't get peeked
+-	 * at, which would end badly once inaccessible.
+-	 */
+-	kmemleak_free_part(__hyp_bss_start, __hyp_bss_end - __hyp_bss_start);
+-	kmemleak_free_part_phys(hyp_mem_base, hyp_mem_size);
+-	return pkvm_drop_host_privileges();
+-}
+-
+ struct kvm_vcpu *kvm_mpidr_to_vcpu(struct kvm *kvm, unsigned long mpidr)
+ {
+ 	struct kvm_vcpu *vcpu;
+@@ -2257,14 +2220,6 @@ static __init int kvm_arm_init(void)
+ 	if (err)
+ 		goto out_hyp;
+ 
+-	if (!in_hyp_mode) {
+-		err = finalize_hyp_mode();
+-		if (err) {
+-			kvm_err("Failed to finalize Hyp protection\n");
+-			goto out_subs;
+-		}
+-	}
+-
+ 	if (is_protected_kvm_enabled()) {
+ 		kvm_info("Protected nVHE mode initialized successfully\n");
+ 	} else if (in_hyp_mode) {
+diff --git a/arch/arm64/kvm/pkvm.c b/arch/arm64/kvm/pkvm.c
+index cf56958b1492a..6e9ece1ebbe72 100644
+--- a/arch/arm64/kvm/pkvm.c
++++ b/arch/arm64/kvm/pkvm.c
+@@ -4,6 +4,8 @@
+  * Author: Quentin Perret <qperret@google.com>
+  */
+ 
++#include <linux/init.h>
++#include <linux/kmemleak.h>
+ #include <linux/kvm_host.h>
+ #include <linux/memblock.h>
+ #include <linux/mutex.h>
+@@ -13,6 +15,8 @@
+ 
+ #include "hyp_constants.h"
+ 
++DEFINE_STATIC_KEY_FALSE(kvm_protected_mode_initialized);
++
+ static struct memblock_region *hyp_memory = kvm_nvhe_sym(hyp_memory);
+ static unsigned int *hyp_memblock_nr_ptr = &kvm_nvhe_sym(hyp_memblock_nr);
+ 
+@@ -213,3 +217,46 @@ int pkvm_init_host_vm(struct kvm *host_kvm)
+ 	mutex_init(&host_kvm->lock);
+ 	return 0;
+ }
++
++static void __init _kvm_host_prot_finalize(void *arg)
++{
++	int *err = arg;
++
++	if (WARN_ON(kvm_call_hyp_nvhe(__pkvm_prot_finalize)))
++		WRITE_ONCE(*err, -EINVAL);
++}
++
++static int __init pkvm_drop_host_privileges(void)
++{
++	int ret = 0;
++
++	/*
++	 * Flip the static key upfront as that may no longer be possible
++	 * once the host stage 2 is installed.
++	 */
++	static_branch_enable(&kvm_protected_mode_initialized);
++	on_each_cpu(_kvm_host_prot_finalize, &ret, 1);
++	return ret;
++}
++
++static int __init finalize_pkvm(void)
++{
++	int ret;
++
++	if (!is_protected_kvm_enabled())
++		return 0;
++
++	/*
++	 * Exclude HYP sections from kmemleak so that they don't get peeked
++	 * at, which would end badly once inaccessible.
++	 */
++	kmemleak_free_part(__hyp_bss_start, __hyp_bss_end - __hyp_bss_start);
++	kmemleak_free_part_phys(hyp_mem_base, hyp_mem_size);
++
++	ret = pkvm_drop_host_privileges();
++	if (ret)
++		pr_err("Failed to finalize Hyp protection: %d\n", ret);
++
++	return ret;
++}
++device_initcall_sync(finalize_pkvm);
+-- 
+cgit 
+

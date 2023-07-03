@@ -1,0 +1,39 @@
+From f030c8fd64cea916d57d40bb7b59c1cff9ea3bc3 Mon Sep 17 00:00:00 2001
+From: Bagas Sanjaya <bagasdotme@gmail.com>
+Date: Wed, 15 Mar 2023 17:02:46 +0700
+Subject: Documentation: kernel-parameters: Remove meye entry
+
+Commit ba47652ba65523 ("media: meye: remove this deprecated driver")
+removes meye driver but forgets to purge its kernel-parameters.txt
+entry, hence broken reference.
+
+Remove the entry.
+
+Link: https://lore.kernel.org/all/202302070341.OVqstpMM-lkp@intel.com/
+Fixes: ba47652ba655 ("media: meye: remove this deprecated driver")
+Reported-by: kernel test robot <lkp@intel.com>
+Signed-off-by: Bagas Sanjaya <bagasdotme@gmail.com>
+Reviewed-by: Randy Dunlap <rdunlap@infradead.org>
+Link: https://lore.kernel.org/r/20230315100246.62324-1-bagasdotme@gmail.com
+Signed-off-by: Jonathan Corbet <corbet@lwn.net>
+---
+ Documentation/admin-guide/kernel-parameters.txt | 3 ---
+ 1 file changed, 3 deletions(-)
+
+diff --git a/Documentation/admin-guide/kernel-parameters.txt b/Documentation/admin-guide/kernel-parameters.txt
+index f881d5b13e6c9..7fc5f60a1e182 100644
+--- a/Documentation/admin-guide/kernel-parameters.txt
++++ b/Documentation/admin-guide/kernel-parameters.txt
+@@ -3181,9 +3181,6 @@
+ 			deep    - Suspend-To-RAM or equivalent (if supported)
+ 			See Documentation/admin-guide/pm/sleep-states.rst.
+ 
+-	meye.*=		[HW] Set MotionEye Camera parameters
+-			See Documentation/admin-guide/media/meye.rst.
+-
+ 	mfgpt_irq=	[IA-32] Specify the IRQ to use for the
+ 			Multi-Function General Purpose Timers on AMD Geode
+ 			platforms.
+-- 
+cgit 
+

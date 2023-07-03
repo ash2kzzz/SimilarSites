@@ -1,0 +1,35 @@
+From 697b3518ebfd1d0ccae455d8ac1ac9c88884f4e5 Mon Sep 17 00:00:00 2001
+From: Leon Romanovsky <leonro@nvidia.com>
+Date: Thu, 20 Apr 2023 11:02:48 +0300
+Subject: net/mlx5e: Don't overwrite extack message returned from IPsec SA
+ validator
+
+Addition of new err_xfrm label caused to error messages be overwritten.
+Fix it by using proper NL_SET_ERR_MSG_WEAK_MOD macro together with change
+in a default message.
+
+Fixes: aa8bd0c9518c ("net/mlx5e: Support IPsec acquire default SA")
+Reviewed-by: Raed Salem <raeds@nvidia.com>
+Signed-off-by: Leon Romanovsky <leonro@nvidia.com>
+Reviewed-by: Simon Horman <simon.horman@corigine.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ drivers/net/ethernet/mellanox/mlx5/core/en_accel/ipsec.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/net/ethernet/mellanox/mlx5/core/en_accel/ipsec.c b/drivers/net/ethernet/mellanox/mlx5/core/en_accel/ipsec.c
+index 5fd609d1120eb..1547d8cda1335 100644
+--- a/drivers/net/ethernet/mellanox/mlx5/core/en_accel/ipsec.c
++++ b/drivers/net/ethernet/mellanox/mlx5/core/en_accel/ipsec.c
+@@ -712,7 +712,7 @@ release_work:
+ 	kfree(sa_entry->work);
+ err_xfrm:
+ 	kfree(sa_entry);
+-	NL_SET_ERR_MSG_MOD(extack, "Device failed to offload this policy");
++	NL_SET_ERR_MSG_WEAK_MOD(extack, "Device failed to offload this state");
+ 	return err;
+ }
+ 
+-- 
+cgit 
+

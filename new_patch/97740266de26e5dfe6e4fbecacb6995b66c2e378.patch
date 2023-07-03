@@ -1,0 +1,42 @@
+From 97740266de26e5dfe6e4fbecacb6995b66c2e378 Mon Sep 17 00:00:00 2001
+From: "Kirill A. Shutemov" <kirill.shutemov@linux.intel.com>
+Date: Mon, 3 Apr 2023 14:10:20 +0300
+Subject: x86/mm/iommu/sva: Do not allow to set FORCE_TAGGED_SVA bit from
+ outside
+
+arch_prctl(ARCH_FORCE_TAGGED_SVA) overrides the default and allows LAM
+and SVA to co-exist in the process. It is expected by called by the
+process when it knows what it is doing.
+
+arch_prctl() operates on the current process, but the same code is
+reachable from ptrace where it can be called on arbitrary task.
+
+Make it strict and only allow to set MM_CONTEXT_FORCE_TAGGED_SVA for the
+current process.
+
+Fixes: 23e5d9ec2bab ("x86/mm/iommu/sva: Make LAM and SVA mutually exclusive")
+Suggested-by: Dmitry Vyukov <dvyukov@google.com>
+Signed-off-by: Kirill A. Shutemov <kirill.shutemov@linux.intel.com>
+Signed-off-by: Dave Hansen <dave.hansen@linux.intel.com>
+Reviewed-by: Dmitry Vyukov <dvyukov@google.com>
+Link: https://lore.kernel.org/all/20230403111020.3136-3-kirill.shutemov%40linux.intel.com
+---
+ arch/x86/kernel/process_64.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/arch/x86/kernel/process_64.c b/arch/x86/kernel/process_64.c
+index bc2ac5652f884..223b223f713ff 100644
+--- a/arch/x86/kernel/process_64.c
++++ b/arch/x86/kernel/process_64.c
+@@ -883,6 +883,8 @@ long do_arch_prctl_64(struct task_struct *task, int option, unsigned long arg2)
+ 	case ARCH_ENABLE_TAGGED_ADDR:
+ 		return prctl_enable_tagged_addr(task->mm, arg2);
+ 	case ARCH_FORCE_TAGGED_SVA:
++		if (current != task)
++			return -EINVAL;
+ 		set_bit(MM_CONTEXT_FORCE_TAGGED_SVA, &task->mm->context.flags);
+ 		return 0;
+ 	case ARCH_GET_MAX_TAG_BITS:
+-- 
+cgit 
+

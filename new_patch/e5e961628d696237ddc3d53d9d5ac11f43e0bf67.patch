@@ -1,0 +1,40 @@
+From e5e961628d696237ddc3d53d9d5ac11f43e0bf67 Mon Sep 17 00:00:00 2001
+From: AngeloGioacchino Del Regno <angelogioacchino.delregno@collabora.com>
+Date: Tue, 8 Nov 2022 11:32:03 +0800
+Subject: arm64: dts: mediatek: mt8186: Fix watchdog compatible
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+MT8186's watchdog embeds a reset controller and needs only the
+mediatek,mt8186-wdt compatible string as the MT6589 one is there
+for watchdogs that don't have any reset controller capability.
+
+Fixes: 2e78620b1350 ("arm64: dts: Add MediaTek MT8186 dts and evaluation board and Makefile")
+Signed-off-by: AngeloGioacchino Del Regno <angelogioacchino.delregno@collabora.com>
+Co-developed-by: Allen-KH Cheng <allen-kh.cheng@mediatek.com>
+Signed-off-by: Allen-KH Cheng <allen-kh.cheng@mediatek.com>
+Reviewed-by: Nícolas F. R. A. Prado <nfraprado@collabora.com>
+Link: https://lore.kernel.org/r/20221108033209.22751-2-allen-kh.cheng@mediatek.com
+Signed-off-by: Matthias Brugger <matthias.bgg@gmail.com>
+---
+ arch/arm64/boot/dts/mediatek/mt8186.dtsi | 3 +--
+ 1 file changed, 1 insertion(+), 2 deletions(-)
+
+diff --git a/arch/arm64/boot/dts/mediatek/mt8186.dtsi b/arch/arm64/boot/dts/mediatek/mt8186.dtsi
+index 50fdb88bdc3dd..a0d3e1f731bd0 100644
+--- a/arch/arm64/boot/dts/mediatek/mt8186.dtsi
++++ b/arch/arm64/boot/dts/mediatek/mt8186.dtsi
+@@ -580,8 +580,7 @@
+ 		};
+ 
+ 		watchdog: watchdog@10007000 {
+-			compatible = "mediatek,mt8186-wdt",
+-				     "mediatek,mt6589-wdt";
++			compatible = "mediatek,mt8186-wdt";
+ 			mediatek,disable-extrst;
+ 			reg = <0 0x10007000 0 0x1000>;
+ 			#reset-cells = <1>;
+-- 
+cgit 
+

@@ -1,0 +1,40 @@
+From 1d6cdc47fec9f7935e04deb640b444e30322ca57 Mon Sep 17 00:00:00 2001
+From: Yang Yingliang <yangyingliang@huawei.com>
+Date: Mon, 6 Feb 2023 20:20:18 +0800
+Subject: power: supply: rt9471: fix using wrong ce_gpio in rt9471_probe()
+
+Pass the correct 'ce_gpio' to IS_ERR(), and remove the ce_gpio in
+chip data, make it all by SW control only, not to control by HW pin.
+
+Fixes: 4a1a5f6781d8 ("power: supply: rt9471: Add Richtek RT9471 charger driver")
+Reviewed-by: ChiYuan Huang <cy_huang@richtek.com>
+Signed-off-by: Yang Yingliang <yangyingliang@huawei.com>
+Signed-off-by: Sebastian Reichel <sebastian.reichel@collabora.com>
+---
+ drivers/power/supply/rt9471.c | 3 +--
+ 1 file changed, 1 insertion(+), 2 deletions(-)
+
+diff --git a/drivers/power/supply/rt9471.c b/drivers/power/supply/rt9471.c
+index 5d3cf375ad5c7..1ea40876494bc 100644
+--- a/drivers/power/supply/rt9471.c
++++ b/drivers/power/supply/rt9471.c
+@@ -141,7 +141,6 @@ enum {
+ 
+ struct rt9471_chip {
+ 	struct device *dev;
+-	struct gpio_desc *ce_gpio;
+ 	struct regmap *regmap;
+ 	struct regmap_field *rm_fields[F_MAX_FIELDS];
+ 	struct regmap_irq_chip_data *irq_chip_data;
+@@ -851,7 +850,7 @@ static int rt9471_probe(struct i2c_client *i2c)
+ 
+ 	/* Default pull charge enable gpio to make 'CHG_EN' by SW control only */
+ 	ce_gpio = devm_gpiod_get_optional(dev, "charge-enable", GPIOD_OUT_HIGH);
+-	if (IS_ERR(chip->ce_gpio))
++	if (IS_ERR(ce_gpio))
+ 		return dev_err_probe(dev, PTR_ERR(ce_gpio),
+ 				     "Failed to config charge enable gpio\n");
+ 
+-- 
+cgit 
+

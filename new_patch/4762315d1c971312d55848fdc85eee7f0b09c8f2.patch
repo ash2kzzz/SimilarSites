@@ -1,0 +1,47 @@
+From 4762315d1c971312d55848fdc85eee7f0b09c8f2 Mon Sep 17 00:00:00 2001
+From: Randy Dunlap <rdunlap@infradead.org>
+Date: Wed, 8 Feb 2023 17:03:59 -0800
+Subject: iommu/of: mark an unused function as __maybe_unused
+
+When CONFIG_OF_ADDRESS is not set, there is a build warning/error
+about an unused function.
+Annotate the function to quieten the warning/error.
+
+../drivers/iommu/of_iommu.c:176:29: warning: 'iommu_resv_region_get_type' defined but not used [-Wunused-function]
+  176 | static enum iommu_resv_type iommu_resv_region_get_type(struct device *dev, struct resource *phys,
+      |                             ^~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Fixes: a5bf3cfce8cb ("iommu: Implement of_iommu_get_resv_regions()")
+Signed-off-by: Randy Dunlap <rdunlap@infradead.org>
+Cc: Thierry Reding <treding@nvidia.com>
+Cc: Joerg Roedel <jroedel@suse.de>
+Cc: Will Deacon <will@kernel.org>
+Cc: iommu@lists.linux.dev
+Reviewed-by: Thierry Reding <treding@nvidia.com>
+Link: https://lore.kernel.org/r/20230209010359.23831-1-rdunlap@infradead.org
+[joro: Improve code formatting]
+Signed-off-by: Joerg Roedel <jroedel@suse.de>
+---
+ drivers/iommu/of_iommu.c | 6 ++++--
+ 1 file changed, 4 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/iommu/of_iommu.c b/drivers/iommu/of_iommu.c
+index 3c2e2a13cf9cd..40f57d293a79d 100644
+--- a/drivers/iommu/of_iommu.c
++++ b/drivers/iommu/of_iommu.c
+@@ -173,8 +173,10 @@ const struct iommu_ops *of_iommu_configure(struct device *dev,
+ 	return ops;
+ }
+ 
+-static enum iommu_resv_type iommu_resv_region_get_type(struct device *dev, struct resource *phys,
+-						       phys_addr_t start, size_t length)
++static enum iommu_resv_type __maybe_unused
++iommu_resv_region_get_type(struct device *dev,
++			   struct resource *phys,
++			   phys_addr_t start, size_t length)
+ {
+ 	phys_addr_t end = start + length - 1;
+ 
+-- 
+cgit 
+

@@ -1,0 +1,185 @@
+From d3b277b7aa1c74a65c84019b8fbe7856f841841a Mon Sep 17 00:00:00 2001
+From: Pranjal Ramajor Asha Kanojiya <quic_pkanojiy@quicinc.com>
+Date: Wed, 17 May 2023 13:35:36 -0600
+Subject: accel/qaic: Validate user data before grabbing any lock
+
+Validating user data does not need to be protected by any lock and it is
+safe to move it out of critical region.
+
+Fixes: ff13be830333 ("accel/qaic: Add datapath")
+Fixes: 129776ac2e38 ("accel/qaic: Add control path")
+Signed-off-by: Pranjal Ramajor Asha Kanojiya <quic_pkanojiy@quicinc.com>
+Reviewed-by: Carl Vanderlip <quic_carlv@quicinc.com>
+Reviewed-by: Jeffrey Hugo <quic_jhugo@quicinc.com>
+Signed-off-by: Jeffrey Hugo <quic_jhugo@quicinc.com>
+Link: https://patchwork.freedesktop.org/patch/msgid/20230517193540.14323-2-quic_jhugo@quicinc.com
+---
+ drivers/accel/qaic/qaic_control.c | 12 +++-----
+ drivers/accel/qaic/qaic_data.c    | 61 +++++++++++++++------------------------
+ 2 files changed, 27 insertions(+), 46 deletions(-)
+
+diff --git a/drivers/accel/qaic/qaic_control.c b/drivers/accel/qaic/qaic_control.c
+index 9f216eb6f76ed..9e39b1a324f7e 100644
+--- a/drivers/accel/qaic/qaic_control.c
++++ b/drivers/accel/qaic/qaic_control.c
+@@ -1249,7 +1249,7 @@ dma_cont_failed:
+ 
+ int qaic_manage_ioctl(struct drm_device *dev, void *data, struct drm_file *file_priv)
+ {
+-	struct qaic_manage_msg *user_msg;
++	struct qaic_manage_msg *user_msg = data;
+ 	struct qaic_device *qdev;
+ 	struct manage_msg *msg;
+ 	struct qaic_user *usr;
+@@ -1258,6 +1258,9 @@ int qaic_manage_ioctl(struct drm_device *dev, void *data, struct drm_file *file_
+ 	int usr_rcu_id;
+ 	int ret;
+ 
++	if (user_msg->len > QAIC_MANAGE_MAX_MSG_LENGTH)
++		return -EINVAL;
++
+ 	usr = file_priv->driver_priv;
+ 
+ 	usr_rcu_id = srcu_read_lock(&usr->qddev_lock);
+@@ -1275,13 +1278,6 @@ int qaic_manage_ioctl(struct drm_device *dev, void *data, struct drm_file *file_
+ 		return -ENODEV;
+ 	}
+ 
+-	user_msg = data;
+-
+-	if (user_msg->len > QAIC_MANAGE_MAX_MSG_LENGTH) {
+-		ret = -EINVAL;
+-		goto out;
+-	}
+-
+ 	msg = kzalloc(QAIC_MANAGE_MAX_MSG_LENGTH + sizeof(*msg), GFP_KERNEL);
+ 	if (!msg) {
+ 		ret = -ENOMEM;
+diff --git a/drivers/accel/qaic/qaic_data.c b/drivers/accel/qaic/qaic_data.c
+index b46a16fb30806..5f71d76dd3a68 100644
+--- a/drivers/accel/qaic/qaic_data.c
++++ b/drivers/accel/qaic/qaic_data.c
+@@ -663,6 +663,10 @@ int qaic_create_bo_ioctl(struct drm_device *dev, void *data, struct drm_file *fi
+ 	if (args->pad)
+ 		return -EINVAL;
+ 
++	size = PAGE_ALIGN(args->size);
++	if (size == 0)
++		return -EINVAL;
++
+ 	usr = file_priv->driver_priv;
+ 	usr_rcu_id = srcu_read_lock(&usr->qddev_lock);
+ 	if (!usr->qddev) {
+@@ -677,12 +681,6 @@ int qaic_create_bo_ioctl(struct drm_device *dev, void *data, struct drm_file *fi
+ 		goto unlock_dev_srcu;
+ 	}
+ 
+-	size = PAGE_ALIGN(args->size);
+-	if (size == 0) {
+-		ret = -EINVAL;
+-		goto unlock_dev_srcu;
+-	}
+-
+ 	bo = qaic_alloc_init_bo();
+ 	if (IS_ERR(bo)) {
+ 		ret = PTR_ERR(bo);
+@@ -936,6 +934,22 @@ int qaic_attach_slice_bo_ioctl(struct drm_device *dev, void *data, struct drm_fi
+ 	struct qaic_bo *bo;
+ 	int ret;
+ 
++	if (args->hdr.count == 0)
++		return -EINVAL;
++
++	arg_size = args->hdr.count * sizeof(*slice_ent);
++	if (arg_size / args->hdr.count != sizeof(*slice_ent))
++		return -EINVAL;
++
++	if (args->hdr.size == 0)
++		return -EINVAL;
++
++	if (!(args->hdr.dir == DMA_TO_DEVICE || args->hdr.dir == DMA_FROM_DEVICE))
++		return -EINVAL;
++
++	if (args->data == 0)
++		return -EINVAL;
++
+ 	usr = file_priv->driver_priv;
+ 	usr_rcu_id = srcu_read_lock(&usr->qddev_lock);
+ 	if (!usr->qddev) {
+@@ -950,43 +964,17 @@ int qaic_attach_slice_bo_ioctl(struct drm_device *dev, void *data, struct drm_fi
+ 		goto unlock_dev_srcu;
+ 	}
+ 
+-	if (args->hdr.count == 0) {
+-		ret = -EINVAL;
+-		goto unlock_dev_srcu;
+-	}
+-
+-	arg_size = args->hdr.count * sizeof(*slice_ent);
+-	if (arg_size / args->hdr.count != sizeof(*slice_ent)) {
+-		ret = -EINVAL;
+-		goto unlock_dev_srcu;
+-	}
+-
+ 	if (args->hdr.dbc_id >= qdev->num_dbc) {
+ 		ret = -EINVAL;
+ 		goto unlock_dev_srcu;
+ 	}
+ 
+-	if (args->hdr.size == 0) {
+-		ret = -EINVAL;
+-		goto unlock_dev_srcu;
+-	}
+-
+-	if (!(args->hdr.dir == DMA_TO_DEVICE  || args->hdr.dir == DMA_FROM_DEVICE)) {
+-		ret = -EINVAL;
+-		goto unlock_dev_srcu;
+-	}
+-
+ 	dbc = &qdev->dbc[args->hdr.dbc_id];
+ 	if (dbc->usr != usr) {
+ 		ret = -EINVAL;
+ 		goto unlock_dev_srcu;
+ 	}
+ 
+-	if (args->data == 0) {
+-		ret = -EINVAL;
+-		goto unlock_dev_srcu;
+-	}
+-
+ 	user_data = u64_to_user_ptr(args->data);
+ 
+ 	slice_ent = kzalloc(arg_size, GFP_KERNEL);
+@@ -1316,7 +1304,6 @@ static int __qaic_execute_bo_ioctl(struct drm_device *dev, void *data, struct dr
+ 	received_ts = ktime_get_ns();
+ 
+ 	size = is_partial ? sizeof(*pexec) : sizeof(*exec);
+-
+ 	n = (unsigned long)size * args->hdr.count;
+ 	if (args->hdr.count == 0 || n / args->hdr.count != size)
+ 		return -EINVAL;
+@@ -1665,6 +1652,9 @@ int qaic_wait_bo_ioctl(struct drm_device *dev, void *data, struct drm_file *file
+ 	int rcu_id;
+ 	int ret;
+ 
++	if (args->pad != 0)
++		return -EINVAL;
++
+ 	usr = file_priv->driver_priv;
+ 	usr_rcu_id = srcu_read_lock(&usr->qddev_lock);
+ 	if (!usr->qddev) {
+@@ -1679,11 +1669,6 @@ int qaic_wait_bo_ioctl(struct drm_device *dev, void *data, struct drm_file *file
+ 		goto unlock_dev_srcu;
+ 	}
+ 
+-	if (args->pad != 0) {
+-		ret = -EINVAL;
+-		goto unlock_dev_srcu;
+-	}
+-
+ 	if (args->dbc_id >= qdev->num_dbc) {
+ 		ret = -EINVAL;
+ 		goto unlock_dev_srcu;
+-- 
+cgit 
+

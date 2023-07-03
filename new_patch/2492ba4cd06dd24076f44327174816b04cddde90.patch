@@ -1,0 +1,41 @@
+From 2492ba4cd06dd24076f44327174816b04cddde90 Mon Sep 17 00:00:00 2001
+From: Lukas Bulwahn <lukas.bulwahn@gmail.com>
+Date: Fri, 5 May 2023 06:36:05 +0200
+Subject: MAINTAINERS: remove section INTEL MENLOW THERMAL DRIVER
+
+Commit 2b6a7409ac39 ("thermal: intel: menlow: Get rid of this driver")
+removes the driver drivers/thermal/intel/intel_menlow.c, but misses to
+remove its reference in MAINTAINERS.
+
+Hence, ./scripts/get_maintainer.pl --self-test=patterns complains about a
+broken reference.
+
+Remove the INTEL MENLOW THERMAL DRIVER section in MAINTAINERS.
+
+Fixes: 2b6a7409ac39 ("thermal: intel: menlow: Get rid of this driver")
+Signed-off-by: Lukas Bulwahn <lukas.bulwahn@gmail.com>
+Signed-off-by: Rafael J. Wysocki <rafael.j.wysocki@intel.com>
+---
+ MAINTAINERS | 6 ------
+ 1 file changed, 6 deletions(-)
+
+diff --git a/MAINTAINERS b/MAINTAINERS
+index c0cde28c62c62..c28e45cb353d4 100644
+--- a/MAINTAINERS
++++ b/MAINTAINERS
+@@ -10556,12 +10556,6 @@ F:	drivers/hwmon/intel-m10-bmc-hwmon.c
+ F:	drivers/mfd/intel-m10-bmc*
+ F:	include/linux/mfd/intel-m10-bmc.h
+ 
+-INTEL MENLOW THERMAL DRIVER
+-M:	Sujith Thomas <sujith.thomas@intel.com>
+-L:	linux-pm@vger.kernel.org
+-S:	Supported
+-F:	drivers/thermal/intel/intel_menlow.c
+-
+ INTEL P-Unit IPC DRIVER
+ M:	Zha Qipeng <qipeng.zha@intel.com>
+ L:	platform-driver-x86@vger.kernel.org
+-- 
+cgit 
+

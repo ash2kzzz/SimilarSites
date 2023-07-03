@@ -1,0 +1,90 @@
+From 353c7dd636ed12fdaedea782de612aceb1923ed9 Mon Sep 17 00:00:00 2001
+From: "Mike Rapoport (IBM)" <rppt@kernel.org>
+Date: Wed, 1 Feb 2023 11:41:54 +0200
+Subject: docs/mm: Physical Memory: remove useless markup
+
+Jon says:
+
+  > +See also :ref:`Page Reclaim <page_reclaim>`.
+
+  Can also just be "See also Documentation/mm/page_reclaim.rst".  The
+  right things will happen in the HTML output, readers of the plain-text
+  will know immediately where to go, and we don't have to add the label
+  clutter.
+
+Remove reference markup and unnecessary labes and use plain file names.
+
+Fixes: 5d8c5e430a63 ("docs/mm: Physical Memory: add structure, introduction and nodes description")
+Suggested-by: Jonathan Corbet <corbet@lwn.net>
+Acked-by: Bagas Sanjaya <bagasdotme@gmail.com>
+Signed-off-by: Mike Rapoport (IBM) <rppt@kernel.org>
+Link: https://lore.kernel.org/r/20230201094156.991542-2-rppt@kernel.org
+Signed-off-by: Jonathan Corbet <corbet@lwn.net>
+---
+ Documentation/core-api/dma-api.rst   |  2 --
+ Documentation/mm/page_reclaim.rst    |  2 --
+ Documentation/mm/physical_memory.rst | 12 ++++++------
+ 3 files changed, 6 insertions(+), 10 deletions(-)
+
+diff --git a/Documentation/core-api/dma-api.rst b/Documentation/core-api/dma-api.rst
+index c847a5b0a0d3b..829f20a193cab 100644
+--- a/Documentation/core-api/dma-api.rst
++++ b/Documentation/core-api/dma-api.rst
+@@ -1,5 +1,3 @@
+-.. _dma_api:
+-
+ ============================================
+ Dynamic DMA mapping using the generic device
+ ============================================
+diff --git a/Documentation/mm/page_reclaim.rst b/Documentation/mm/page_reclaim.rst
+index 3fccde066436e..50a30b7f8ac37 100644
+--- a/Documentation/mm/page_reclaim.rst
++++ b/Documentation/mm/page_reclaim.rst
+@@ -1,7 +1,5 @@
+ .. SPDX-License-Identifier: GPL-2.0
+ 
+-.. _page_reclaim:
+-
+ ============
+ Page Reclaim
+ ============
+diff --git a/Documentation/mm/physical_memory.rst b/Documentation/mm/physical_memory.rst
+index d24220d624750..3f3c02aa6e6e6 100644
+--- a/Documentation/mm/physical_memory.rst
++++ b/Documentation/mm/physical_memory.rst
+@@ -39,8 +39,8 @@ one of the types described below.
+ * ``ZONE_DMA`` and ``ZONE_DMA32`` historically represented memory suitable for
+   DMA by peripheral devices that cannot access all of the addressable
+   memory. For many years there are better more and robust interfaces to get
+-  memory with DMA specific requirements (:ref:`DMA API <dma_api>`), but
+-  ``ZONE_DMA`` and ``ZONE_DMA32`` still represent memory ranges that have
++  memory with DMA specific requirements (Documentation/core-api/dma-api.rst),
++  but ``ZONE_DMA`` and ``ZONE_DMA32`` still represent memory ranges that have
+   restrictions on how they can be accessed.
+   Depending on the architecture, either of these zone types or even they both
+   can be disabled at build time using ``CONFIG_ZONE_DMA`` and
+@@ -64,9 +64,9 @@ one of the types described below.
+   change, their content may move between different physical pages. Often
+   ``ZONE_MOVABLE`` is populated during memory hotplug, but it may be
+   also populated on boot using one of ``kernelcore``, ``movablecore`` and
+-  ``movable_node`` kernel command line parameters. See :ref:`Page migration
+-  <page_migration>` and :ref:`Memory Hot(Un)Plug <admin_guide_memory_hotplug>`
+-  for additional details.
++  ``movable_node`` kernel command line parameters. See
++  Documentation/mm/page_migration.rst and
++  Documentation/admin-guide/mm/memory_hotplug.rst for additional details.
+ 
+ * ``ZONE_DEVICE`` represents memory residing on devices such as PMEM and GPU.
+   It has different characteristics than RAM zone types and it exists to provide
+@@ -252,7 +252,7 @@ General
+ Reclaim control
+ ~~~~~~~~~~~~~~~
+ 
+-See also :ref:`Page Reclaim <page_reclaim>`.
++See also Documentation/mm/page_reclaim.rst.
+ 
+ ``kswapd``
+   Per-node instance of kswapd kernel thread.
+-- 
+cgit 
+

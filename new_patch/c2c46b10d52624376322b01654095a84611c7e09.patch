@@ -1,0 +1,38 @@
+From c2c46b10d52624376322b01654095a84611c7e09 Mon Sep 17 00:00:00 2001
+From: Vipin Sharma <vipinsh@google.com>
+Date: Wed, 11 Jan 2023 10:34:08 -0800
+Subject: KVM: selftests: Make reclaim_period_ms input always be positive
+
+reclaim_period_ms used to be positive only but the commit 0001725d0f9b
+("KVM: selftests: Add atoi_positive() and atoi_non_negative() for input
+validation") incorrectly changed it to non-negative validation.
+
+Change validation to allow only positive input.
+
+Fixes: 0001725d0f9b ("KVM: selftests: Add atoi_positive() and atoi_non_negative() for input validation")
+Signed-off-by: Vipin Sharma <vipinsh@google.com>
+Reported-by: Ben Gardon <bgardon@google.com>
+Reviewed-by: Ben Gardon <bgardon@google.com>
+Reviewed-by: Sean Christopherson <seanjc@google.com>
+Message-Id: <20230111183408.104491-1-vipinsh@google.com>
+Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>
+---
+ tools/testing/selftests/kvm/x86_64/nx_huge_pages_test.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/tools/testing/selftests/kvm/x86_64/nx_huge_pages_test.c b/tools/testing/selftests/kvm/x86_64/nx_huge_pages_test.c
+index ea0978f22db86..251794f837193 100644
+--- a/tools/testing/selftests/kvm/x86_64/nx_huge_pages_test.c
++++ b/tools/testing/selftests/kvm/x86_64/nx_huge_pages_test.c
+@@ -241,7 +241,7 @@ int main(int argc, char **argv)
+ 	while ((opt = getopt(argc, argv, "hp:t:r")) != -1) {
+ 		switch (opt) {
+ 		case 'p':
+-			reclaim_period_ms = atoi_non_negative("Reclaim period", optarg);
++			reclaim_period_ms = atoi_positive("Reclaim period", optarg);
+ 			break;
+ 		case 't':
+ 			token = atoi_paranoid(optarg);
+-- 
+cgit 
+

@@ -1,0 +1,53 @@
+From 82649c7c0da431d147a75c6ae768ee42c1053f53 Mon Sep 17 00:00:00 2001
+From: David Gow <davidgow@google.com>
+Date: Sat, 4 Feb 2023 12:04:53 +0800
+Subject: kunit: Add printf attribute to fail_current_test_impl
+
+Add the gnu_printf (__printf()) attribute to the
+kunit_fail_current_test() implementation in
+__kunit_fail_current_test_impl(). While it's not actually useful here,
+as this function is never called directly, it nevertheless was
+triggering -Wsuggest-attribute=format warnings, so we should add it to
+reduce the noise.
+
+Fixes: cc3ed2fe5c93 ("kunit: Add "hooks" to call into KUnit when it's built as a module")
+Reported-by: kernel test robot <lkp@intel.com>
+Signed-off-by: David Gow <davidgow@google.com>
+Reviewed-by: Rae Moar <rmoar@google.com>
+Signed-off-by: Shuah Khan <skhan@linuxfoundation.org>
+---
+ lib/kunit/hooks-impl.h | 4 +++-
+ lib/kunit/test.c       | 2 +-
+ 2 files changed, 4 insertions(+), 2 deletions(-)
+
+diff --git a/lib/kunit/hooks-impl.h b/lib/kunit/hooks-impl.h
+index ec745a39832c1..4e71b2d0143ba 100644
+--- a/lib/kunit/hooks-impl.h
++++ b/lib/kunit/hooks-impl.h
+@@ -15,7 +15,9 @@
+ #include <kunit/test-bug.h>
+ 
+ /* List of declarations. */
+-void __kunit_fail_current_test_impl(const char *file, int line, const char *fmt, ...);
++void __printf(3, 4) __kunit_fail_current_test_impl(const char *file,
++						   int line,
++						   const char *fmt, ...);
+ void *__kunit_get_static_stub_address_impl(struct kunit *test, void *real_fn_addr);
+ 
+ /* Code to set all of the function pointers. */
+diff --git a/lib/kunit/test.c b/lib/kunit/test.c
+index 51cae59d8aae0..c9e15bb600584 100644
+--- a/lib/kunit/test.c
++++ b/lib/kunit/test.c
+@@ -24,7 +24,7 @@
+ /*
+  * Hook to fail the current test and print an error message to the log.
+  */
+-void __kunit_fail_current_test_impl(const char *file, int line, const char *fmt, ...)
++void __printf(3, 4) __kunit_fail_current_test_impl(const char *file, int line, const char *fmt, ...)
+ {
+ 	va_list args;
+ 	int len;
+-- 
+cgit 
+

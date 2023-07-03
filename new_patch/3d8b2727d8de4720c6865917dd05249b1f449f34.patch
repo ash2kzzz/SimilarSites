@@ -1,0 +1,71 @@
+From 3d8b2727d8de4720c6865917dd05249b1f449f34 Mon Sep 17 00:00:00 2001
+From: Stanislaw Gruszka <stanislaw.gruszka@linux.intel.com>
+Date: Thu, 23 Mar 2023 13:55:01 +0100
+Subject: accel/ivpu: Disable buttress on device removal
+
+Use pci_set_power_state() to disable buttress when device is removed.
+This is workaround of hardware bug that hangs the system.
+
+Additionally not disabling buttress prevents CPU enter deeper Pkg-C
+states when the driver is unloaded or fail to probe.
+
+Fixes: 35b137630f08 ("accel/ivpu: Introduce a new DRM driver for Intel VPU")
+Signed-off-by: Stanislaw Gruszka <stanislaw.gruszka@linux.intel.com>
+Reviewed-by: Jeffrey Hugo <quic_jhugo@quicinc.com>
+Signed-off-by: Jacek Lawrynowicz <jacek.lawrynowicz@linux.intel.com>
+Link: https://patchwork.freedesktop.org/patch/msgid/20230323125504.2586442-6-stanislaw.gruszka@linux.intel.com
+---
+ drivers/accel/ivpu/ivpu_drv.c    | 4 ++++
+ drivers/accel/ivpu/ivpu_drv.h    | 1 +
+ drivers/accel/ivpu/ivpu_hw_mtl.c | 1 +
+ 3 files changed, 6 insertions(+)
+
+diff --git a/drivers/accel/ivpu/ivpu_drv.c b/drivers/accel/ivpu/ivpu_drv.c
+index 70245cf845938..6a320a73e3ccf 100644
+--- a/drivers/accel/ivpu/ivpu_drv.c
++++ b/drivers/accel/ivpu/ivpu_drv.c
+@@ -569,6 +569,8 @@ err_mmu_gctx_fini:
+ 	ivpu_mmu_global_context_fini(vdev);
+ err_power_down:
+ 	ivpu_hw_power_down(vdev);
++	if (IVPU_WA(d3hot_after_power_off))
++		pci_set_power_state(to_pci_dev(vdev->drm.dev), PCI_D3hot);
+ err_xa_destroy:
+ 	xa_destroy(&vdev->submitted_jobs_xa);
+ 	xa_destroy(&vdev->context_xa);
+@@ -579,6 +581,8 @@ static void ivpu_dev_fini(struct ivpu_device *vdev)
+ {
+ 	ivpu_pm_disable(vdev);
+ 	ivpu_shutdown(vdev);
++	if (IVPU_WA(d3hot_after_power_off))
++		pci_set_power_state(to_pci_dev(vdev->drm.dev), PCI_D3hot);
+ 	ivpu_job_done_thread_fini(vdev);
+ 	ivpu_pm_cancel_recovery(vdev);
+ 
+diff --git a/drivers/accel/ivpu/ivpu_drv.h b/drivers/accel/ivpu/ivpu_drv.h
+index ef12a38e06e18..d3013fbd13b32 100644
+--- a/drivers/accel/ivpu/ivpu_drv.h
++++ b/drivers/accel/ivpu/ivpu_drv.h
+@@ -74,6 +74,7 @@
+ struct ivpu_wa_table {
+ 	bool punit_disabled;
+ 	bool clear_runtime_mem;
++	bool d3hot_after_power_off;
+ };
+ 
+ struct ivpu_hw_info;
+diff --git a/drivers/accel/ivpu/ivpu_hw_mtl.c b/drivers/accel/ivpu/ivpu_hw_mtl.c
+index 70ca6de780601..133ba33d2866d 100644
+--- a/drivers/accel/ivpu/ivpu_hw_mtl.c
++++ b/drivers/accel/ivpu/ivpu_hw_mtl.c
+@@ -101,6 +101,7 @@ static void ivpu_hw_wa_init(struct ivpu_device *vdev)
+ {
+ 	vdev->wa.punit_disabled = ivpu_is_fpga(vdev);
+ 	vdev->wa.clear_runtime_mem = false;
++	vdev->wa.d3hot_after_power_off = true;
+ }
+ 
+ static void ivpu_hw_timeouts_init(struct ivpu_device *vdev)
+-- 
+cgit 
+

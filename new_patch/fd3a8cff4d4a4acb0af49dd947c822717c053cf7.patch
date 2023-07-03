@@ -1,0 +1,107 @@
+From fd3a8cff4d4a4acb0af49dd947c822717c053cf7 Mon Sep 17 00:00:00 2001
+From: Bjorn Helgaas <bhelgaas@google.com>
+Date: Tue, 10 Jan 2023 12:02:43 -0600
+Subject: x86/pci: Treat EfiMemoryMappedIO as reservation of ECAM space
+
+Normally we reject ECAM space unless it is reported as reserved in the E820
+table or via a PNP0C02 _CRS method (PCI Firmware, r3.3, sec 4.1.2).
+
+07eab0901ede ("efi/x86: Remove EfiMemoryMappedIO from E820 map"), removes
+E820 entries that correspond to EfiMemoryMappedIO regions because some
+other firmware uses EfiMemoryMappedIO for PCI host bridge windows, and the
+E820 entries prevent Linux from allocating BAR space for hot-added devices.
+
+Some firmware doesn't report ECAM space via PNP0C02 _CRS methods, but does
+mention it as an EfiMemoryMappedIO region via EFI GetMemoryMap(), which is
+normally converted to an E820 entry by a bootloader or EFI stub.  After
+07eab0901ede, that E820 entry is removed, so we reject this ECAM space,
+which makes PCI extended config space (offsets 0x100-0xfff) inaccessible.
+
+The lack of extended config space breaks anything that relies on it,
+including perf, VSEC telemetry, EDAC, QAT, SR-IOV, etc.
+
+Allow use of ECAM for extended config space when the region is covered by
+an EfiMemoryMappedIO region, even if it's not included in E820 or PNP0C02
+_CRS.
+
+Link: https://lore.kernel.org/r/ac2693d8-8ba3-72e0-5b66-b3ae008d539d@linux.intel.com
+Link: https://bugzilla.kernel.org/show_bug.cgi?id=216891
+Fixes: 07eab0901ede ("efi/x86: Remove EfiMemoryMappedIO from E820 map")
+Link: https://lore.kernel.org/r/20230110180243.1590045-3-helgaas@kernel.org
+Reported-by: Kan Liang <kan.liang@linux.intel.com>
+Reported-by: Tony Luck <tony.luck@intel.com>
+Reported-by: Giovanni Cabiddu <giovanni.cabiddu@intel.com>
+Reported-by: Yunying Sun <yunying.sun@intel.com>
+Reported-by: Baowen Zheng <baowen.zheng@corigine.com>
+Reported-by: Zhenzhong Duan <zhenzhong.duan@intel.com>
+Reported-by: Yang Lixiao <lixiao.yang@intel.com>
+Tested-by: Tony Luck <tony.luck@intel.com>
+Tested-by: Giovanni Cabiddu <giovanni.cabiddu@intel.com>
+Tested-by: Kan Liang <kan.liang@linux.intel.com>
+Tested-by: Yunying Sun <yunying.sun@intel.com>
+Signed-off-by: Bjorn Helgaas <bhelgaas@google.com>
+Reviewed-by: Dan Williams <dan.j.williams@intel.com>
+Reviewed-by: Rafael J. Wysocki <rafael@kernel.org>
+---
+ arch/x86/pci/mmconfig-shared.c | 31 +++++++++++++++++++++++++++++++
+ 1 file changed, 31 insertions(+)
+
+diff --git a/arch/x86/pci/mmconfig-shared.c b/arch/x86/pci/mmconfig-shared.c
+index 51c951699b2ed..4b3efaa82ab7c 100644
+--- a/arch/x86/pci/mmconfig-shared.c
++++ b/arch/x86/pci/mmconfig-shared.c
+@@ -12,6 +12,7 @@
+  */
+ 
+ #include <linux/acpi.h>
++#include <linux/efi.h>
+ #include <linux/pci.h>
+ #include <linux/init.h>
+ #include <linux/bitmap.h>
+@@ -442,6 +443,32 @@ static bool is_acpi_reserved(u64 start, u64 end, enum e820_type not_used)
+ 	return mcfg_res.flags;
+ }
+ 
++static bool is_efi_mmio(u64 start, u64 end, enum e820_type not_used)
++{
++#ifdef CONFIG_EFI
++	efi_memory_desc_t *md;
++	u64 size, mmio_start, mmio_end;
++
++	for_each_efi_memory_desc(md) {
++		if (md->type == EFI_MEMORY_MAPPED_IO) {
++			size = md->num_pages << EFI_PAGE_SHIFT;
++			mmio_start = md->phys_addr;
++			mmio_end = mmio_start + size;
++
++			/*
++			 * N.B. Caller supplies (start, start + size),
++			 * so to match, mmio_end is the first address
++			 * *past* the EFI_MEMORY_MAPPED_IO area.
++			 */
++			if (mmio_start <= start && end <= mmio_end)
++				return true;
++		}
++	}
++#endif
++
++	return false;
++}
++
+ typedef bool (*check_reserved_t)(u64 start, u64 end, enum e820_type type);
+ 
+ static bool __ref is_mmconf_reserved(check_reserved_t is_reserved,
+@@ -513,6 +540,10 @@ pci_mmcfg_check_reserved(struct device *dev, struct pci_mmcfg_region *cfg, int e
+ 			       "MMCONFIG at %pR not reserved in "
+ 			       "ACPI motherboard resources\n",
+ 			       &cfg->res);
++
++		if (is_mmconf_reserved(is_efi_mmio, cfg, dev,
++				       "EfiMemoryMappedIO"))
++			return true;
+ 	}
+ 
+ 	/*
+-- 
+cgit 
+

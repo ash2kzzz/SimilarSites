@@ -1,0 +1,36 @@
+From 972074ea88402e9b1b29c3a8d3d6d1aadaff624e Mon Sep 17 00:00:00 2001
+From: Oleksij Rempel <o.rempel@pengutronix.de>
+Date: Sat, 25 Feb 2023 08:16:44 +0100
+Subject: net: phy: c45: fix network interface initialization failures on
+ xtensa, arm:cubieboard
+
+Without proper initialization, "changed" returned random numbers and caused
+interface initialization failures.
+
+Fixes: 022c3f87f88e ("net: phy: add genphy_c45_ethtool_get/set_eee() support")
+Reported-by: Guenter Roeck <linux@roeck-us.net>
+Tested-by: Guenter Roeck <linux@roeck-us.net>
+Signed-off-by: Oleksij Rempel <o.rempel@pengutronix.de>
+Reviewed-by: Simon Horman <simon.horman@corigine.com>
+Link: https://lore.kernel.org/r/20230225071644.2754893-1-o.rempel@pengutronix.de
+Signed-off-by: Jakub Kicinski <kuba@kernel.org>
+---
+ drivers/net/phy/phy-c45.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/net/phy/phy-c45.c b/drivers/net/phy/phy-c45.c
+index 3813b86689d07..fee514b96ab17 100644
+--- a/drivers/net/phy/phy-c45.c
++++ b/drivers/net/phy/phy-c45.c
+@@ -672,7 +672,7 @@ EXPORT_SYMBOL_GPL(genphy_c45_read_mdix);
+  */
+ int genphy_c45_write_eee_adv(struct phy_device *phydev, unsigned long *adv)
+ {
+-	int val, changed;
++	int val, changed = 0;
+ 
+ 	if (linkmode_intersects(phydev->supported_eee, PHY_EEE_CAP1_FEATURES)) {
+ 		val = linkmode_to_mii_eee_cap1_t(adv);
+-- 
+cgit 
+

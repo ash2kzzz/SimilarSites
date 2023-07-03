@@ -1,0 +1,57 @@
+From 4e3feaad6ff8a7a57e3bf3308a93c93e3a2e17a6 Mon Sep 17 00:00:00 2001
+From: Nathan Chancellor <nathan@kernel.org>
+Date: Tue, 24 Jan 2023 09:19:28 -0700
+Subject: powerpc/vdso: Filter clang's auto var init zero enabler when linking
+
+After commit 8d9acfce3332 ("kbuild: Stop using '-Qunused-arguments' with
+clang"), the PowerPC vDSO shows the following error with clang-13 and
+older when CONFIG_INIT_STACK_ALL_ZERO is enabled:
+
+  clang: error: argument unused during compilation: '-enable-trivial-auto-var-init-zero-knowing-it-will-be-removed-from-clang' [-Werror,-Wunused-command-line-argument]
+
+clang-14 added a change to make sure this flag never triggers
+-Wunused-command-line-argument, so it is fixed with newer releases. For
+older releases that the kernel still supports building with, just filter
+out this flag, as has been done for other flags.
+
+Fixes: f0a42fbab447 ("powerpc/vdso: Improve linker flags")
+Fixes: 8d9acfce3332 ("kbuild: Stop using '-Qunused-arguments' with clang")
+Link: https://github.com/llvm/llvm-project/commit/ca6d5813d17598cd180995fb3bdfca00f364475f
+Signed-off-by: Nathan Chancellor <nathan@kernel.org>
+Signed-off-by: Masahiro Yamada <masahiroy@kernel.org>
+---
+ Makefile                          | 4 +++-
+ arch/powerpc/kernel/vdso/Makefile | 2 +-
+ 2 files changed, 4 insertions(+), 2 deletions(-)
+
+diff --git a/Makefile b/Makefile
+index 3e7f96f12f089..5bd587bb30b57 100644
+--- a/Makefile
++++ b/Makefile
+@@ -912,7 +912,9 @@ ifdef CONFIG_INIT_STACK_ALL_ZERO
+ KBUILD_CFLAGS	+= -ftrivial-auto-var-init=zero
+ ifdef CONFIG_CC_HAS_AUTO_VAR_INIT_ZERO_ENABLER
+ # https://github.com/llvm/llvm-project/issues/44842
+-KBUILD_CFLAGS	+= -enable-trivial-auto-var-init-zero-knowing-it-will-be-removed-from-clang
++CC_AUTO_VAR_INIT_ZERO_ENABLER := -enable-trivial-auto-var-init-zero-knowing-it-will-be-removed-from-clang
++export CC_AUTO_VAR_INIT_ZERO_ENABLER
++KBUILD_CFLAGS	+= $(CC_AUTO_VAR_INIT_ZERO_ENABLER)
+ endif
+ endif
+ 
+diff --git a/arch/powerpc/kernel/vdso/Makefile b/arch/powerpc/kernel/vdso/Makefile
+index 7e69e87fbf744..d2a1dc0956d51 100644
+--- a/arch/powerpc/kernel/vdso/Makefile
++++ b/arch/powerpc/kernel/vdso/Makefile
+@@ -56,7 +56,7 @@ ccflags-y := -fno-common -fno-builtin
+ ldflags-y := -Wl,--hash-style=both -nostdlib -shared -z noexecstack
+ ldflags-$(CONFIG_LD_IS_LLD) += $(call cc-option,--ld-path=$(LD),-fuse-ld=lld)
+ # Filter flags that clang will warn are unused for linking
+-ldflags-y += $(filter-out $(CC_FLAGS_FTRACE) -Wa$(comma)%, $(KBUILD_CFLAGS))
++ldflags-y += $(filter-out $(CC_AUTO_VAR_INIT_ZERO_ENABLER) $(CC_FLAGS_FTRACE) -Wa$(comma)%, $(KBUILD_CFLAGS))
+ 
+ CC32FLAGS := -m32
+ LD32FLAGS := -Wl,-soname=linux-vdso32.so.1
+-- 
+cgit 
+

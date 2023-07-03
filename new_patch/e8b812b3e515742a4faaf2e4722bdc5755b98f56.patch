@@ -1,0 +1,51 @@
+From e8b812b3e515742a4faaf2e4722bdc5755b98f56 Mon Sep 17 00:00:00 2001
+From: Geert Uytterhoeven <geert+renesas@glider.be>
+Date: Tue, 21 Feb 2023 13:53:51 +0100
+Subject: driver core: bus: Handle early calls to bus_to_subsys()
+
+When calling soc_device_match() from early_initcall(), bus_kset is still
+NULL, causing a crash:
+
+    Unable to handle kernel NULL pointer dereference at virtual address 0000000000000028
+    ...
+    Call trace:
+     __lock_acquire+0x530/0x20f0
+     lock_acquire.part.0+0xc8/0x210
+     lock_acquire+0x64/0x80
+     _raw_spin_lock+0x4c/0x60
+     bus_to_subsys+0x24/0xac
+     bus_for_each_dev+0x30/0xcc
+     soc_device_match+0x4c/0xe0
+     r8a7795_sysc_init+0x18/0x60
+     rcar_sysc_pd_init+0xb0/0x33c
+     do_one_initcall+0x128/0x2bc
+
+Before, bus_for_each_dev() handled this gracefully by checking that
+the back-pointer to the private structure was valid.
+
+Fix this by adding a NULL check for bus_kset to bus_to_subsys().
+
+Fixes: 83b9148df2c95e23 ("driver core: bus: bus iterator cleanups")
+Signed-off-by: Geert Uytterhoeven <geert+renesas@glider.be>
+Link: https://lore.kernel.org/r/0a92979f6e790737544638e8a4c19b0564e660a2.1676983596.git.geert+renesas@glider.be
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+---
+ drivers/base/bus.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/base/bus.c b/drivers/base/bus.c
+index cfe8615d5106f..dd4b82d7510f6 100644
+--- a/drivers/base/bus.c
++++ b/drivers/base/bus.c
+@@ -62,7 +62,7 @@ static struct subsys_private *bus_to_subsys(const struct bus_type *bus)
+ 	struct subsys_private *sp = NULL;
+ 	struct kobject *kobj;
+ 
+-	if (!bus)
++	if (!bus || !bus_kset)
+ 		return NULL;
+ 
+ 	spin_lock(&bus_kset->list_lock);
+-- 
+cgit 
+

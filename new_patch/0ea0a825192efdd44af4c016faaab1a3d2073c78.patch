@@ -1,0 +1,44 @@
+From 0ea0a825192efdd44af4c016faaab1a3d2073c78 Mon Sep 17 00:00:00 2001
+From: Guenter Roeck <linux@roeck-us.net>
+Date: Tue, 28 Feb 2023 07:16:48 -0800
+Subject: watchdog: imx2_wdg: Declare local symbols static
+
+0-day complains:
+
+drivers/watchdog/imx2_wdt.c:442:22: sparse:
+	symbol 'imx_wdt' was not declared. Should it be static?
+drivers/watchdog/imx2_wdt.c:446:22: sparse:
+	symbol 'imx_wdt_legacy' was not declared. Should it be static?
+
+Declare as static variables.
+
+Fixes: e42c73f1ef0d ("watchdog: imx2_wdg: suspend watchdog in WAIT mode")
+Cc: Andrej Picej <andrej.picej@norik.com>
+Signed-off-by: Guenter Roeck <linux@roeck-us.net>
+Link: https://lore.kernel.org/r/20230228151648.4087637-1-linux@roeck-us.net
+Signed-off-by: Wim Van Sebroeck <wim@linux-watchdog.org>
+---
+ drivers/watchdog/imx2_wdt.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/watchdog/imx2_wdt.c b/drivers/watchdog/imx2_wdt.c
+index 19ab7b3d286b9..6fcc3596103cc 100644
+--- a/drivers/watchdog/imx2_wdt.c
++++ b/drivers/watchdog/imx2_wdt.c
+@@ -439,11 +439,11 @@ static int __maybe_unused imx2_wdt_resume(struct device *dev)
+ static SIMPLE_DEV_PM_OPS(imx2_wdt_pm_ops, imx2_wdt_suspend,
+ 			 imx2_wdt_resume);
+ 
+-struct imx2_wdt_data imx_wdt = {
++static struct imx2_wdt_data imx_wdt = {
+ 	.wdw_supported = true,
+ };
+ 
+-struct imx2_wdt_data imx_wdt_legacy = {
++static struct imx2_wdt_data imx_wdt_legacy = {
+ 	.wdw_supported = false,
+ };
+ 
+-- 
+cgit 
+

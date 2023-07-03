@@ -1,0 +1,64 @@
+From 735aec59afb18c3e2da0a637037e69ad62dbda6a Mon Sep 17 00:00:00 2001
+From: Masahiro Yamada <masahiroy@kernel.org>
+Date: Wed, 4 Jan 2023 23:04:59 +0900
+Subject: kbuild: readd -w option when vmlinux.o or Module.symver is missing
+
+Commit 63ffe00d8c93 ("kbuild: Fix running modpost with musl libc")
+accidentally turned the unresolved symbol warnings into errors when
+vmlinux.o (for in-tree builds) or Module.symver (for external module
+builds) is missing.
+
+In those cases, unresolved symbols are expected, but the -w option
+is not set because 'missing-input' is referenced before set.
+
+Move $(missing-input) back to the original place. This should be fine
+for musl libc because vmlinux.o and -w are not added at the same time.
+
+With this change, -w may be passed twice, but it is not a big deal.
+
+Link: https://lore.kernel.org/all/b56a03b8-2a2a-f833-a5d2-cdc50a7ca2bb@cschramm.eu/
+Fixes: 63ffe00d8c93 ("kbuild: Fix running modpost with musl libc")
+Reported-by: Christopher Schramm <debian@cschramm.eu>
+Signed-off-by: Masahiro Yamada <masahiroy@kernel.org>
+Tested-by: Samuel Holland <samuel@sholland.org>
+---
+ scripts/Makefile.modpost | 9 +++++----
+ 1 file changed, 5 insertions(+), 4 deletions(-)
+
+diff --git a/scripts/Makefile.modpost b/scripts/Makefile.modpost
+index 0ee296cf520c2..43343e13c5425 100644
+--- a/scripts/Makefile.modpost
++++ b/scripts/Makefile.modpost
+@@ -44,6 +44,7 @@ modpost-args =										\
+ 	$(if $(CONFIG_MODVERSIONS),-m)							\
+ 	$(if $(CONFIG_MODULE_SRCVERSION_ALL),-a)					\
+ 	$(if $(CONFIG_SECTION_MISMATCH_WARN_ONLY),,-E)					\
++	$(if $(KBUILD_MODPOST_WARN),-w)							\
+ 	$(if $(KBUILD_NSDEPS),-d $(MODULES_NSDEPS))					\
+ 	$(if $(CONFIG_MODULE_ALLOW_MISSING_NAMESPACE_IMPORTS)$(KBUILD_NSDEPS),-N)	\
+ 	-o $@
+@@ -55,10 +56,6 @@ ifneq ($(findstring i,$(filter-out --%,$(MAKEFLAGS))),)
+ modpost-args += -n
+ endif
+ 
+-ifneq ($(KBUILD_MODPOST_WARN)$(missing-input),)
+-modpost-args += -w
+-endif
+-
+ # Read out modules.order to pass in modpost.
+ # Otherwise, allmodconfig would fail with "Argument list too long".
+ ifdef KBUILD_MODULES
+@@ -124,6 +121,10 @@ modpost-args += -e $(addprefix -i , $(KBUILD_EXTRA_SYMBOLS))
+ 
+ endif # ($(KBUILD_EXTMOD),)
+ 
++ifneq ($(missing-input),)
++modpost-args += -w
++endif
++
+ quiet_cmd_modpost = MODPOST $@
+       cmd_modpost = \
+ 	$(if $(missing-input), \
+-- 
+cgit 
+

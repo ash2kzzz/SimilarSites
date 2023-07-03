@@ -1,0 +1,42 @@
+From 76f5aaabce492aa6991c28c96bb78b00b05d06c5 Mon Sep 17 00:00:00 2001
+From: Andy Shevchenko <andriy.shevchenko@linux.intel.com>
+Date: Wed, 15 Feb 2023 15:23:43 +0200
+Subject: ASoC: soc-ac97: Return correct error codes
+
+With the switching to dev_err_probe(), during the conversion
+of GPIO calls, the return code is passed is a paratemer to it.
+At the same time a copy'n'paste mistake was made, so the wrong
+variable has been taken for the error reporting. Fix this.
+
+Fixes: 3ee0d39c50dc ("ASoC: soc-ac97: Convert to agnostic GPIO API")
+Reported-by: kernel test robot <lkp@intel.com>
+Reported-by: Dan Carpenter <error27@gmail.com>
+Signed-off-by: Andy Shevchenko <andriy.shevchenko@linux.intel.com>
+Link: https://lore.kernel.org/r/20230215132343.35547-1-andriy.shevchenko@linux.intel.com
+Signed-off-by: Mark Brown <broonie@kernel.org>
+---
+ sound/soc/soc-ac97.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/sound/soc/soc-ac97.c b/sound/soc/soc-ac97.c
+index 40051f513c6af..4e4fe29ade502 100644
+--- a/sound/soc/soc-ac97.c
++++ b/sound/soc/soc-ac97.c
+@@ -336,12 +336,12 @@ static int snd_soc_ac97_parse_pinctl(struct device *dev,
+ 
+ 	cfg->sdata_gpio = devm_gpiod_get_index(dev, "ac97", 1, GPIOD_ASIS);
+ 	if (IS_ERR(cfg->sdata_gpio))
+-		return dev_err_probe(dev, PTR_ERR(cfg->sync_gpio), "Can't find ac97-sdata gpio\n");
++		return dev_err_probe(dev, PTR_ERR(cfg->sdata_gpio), "Can't find ac97-sdata gpio\n");
+ 	gpiod_set_consumer_name(cfg->sdata_gpio, "AC97 link sdata");
+ 
+ 	cfg->reset_gpio = devm_gpiod_get_index(dev, "ac97", 2, GPIOD_ASIS);
+ 	if (IS_ERR(cfg->reset_gpio))
+-		return dev_err_probe(dev, PTR_ERR(cfg->sync_gpio), "Can't find ac97-reset gpio\n");
++		return dev_err_probe(dev, PTR_ERR(cfg->reset_gpio), "Can't find ac97-reset gpio\n");
+ 	gpiod_set_consumer_name(cfg->reset_gpio, "AC97 link reset");
+ 
+ 	return 0;
+-- 
+cgit 
+

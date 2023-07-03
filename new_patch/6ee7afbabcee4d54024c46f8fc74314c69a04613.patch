@@ -1,0 +1,36 @@
+From 6ee7afbabcee4d54024c46f8fc74314c69a04613 Mon Sep 17 00:00:00 2001
+From: Geert Uytterhoeven <geert+renesas@glider.be>
+Date: Thu, 16 Feb 2023 09:37:25 +0100
+Subject: of: reserved_mem: Use proper binary prefix
+
+The printed reserved memory information uses the non-standard "K"
+prefix, while all other printed values use proper binary prefixes.
+Fix this by using "Ki" instead.
+
+While at it, drop the superfluous spaces inside the parentheses, to
+reduce printed line length.
+
+Fixes: aeb9267eb6b1df99 ("of: reserved-mem: print out reserved-mem details during boot")
+Signed-off-by: Geert Uytterhoeven <geert+renesas@glider.be>
+Link: https://lore.kernel.org/r/20230216083725.1244817-1-geert+renesas@glider.be
+Signed-off-by: Rob Herring <robh@kernel.org>
+---
+ drivers/of/of_reserved_mem.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/of/of_reserved_mem.c b/drivers/of/of_reserved_mem.c
+index 00e75064ca19f..9f7127297f4d5 100644
+--- a/drivers/of/of_reserved_mem.c
++++ b/drivers/of/of_reserved_mem.c
+@@ -289,7 +289,7 @@ void __init fdt_init_reserved_mem(void)
+ 				bool reusable =
+ 					(of_get_flat_dt_prop(node, "reusable", NULL)) != NULL;
+ 
+-				pr_info("%pa..%pa ( %lu KB ) %s %s %s\n",
++				pr_info("%pa..%pa (%lu KiB) %s %s %s\n",
+ 					&rmem->base, &end, (unsigned long)(rmem->size / SZ_1K),
+ 					nomap ? "nomap" : "map",
+ 					reusable ? "reusable" : "non-reusable",
+-- 
+cgit 
+

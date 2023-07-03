@@ -1,0 +1,46 @@
+From 0019a2d4b7e37a983d133d42b707b8a3018ae6f4 Mon Sep 17 00:00:00 2001
+From: Randy Dunlap <rdunlap@infradead.org>
+Date: Thu, 27 Apr 2023 20:11:11 -0700
+Subject: sched: fix cid_lock kernel-doc warnings
+
+Fix kernel-doc warnings for cid_lock and use_cid_lock.
+These comments are not in kernel-doc format.
+
+kernel/sched/core.c:11496: warning: Cannot understand  * @cid_lock: Guarantee forward-progress of cid allocation.
+ on line 11496 - I thought it was a doc line
+kernel/sched/core.c:11505: warning: Cannot understand  * @use_cid_lock: Select cid allocation behavior: lock-free vs spinlock.
+ on line 11505 - I thought it was a doc line
+
+Fixes: 223baf9d17f2 ("sched: Fix performance regression introduced by mm_cid")
+Signed-off-by: Randy Dunlap <rdunlap@infradead.org>
+Signed-off-by: Peter Zijlstra (Intel) <peterz@infradead.org>
+Link: https://lkml.kernel.org/r/20230428031111.322-1-rdunlap@infradead.org
+---
+ kernel/sched/core.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/kernel/sched/core.c b/kernel/sched/core.c
+index 944c3ae39861c..a68d1276bab00 100644
+--- a/kernel/sched/core.c
++++ b/kernel/sched/core.c
+@@ -11492,7 +11492,7 @@ void call_trace_sched_update_nr_running(struct rq *rq, int count)
+ 
+ #ifdef CONFIG_SCHED_MM_CID
+ 
+-/**
++/*
+  * @cid_lock: Guarantee forward-progress of cid allocation.
+  *
+  * Concurrency ID allocation within a bitmap is mostly lock-free. The cid_lock
+@@ -11501,7 +11501,7 @@ void call_trace_sched_update_nr_running(struct rq *rq, int count)
+  */
+ DEFINE_RAW_SPINLOCK(cid_lock);
+ 
+-/**
++/*
+  * @use_cid_lock: Select cid allocation behavior: lock-free vs spinlock.
+  *
+  * When @use_cid_lock is 0, the cid allocation is lock-free. When contention is
+-- 
+cgit 
+

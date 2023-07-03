@@ -1,0 +1,80 @@
+From 3098cb655e7c9ea1c2919e61234f63ebaab6bb21 Mon Sep 17 00:00:00 2001
+From: Arnaldo Carvalho de Melo <acme@kernel.org>
+Date: Thu, 2 Mar 2023 11:16:36 -0300
+Subject: rust: bindgen: Add `alt_instr` as opaque type
+
+To address this build error:
+
+    BINDGEN rust/bindings/bindings_generated.rs
+    BINDGEN rust/bindings/bindings_helpers_generated.rs
+    EXPORTS rust/exports_core_generated.h
+    RUSTC P rust/libmacros.so
+    RUSTC L rust/compiler_builtins.o
+    RUSTC L rust/alloc.o
+    RUSTC L rust/bindings.o
+    RUSTC L rust/build_error.o
+    EXPORTS rust/exports_alloc_generated.h
+  error[E0588]: packed type cannot transitively contain a `#[repr(align)]` type
+       --> /var/home/acme/git/linux/rust/bindings/bindings_generated.rs:10094:1
+        |
+  10094 | / pub struct alt_instr {
+  10095 | |     pub instr_offset: s32,
+  10096 | |     pub repl_offset: s32,
+  10097 | |     pub __bindgen_anon_1: alt_instr__bindgen_ty_1,
+  10098 | |     pub instrlen: u8_,
+  10099 | |     pub replacementlen: u8_,
+  10100 | | }
+        | |_^
+        |
+  note: `alt_instr__bindgen_ty_1__bindgen_ty_1` has a `#[repr(align)]` attribute
+       --> /var/home/acme/git/linux/rust/bindings/bindings_generated.rs:10111:1
+        |
+  10111 | / pub struct alt_instr__bindgen_ty_1__bindgen_ty_1 {
+  10112 | |     pub _bitfield_1: __BindgenBitfieldUnit<[u8; 4usize], u16>,
+  10113 | | }
+        | |_^
+  note: `alt_instr` contains a field of type `alt_instr__bindgen_ty_1`
+       --> /var/home/acme/git/linux/rust/bindings/bindings_generated.rs:10097:9
+        |
+  10097 |     pub __bindgen_anon_1: alt_instr__bindgen_ty_1,
+        |         ^^^^^^^^^^^^^^^^
+  note: ...which contains a field of type `alt_instr__bindgen_ty_1__bindgen_ty_1`
+       --> /var/home/acme/git/linux/rust/bindings/bindings_generated.rs:10104:9
+        |
+  10104 |     pub __bindgen_anon_1: alt_instr__bindgen_ty_1__bindgen_ty_1,
+        |         ^^^^^^^^^^^^^^^^
+
+  error: aborting due to previous error
+
+  For more information about this error, try `rustc --explain E0588`.
+  make[1]: *** [rust/Makefile:389: rust/bindings.o] Error 1
+  make: *** [Makefile:1293: prepare] Error 2
+
+Cc: Derek Barbosa <debarbos@redhat.com>
+Cc: Miguel Ojeda <ojeda@kernel.org>
+Signed-off-by: Arnaldo Carvalho de Melo <acme@redhat.com>
+Fixes: 5d1dd961e743 ("x86/alternatives: Add alt_instr.flags")
+Reported-by: kernel test robot <lkp@intel.com>
+Reported-by: Vincenzo Palazzo <vincenzopalazzodev@gmail.com>
+Reviewed-by: Martin Rodriguez Reboredo <yakoyoku@gmail.com>
+Reviewed-by: Vincenzo Palazzo <vincenzopalazzodev@gmail.com>
+Signed-off-by: Miguel Ojeda <ojeda@kernel.org>
+---
+ rust/bindgen_parameters | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/rust/bindgen_parameters b/rust/bindgen_parameters
+index be4963bf72030..552d9a85925b9 100644
+--- a/rust/bindgen_parameters
++++ b/rust/bindgen_parameters
+@@ -6,6 +6,7 @@
+ --opaque-type local_apic
+ 
+ # Packed type cannot transitively contain a `#[repr(align)]` type.
++--opaque-type alt_instr
+ --opaque-type x86_msi_data
+ --opaque-type x86_msi_addr_lo
+ 
+-- 
+cgit 
+

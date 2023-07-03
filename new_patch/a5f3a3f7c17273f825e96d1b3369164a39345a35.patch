@@ -1,0 +1,117 @@
+From a5f3a3f7c17273f825e96d1b3369164a39345a35 Mon Sep 17 00:00:00 2001
+From: Stanislav Fomichev <sdf@google.com>
+Date: Thu, 26 Jan 2023 14:50:30 -0800
+Subject: selftests/bpf: Properly enable hwtstamp in xdp_hw_metadata
+
+The existing timestamping_enable() is a no-op because it applies
+to the socket-related path that we are not verifying here
+anymore. (but still leaving the code around hoping we can
+have xdp->skb path verified here as well)
+
+  poll: 1 (0)
+  xsk_ring_cons__peek: 1
+  0xf64788: rx_desc[0]->addr=100000000008000 addr=8100 comp_addr=8000
+  rx_hash: 3697961069
+  rx_timestamp:  1674657672142214773 (sec:1674657672.1422)
+  XDP RX-time:   1674657709561774876 (sec:1674657709.5618) delta sec:37.4196
+  AF_XDP time:   1674657709561871034 (sec:1674657709.5619) delta
+sec:0.0001 (96.158 usec)
+  0xf64788: complete idx=8 addr=8000
+
+Also, maybe something to archive here, see [0] for Jesper's note
+about NIC vs host clock delta.
+
+0: https://lore.kernel.org/bpf/f3a116dc-1b14-3432-ad20-a36179ef0608@redhat.com/
+
+v2:
+- Restore original value (Martin)
+
+Fixes: 297a3f124155 ("selftests/bpf: Simple program to dump XDP RX metadata")
+Reported-by: Jesper Dangaard Brouer <jbrouer@redhat.com>
+Tested-by: Jesper Dangaard Brouer <jbrouer@redhat.com>
+Signed-off-by: Stanislav Fomichev <sdf@google.com>
+Link: https://lore.kernel.org/r/20230126225030.510629-1-sdf@google.com
+Signed-off-by: Martin KaFai Lau <martin.lau@kernel.org>
+---
+ tools/testing/selftests/bpf/xdp_hw_metadata.c | 45 ++++++++++++++++++++++++++-
+ 1 file changed, 44 insertions(+), 1 deletion(-)
+
+diff --git a/tools/testing/selftests/bpf/xdp_hw_metadata.c b/tools/testing/selftests/bpf/xdp_hw_metadata.c
+index 0008f0f239e8e..3823b1c499cc4 100644
+--- a/tools/testing/selftests/bpf/xdp_hw_metadata.c
++++ b/tools/testing/selftests/bpf/xdp_hw_metadata.c
+@@ -24,6 +24,7 @@
+ #include <linux/net_tstamp.h>
+ #include <linux/udp.h>
+ #include <linux/sockios.h>
++#include <linux/net_tstamp.h>
+ #include <sys/mman.h>
+ #include <net/if.h>
+ #include <poll.h>
+@@ -278,13 +279,53 @@ static int rxq_num(const char *ifname)
+ 
+ 	ret = ioctl(fd, SIOCETHTOOL, &ifr);
+ 	if (ret < 0)
+-		error(-1, errno, "socket");
++		error(-1, errno, "ioctl(SIOCETHTOOL)");
+ 
+ 	close(fd);
+ 
+ 	return ch.rx_count + ch.combined_count;
+ }
+ 
++static void hwtstamp_ioctl(int op, const char *ifname, struct hwtstamp_config *cfg)
++{
++	struct ifreq ifr = {
++		.ifr_data = (void *)cfg,
++	};
++	strcpy(ifr.ifr_name, ifname);
++	int fd, ret;
++
++	fd = socket(AF_UNIX, SOCK_DGRAM, 0);
++	if (fd < 0)
++		error(-1, errno, "socket");
++
++	ret = ioctl(fd, op, &ifr);
++	if (ret < 0)
++		error(-1, errno, "ioctl(%d)", op);
++
++	close(fd);
++}
++
++static struct hwtstamp_config saved_hwtstamp_cfg;
++static const char *saved_hwtstamp_ifname;
++
++static void hwtstamp_restore(void)
++{
++	hwtstamp_ioctl(SIOCSHWTSTAMP, saved_hwtstamp_ifname, &saved_hwtstamp_cfg);
++}
++
++static void hwtstamp_enable(const char *ifname)
++{
++	struct hwtstamp_config cfg = {
++		.rx_filter = HWTSTAMP_FILTER_ALL,
++	};
++
++	hwtstamp_ioctl(SIOCGHWTSTAMP, ifname, &saved_hwtstamp_cfg);
++	saved_hwtstamp_ifname = strdup(ifname);
++	atexit(hwtstamp_restore);
++
++	hwtstamp_ioctl(SIOCSHWTSTAMP, ifname, &cfg);
++}
++
+ static void cleanup(void)
+ {
+ 	LIBBPF_OPTS(bpf_xdp_attach_opts, opts);
+@@ -341,6 +382,8 @@ int main(int argc, char *argv[])
+ 
+ 	printf("rxq: %d\n", rxq);
+ 
++	hwtstamp_enable(ifname);
++
+ 	rx_xsk = malloc(sizeof(struct xsk) * rxq);
+ 	if (!rx_xsk)
+ 		error(-1, ENOMEM, "malloc");
+-- 
+cgit 
+

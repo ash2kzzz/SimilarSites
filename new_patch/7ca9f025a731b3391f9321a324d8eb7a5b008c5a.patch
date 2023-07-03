@@ -1,0 +1,55 @@
+From 7ca9f025a731b3391f9321a324d8eb7a5b008c5a Mon Sep 17 00:00:00 2001
+From: Serge Semin <Sergey.Semin@baikalelectronics.ru>
+Date: Fri, 13 Jan 2023 20:13:52 +0300
+Subject: dmaengine: dw-edma: Drop unnecessary debugfs reg casts
+
+The debugfs_entries structure declared in dw-edma-v0-debugfs.c contains the
+debugfs node register address. The address is declared as dma_addr_t type,
+but is cast to "void *".
+
+Change the type to "void __iomem *" and drop the unnecessary casts.
+
+Link: https://lore.kernel.org/r/20230113171409.30470-11-Sergey.Semin@baikalelectronics.ru
+Fixes: 305aebeff879 ("dmaengine: Add Synopsys eDMA IP version 0 debugfs support")
+Tested-by: Manivannan Sadhasivam <manivannan.sadhasivam@linaro.org>
+Signed-off-by: Serge Semin <Sergey.Semin@baikalelectronics.ru>
+Signed-off-by: Lorenzo Pieralisi <lpieralisi@kernel.org>
+Signed-off-by: Bjorn Helgaas <bhelgaas@google.com>
+Reviewed-by: Manivannan Sadhasivam <manivannan.sadhasivam@linaro.org>
+Acked-by: Vinod Koul <vkoul@kernel.org>
+---
+ drivers/dma/dw-edma/dw-edma-v0-debugfs.c | 7 ++++---
+ 1 file changed, 4 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/dma/dw-edma/dw-edma-v0-debugfs.c b/drivers/dma/dw-edma/dw-edma-v0-debugfs.c
+index 5226c9014703c..8e61810dea4be 100644
+--- a/drivers/dma/dw-edma/dw-edma-v0-debugfs.c
++++ b/drivers/dma/dw-edma/dw-edma-v0-debugfs.c
+@@ -14,7 +14,7 @@
+ #include "dw-edma-core.h"
+ 
+ #define REGS_ADDR(name) \
+-	((void __force *)&regs->name)
++	((void __iomem *)&regs->name)
+ #define REGISTER(name) \
+ 	{ #name, REGS_ADDR(name) }
+ 
+@@ -48,12 +48,13 @@ static struct {
+ 
+ struct debugfs_entries {
+ 	const char				*name;
+-	dma_addr_t				*reg;
++	void __iomem				*reg;
+ };
+ 
+ static int dw_edma_debugfs_u32_get(void *data, u64 *val)
+ {
+-	void __iomem *reg = (void __force __iomem *)data;
++	void __iomem *reg = data;
++
+ 	if (dw->chip->mf == EDMA_MF_EDMA_LEGACY &&
+ 	    reg >= (void __iomem *)&regs->type.legacy.ch) {
+ 		void __iomem *ptr = &regs->type.legacy.ch;
+-- 
+cgit 
+

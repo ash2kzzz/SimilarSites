@@ -1,0 +1,35 @@
+From 170848d4060d40220194c0af19f977a582f08922 Mon Sep 17 00:00:00 2001
+From: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+Date: Mon, 27 Mar 2023 10:18:28 +0200
+Subject: driver core: class: fix documentation for class_create()
+
+In commit dcfbb67e48a2 ("driver core: class: use lock_class_key already
+present in struct subsys_private") we removed the key parameter to the
+function class_create() but forgot to remove it from the kerneldoc,
+which causes a build warning.  Fix that up by removing the key parameter
+from the documentation as it is now gone.
+
+Reported-by: Stephen Rothwell <sfr@canb.auug.org.au>
+Fixes: dcfbb67e48a2 ("driver core: class: use lock_class_key already present in struct subsys_private")
+Acked-by: Rafael J. Wysocki <rafael@kernel.org>
+Link: https://lore.kernel.org/r/20230327081828.1087364-1-gregkh@linuxfoundation.org
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+---
+ drivers/base/class.c | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/drivers/base/class.c b/drivers/base/class.c
+index dbaeb79ae9176..0f8938a171444 100644
+--- a/drivers/base/class.c
++++ b/drivers/base/class.c
+@@ -223,7 +223,6 @@ static void class_create_release(struct class *cls)
+ /**
+  * class_create - create a struct class structure
+  * @name: pointer to a string for the name of this class.
+- * @key: the lock_class_key for this class; used by mutex lock debugging
+  *
+  * This is used to create a struct class pointer that can then be used
+  * in calls to device_create().
+-- 
+cgit 
+

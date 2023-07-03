@@ -1,0 +1,99 @@
+From 129ff4de58ff0ca981b833834d8b9bddb71d4bfe Mon Sep 17 00:00:00 2001
+From: Arnd Bergmann <arnd@arndb.de>
+Date: Fri, 17 Feb 2023 10:58:06 +0100
+Subject: net: microchip: sparx5: reduce stack usage
+
+The vcap_admin structures in vcap_api_next_lookup_advanced_test()
+take several hundred bytes of stack frame, but when CONFIG_KASAN_STACK
+is enabled, each one of them also has extra padding before and after
+it, which ends up blowing the warning limit:
+
+In file included from drivers/net/ethernet/microchip/vcap/vcap_api.c:3521:
+drivers/net/ethernet/microchip/vcap/vcap_api_kunit.c: In function 'vcap_api_next_lookup_advanced_test':
+drivers/net/ethernet/microchip/vcap/vcap_api_kunit.c:1954:1: error: the frame size of 1448 bytes is larger than 1400 bytes [-Werror=frame-larger-than=]
+ 1954 | }
+
+Reduce the total stack usage by replacing the five structures with
+an array that only needs one pair of padding areas.
+
+Fixes: 1f741f001160 ("net: microchip: sparx5: Add KUNIT tests for enabling/disabling chains")
+Signed-off-by: Arnd Bergmann <arnd@arndb.de>
+Reviewed-by: Alexander Lobakin <aleksander.lobakin@intel.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ .../net/ethernet/microchip/vcap/vcap_api_kunit.c   | 26 ++++++++++------------
+ 1 file changed, 12 insertions(+), 14 deletions(-)
+
+diff --git a/drivers/net/ethernet/microchip/vcap/vcap_api_kunit.c b/drivers/net/ethernet/microchip/vcap/vcap_api_kunit.c
+index 0a1d4d7405679..c07f25e791c76 100644
+--- a/drivers/net/ethernet/microchip/vcap/vcap_api_kunit.c
++++ b/drivers/net/ethernet/microchip/vcap/vcap_api_kunit.c
+@@ -1876,53 +1876,51 @@ static void vcap_api_next_lookup_basic_test(struct kunit *test)
+ 
+ static void vcap_api_next_lookup_advanced_test(struct kunit *test)
+ {
+-	struct vcap_admin admin1 = {
++	struct vcap_admin admin[] = {
++	{
+ 		.vtype = VCAP_TYPE_IS0,
+ 		.vinst = 0,
+ 		.first_cid = 1000000,
+ 		.last_cid =  1199999,
+ 		.lookups = 6,
+ 		.lookups_per_instance = 2,
+-	};
+-	struct vcap_admin admin2 = {
++	}, {
+ 		.vtype = VCAP_TYPE_IS0,
+ 		.vinst = 1,
+ 		.first_cid = 1200000,
+ 		.last_cid =  1399999,
+ 		.lookups = 6,
+ 		.lookups_per_instance = 2,
+-	};
+-	struct vcap_admin admin3 = {
++	}, {
+ 		.vtype = VCAP_TYPE_IS0,
+ 		.vinst = 2,
+ 		.first_cid = 1400000,
+ 		.last_cid =  1599999,
+ 		.lookups = 6,
+ 		.lookups_per_instance = 2,
+-	};
+-	struct vcap_admin admin4 = {
++	}, {
+ 		.vtype = VCAP_TYPE_IS2,
+ 		.vinst = 0,
+ 		.first_cid = 8000000,
+ 		.last_cid = 8199999,
+ 		.lookups = 4,
+ 		.lookups_per_instance = 2,
+-	};
+-	struct vcap_admin admin5 = {
++	}, {
+ 		.vtype = VCAP_TYPE_IS2,
+ 		.vinst = 1,
+ 		.first_cid = 8200000,
+ 		.last_cid = 8399999,
+ 		.lookups = 4,
+ 		.lookups_per_instance = 2,
++	}
+ 	};
+ 	bool ret;
+ 
+-	vcap_test_api_init(&admin1);
+-	list_add_tail(&admin2.list, &test_vctrl.list);
+-	list_add_tail(&admin3.list, &test_vctrl.list);
+-	list_add_tail(&admin4.list, &test_vctrl.list);
+-	list_add_tail(&admin5.list, &test_vctrl.list);
++	vcap_test_api_init(&admin[0]);
++	list_add_tail(&admin[1].list, &test_vctrl.list);
++	list_add_tail(&admin[2].list, &test_vctrl.list);
++	list_add_tail(&admin[3].list, &test_vctrl.list);
++	list_add_tail(&admin[4].list, &test_vctrl.list);
+ 
+ 	ret = vcap_is_next_lookup(&test_vctrl, 1000000, 1001000);
+ 	KUNIT_EXPECT_EQ(test, false, ret);
+-- 
+cgit 
+

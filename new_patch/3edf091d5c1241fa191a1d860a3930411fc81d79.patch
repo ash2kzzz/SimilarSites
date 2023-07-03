@@ -1,0 +1,53 @@
+From 3edf091d5c1241fa191a1d860a3930411fc81d79 Mon Sep 17 00:00:00 2001
+From: Bagas Sanjaya <bagasdotme@gmail.com>
+Date: Fri, 24 Mar 2023 15:53:10 +0700
+Subject: Documentation: core-api: update kernel-doc reference to kmod.c
+
+Commit d6f819908f8aac ("module: fold usermode helper kmod into modules
+directory") moves kmod helper implementation (kmod.c) to kernel/module/
+directory but forgets to update its reference on kernel api doc, hence:
+
+WARNING: kernel-doc './scripts/kernel-doc -rst -enable-lineno -sphinx-version 2.4.4 -export ./kernel/kmod.c' failed with return code 2
+
+Update the reference.
+
+Fixes: d6f819908f8aac ("module: fold usermode helper kmod into modules directory")
+Reported-by: Stephen Rothwell <sfr@canb.auug.org.au>
+Link: https://lore.kernel.org/linux-next/20230324154413.19cc78be@canb.auug.org.au/
+Signed-off-by: Bagas Sanjaya <bagasdotme@gmail.com>
+Reviewed-by: Liam Beguin <liambeguin@gmail.com>
+Signed-off-by: Luis Chamberlain <mcgrof@kernel.org>
+---
+ Documentation/core-api/kernel-api.rst                    | 2 +-
+ Documentation/translations/zh_CN/core-api/kernel-api.rst | 2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/Documentation/core-api/kernel-api.rst b/Documentation/core-api/kernel-api.rst
+index 62f961610773d..e277285960080 100644
+--- a/Documentation/core-api/kernel-api.rst
++++ b/Documentation/core-api/kernel-api.rst
+@@ -223,7 +223,7 @@ Module Support
+ Module Loading
+ --------------
+ 
+-.. kernel-doc:: kernel/kmod.c
++.. kernel-doc:: kernel/module/kmod.c
+    :export:
+ 
+ Inter Module support
+diff --git a/Documentation/translations/zh_CN/core-api/kernel-api.rst b/Documentation/translations/zh_CN/core-api/kernel-api.rst
+index a4b373c48c0c9..a1ea7081077ce 100644
+--- a/Documentation/translations/zh_CN/core-api/kernel-api.rst
++++ b/Documentation/translations/zh_CN/core-api/kernel-api.rst
+@@ -226,7 +226,7 @@ kernel/relay.c
+ 
+ 该API在以下内核代码中:
+ 
+-kernel/kmod.c
++kernel/module/kmod.c
+ 
+ 模块接口支持
+ ------------
+-- 
+cgit 
+

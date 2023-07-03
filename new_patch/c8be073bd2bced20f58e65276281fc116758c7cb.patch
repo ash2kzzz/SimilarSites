@@ -1,0 +1,41 @@
+From c8be073bd2bced20f58e65276281fc116758c7cb Mon Sep 17 00:00:00 2001
+From: Asutosh Das <quic_asutoshd@quicinc.com>
+Date: Wed, 1 Mar 2023 17:41:06 -0800
+Subject: scsi: ufs: mcq: qcom: Fix passing zero to PTR_ERR
+
+Fix an error case in ufs_qcom_mcq_config_resource(), where the return value
+is set to 0 before passing it to PTR_ERR.
+
+This led to Smatch warning:
+
+drivers/ufs/host/ufs-qcom.c:1455 ufs_qcom_mcq_config_resource() warn:
+passing zero to 'PTR_ERR'
+
+Fixes: c263b4ef737e ("scsi: ufs: core: mcq: Configure resource regions")
+Reported-by: Dan Carpenter <error27@gmail.com>
+Signed-off-by: Asutosh Das <quic_asutoshd@quicinc.com>
+Link: https://lore.kernel.org/r/94ca99b327af634799ce5f25d0112c28cd00970d.1677721072.git.quic_asutoshd@quicinc.com
+Reviewed-by: Bjorn Andersson <andersson@kernel.org>
+Reviewed-by: Manivannan Sadhasivam <mani@kernel.org>
+Signed-off-by: Martin K. Petersen <martin.petersen@oracle.com>
+---
+ drivers/ufs/host/ufs-qcom.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/ufs/host/ufs-qcom.c b/drivers/ufs/host/ufs-qcom.c
+index 797230ad39396..2781739a66e00 100644
+--- a/drivers/ufs/host/ufs-qcom.c
++++ b/drivers/ufs/host/ufs-qcom.c
+@@ -1451,8 +1451,8 @@ static int ufs_qcom_mcq_config_resource(struct ufs_hba *hba)
+ 		if (IS_ERR(res->base)) {
+ 			dev_err(hba->dev, "Failed to map res %s, err=%d\n",
+ 					 res->name, (int)PTR_ERR(res->base));
+-			res->base = NULL;
+ 			ret = PTR_ERR(res->base);
++			res->base = NULL;
+ 			return ret;
+ 		}
+ 	}
+-- 
+cgit 
+

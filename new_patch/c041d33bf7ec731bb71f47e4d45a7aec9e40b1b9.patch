@@ -1,0 +1,63 @@
+From c041d33bf7ec731bb71f47e4d45a7aec9e40b1b9 Mon Sep 17 00:00:00 2001
+From: Song Liu <song@kernel.org>
+Date: Fri, 19 May 2023 16:57:57 -0700
+Subject: perf evsel: Separate bpf_counter_list and bpf_filters, can be used at
+ the same time
+
+'struct evsel' uses a union for the two lists. This turned out to be
+error prone.
+
+For example:
+
+  [root@quaco ~]# perf stat --bpf-prog 5246
+  Error: cpu-clock event does not have sample flags 66c660
+  failed to set filter "(null)" on event cpu-clock with 2 (No such file or directory)
+  [root@quaco ~]# perf stat --bpf-prog 5246
+
+Fix this issue by separating the two lists.
+
+Fixes: 56ec9457a4a20c5e ("perf bpf filter: Implement event sample filtering")
+Signed-off-by: Song Liu <song@kernel.org>
+Acked-by: Namhyung Kim <namhyung@kernel.org>
+Cc: Jiri Olsa <jolsa@kernel.org>
+Cc: Namhyung Kim <namhyung@kernel.org>
+Cc: kernel-team@meta.com
+Link: https://lore.kernel.org/r/20230519235757.3613719-1-song@kernel.org
+Signed-off-by: Arnaldo Carvalho de Melo <acme@redhat.com>
+---
+ tools/perf/util/evsel.c | 1 +
+ tools/perf/util/evsel.h | 6 ++----
+ 2 files changed, 3 insertions(+), 4 deletions(-)
+
+diff --git a/tools/perf/util/evsel.c b/tools/perf/util/evsel.c
+index 2f5910b31fa93..c2dbb5647e754 100644
+--- a/tools/perf/util/evsel.c
++++ b/tools/perf/util/evsel.c
+@@ -282,6 +282,7 @@ void evsel__init(struct evsel *evsel,
+ 	evsel->bpf_fd	   = -1;
+ 	INIT_LIST_HEAD(&evsel->config_terms);
+ 	INIT_LIST_HEAD(&evsel->bpf_counter_list);
++	INIT_LIST_HEAD(&evsel->bpf_filters);
+ 	perf_evsel__object.init(evsel);
+ 	evsel->sample_size = __evsel__sample_size(attr->sample_type);
+ 	evsel__calc_id_pos(evsel);
+diff --git a/tools/perf/util/evsel.h b/tools/perf/util/evsel.h
+index df8928745fc65..0f54f28a69c25 100644
+--- a/tools/perf/util/evsel.h
++++ b/tools/perf/util/evsel.h
+@@ -151,10 +151,8 @@ struct evsel {
+ 	 */
+ 	struct bpf_counter_ops	*bpf_counter_ops;
+ 
+-	union {
+-		struct list_head	bpf_counter_list; /* for perf-stat -b */
+-		struct list_head	bpf_filters; /* for perf-record --filter */
+-	};
++	struct list_head	bpf_counter_list; /* for perf-stat -b */
++	struct list_head	bpf_filters; /* for perf-record --filter */
+ 
+ 	/* for perf-stat --use-bpf */
+ 	int			bperf_leader_prog_fd;
+-- 
+cgit 
+

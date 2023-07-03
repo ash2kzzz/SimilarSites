@@ -1,0 +1,34 @@
+From 63f148c44f3919047301a023b10b0e3ce65a7389 Mon Sep 17 00:00:00 2001
+From: John Paul Adrian Glaubitz <glaubitz@physik.fu-berlin.de>
+Date: Wed, 19 Apr 2023 09:09:33 +0200
+Subject: sh: pci: Remove unused variable in SH-7786 PCI Express code
+
+Addresses the following warning when building sdk7786_defconfig:
+
+arch/sh/drivers/pci/pcie-sh7786.c:34:22: warning: 'dma_pfn_offset' defined but not used [-Wunused-variable]
+   34 | static unsigned long dma_pfn_offset;
+      |                      ^~~~~~~~~~~~~~
+
+Fixes: e0d072782c73 ("dma-mapping: introduce DMA range map, supplanting dma_pfn_offset")
+Reviewed-by: Geert Uytterhoeven <geert+renesas@glider.be>
+Signed-off-by: John Paul Adrian Glaubitz <glaubitz@physik.fu-berlin.de>
+Link: https://lore.kernel.org/r/20230419070934.422997-1-glaubitz@physik.fu-berlin.de
+---
+ arch/sh/drivers/pci/pcie-sh7786.c | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/arch/sh/drivers/pci/pcie-sh7786.c b/arch/sh/drivers/pci/pcie-sh7786.c
+index b0c2a5238d049..39bb5038e1c69 100644
+--- a/arch/sh/drivers/pci/pcie-sh7786.c
++++ b/arch/sh/drivers/pci/pcie-sh7786.c
+@@ -31,7 +31,6 @@ struct sh7786_pcie_port {
+ 
+ static struct sh7786_pcie_port *sh7786_pcie_ports;
+ static unsigned int nr_ports;
+-static unsigned long dma_pfn_offset;
+ size_t memsize;
+ u64 memstart;
+ 
+-- 
+cgit 
+

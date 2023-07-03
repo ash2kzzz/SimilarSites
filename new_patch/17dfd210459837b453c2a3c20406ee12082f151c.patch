@@ -1,0 +1,130 @@
+From 17dfd210459837b453c2a3c20406ee12082f151c Mon Sep 17 00:00:00 2001
+From: Vladimir Oltean <vladimir.oltean@nxp.com>
+Date: Tue, 21 Mar 2023 03:03:24 +0200
+Subject: net: mscc: ocelot: fix transfer from region->buf to ocelot->stats
+
+To understand the problem, we need some definitions.
+
+The driver is aware of multiple counters (enum ocelot_stat), yet not all
+switches supported by the driver implement all counters. There are 2
+statistics layouts: ocelot_stats_layout and ocelot_mm_stats_layout, the
+latter having 36 counters more than the former.
+
+ocelot->stats[] is not a compact array, i.e. there are elements within
+it which are not going to be populated for ocelot_stats_layout. On the
+other hand, ocelot->stats[] is easily indexable, for example "tx_octets"
+for port 3 can be found at ocelot->stats[3 * OCELOT_NUM_STATS +
+OCELOT_STAT_TX_OCTETS], and that is why we keep it sparse.
+
+Regions, as created by ocelot_prepare_stats_regions(), are compact
+(every element from region->buf will correspond to a counter that is
+present in this switch's layout) but are not easily indexable.
+
+Let's define holes as the ranges of values of enum ocelot_stat for which
+ocelot_stats_layout doesn't have a "reg" defined. For example, there is
+a hole between OCELOT_STAT_RX_GREEN_PRIO_7 and OCELOT_STAT_TX_OCTETS
+which is of 23 elements that are only present on ocelot_mm_stats_layout,
+and as such, they are also present in enum ocelot_stat. Let's define the
+left extremity of the hole - the last enum ocelot_stat still defined -
+as A (in this case OCELOT_STAT_RX_GREEN_PRIO_7) and the right extremity -
+the first enum ocelot_stat that is defined after a series of undefined
+ones - as B (in this case OCELOT_STAT_TX_OCTETS).
+
+There is a bug in the procedure which transfers stats from region->buf[]
+to ocelot->stats[].
+
+For each hole in the ocelot_stats_layout, the logic transfers the stats
+starting with enum ocelot_stat B to ocelot->stats[] index A + 1. So all
+stats after a hole are saved to a position which is off by B - A + 1
+elements.
+
+This causes 2 kinds of issues:
+(a) counters which shouldn't increment increment
+(b) counters which should increment don't
+
+Holes in the ocelot_stat_layout automatically imply the end of a region
+and the beginning of a new one; however the reverse is not necessarily
+true. For example, for ocelot_mm_stat_layout, there could be multiple
+regions (which indicate discontinuities in register addresses) while
+there is no hole (which indicates discontinuities in enum ocelot_stat
+values).
+
+In the example above, the stats from the second region->buf[] are not
+transferred to ocelot->stats starting with index
+"port * OCELOT_NUM_STATS + OCELOT_STAT_TX_OCTETS" as they should, but
+rather, starting with element
+"port * OCELOT_NUM_STATS + OCELOT_STAT_RX_GREEN_PRIO_7 + 1".
+
+That stats[] array element is not reported to user space for switches
+that use ocelot_stat_layout, and that is how issue (b) occurs.
+
+However, if the length of the second region is larger than the hole,
+then some stats will start to be transferred to the ocelot->stats[]
+indices which *are* reported to user space, but those indices contain
+wrong values (corresponding to unexpected counters). This is how issue
+(a) occurs.
+
+The procedure, as it was introduced in commit d87b1c08f38a ("net: mscc:
+ocelot: use bulk reads for stats"), was not buggy, because there were no
+holes in the struct ocelot_stat_layout instances at that time. The
+problem is that when those holes were introduced, the function was not
+updated to take them into consideration.
+
+To update the procedure, we need to know, for each region, which enum
+ocelot_stat corresponds to its region->base. We have no way of deducing
+that based on the contents of struct ocelot_stats_region, so we need to
+add this information.
+
+Fixes: ab3f97a9610a ("net: mscc: ocelot: export ethtool MAC Merge stats for Felix VSC9959")
+Signed-off-by: Vladimir Oltean <vladimir.oltean@nxp.com>
+Signed-off-by: Jakub Kicinski <kuba@kernel.org>
+---
+ drivers/net/ethernet/mscc/ocelot_stats.c | 7 ++++---
+ 1 file changed, 4 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/net/ethernet/mscc/ocelot_stats.c b/drivers/net/ethernet/mscc/ocelot_stats.c
+index 096c81ec9dd61..f18371154475e 100644
+--- a/drivers/net/ethernet/mscc/ocelot_stats.c
++++ b/drivers/net/ethernet/mscc/ocelot_stats.c
+@@ -258,6 +258,7 @@ struct ocelot_stat_layout {
+ struct ocelot_stats_region {
+ 	struct list_head node;
+ 	u32 base;
++	enum ocelot_stat first_stat;
+ 	int count;
+ 	u32 *buf;
+ };
+@@ -341,11 +342,12 @@ static int ocelot_port_update_stats(struct ocelot *ocelot, int port)
+  */
+ static void ocelot_port_transfer_stats(struct ocelot *ocelot, int port)
+ {
+-	unsigned int idx = port * OCELOT_NUM_STATS;
+ 	struct ocelot_stats_region *region;
+ 	int j;
+ 
+ 	list_for_each_entry(region, &ocelot->stats_regions, node) {
++		unsigned int idx = port * OCELOT_NUM_STATS + region->first_stat;
++
+ 		for (j = 0; j < region->count; j++) {
+ 			u64 *stat = &ocelot->stats[idx + j];
+ 			u64 val = region->buf[j];
+@@ -355,8 +357,6 @@ static void ocelot_port_transfer_stats(struct ocelot *ocelot, int port)
+ 
+ 			*stat = (*stat & ~(u64)U32_MAX) + val;
+ 		}
+-
+-		idx += region->count;
+ 	}
+ }
+ 
+@@ -915,6 +915,7 @@ static int ocelot_prepare_stats_regions(struct ocelot *ocelot)
+ 			WARN_ON(last >= layout[i].reg);
+ 
+ 			region->base = layout[i].reg;
++			region->first_stat = i;
+ 			region->count = 1;
+ 			list_add_tail(&region->node, &ocelot->stats_regions);
+ 		}
+-- 
+cgit 
+

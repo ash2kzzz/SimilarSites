@@ -1,0 +1,90 @@
+From 8ae72166c2b73b0f2ce498ea15d4feceb9fef50e Mon Sep 17 00:00:00 2001
+From: Dmitry Baryshkov <dmitry.baryshkov@linaro.org>
+Date: Fri, 20 Jan 2023 08:14:15 +0200
+Subject: arm64: dts: qcom: msm8996 switch from RPM_SMD_BB_CLK1 to
+ RPM_SMD_XO_CLK_SRC
+
+The vendor kernel uses RPM_SMD_XO_CLK_SRC clock as an CXO clock rather
+than using the RPM_SMD_BB_CLK1 directly. Follow this example and switch
+msm8996.dtsi to use RPM_SMD_XO_CLK_SRC clock instead of RPM_SMB_BB_CLK1.
+
+Fixes: 2b8c9c77c268 ("arm64: dts: qcom: msm8996: convert xo_board to RPM_SMD_BB_CLK1")
+Suggested-by: Konrad Dybcio <konrad.dybcio@linaro.org>
+Reviewed-by: Konrad Dybcio <konrad.dybcio@linaro.org>
+Signed-off-by: Dmitry Baryshkov <dmitry.baryshkov@linaro.org>
+Signed-off-by: Bjorn Andersson <andersson@kernel.org>
+Link: https://lore.kernel.org/r/20230120061417.2623751-7-dmitry.baryshkov@linaro.org
+---
+ arch/arm64/boot/dts/qcom/msm8996.dtsi | 14 +++++++-------
+ 1 file changed, 7 insertions(+), 7 deletions(-)
+
+diff --git a/arch/arm64/boot/dts/qcom/msm8996.dtsi b/arch/arm64/boot/dts/qcom/msm8996.dtsi
+index 0c2f7be9f205a..4427305f8a94b 100644
+--- a/arch/arm64/boot/dts/qcom/msm8996.dtsi
++++ b/arch/arm64/boot/dts/qcom/msm8996.dtsi
+@@ -719,7 +719,7 @@
+ 			#power-domain-cells = <1>;
+ 			reg = <0x00300000 0x90000>;
+ 
+-			clocks = <&rpmcc RPM_SMD_BB_CLK1>,
++			clocks = <&rpmcc RPM_SMD_XO_CLK_SRC>,
+ 				 <&rpmcc RPM_SMD_LN_BB_CLK>,
+ 				 <&sleep_clk>,
+ 				 <&pciephy_0>,
+@@ -1061,7 +1061,7 @@
+ 				#clock-cells = <1>;
+ 				#phy-cells = <0>;
+ 
+-				clocks = <&mmcc MDSS_AHB_CLK>, <&rpmcc RPM_SMD_BB_CLK1>;
++				clocks = <&mmcc MDSS_AHB_CLK>, <&rpmcc RPM_SMD_XO_CLK_SRC>;
+ 				clock-names = "iface", "ref";
+ 				status = "disabled";
+ 			};
+@@ -1129,7 +1129,7 @@
+ 				#clock-cells = <1>;
+ 				#phy-cells = <0>;
+ 
+-				clocks = <&mmcc MDSS_AHB_CLK>, <&rpmcc RPM_SMD_BB_CLK1>;
++				clocks = <&mmcc MDSS_AHB_CLK>, <&rpmcc RPM_SMD_XO_CLK_SRC>;
+ 				clock-names = "iface", "ref";
+ 				status = "disabled";
+ 			};
+@@ -2962,7 +2962,7 @@
+ 			reg = <0x06400000 0x90000>;
+ 
+ 			clock-names = "xo", "sys_apcs_aux";
+-			clocks = <&rpmcc RPM_SMD_BB_CLK1>, <&apcs_glb>;
++			clocks = <&rpmcc RPM_SMD_XO_A_CLK_SRC>, <&apcs_glb>;
+ 
+ 			#clock-cells = <1>;
+ 		};
+@@ -3081,7 +3081,7 @@
+ 			clock-names = "iface", "core", "xo";
+ 			clocks = <&gcc GCC_SDCC1_AHB_CLK>,
+ 				<&gcc GCC_SDCC1_APPS_CLK>,
+-				<&rpmcc RPM_SMD_BB_CLK1>;
++				<&rpmcc RPM_SMD_XO_CLK_SRC>;
+ 			resets = <&gcc GCC_SDCC1_BCR>;
+ 
+ 			pinctrl-names = "default", "sleep";
+@@ -3105,7 +3105,7 @@
+ 			clock-names = "iface", "core", "xo";
+ 			clocks = <&gcc GCC_SDCC2_AHB_CLK>,
+ 				<&gcc GCC_SDCC2_APPS_CLK>,
+-				<&rpmcc RPM_SMD_BB_CLK1>;
++				<&rpmcc RPM_SMD_XO_CLK_SRC>;
+ 			resets = <&gcc GCC_SDCC2_BCR>;
+ 
+ 			pinctrl-names = "default", "sleep";
+@@ -3427,7 +3427,7 @@
+ 			interrupt-names = "wdog", "fatal", "ready",
+ 					  "handover", "stop-ack";
+ 
+-			clocks = <&rpmcc RPM_SMD_BB_CLK1>;
++			clocks = <&rpmcc RPM_SMD_XO_CLK_SRC>;
+ 			clock-names = "xo";
+ 
+ 			memory-region = <&adsp_mem>;
+-- 
+cgit 
+

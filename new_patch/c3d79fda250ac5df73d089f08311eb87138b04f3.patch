@@ -1,0 +1,40 @@
+From c3d79fda250ac5df73d089f08311eb87138b04f3 Mon Sep 17 00:00:00 2001
+From: Ilpo Järvinen <ilpo.jarvinen@linux.intel.com>
+Date: Wed, 8 Feb 2023 10:08:46 +0200
+Subject: fpga: m10bmc-sec: Fix rsu_send_data() to return
+ FW_UPLOAD_ERR_HW_ERROR
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+rsu_send_data() should return FW_UPLOAD_ERR_* error codes instead of
+normal -Exxxx codes. Convert <0 return from ->rsu_status() to
+FW_UPLOAD_ERR_HW_ERROR.
+
+Fixes: 001a734a55d0 ("fpga: m10bmc-sec: Make rsu status type specific")
+Signed-off-by: Ilpo Järvinen <ilpo.jarvinen@linux.intel.com>
+Reviewed-by: Russ Weight <russell.h.weight@intel.com>
+Cc: <stable@vger.kernel.org>
+Acked-by: Xu Yilun <yilun.xu@intel.com>
+Link: https://lore.kernel.org/r/20230208080846.10795-1-ilpo.jarvinen@linux.intel.com
+Signed-off-by: Xu Yilun <yilun.xu@intel.com>
+---
+ drivers/fpga/intel-m10-bmc-sec-update.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/fpga/intel-m10-bmc-sec-update.c b/drivers/fpga/intel-m10-bmc-sec-update.c
+index f0acedc801827..d7e2f9f461bca 100644
+--- a/drivers/fpga/intel-m10-bmc-sec-update.c
++++ b/drivers/fpga/intel-m10-bmc-sec-update.c
+@@ -474,7 +474,7 @@ static enum fw_upload_err rsu_send_data(struct m10bmc_sec *sec)
+ 
+ 	ret = sec->ops->rsu_status(sec);
+ 	if (ret < 0)
+-		return ret;
++		return FW_UPLOAD_ERR_HW_ERROR;
+ 	status = ret;
+ 
+ 	if (!rsu_status_ok(status)) {
+-- 
+cgit 
+

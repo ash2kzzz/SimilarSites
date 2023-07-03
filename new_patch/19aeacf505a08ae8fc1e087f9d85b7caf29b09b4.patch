@@ -1,0 +1,33 @@
+From 19aeacf505a08ae8fc1e087f9d85b7caf29b09b4 Mon Sep 17 00:00:00 2001
+From: Arnd Bergmann <arnd@arndb.de>
+Date: Tue, 17 Jan 2023 18:02:09 +0100
+Subject: clk: qcom: rpmh: remove duplicate IPA clock reference
+
+One of the ones that were recently added was already there:
+
+drivers/clk/qcom/clk-rpmh.c:578:35: error: initialized field overwritten [-Werror=override-init]
+  578 |         [RPMH_IPA_CLK]          = &clk_rpmh_ipa.hw,
+
+Fixes: aa055bf158cd ("clk: qcom: rpmh: define IPA clocks where required")
+Signed-off-by: Arnd Bergmann <arnd@arndb.de>
+Signed-off-by: Bjorn Andersson <andersson@kernel.org>
+Link: https://lore.kernel.org/r/20230117170217.2462320-1-arnd@kernel.org
+---
+ drivers/clk/qcom/clk-rpmh.c | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/drivers/clk/qcom/clk-rpmh.c b/drivers/clk/qcom/clk-rpmh.c
+index 393b83f6020eb..45ee370f33074 100644
+--- a/drivers/clk/qcom/clk-rpmh.c
++++ b/drivers/clk/qcom/clk-rpmh.c
+@@ -575,7 +575,6 @@ static struct clk_hw *sc8280xp_rpmh_clocks[] = {
+ 	[RPMH_IPA_CLK]          = &clk_rpmh_ipa.hw,
+ 	[RPMH_PKA_CLK]          = &clk_rpmh_pka.hw,
+ 	[RPMH_HWKM_CLK]         = &clk_rpmh_hwkm.hw,
+-	[RPMH_IPA_CLK]		= &clk_rpmh_ipa.hw,
+ };
+ 
+ static const struct clk_rpmh_desc clk_rpmh_sc8280xp = {
+-- 
+cgit 
+

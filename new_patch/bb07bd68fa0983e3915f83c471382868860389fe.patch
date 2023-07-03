@@ -1,0 +1,54 @@
+From bb07bd68fa0983e3915f83c471382868860389fe Mon Sep 17 00:00:00 2001
+From: Paul Cercueil <paul@crapouillou.net>
+Date: Thu, 9 Feb 2023 10:56:26 +0000
+Subject: Revert "usb: gadget: u_ether: Do not make UDC parent of the net
+ device"
+
+This reverts commit 321b59870f850a10dbb211ecd2bd87b41497ea6f.
+
+This commit broke USB networking on Ingenic SoCs and maybe elsewhere.
+The actual reason is unknown; and while a proper fix would be better,
+we're sitting at -rc7 now, so a revert is justified - and we can work on
+re-introducing this change for 6.3.
+
+Fixes: 321b59870f85 ("usb: gadget: u_ether: Do not make UDC parent of the net device")
+Signed-off-by: Paul Cercueil <paul@crapouillou.net>
+Acked-by: Sascha Hauer <s.hauer@pengutronix.de>
+Link: https://lore.kernel.org/r/20230209105626.10597-1-paul@crapouillou.net
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+---
+ drivers/usb/gadget/function/u_ether.c | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/drivers/usb/gadget/function/u_ether.c b/drivers/usb/gadget/function/u_ether.c
+index 8f12f3f8f6eeb..e06022873df16 100644
+--- a/drivers/usb/gadget/function/u_ether.c
++++ b/drivers/usb/gadget/function/u_ether.c
+@@ -798,6 +798,7 @@ struct eth_dev *gether_setup_name(struct usb_gadget *g,
+ 	net->max_mtu = GETHER_MAX_MTU_SIZE;
+ 
+ 	dev->gadget = g;
++	SET_NETDEV_DEV(net, &g->dev);
+ 	SET_NETDEV_DEVTYPE(net, &gadget_type);
+ 
+ 	status = register_netdev(net);
+@@ -872,6 +873,8 @@ int gether_register_netdev(struct net_device *net)
+ 	struct usb_gadget *g;
+ 	int status;
+ 
++	if (!net->dev.parent)
++		return -EINVAL;
+ 	dev = netdev_priv(net);
+ 	g = dev->gadget;
+ 
+@@ -902,6 +905,7 @@ void gether_set_gadget(struct net_device *net, struct usb_gadget *g)
+ 
+ 	dev = netdev_priv(net);
+ 	dev->gadget = g;
++	SET_NETDEV_DEV(net, &g->dev);
+ }
+ EXPORT_SYMBOL_GPL(gether_set_gadget);
+ 
+-- 
+cgit 
+

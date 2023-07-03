@@ -1,0 +1,32 @@
+From 532a38292c7213aa6d950e6a1b86659d08b5aa67 Mon Sep 17 00:00:00 2001
+From: Geert Uytterhoeven <geert+renesas@glider.be>
+Date: Tue, 24 Jan 2023 11:41:45 +0100
+Subject: drivers: Restore alignment and newline in Makefile
+
+The introduction of drivers/accel/ broke alignment, and removed the
+newline at the end of the file.  Fix all of that.
+
+Fixes: 35b137630f08 ("accel/ivpu: Introduce a new DRM driver for Intel VPU")
+Signed-off-by: Geert Uytterhoeven <geert+renesas@glider.be>
+Reviewed-by: Oded Gabbay <ogabbay@kernel.org>
+Acked-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+Signed-off-by: Jacek Lawrynowicz <jacek.lawrynowicz@linux.intel.com>
+Link: https://patchwork.freedesktop.org/patch/msgid/20230124104145.3962497-1-geert+renesas@glider.be
+---
+ drivers/Makefile | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/Makefile b/drivers/Makefile
+index f0972e2226c97..9ea6eb3b5d7b7 100644
+--- a/drivers/Makefile
++++ b/drivers/Makefile
+@@ -189,4 +189,4 @@ obj-$(CONFIG_COUNTER)		+= counter/
+ obj-$(CONFIG_MOST)		+= most/
+ obj-$(CONFIG_PECI)		+= peci/
+ obj-$(CONFIG_HTE)		+= hte/
+-obj-$(CONFIG_DRM_ACCEL)	+= accel/
+\ No newline at end of file
++obj-$(CONFIG_DRM_ACCEL)		+= accel/
+-- 
+cgit 
+

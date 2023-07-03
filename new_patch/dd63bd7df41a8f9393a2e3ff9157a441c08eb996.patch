@@ -1,0 +1,54 @@
+From dd63bd7df41a8f9393a2e3ff9157a441c08eb996 Mon Sep 17 00:00:00 2001
+From: Zi Yan <ziy@nvidia.com>
+Date: Mon, 6 Mar 2023 11:09:07 -0500
+Subject: selftests/mm: fix split huge page tests
+
+Fix two inputs to check_anon_huge() and one if condition, so the tests
+work as expected.
+
+Link: https://lkml.kernel.org/r/20230306160907.16804-1-zi.yan@sent.com
+Fixes: c07c343cda8e ("selftests/vm: dedup THP helpers")
+Signed-off-by: Zi Yan <ziy@nvidia.com>
+Reviewed-by: Zach O'Keefe <zokeefe@google.com>
+Tested-by: Zach O'Keefe <zokeefe@google.com>
+Acked-by: David Hildenbrand <david@redhat.com>
+Cc: Shuah Khan <shuah@kernel.org>
+Signed-off-by: Andrew Morton <akpm@linux-foundation.org>
+---
+ tools/testing/selftests/mm/split_huge_page_test.c | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/tools/testing/selftests/mm/split_huge_page_test.c b/tools/testing/selftests/mm/split_huge_page_test.c
+index 76e1c36dd9e57..b8558c7f1a393 100644
+--- a/tools/testing/selftests/mm/split_huge_page_test.c
++++ b/tools/testing/selftests/mm/split_huge_page_test.c
+@@ -106,7 +106,7 @@ void split_pmd_thp(void)
+ 	for (i = 0; i < len; i++)
+ 		one_page[i] = (char)i;
+ 
+-	if (!check_huge_anon(one_page, 1, pmd_pagesize)) {
++	if (!check_huge_anon(one_page, 4, pmd_pagesize)) {
+ 		printf("No THP is allocated\n");
+ 		exit(EXIT_FAILURE);
+ 	}
+@@ -122,7 +122,7 @@ void split_pmd_thp(void)
+ 		}
+ 
+ 
+-	if (check_huge_anon(one_page, 0, pmd_pagesize)) {
++	if (!check_huge_anon(one_page, 0, pmd_pagesize)) {
+ 		printf("Still AnonHugePages not split\n");
+ 		exit(EXIT_FAILURE);
+ 	}
+@@ -169,7 +169,7 @@ void split_pte_mapped_thp(void)
+ 	for (i = 0; i < len; i++)
+ 		one_page[i] = (char)i;
+ 
+-	if (!check_huge_anon(one_page, 1, pmd_pagesize)) {
++	if (!check_huge_anon(one_page, 4, pmd_pagesize)) {
+ 		printf("No THP is allocated\n");
+ 		exit(EXIT_FAILURE);
+ 	}
+-- 
+cgit 
+

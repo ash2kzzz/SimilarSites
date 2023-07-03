@@ -1,0 +1,35 @@
+From 169dd78043f7f4eabdef8d7ba0d4ddffe5cb3930 Mon Sep 17 00:00:00 2001
+From: Arend van Spriel <arend.vanspriel@broadcom.com>
+Date: Wed, 11 Jan 2023 11:11:56 +0100
+Subject: scripts: rpm: make clear that mkspec script contains 4.13 feature
+
+A fix was made in the mkspec script that uses a feature, ie. the
+OR expression, which requires RPM 4.13. However, the script indicates
+another minimum version. Lower versions may have success by using
+the --no-deps option as suggested, but feels like bumping the version
+to 4.13 is reasonable as it put me on the wrong track at first with
+RPM 4.11 on my Centos7 machine.
+
+Fixes: 02a893bc9975 ("kbuild: rpm-pkg: add libelf-devel as alternative for BuildRequires")
+Signed-off-by: Arend van Spriel <arend.vanspriel@broadcom.com>
+Signed-off-by: Masahiro Yamada <masahiroy@kernel.org>
+---
+ scripts/package/mkspec | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/scripts/package/mkspec b/scripts/package/mkspec
+index adab28fa7f892..094e52c979a8c 100755
+--- a/scripts/package/mkspec
++++ b/scripts/package/mkspec
+@@ -1,7 +1,7 @@
+ #!/bin/sh
+ #
+ #	Output a simple RPM spec file.
+-#	This version assumes a minimum of RPM 4.0.3.
++#	This version assumes a minimum of RPM 4.13
+ #
+ #	The only gothic bit here is redefining install_post to avoid
+ #	stripping the symbols from files in the kernel which we want
+-- 
+cgit 
+

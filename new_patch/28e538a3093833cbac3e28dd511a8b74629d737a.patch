@@ -1,0 +1,35 @@
+From 28e538a3093833cbac3e28dd511a8b74629d737a Mon Sep 17 00:00:00 2001
+From: Christoph Hellwig <hch@lst.de>
+Date: Mon, 6 Feb 2023 16:02:01 +0100
+Subject: blk-cgroup: fix freeing NULL blkg in blkg_create
+
+new_blkg can be NULL if the caller didn't pass in a pre-allocated blkg.
+Don't try to free it in that case.
+
+Fixes: 27b642b07a4a ("blk-cgroup: simplify blkg freeing from initialization failure paths")
+Reported-by: Yi Zhang <yi.zhang@redhat.com>
+Signed-off-by: Christoph Hellwig <hch@lst.de>
+Reviewed-by: Chaitanya Kulkarni <kch@nvidia.com>
+Link: https://lore.kernel.org/r/20230206150201.3438972-1-hch@lst.de
+Signed-off-by: Jens Axboe <axboe@kernel.dk>
+---
+ block/blk-cgroup.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/block/blk-cgroup.c b/block/blk-cgroup.c
+index 8faeca6022bea..c46778d1f3c27 100644
+--- a/block/blk-cgroup.c
++++ b/block/blk-cgroup.c
+@@ -383,7 +383,8 @@ static struct blkcg_gq *blkg_create(struct blkcg *blkcg, struct gendisk *disk,
+ err_put_css:
+ 	css_put(&blkcg->css);
+ err_free_blkg:
+-	blkg_free(new_blkg);
++	if (new_blkg)
++		blkg_free(new_blkg);
+ 	return ERR_PTR(ret);
+ }
+ 
+-- 
+cgit 
+

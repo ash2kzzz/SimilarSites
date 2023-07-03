@@ -1,0 +1,39 @@
+From 4302abc628fc0dc08e5855f21bbfaed407a72bc3 Mon Sep 17 00:00:00 2001
+From: Benjamin Gray <bgray@linux.ibm.com>
+Date: Fri, 17 Feb 2023 12:14:34 +1100
+Subject: powerpc/64s: Prevent fallthrough to hash TLB flush when using radix
+
+In the fix reconnecting hash__tlb_flush() to tlb_flush() the
+void return on radix__tlb_flush() was not restored and subsequently
+falls through to the restored hash__tlb_flush().
+
+Guard hash__tlb_flush() under an else to prevent this.
+
+Fixes: 1665c027afb2 ("powerpc/64s: Reconnect tlb_flush() to hash__tlb_flush()")
+Reported-by: "Erhard F." <erhard_f@mailbox.org>
+Suggested-by: Christophe Leroy <christophe.leroy@csgroup.eu>
+Signed-off-by: Benjamin Gray <bgray@linux.ibm.com>
+Signed-off-by: Michael Ellerman <mpe@ellerman.id.au>
+Link: https://lore.kernel.org/r/20230217011434.115554-1-bgray@linux.ibm.com
+---
+ arch/powerpc/include/asm/book3s/64/tlbflush.h | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/arch/powerpc/include/asm/book3s/64/tlbflush.h b/arch/powerpc/include/asm/book3s/64/tlbflush.h
+index d5cd16270c5d5..2bbc0fcce04a3 100644
+--- a/arch/powerpc/include/asm/book3s/64/tlbflush.h
++++ b/arch/powerpc/include/asm/book3s/64/tlbflush.h
+@@ -97,8 +97,8 @@ static inline void tlb_flush(struct mmu_gather *tlb)
+ {
+ 	if (radix_enabled())
+ 		radix__tlb_flush(tlb);
+-
+-	return hash__tlb_flush(tlb);
++	else
++		hash__tlb_flush(tlb);
+ }
+ 
+ #ifdef CONFIG_SMP
+-- 
+cgit 
+

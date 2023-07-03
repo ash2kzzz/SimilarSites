@@ -1,0 +1,56 @@
+From f100ce3bbd6aa0093075b20b9dbd006686f6aedf Mon Sep 17 00:00:00 2001
+From: Benjamin Gaignard <benjamin.gaignard@collabora.com>
+Date: Thu, 13 Apr 2023 12:47:56 +0200
+Subject: media: verisilicon: Fix crash when probing encoder
+
+ctx->vpu_dst_fmt is no more initialized before calling hantro_try_fmt()
+so assigne it to vpu_fmt led to crash the kernel.
+Like for decoder case use 'fmt' as format for encoder and clean up
+the code.
+
+Signed-off-by: Benjamin Gaignard <benjamin.gaignard@collabora.com>
+Tested-by: Marek Szyprowski <m.szyprowski@samsung.com>
+Fixes: db6f68b51e5c ("media: verisilicon: Do not set context src/dst formats in reset functions")
+Signed-off-by: Hans Verkuil <hverkuil-cisco@xs4all.nl>
+---
+ drivers/media/platform/verisilicon/hantro_v4l2.c | 10 +++-------
+ 1 file changed, 3 insertions(+), 7 deletions(-)
+
+diff --git a/drivers/media/platform/verisilicon/hantro_v4l2.c b/drivers/media/platform/verisilicon/hantro_v4l2.c
+index d238d407f986d..835518534e3b9 100644
+--- a/drivers/media/platform/verisilicon/hantro_v4l2.c
++++ b/drivers/media/platform/verisilicon/hantro_v4l2.c
+@@ -275,7 +275,7 @@ static int hantro_try_fmt(const struct hantro_ctx *ctx,
+ 			  struct v4l2_pix_format_mplane *pix_mp,
+ 			  enum v4l2_buf_type type)
+ {
+-	const struct hantro_fmt *fmt, *vpu_fmt;
++	const struct hantro_fmt *fmt;
+ 	bool capture = V4L2_TYPE_IS_CAPTURE(type);
+ 	bool coded;
+ 
+@@ -295,11 +295,7 @@ static int hantro_try_fmt(const struct hantro_ctx *ctx,
+ 
+ 	if (coded) {
+ 		pix_mp->num_planes = 1;
+-		vpu_fmt = fmt;
+-	} else if (ctx->is_encoder) {
+-		vpu_fmt = ctx->vpu_dst_fmt;
+-	} else {
+-		vpu_fmt = fmt;
++	} else if (!ctx->is_encoder) {
+ 		/*
+ 		 * Width/height on the CAPTURE end of a decoder are ignored and
+ 		 * replaced by the OUTPUT ones.
+@@ -311,7 +307,7 @@ static int hantro_try_fmt(const struct hantro_ctx *ctx,
+ 	pix_mp->field = V4L2_FIELD_NONE;
+ 
+ 	v4l2_apply_frmsize_constraints(&pix_mp->width, &pix_mp->height,
+-				       &vpu_fmt->frmsize);
++				       &fmt->frmsize);
+ 
+ 	if (!coded) {
+ 		/* Fill remaining fields */
+-- 
+cgit 
+

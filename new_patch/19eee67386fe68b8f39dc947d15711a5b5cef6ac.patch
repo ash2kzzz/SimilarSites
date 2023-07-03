@@ -1,0 +1,83 @@
+From 19eee67386fe68b8f39dc947d15711a5b5cef6ac Mon Sep 17 00:00:00 2001
+From: Dmitry Baryshkov <dmitry.baryshkov@linaro.org>
+Date: Wed, 18 Jan 2023 05:17:18 +0200
+Subject: arm64: dts: qcom: sc8280xp: add p1 register blocks to DP nodes
+
+Per DT bindings add p1 register blocks to all DP controllers on SC8280XP
+platform.
+
+Fixes: 6f299ae7f96d ("arm64: dts: qcom: sc8280xp: add p1 register blocks to DP nodes")
+Signed-off-by: Dmitry Baryshkov <dmitry.baryshkov@linaro.org>
+Signed-off-by: Bjorn Andersson <andersson@kernel.org>
+Link: https://lore.kernel.org/r/20230118031718.1714861-4-dmitry.baryshkov@linaro.org
+---
+ arch/arm64/boot/dts/qcom/sc8280xp.dtsi | 18 ++++++++++++------
+ 1 file changed, 12 insertions(+), 6 deletions(-)
+
+diff --git a/arch/arm64/boot/dts/qcom/sc8280xp.dtsi b/arch/arm64/boot/dts/qcom/sc8280xp.dtsi
+index fa2d0d7d13677..dceb7eb3106b6 100644
+--- a/arch/arm64/boot/dts/qcom/sc8280xp.dtsi
++++ b/arch/arm64/boot/dts/qcom/sc8280xp.dtsi
+@@ -3204,7 +3204,8 @@
+ 				reg = <0 0xae9a000 0 0x200>,
+ 				      <0 0xae9a200 0 0x200>,
+ 				      <0 0xae9a400 0 0x600>,
+-				      <0 0xae9b000 0 0x400>;
++				      <0 0xae9b000 0 0x400>,
++				      <0 0xae9b400 0 0x400>;
+ 
+ 				clocks = <&dispcc0 DISP_CC_MDSS_AHB_CLK>,
+ 					 <&dispcc0 DISP_CC_MDSS_DPTX2_AUX_CLK>,
+@@ -3275,7 +3276,8 @@
+ 				reg = <0 0xaea0000 0 0x200>,
+ 				      <0 0xaea0200 0 0x200>,
+ 				      <0 0xaea0400 0 0x600>,
+-				      <0 0xaea1000 0 0x400>;
++				      <0 0xaea1000 0 0x400>,
++				      <0 0xaea1400 0 0x400>;
+ 
+ 				clocks = <&dispcc0 DISP_CC_MDSS_AHB_CLK>,
+ 					 <&dispcc0 DISP_CC_MDSS_DPTX3_AUX_CLK>,
+@@ -4150,7 +4152,8 @@
+ 				reg = <0 0x22090000 0 0x200>,
+ 				      <0 0x22090200 0 0x200>,
+ 				      <0 0x22090400 0 0x600>,
+-				      <0 0x22091000 0 0x400>;
++				      <0 0x22091000 0 0x400>,
++				      <0 0x22091400 0 0x400>;
+ 
+ 				clocks = <&dispcc1 DISP_CC_MDSS_AHB_CLK>,
+ 					 <&dispcc1 DISP_CC_MDSS_DPTX0_AUX_CLK>,
+@@ -4222,7 +4225,8 @@
+ 				reg = <0 0x22098000 0 0x200>,
+ 				      <0 0x22098200 0 0x200>,
+ 				      <0 0x22098400 0 0x600>,
+-				      <0 0x22099000 0 0x400>;
++				      <0 0x22099000 0 0x400>,
++				      <0 0x22099400 0 0x400>;
+ 
+ 				clocks = <&dispcc1 DISP_CC_MDSS_AHB_CLK>,
+ 					 <&dispcc1 DISP_CC_MDSS_DPTX1_AUX_CLK>,
+@@ -4293,7 +4297,8 @@
+ 				reg = <0 0x2209a000 0 0x200>,
+ 				      <0 0x2209a200 0 0x200>,
+ 				      <0 0x2209a400 0 0x600>,
+-				      <0 0x2209b000 0 0x400>;
++				      <0 0x2209b000 0 0x400>,
++				      <0 0x2209b400 0 0x400>;
+ 
+ 				clocks = <&dispcc1 DISP_CC_MDSS_AHB_CLK>,
+ 					 <&dispcc1 DISP_CC_MDSS_DPTX2_AUX_CLK>,
+@@ -4364,7 +4369,8 @@
+ 				reg = <0 0x220a0000 0 0x200>,
+ 				      <0 0x220a0200 0 0x200>,
+ 				      <0 0x220a0400 0 0x600>,
+-				      <0 0x220a1000 0 0x400>;
++				      <0 0x220a1000 0 0x400>,
++				      <0 0x220a1400 0 0x400>;
+ 
+ 				clocks = <&dispcc1 DISP_CC_MDSS_AHB_CLK>,
+ 					 <&dispcc1 DISP_CC_MDSS_DPTX3_AUX_CLK>,
+-- 
+cgit 
+

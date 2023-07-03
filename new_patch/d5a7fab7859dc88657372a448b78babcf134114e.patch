@@ -1,0 +1,84 @@
+From d5a7fab7859dc88657372a448b78babcf134114e Mon Sep 17 00:00:00 2001
+From: Samuel Holland <samuel@sholland.org>
+Date: Sat, 11 Feb 2023 20:15:33 -0600
+Subject: riscv: Fix Zbb alternative IDs
+
+Commit 4bf8860760d9 ("riscv: cpufeature: extend
+riscv_cpufeature_patch_func to all ISA extensions") switched ISA
+extension alternatives to use the RISCV_ISA_EXT_* macros instead of
+CPUFEATURE_*. This was mismerged when applied on top of the Zbb series,
+so the Zbb alternatives referenced the wrong errata ID values.
+
+Fixes: 9daca9a5b9ac ("Merge patch series "riscv: improve boot time isa extensions handling"")
+Signed-off-by: Samuel Holland <samuel@sholland.org>
+Reviewed-by: Conor Dooley <conor.dooley@microchip.com>
+Reviewed-by: Andrew Jones <ajones@ventanamicro.com>
+Reviewed-by: Guo Ren <guoren@kernel.org>
+Tested-by: Conor Dooley <conor.dooley@microchip.com>
+Link: https://lore.kernel.org/r/20230212021534.59121-3-samuel@sholland.org
+Signed-off-by: Palmer Dabbelt <palmer@rivosinc.com>
+---
+ arch/riscv/include/asm/errata_list.h | 5 -----
+ arch/riscv/lib/strcmp.S              | 2 +-
+ arch/riscv/lib/strlen.S              | 2 +-
+ arch/riscv/lib/strncmp.S             | 2 +-
+ 4 files changed, 3 insertions(+), 8 deletions(-)
+
+diff --git a/arch/riscv/include/asm/errata_list.h b/arch/riscv/include/asm/errata_list.h
+index e158439029cef..274c6f8896020 100644
+--- a/arch/riscv/include/asm/errata_list.h
++++ b/arch/riscv/include/asm/errata_list.h
+@@ -23,11 +23,6 @@
+ #define	ERRATA_THEAD_NUMBER 3
+ #endif
+ 
+-#define	CPUFEATURE_SVPBMT 0
+-#define	CPUFEATURE_ZICBOM 1
+-#define	CPUFEATURE_ZBB 2
+-#define	CPUFEATURE_NUMBER 3
+-
+ #ifdef __ASSEMBLY__
+ 
+ #define ALT_INSN_FAULT(x)						\
+diff --git a/arch/riscv/lib/strcmp.S b/arch/riscv/lib/strcmp.S
+index 8148b6418f61f..986ab23fe7877 100644
+--- a/arch/riscv/lib/strcmp.S
++++ b/arch/riscv/lib/strcmp.S
+@@ -9,7 +9,7 @@
+ /* int strcmp(const char *cs, const char *ct) */
+ SYM_FUNC_START(strcmp)
+ 
+-	ALTERNATIVE("nop", "j strcmp_zbb", 0, CPUFEATURE_ZBB, CONFIG_RISCV_ISA_ZBB)
++	ALTERNATIVE("nop", "j strcmp_zbb", 0, RISCV_ISA_EXT_ZBB, CONFIG_RISCV_ISA_ZBB)
+ 
+ 	/*
+ 	 * Returns
+diff --git a/arch/riscv/lib/strlen.S b/arch/riscv/lib/strlen.S
+index 0f9dbf93301a3..8345ceeee3f65 100644
+--- a/arch/riscv/lib/strlen.S
++++ b/arch/riscv/lib/strlen.S
+@@ -9,7 +9,7 @@
+ /* int strlen(const char *s) */
+ SYM_FUNC_START(strlen)
+ 
+-	ALTERNATIVE("nop", "j strlen_zbb", 0, CPUFEATURE_ZBB, CONFIG_RISCV_ISA_ZBB)
++	ALTERNATIVE("nop", "j strlen_zbb", 0, RISCV_ISA_EXT_ZBB, CONFIG_RISCV_ISA_ZBB)
+ 
+ 	/*
+ 	 * Returns
+diff --git a/arch/riscv/lib/strncmp.S b/arch/riscv/lib/strncmp.S
+index 7940ddab2d48d..ee49595075bee 100644
+--- a/arch/riscv/lib/strncmp.S
++++ b/arch/riscv/lib/strncmp.S
+@@ -9,7 +9,7 @@
+ /* int strncmp(const char *cs, const char *ct, size_t count) */
+ SYM_FUNC_START(strncmp)
+ 
+-	ALTERNATIVE("nop", "j strncmp_zbb", 0, CPUFEATURE_ZBB, CONFIG_RISCV_ISA_ZBB)
++	ALTERNATIVE("nop", "j strncmp_zbb", 0, RISCV_ISA_EXT_ZBB, CONFIG_RISCV_ISA_ZBB)
+ 
+ 	/*
+ 	 * Returns
+-- 
+cgit 
+

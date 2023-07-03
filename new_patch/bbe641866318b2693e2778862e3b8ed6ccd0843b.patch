@@ -1,0 +1,50 @@
+From bbe641866318b2693e2778862e3b8ed6ccd0843b Mon Sep 17 00:00:00 2001
+From: Arnd Bergmann <arnd@arndb.de>
+Date: Fri, 3 Feb 2023 13:15:36 +0100
+Subject: amd-xgbe: fix mismatched prototype
+
+The forward declaration was introduced with a prototype that does
+not match the function definition:
+
+drivers/net/ethernet/amd/xgbe/xgbe-phy-v2.c:2166:13: error: conflicting types for 'xgbe_phy_perform_ratechange' due to enum/integer mismatch; have 'void(struct xgbe_prv_data *, enum xgbe_mb_cmd,  enum xgbe_mb_subcmd)' [-Werror=enum-int-mismatch]
+ 2166 | static void xgbe_phy_perform_ratechange(struct xgbe_prv_data *pdata,
+      |             ^~~~~~~~~~~~~~~~~~~~~~~~~~~
+drivers/net/ethernet/amd/xgbe/xgbe-phy-v2.c:391:13: note: previous declaration of 'xgbe_phy_perform_ratechange' with type 'void(struct xgbe_prv_data *, unsigned int,  unsigned int)'
+  391 | static void xgbe_phy_perform_ratechange(struct xgbe_prv_data *pdata,
+      |             ^~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Ideally there should not be any forward declarations here, which
+would make it easier to show that there is no unbounded recursion.
+I tried fixing this but could not figure out how to avoid the
+recursive call.
+
+As a hotfix, address only the broken prototype to fix the build
+problem instead.
+
+Fixes: 4f3b20bfbb75 ("amd-xgbe: add support for rx-adaptation")
+Signed-off-by: Arnd Bergmann <arnd@arndb.de>
+Reviewed-by: Simon Horman <simon.horman@corigine.com>
+Acked-by: Shyam Sundar S K <Shyam-sundar.S-k@amd.com>
+Link: https://lore.kernel.org/r/20230203121553.2871598-1-arnd@kernel.org
+Signed-off-by: Jakub Kicinski <kuba@kernel.org>
+---
+ drivers/net/ethernet/amd/xgbe/xgbe-phy-v2.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/net/ethernet/amd/xgbe/xgbe-phy-v2.c b/drivers/net/ethernet/amd/xgbe/xgbe-phy-v2.c
+index 7d88caa4e6239..16e7fb2c0daee 100644
+--- a/drivers/net/ethernet/amd/xgbe/xgbe-phy-v2.c
++++ b/drivers/net/ethernet/amd/xgbe/xgbe-phy-v2.c
+@@ -390,7 +390,8 @@ static DEFINE_MUTEX(xgbe_phy_comm_lock);
+ static enum xgbe_an_mode xgbe_phy_an_mode(struct xgbe_prv_data *pdata);
+ static void xgbe_phy_rrc(struct xgbe_prv_data *pdata);
+ static void xgbe_phy_perform_ratechange(struct xgbe_prv_data *pdata,
+-					unsigned int cmd, unsigned int sub_cmd);
++					enum xgbe_mb_cmd cmd,
++					enum xgbe_mb_subcmd sub_cmd);
+ 
+ static int xgbe_phy_i2c_xfer(struct xgbe_prv_data *pdata,
+ 			     struct xgbe_i2c_op *i2c_op)
+-- 
+cgit 
+

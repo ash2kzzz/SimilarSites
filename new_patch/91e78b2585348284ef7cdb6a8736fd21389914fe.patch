@@ -1,0 +1,36 @@
+From 91e78b2585348284ef7cdb6a8736fd21389914fe Mon Sep 17 00:00:00 2001
+From: Andy Shevchenko <andriy.shevchenko@linux.intel.com>
+Date: Mon, 13 Feb 2023 13:21:38 +0200
+Subject: dmaengine: Actually use devm_add_action_or_reset()
+
+It appears that the commit a1beaa50b583 ("dmaengine: Simplify
+dmaenginem_async_device_register() function") mentions
+devm_add_action_or_reset() the actual change utilised devm_add_action()
+call by mistake.
+
+Fix the issue by switching to devm_add_action_or_reset().
+
+Fixes: a1beaa50b583 ("dmaengine: Simplify dmaenginem_async_device_register() function")
+Signed-off-by: Andy Shevchenko <andriy.shevchenko@linux.intel.com>
+Link: https://lore.kernel.org/r/20230213112138.32118-1-andriy.shevchenko@linux.intel.com
+Signed-off-by: Vinod Koul <vkoul@kernel.org>
+---
+ drivers/dma/dmaengine.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/dma/dmaengine.c b/drivers/dma/dmaengine.c
+index c24bca210104c..826b98284fa1f 100644
+--- a/drivers/dma/dmaengine.c
++++ b/drivers/dma/dmaengine.c
+@@ -1342,7 +1342,7 @@ int dmaenginem_async_device_register(struct dma_device *device)
+ 	if (ret)
+ 		return ret;
+ 
+-	return devm_add_action(device->dev, dmaenginem_async_device_unregister, device);
++	return devm_add_action_or_reset(device->dev, dmaenginem_async_device_unregister, device);
+ }
+ EXPORT_SYMBOL(dmaenginem_async_device_register);
+ 
+-- 
+cgit 
+

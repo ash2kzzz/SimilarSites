@@ -1,0 +1,39 @@
+From 2fedafc7ef071979b07fe9e9ccb7af210b65da0e Mon Sep 17 00:00:00 2001
+From: Hersen Wu <hersenxs.wu@amd.com>
+Date: Thu, 9 Mar 2023 16:14:08 -0500
+Subject: drm/amd/display: fix wrong index used in dccg32_set_dpstreamclk
+
+[Why & How]
+When merging commit 9af611f29034
+("drm/amd/display: Fix DCN32 DPSTREAMCLK_CNTL programming"),
+index change was not picked up.
+
+Cc: stable@vger.kernel.org
+Cc: Mario Limonciello <mario.limonciello@amd.com>
+Fixes: 9af611f29034 ("drm/amd/display: Fix DCN32 DPSTREAMCLK_CNTL programming")
+Reviewed-by: Qingqing Zhuo <qingqing.zhuo@amd.com>
+Acked-by: Qingqing Zhuo <qingqing.zhuo@amd.com>
+Signed-off-by: Hersen Wu <hersenxs.wu@amd.com>
+Tested-by: Daniel Wheeler <daniel.wheeler@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/display/dc/dcn32/dcn32_dccg.c | 3 +--
+ 1 file changed, 1 insertion(+), 2 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/display/dc/dcn32/dcn32_dccg.c b/drivers/gpu/drm/amd/display/dc/dcn32/dcn32_dccg.c
+index 5dbef498580b9..ffbb739d85b69 100644
+--- a/drivers/gpu/drm/amd/display/dc/dcn32/dcn32_dccg.c
++++ b/drivers/gpu/drm/amd/display/dc/dcn32/dcn32_dccg.c
+@@ -293,8 +293,7 @@ static void dccg32_set_dpstreamclk(
+ 	dccg32_set_dtbclk_p_src(dccg, src, otg_inst);
+ 
+ 	/* enabled to select one of the DTBCLKs for pipe */
+-	switch (otg_inst)
+-	{
++	switch (dp_hpo_inst) {
+ 	case 0:
+ 		REG_UPDATE_2(DPSTREAMCLK_CNTL,
+ 			     DPSTREAMCLK0_EN,
+-- 
+cgit 
+

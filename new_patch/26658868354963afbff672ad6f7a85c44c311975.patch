@@ -1,0 +1,55 @@
+From 26658868354963afbff672ad6f7a85c44c311975 Mon Sep 17 00:00:00 2001
+From: Stephan Gerhold <stephan@gerhold.net>
+Date: Thu, 29 Dec 2022 16:16:47 +0100
+Subject: dt-bindings: soc: qcom: apr: Make qcom,protection-domain optional
+ again
+
+The protection domain functionality exists only in SoCs starting from
+MSM8998 [1], while the APR bindings are also used on older platforms.
+
+Commit 41288c305836 ("ASoC: dt-bindings: qcom,apr: Split services to
+shared schema") made the "qcom,protection-domain" required but it
+should remain optional to avoid dtbs_check warnings on older platforms,
+e.g.:
+
+arch/arm64/boot/dts/qcom/apq8096-db820c.dtb:
+  apr: service@3: 'qcom,protection-domain' is a required property
+  From schema: Documentation/devicetree/bindings/soc/qcom/qcom,apr.yaml
+
+[1]: https://lore.kernel.org/all/20200312120842.21991-1-sibis@codeaurora.org/
+
+Fixes: 41288c305836 ("ASoC: dt-bindings: qcom,apr: Split services to shared schema")
+Signed-off-by: Stephan Gerhold <stephan@gerhold.net>
+Reviewed-by: Krzysztof Kozlowski <krzysztof.kozlowski@linaro.org>
+Reviewed-by: Bjorn Andersson <andersson@kernel.org>
+Signed-off-by: Bjorn Andersson <andersson@kernel.org>
+Link: https://lore.kernel.org/r/20221229151648.19839-2-stephan@gerhold.net
+---
+ Documentation/devicetree/bindings/soc/qcom/qcom,apr-services.yaml | 5 ++---
+ 1 file changed, 2 insertions(+), 3 deletions(-)
+
+diff --git a/Documentation/devicetree/bindings/soc/qcom/qcom,apr-services.yaml b/Documentation/devicetree/bindings/soc/qcom/qcom,apr-services.yaml
+index 290555426c39c..bdf482db32aac 100644
+--- a/Documentation/devicetree/bindings/soc/qcom/qcom,apr-services.yaml
++++ b/Documentation/devicetree/bindings/soc/qcom/qcom,apr-services.yaml
+@@ -39,8 +39,8 @@ properties:
+   qcom,protection-domain:
+     $ref: /schemas/types.yaml#/definitions/string-array
+     description: |
+-      Protection domain service name and path for APR service
+-      possible values are::
++      Protection domain service name and path for APR service (if supported).
++      Possible values are::
+       "avs/audio", "msm/adsp/audio_pd".
+       "kernel/elf_loader", "msm/modem/wlan_pd".
+       "tms/servreg", "msm/adsp/audio_pd".
+@@ -49,6 +49,5 @@ properties:
+ 
+ required:
+   - reg
+-  - qcom,protection-domain
+ 
+ additionalProperties: true
+-- 
+cgit 
+

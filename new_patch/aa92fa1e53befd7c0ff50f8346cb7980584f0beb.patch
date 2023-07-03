@@ -1,0 +1,58 @@
+From aa92fa1e53befd7c0ff50f8346cb7980584f0beb Mon Sep 17 00:00:00 2001
+From: Serge Semin <Sergey.Semin@baikalelectronics.ru>
+Date: Fri, 13 Jan 2023 20:13:50 +0300
+Subject: dmaengine: dw-edma: Add PCI bus address getter to the remote EP glue
+ driver
+
+The Synopsys PCIe Endpoint IP prototype kit can be attached via any PCI
+host controller, including one where the PCI bus address space is different
+from the CPU address space.  Therefore, we need to make sure the source and
+destination addresses of the DMA slave devices are converted to the PCI bus
+address space; otherwise DMA transactions may cause memory corruption.
+
+Add a new dw_edma_pcie_address() interface to perform this translation by
+using pcibios_resource_to_bus().
+
+Link: https://lore.kernel.org/r/20230113171409.30470-9-Sergey.Semin@baikalelectronics.ru
+Fixes: 41aaff2a2ac0 ("dmaengine: Add Synopsys eDMA IP PCIe glue-logic")
+Tested-by: Manivannan Sadhasivam <manivannan.sadhasivam@linaro.org>
+Signed-off-by: Serge Semin <Sergey.Semin@baikalelectronics.ru>
+Signed-off-by: Lorenzo Pieralisi <lpieralisi@kernel.org>
+Signed-off-by: Bjorn Helgaas <bhelgaas@google.com>
+Reviewed-by: Manivannan Sadhasivam <manivannan.sadhasivam@linaro.org>
+Acked-by: Vinod Koul <vkoul@kernel.org>
+---
+ drivers/dma/dw-edma/dw-edma-pcie.c | 15 +++++++++++++++
+ 1 file changed, 15 insertions(+)
+
+diff --git a/drivers/dma/dw-edma/dw-edma-pcie.c b/drivers/dma/dw-edma/dw-edma-pcie.c
+index 04c95cba1244b..f530bacfd716c 100644
+--- a/drivers/dma/dw-edma/dw-edma-pcie.c
++++ b/drivers/dma/dw-edma/dw-edma-pcie.c
+@@ -95,8 +95,23 @@ static int dw_edma_pcie_irq_vector(struct device *dev, unsigned int nr)
+ 	return pci_irq_vector(to_pci_dev(dev), nr);
+ }
+ 
++static u64 dw_edma_pcie_address(struct device *dev, phys_addr_t cpu_addr)
++{
++	struct pci_dev *pdev = to_pci_dev(dev);
++	struct pci_bus_region region;
++	struct resource res = {
++		.flags = IORESOURCE_MEM,
++		.start = cpu_addr,
++		.end = cpu_addr,
++	};
++
++	pcibios_resource_to_bus(pdev->bus, &region, &res);
++	return region.start;
++}
++
+ static const struct dw_edma_core_ops dw_edma_pcie_core_ops = {
+ 	.irq_vector = dw_edma_pcie_irq_vector,
++	.pci_address = dw_edma_pcie_address,
+ };
+ 
+ static void dw_edma_pcie_get_vsec_dma_data(struct pci_dev *pdev,
+-- 
+cgit 
+

@@ -1,0 +1,198 @@
+From 953519b35227d5dbbb5c5724f1f539735fbf7781 Mon Sep 17 00:00:00 2001
+From: Felix Fietkau <nbd@nbd.name>
+Date: Fri, 13 Jan 2023 11:58:48 +0100
+Subject: wifi: mt76: dma: fix a regression in adding rx buffers
+
+When adding WED support, mt76_dma_add_buf was accidentally changed to set
+the skip_buf0 flag for tx buffers on the wrong queue descriptor entry.
+Additionally, there is a rxwi leak when rx buffer allocation fails.
+
+Fix this and make the code more readable by adding a separate function for
+adding rx buffers.
+
+Reported-by: Mikhail Gavrilov <mikhail.v.gavrilov@gmail.com>
+Tested-by: Mikhail Gavrilov <mikhail.v.gavrilov@gmail.com>
+Link: https://lore.kernel.org/r/CABXGCsMEnQd=gYKTd1knRsWuxCb=Etv5nAre%2BXJS_s5FgVteYA@mail.gmail.com/
+Reported-by: Mike Lothian <mike@fireburn.co.uk>
+Link: https://bugzilla.kernel.org/show_bug.cgi?id=216829
+Reported-by: AngeloGioacchino Del Regno <angelogioacchino.delregno@collabora.com>
+Link: https://lore.kernel.org/lkml/20230112171706.294550-1-angelogioacchino.delregno@collabora.com/
+Fixes: cd372b8c99c5 ("wifi: mt76: add WED RX support to mt76_dma_{add,get}_buf")
+Signed-off-by: Felix Fietkau <nbd@nbd.name>
+Signed-off-by: Kalle Valo <kvalo@kernel.org>
+Link: https://lore.kernel.org/r/20230113105848.34642-3-nbd@nbd.name
+---
+ drivers/net/wireless/mediatek/mt76/dma.c | 124 ++++++++++++++++++-------------
+ 1 file changed, 72 insertions(+), 52 deletions(-)
+
+diff --git a/drivers/net/wireless/mediatek/mt76/dma.c b/drivers/net/wireless/mediatek/mt76/dma.c
+index 61a8ab9e1db55..06161815c180e 100644
+--- a/drivers/net/wireless/mediatek/mt76/dma.c
++++ b/drivers/net/wireless/mediatek/mt76/dma.c
+@@ -205,6 +205,52 @@ mt76_dma_queue_reset(struct mt76_dev *dev, struct mt76_queue *q)
+ 	mt76_dma_sync_idx(dev, q);
+ }
+ 
++static int
++mt76_dma_add_rx_buf(struct mt76_dev *dev, struct mt76_queue *q,
++		    struct mt76_queue_buf *buf, void *data)
++{
++	struct mt76_desc *desc = &q->desc[q->head];
++	struct mt76_queue_entry *entry = &q->entry[q->head];
++	struct mt76_txwi_cache *txwi = NULL;
++	u32 buf1 = 0, ctrl;
++	int idx = q->head;
++	int rx_token;
++
++	ctrl = FIELD_PREP(MT_DMA_CTL_SD_LEN0, buf[0].len);
++
++	if ((q->flags & MT_QFLAG_WED) &&
++	    FIELD_GET(MT_QFLAG_WED_TYPE, q->flags) == MT76_WED_Q_RX) {
++		txwi = mt76_get_rxwi(dev);
++		if (!txwi)
++			return -ENOMEM;
++
++		rx_token = mt76_rx_token_consume(dev, data, txwi, buf->addr);
++		if (rx_token < 0) {
++			mt76_put_rxwi(dev, txwi);
++			return -ENOMEM;
++		}
++
++		buf1 |= FIELD_PREP(MT_DMA_CTL_TOKEN, rx_token);
++		ctrl |= MT_DMA_CTL_TO_HOST;
++	}
++
++	WRITE_ONCE(desc->buf0, cpu_to_le32(buf->addr));
++	WRITE_ONCE(desc->buf1, cpu_to_le32(buf1));
++	WRITE_ONCE(desc->ctrl, cpu_to_le32(ctrl));
++	WRITE_ONCE(desc->info, 0);
++
++	entry->dma_addr[0] = buf->addr;
++	entry->dma_len[0] = buf->len;
++	entry->txwi = txwi;
++	entry->buf = data;
++	entry->wcid = 0xffff;
++	entry->skip_buf1 = true;
++	q->head = (q->head + 1) % q->ndesc;
++	q->queued++;
++
++	return idx;
++}
++
+ static int
+ mt76_dma_add_buf(struct mt76_dev *dev, struct mt76_queue *q,
+ 		 struct mt76_queue_buf *buf, int nbufs, u32 info,
+@@ -215,6 +261,11 @@ mt76_dma_add_buf(struct mt76_dev *dev, struct mt76_queue *q,
+ 	int i, idx = -1;
+ 	u32 ctrl, next;
+ 
++	if (txwi) {
++		q->entry[q->head].txwi = DMA_DUMMY_DATA;
++		q->entry[q->head].skip_buf0 = true;
++	}
++
+ 	for (i = 0; i < nbufs; i += 2, buf += 2) {
+ 		u32 buf0 = buf[0].addr, buf1 = 0;
+ 
+@@ -224,51 +275,28 @@ mt76_dma_add_buf(struct mt76_dev *dev, struct mt76_queue *q,
+ 		desc = &q->desc[idx];
+ 		entry = &q->entry[idx];
+ 
+-		if ((q->flags & MT_QFLAG_WED) &&
+-		    FIELD_GET(MT_QFLAG_WED_TYPE, q->flags) == MT76_WED_Q_RX) {
+-			struct mt76_txwi_cache *t = txwi;
+-			int rx_token;
+-
+-			if (!t)
+-				return -ENOMEM;
+-
+-			rx_token = mt76_rx_token_consume(dev, (void *)skb, t,
+-							 buf[0].addr);
+-			if (rx_token < 0)
+-				return -ENOMEM;
+-
+-			buf1 |= FIELD_PREP(MT_DMA_CTL_TOKEN, rx_token);
+-			ctrl = FIELD_PREP(MT_DMA_CTL_SD_LEN0, buf[0].len) |
+-			       MT_DMA_CTL_TO_HOST;
+-		} else {
+-			if (txwi) {
+-				q->entry[next].txwi = DMA_DUMMY_DATA;
+-				q->entry[next].skip_buf0 = true;
+-			}
+-
+-			if (buf[0].skip_unmap)
+-				entry->skip_buf0 = true;
+-			entry->skip_buf1 = i == nbufs - 1;
+-
+-			entry->dma_addr[0] = buf[0].addr;
+-			entry->dma_len[0] = buf[0].len;
+-
+-			ctrl = FIELD_PREP(MT_DMA_CTL_SD_LEN0, buf[0].len);
+-			if (i < nbufs - 1) {
+-				entry->dma_addr[1] = buf[1].addr;
+-				entry->dma_len[1] = buf[1].len;
+-				buf1 = buf[1].addr;
+-				ctrl |= FIELD_PREP(MT_DMA_CTL_SD_LEN1, buf[1].len);
+-				if (buf[1].skip_unmap)
+-					entry->skip_buf1 = true;
+-			}
+-
+-			if (i == nbufs - 1)
+-				ctrl |= MT_DMA_CTL_LAST_SEC0;
+-			else if (i == nbufs - 2)
+-				ctrl |= MT_DMA_CTL_LAST_SEC1;
++		if (buf[0].skip_unmap)
++			entry->skip_buf0 = true;
++		entry->skip_buf1 = i == nbufs - 1;
++
++		entry->dma_addr[0] = buf[0].addr;
++		entry->dma_len[0] = buf[0].len;
++
++		ctrl = FIELD_PREP(MT_DMA_CTL_SD_LEN0, buf[0].len);
++		if (i < nbufs - 1) {
++			entry->dma_addr[1] = buf[1].addr;
++			entry->dma_len[1] = buf[1].len;
++			buf1 = buf[1].addr;
++			ctrl |= FIELD_PREP(MT_DMA_CTL_SD_LEN1, buf[1].len);
++			if (buf[1].skip_unmap)
++				entry->skip_buf1 = true;
+ 		}
+ 
++		if (i == nbufs - 1)
++			ctrl |= MT_DMA_CTL_LAST_SEC0;
++		else if (i == nbufs - 2)
++			ctrl |= MT_DMA_CTL_LAST_SEC1;
++
+ 		WRITE_ONCE(desc->buf0, cpu_to_le32(buf0));
+ 		WRITE_ONCE(desc->buf1, cpu_to_le32(buf1));
+ 		WRITE_ONCE(desc->info, cpu_to_le32(info));
+@@ -581,17 +609,9 @@ mt76_dma_rx_fill(struct mt76_dev *dev, struct mt76_queue *q)
+ 	spin_lock_bh(&q->lock);
+ 
+ 	while (q->queued < q->ndesc - 1) {
+-		struct mt76_txwi_cache *t = NULL;
+ 		struct mt76_queue_buf qbuf;
+ 		void *buf = NULL;
+ 
+-		if ((q->flags & MT_QFLAG_WED) &&
+-		    FIELD_GET(MT_QFLAG_WED_TYPE, q->flags) == MT76_WED_Q_RX) {
+-			t = mt76_get_rxwi(dev);
+-			if (!t)
+-				break;
+-		}
+-
+ 		buf = page_frag_alloc(rx_page, q->buf_size, GFP_ATOMIC);
+ 		if (!buf)
+ 			break;
+@@ -605,7 +625,7 @@ mt76_dma_rx_fill(struct mt76_dev *dev, struct mt76_queue *q)
+ 		qbuf.addr = addr + offset;
+ 		qbuf.len = len - offset;
+ 		qbuf.skip_unmap = false;
+-		if (mt76_dma_add_buf(dev, q, &qbuf, 1, 0, buf, t) < 0) {
++		if (mt76_dma_add_rx_buf(dev, q, &qbuf, buf) < 0) {
+ 			dma_unmap_single(dev->dma_dev, addr, len,
+ 					 DMA_FROM_DEVICE);
+ 			skb_free_frag(buf);
+-- 
+cgit 
+

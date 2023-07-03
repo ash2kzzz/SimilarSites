@@ -1,0 +1,35 @@
+From 34557b7504778e32b166cf46c6f774086124e845 Mon Sep 17 00:00:00 2001
+From: Pali Rohár <pali@kernel.org>
+Date: Sat, 28 Jan 2023 14:34:58 +0100
+Subject: powerpc/pci: Enable PPC_PCI_BUS_NUM_DOMAIN_DEPENDENT by default
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+It makes sense to enable CONFIG_PPC_PCI_BUS_NUM_DOMAIN_DEPENDENT by default
+(when possible by dependencies) to take advantages of all 256 PCI buses on
+each PCI domain, like it is already on all other kernel architectures.
+
+Fixes: 566356813082 ("powerpc/pci: Add config option for using all 256 PCI buses")
+Signed-off-by: Pali Rohár <pali@kernel.org>
+Signed-off-by: Michael Ellerman <mpe@ellerman.id.au>
+Link: https://lore.kernel.org/r/20230128133459.32123-1-pali@kernel.org
+---
+ arch/powerpc/Kconfig | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/arch/powerpc/Kconfig b/arch/powerpc/Kconfig
+index b8c4ac56bddc5..fad25aa602c8d 100644
+--- a/arch/powerpc/Kconfig
++++ b/arch/powerpc/Kconfig
+@@ -392,6 +392,7 @@ config PPC_PCI_BUS_NUM_DOMAIN_DEPENDENT
+ 	depends on PPC32
+ 	depends on !PPC_PMAC && !PPC_CHRP
+ 	bool "Assign PCI bus numbers from zero individually for each PCI domain"
++	default y
+ 	help
+ 	  By default on PPC32 were PCI bus numbers unique across all PCI domains.
+ 	  So system could have only 256 PCI buses independently of available
+-- 
+cgit 
+

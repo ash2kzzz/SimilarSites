@@ -1,0 +1,40 @@
+From 083a7e87e1e45506420c96a2fadf2e66da6877e2 Mon Sep 17 00:00:00 2001
+From: Herbert Xu <herbert@gondor.apana.org.au>
+Date: Tue, 14 Mar 2023 13:02:39 +0800
+Subject: crypto: hash - Fix kdoc errors about HASH_ALG_COMMON
+
+The HASH_ALG_COMMON macro cannot be parsed by kdoc so mark it as
+a normal comment instead of kdoc.  Also add HASH_ALG_COMMON as a
+structure member of shash_alg.
+
+Fixes: 0e4e6d7094df ("crypto: hash - Count error stats differently")
+Reported-by: Stephen Rothwell <sfr@canb.auug.org.au>
+Signed-off-by: Herbert Xu <herbert@gondor.apana.org.au>
+---
+ include/crypto/hash.h | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/include/crypto/hash.h b/include/crypto/hash.h
+index 2aa61e7679db3..1ed674ba84291 100644
+--- a/include/crypto/hash.h
++++ b/include/crypto/hash.h
+@@ -41,7 +41,7 @@ struct crypto_istat_hash {
+ #define HASH_ALG_COMMON_STAT
+ #endif
+ 
+-/**
++/*
+  * struct hash_alg_common - define properties of message digest
+  * @stat: Statistics for hash algorithm.
+  * @digestsize: Size of the result of the transformation. A buffer of this size
+@@ -219,6 +219,7 @@ struct shash_desc {
+  * @stat: Statistics for hash algorithm.
+  * @base: internally used
+  * @halg: see struct hash_alg_common
++ * @HASH_ALG_COMMON: see struct hash_alg_common
+  */
+ struct shash_alg {
+ 	int (*init)(struct shash_desc *desc);
+-- 
+cgit 
+

@@ -1,0 +1,336 @@
+From 8b84475318641c2b89320859332544cf187e1cbd Mon Sep 17 00:00:00 2001
+From: Taehee Yoo <ap420073@gmail.com>
+Date: Fri, 10 Feb 2023 18:15:41 +0000
+Subject: crypto: x86/aria-avx - Do not use avx2 instructions
+
+vpbroadcastb and vpbroadcastd are not AVX instructions.
+But the aria-avx assembly code contains these instructions.
+So, kernel panic will occur if the aria-avx works on AVX2 unsupported
+CPU.
+
+vbroadcastss, and vpshufb are used to avoid using vpbroadcastb in it.
+Unfortunately, this change reduces performance by about 5%.
+Also, vpbroadcastd is simply replaced by vmovdqa in it.
+
+Fixes: ba3579e6e45c ("crypto: aria-avx - add AES-NI/AVX/x86_64/GFNI assembler implementation of aria cipher")
+Reported-by: Herbert Xu <herbert@gondor.apana.org.au>
+Reported-by: Erhard F. <erhard_f@mailbox.org>
+Signed-off-by: Taehee Yoo <ap420073@gmail.com>
+Signed-off-by: Herbert Xu <herbert@gondor.apana.org.au>
+---
+ arch/x86/crypto/aria-aesni-avx-asm_64.S | 134 ++++++++++++++++++++++----------
+ 1 file changed, 94 insertions(+), 40 deletions(-)
+
+diff --git a/arch/x86/crypto/aria-aesni-avx-asm_64.S b/arch/x86/crypto/aria-aesni-avx-asm_64.S
+index fe0d84a7ced16..9243f6289d34b 100644
+--- a/arch/x86/crypto/aria-aesni-avx-asm_64.S
++++ b/arch/x86/crypto/aria-aesni-avx-asm_64.S
+@@ -267,35 +267,44 @@
+ 
+ #define aria_ark_8way(x0, x1, x2, x3,			\
+ 		      x4, x5, x6, x7,			\
+-		      t0, rk, idx, round)		\
++		      t0, t1, t2, rk,			\
++		      idx, round)			\
+ 	/* AddRoundKey */                               \
+-	vpbroadcastb ((round * 16) + idx + 3)(rk), t0;	\
+-	vpxor t0, x0, x0;				\
+-	vpbroadcastb ((round * 16) + idx + 2)(rk), t0;	\
+-	vpxor t0, x1, x1;				\
+-	vpbroadcastb ((round * 16) + idx + 1)(rk), t0;	\
+-	vpxor t0, x2, x2;				\
+-	vpbroadcastb ((round * 16) + idx + 0)(rk), t0;	\
+-	vpxor t0, x3, x3;				\
+-	vpbroadcastb ((round * 16) + idx + 7)(rk), t0;	\
+-	vpxor t0, x4, x4;				\
+-	vpbroadcastb ((round * 16) + idx + 6)(rk), t0;	\
+-	vpxor t0, x5, x5;				\
+-	vpbroadcastb ((round * 16) + idx + 5)(rk), t0;	\
+-	vpxor t0, x6, x6;				\
+-	vpbroadcastb ((round * 16) + idx + 4)(rk), t0;	\
+-	vpxor t0, x7, x7;
++	vbroadcastss ((round * 16) + idx + 0)(rk), t0;	\
++	vpsrld $24, t0, t2;				\
++	vpshufb t1, t2, t2;				\
++	vpxor t2, x0, x0;				\
++	vpsrld $16, t0, t2;				\
++	vpshufb t1, t2, t2;				\
++	vpxor t2, x1, x1;				\
++	vpsrld $8, t0, t2;				\
++	vpshufb t1, t2, t2;				\
++	vpxor t2, x2, x2;				\
++	vpshufb t1, t0, t2;				\
++	vpxor t2, x3, x3;				\
++	vbroadcastss ((round * 16) + idx + 4)(rk), t0;	\
++	vpsrld $24, t0, t2;				\
++	vpshufb t1, t2, t2;				\
++	vpxor t2, x4, x4;				\
++	vpsrld $16, t0, t2;				\
++	vpshufb t1, t2, t2;				\
++	vpxor t2, x5, x5;				\
++	vpsrld $8, t0, t2;				\
++	vpshufb t1, t2, t2;				\
++	vpxor t2, x6, x6;				\
++	vpshufb t1, t0, t2;				\
++	vpxor t2, x7, x7;
+ 
+ #ifdef CONFIG_AS_GFNI
+ #define aria_sbox_8way_gfni(x0, x1, x2, x3,		\
+ 			    x4, x5, x6, x7,		\
+ 			    t0, t1, t2, t3,		\
+ 			    t4, t5, t6, t7)		\
+-	vpbroadcastq .Ltf_s2_bitmatrix, t0;		\
+-	vpbroadcastq .Ltf_inv_bitmatrix, t1;		\
+-	vpbroadcastq .Ltf_id_bitmatrix, t2;		\
+-	vpbroadcastq .Ltf_aff_bitmatrix, t3;		\
+-	vpbroadcastq .Ltf_x2_bitmatrix, t4;		\
++	vmovdqa .Ltf_s2_bitmatrix, t0;			\
++	vmovdqa .Ltf_inv_bitmatrix, t1;			\
++	vmovdqa .Ltf_id_bitmatrix, t2;			\
++	vmovdqa .Ltf_aff_bitmatrix, t3;			\
++	vmovdqa .Ltf_x2_bitmatrix, t4;			\
+ 	vgf2p8affineinvqb $(tf_s2_const), t0, x1, x1;	\
+ 	vgf2p8affineinvqb $(tf_s2_const), t0, x5, x5;	\
+ 	vgf2p8affineqb $(tf_inv_const), t1, x2, x2;	\
+@@ -315,10 +324,9 @@
+ 		       x4, x5, x6, x7,			\
+ 		       t0, t1, t2, t3,			\
+ 		       t4, t5, t6, t7)			\
+-	vpxor t7, t7, t7;				\
+ 	vmovdqa .Linv_shift_row, t0;			\
+ 	vmovdqa .Lshift_row, t1;			\
+-	vpbroadcastd .L0f0f0f0f, t6;			\
++	vbroadcastss .L0f0f0f0f, t6;			\
+ 	vmovdqa .Ltf_lo__inv_aff__and__s2, t2;		\
+ 	vmovdqa .Ltf_hi__inv_aff__and__s2, t3;		\
+ 	vmovdqa .Ltf_lo__x2__and__fwd_aff, t4;		\
+@@ -413,8 +421,9 @@
+ 		y0, y1, y2, y3,				\
+ 		y4, y5, y6, y7,				\
+ 		mem_tmp, rk, round)			\
++	vpxor y7, y7, y7;				\
+ 	aria_ark_8way(x0, x1, x2, x3, x4, x5, x6, x7,	\
+-		      y0, rk, 8, round);		\
++		      y0, y7, y2, rk, 8, round);	\
+ 							\
+ 	aria_sbox_8way(x2, x3, x0, x1, x6, x7, x4, x5,	\
+ 		       y0, y1, y2, y3, y4, y5, y6, y7);	\
+@@ -429,7 +438,7 @@
+ 			     x4, x5, x6, x7,		\
+ 			     mem_tmp, 0);		\
+ 	aria_ark_8way(x0, x1, x2, x3, x4, x5, x6, x7,	\
+-		      y0, rk, 0, round);		\
++		      y0, y7, y2, rk, 0, round);	\
+ 							\
+ 	aria_sbox_8way(x2, x3, x0, x1, x6, x7, x4, x5,	\
+ 		       y0, y1, y2, y3, y4, y5, y6, y7);	\
+@@ -467,8 +476,9 @@
+ 		y0, y1, y2, y3,				\
+ 		y4, y5, y6, y7,				\
+ 		mem_tmp, rk, round)			\
++	vpxor y7, y7, y7;				\
+ 	aria_ark_8way(x0, x1, x2, x3, x4, x5, x6, x7,	\
+-		      y0, rk, 8, round);		\
++		      y0, y7, y2, rk, 8, round);	\
+ 							\
+ 	aria_sbox_8way(x0, x1, x2, x3, x4, x5, x6, x7,	\
+ 		       y0, y1, y2, y3, y4, y5, y6, y7);	\
+@@ -483,7 +493,7 @@
+ 			     x4, x5, x6, x7,		\
+ 			     mem_tmp, 0);		\
+ 	aria_ark_8way(x0, x1, x2, x3, x4, x5, x6, x7,	\
+-		      y0, rk, 0, round);		\
++		      y0, y7, y2, rk, 0, round);	\
+ 							\
+ 	aria_sbox_8way(x0, x1, x2, x3, x4, x5, x6, x7,	\
+ 		       y0, y1, y2, y3, y4, y5, y6, y7);	\
+@@ -521,14 +531,15 @@
+ 		y0, y1, y2, y3,				\
+ 		y4, y5, y6, y7,				\
+ 		mem_tmp, rk, round, last_round)		\
++	vpxor y7, y7, y7;				\
+ 	aria_ark_8way(x0, x1, x2, x3, x4, x5, x6, x7,	\
+-		      y0, rk, 8, round);		\
++		      y0, y7, y2, rk, 8, round);	\
+ 							\
+ 	aria_sbox_8way(x2, x3, x0, x1, x6, x7, x4, x5,	\
+ 		       y0, y1, y2, y3, y4, y5, y6, y7);	\
+ 							\
+ 	aria_ark_8way(x0, x1, x2, x3, x4, x5, x6, x7,	\
+-		      y0, rk, 8, last_round);		\
++		      y0, y7, y2, rk, 8, last_round);	\
+ 							\
+ 	aria_store_state_8way(x0, x1, x2, x3,		\
+ 			      x4, x5, x6, x7,		\
+@@ -538,13 +549,13 @@
+ 			     x4, x5, x6, x7,		\
+ 			     mem_tmp, 0);		\
+ 	aria_ark_8way(x0, x1, x2, x3, x4, x5, x6, x7,	\
+-		      y0, rk, 0, round);		\
++		      y0, y7, y2, rk, 0, round);	\
+ 							\
+ 	aria_sbox_8way(x2, x3, x0, x1, x6, x7, x4, x5,	\
+ 		       y0, y1, y2, y3, y4, y5, y6, y7);	\
+ 							\
+ 	aria_ark_8way(x0, x1, x2, x3, x4, x5, x6, x7,	\
+-		      y0, rk, 0, last_round);		\
++		      y0, y7, y2, rk, 0, last_round);	\
+ 							\
+ 	aria_load_state_8way(y0, y1, y2, y3,		\
+ 			     y4, y5, y6, y7,		\
+@@ -556,8 +567,9 @@
+ 		     y0, y1, y2, y3,			\
+ 		     y4, y5, y6, y7,			\
+ 		     mem_tmp, rk, round)		\
++	vpxor y7, y7, y7;				\
+ 	aria_ark_8way(x0, x1, x2, x3, x4, x5, x6, x7,	\
+-		      y0, rk, 8, round);		\
++		      y0, y7, y2, rk, 8, round);	\
+ 							\
+ 	aria_sbox_8way_gfni(x2, x3, x0, x1, 		\
+ 			    x6, x7, x4, x5,		\
+@@ -574,7 +586,7 @@
+ 			     x4, x5, x6, x7,		\
+ 			     mem_tmp, 0);		\
+ 	aria_ark_8way(x0, x1, x2, x3, x4, x5, x6, x7,	\
+-		      y0, rk, 0, round);		\
++		      y0, y7, y2, rk, 0, round);	\
+ 							\
+ 	aria_sbox_8way_gfni(x2, x3, x0, x1, 		\
+ 			    x6, x7, x4, x5,		\
+@@ -614,8 +626,9 @@
+ 		     y0, y1, y2, y3,			\
+ 		     y4, y5, y6, y7,			\
+ 		     mem_tmp, rk, round)		\
++	vpxor y7, y7, y7;				\
+ 	aria_ark_8way(x0, x1, x2, x3, x4, x5, x6, x7,	\
+-		      y0, rk, 8, round);		\
++		      y0, y7, y2, rk, 8, round);	\
+ 							\
+ 	aria_sbox_8way_gfni(x0, x1, x2, x3, 		\
+ 			    x4, x5, x6, x7,		\
+@@ -632,7 +645,7 @@
+ 			     x4, x5, x6, x7,		\
+ 			     mem_tmp, 0);		\
+ 	aria_ark_8way(x0, x1, x2, x3, x4, x5, x6, x7,	\
+-		      y0, rk, 0, round);		\
++		      y0, y7, y2, rk, 0, round);	\
+ 							\
+ 	aria_sbox_8way_gfni(x0, x1, x2, x3, 		\
+ 			    x4, x5, x6, x7,		\
+@@ -672,8 +685,9 @@
+ 		y0, y1, y2, y3,				\
+ 		y4, y5, y6, y7,				\
+ 		mem_tmp, rk, round, last_round)		\
++	vpxor y7, y7, y7;				\
+ 	aria_ark_8way(x0, x1, x2, x3, x4, x5, x6, x7,	\
+-		      y0, rk, 8, round);		\
++		      y0, y7, y2, rk, 8, round);	\
+ 							\
+ 	aria_sbox_8way_gfni(x2, x3, x0, x1, 		\
+ 			    x6, x7, x4, x5,		\
+@@ -681,7 +695,7 @@
+ 			    y4, y5, y6, y7);		\
+ 							\
+ 	aria_ark_8way(x0, x1, x2, x3, x4, x5, x6, x7,	\
+-		      y0, rk, 8, last_round);		\
++		      y0, y7, y2, rk, 8, last_round);	\
+ 							\
+ 	aria_store_state_8way(x0, x1, x2, x3,		\
+ 			      x4, x5, x6, x7,		\
+@@ -691,7 +705,7 @@
+ 			     x4, x5, x6, x7,		\
+ 			     mem_tmp, 0);		\
+ 	aria_ark_8way(x0, x1, x2, x3, x4, x5, x6, x7,	\
+-		      y0, rk, 0, round);		\
++		      y0, y7, y2, rk, 0, round);	\
+ 							\
+ 	aria_sbox_8way_gfni(x2, x3, x0, x1, 		\
+ 			    x6, x7, x4, x5,		\
+@@ -699,7 +713,7 @@
+ 			    y4, y5, y6, y7);		\
+ 							\
+ 	aria_ark_8way(x0, x1, x2, x3, x4, x5, x6, x7,	\
+-		      y0, rk, 0, last_round);		\
++		      y0, y7, y2, rk, 0, last_round);	\
+ 							\
+ 	aria_load_state_8way(y0, y1, y2, y3,		\
+ 			     y4, y5, y6, y7,		\
+@@ -772,6 +786,14 @@
+ 		    BV8(0, 1, 1, 1, 1, 1, 0, 0),
+ 		    BV8(0, 0, 1, 1, 1, 1, 1, 0),
+ 		    BV8(0, 0, 0, 1, 1, 1, 1, 1))
++	.quad BM8X8(BV8(1, 0, 0, 0, 1, 1, 1, 1),
++		    BV8(1, 1, 0, 0, 0, 1, 1, 1),
++		    BV8(1, 1, 1, 0, 0, 0, 1, 1),
++		    BV8(1, 1, 1, 1, 0, 0, 0, 1),
++		    BV8(1, 1, 1, 1, 1, 0, 0, 0),
++		    BV8(0, 1, 1, 1, 1, 1, 0, 0),
++		    BV8(0, 0, 1, 1, 1, 1, 1, 0),
++		    BV8(0, 0, 0, 1, 1, 1, 1, 1))
+ 
+ /* AES inverse affine: */
+ #define tf_inv_const BV8(1, 0, 1, 0, 0, 0, 0, 0)
+@@ -784,6 +806,14 @@
+ 		    BV8(0, 0, 1, 0, 1, 0, 0, 1),
+ 		    BV8(1, 0, 0, 1, 0, 1, 0, 0),
+ 		    BV8(0, 1, 0, 0, 1, 0, 1, 0))
++	.quad BM8X8(BV8(0, 0, 1, 0, 0, 1, 0, 1),
++		    BV8(1, 0, 0, 1, 0, 0, 1, 0),
++		    BV8(0, 1, 0, 0, 1, 0, 0, 1),
++		    BV8(1, 0, 1, 0, 0, 1, 0, 0),
++		    BV8(0, 1, 0, 1, 0, 0, 1, 0),
++		    BV8(0, 0, 1, 0, 1, 0, 0, 1),
++		    BV8(1, 0, 0, 1, 0, 1, 0, 0),
++		    BV8(0, 1, 0, 0, 1, 0, 1, 0))
+ 
+ /* S2: */
+ #define tf_s2_const BV8(0, 1, 0, 0, 0, 1, 1, 1)
+@@ -796,6 +826,14 @@
+ 		    BV8(1, 1, 0, 0, 1, 1, 1, 0),
+ 		    BV8(0, 1, 1, 0, 0, 0, 1, 1),
+ 		    BV8(1, 1, 1, 1, 0, 1, 1, 0))
++	.quad BM8X8(BV8(0, 1, 0, 1, 0, 1, 1, 1),
++		    BV8(0, 0, 1, 1, 1, 1, 1, 1),
++		    BV8(1, 1, 1, 0, 1, 1, 0, 1),
++		    BV8(1, 1, 0, 0, 0, 0, 1, 1),
++		    BV8(0, 1, 0, 0, 0, 0, 1, 1),
++		    BV8(1, 1, 0, 0, 1, 1, 1, 0),
++		    BV8(0, 1, 1, 0, 0, 0, 1, 1),
++		    BV8(1, 1, 1, 1, 0, 1, 1, 0))
+ 
+ /* X2: */
+ #define tf_x2_const BV8(0, 0, 1, 1, 0, 1, 0, 0)
+@@ -808,6 +846,14 @@
+ 		    BV8(0, 1, 1, 0, 1, 0, 1, 1),
+ 		    BV8(1, 0, 1, 1, 1, 1, 0, 1),
+ 		    BV8(1, 0, 0, 1, 0, 0, 1, 1))
++	.quad BM8X8(BV8(0, 0, 0, 1, 1, 0, 0, 0),
++		    BV8(0, 0, 1, 0, 0, 1, 1, 0),
++		    BV8(0, 0, 0, 0, 1, 0, 1, 0),
++		    BV8(1, 1, 1, 0, 0, 0, 1, 1),
++		    BV8(1, 1, 1, 0, 1, 1, 0, 0),
++		    BV8(0, 1, 1, 0, 1, 0, 1, 1),
++		    BV8(1, 0, 1, 1, 1, 1, 0, 1),
++		    BV8(1, 0, 0, 1, 0, 0, 1, 1))
+ 
+ /* Identity matrix: */
+ .Ltf_id_bitmatrix:
+@@ -819,6 +865,14 @@
+ 		    BV8(0, 0, 0, 0, 0, 1, 0, 0),
+ 		    BV8(0, 0, 0, 0, 0, 0, 1, 0),
+ 		    BV8(0, 0, 0, 0, 0, 0, 0, 1))
++	.quad BM8X8(BV8(1, 0, 0, 0, 0, 0, 0, 0),
++		    BV8(0, 1, 0, 0, 0, 0, 0, 0),
++		    BV8(0, 0, 1, 0, 0, 0, 0, 0),
++		    BV8(0, 0, 0, 1, 0, 0, 0, 0),
++		    BV8(0, 0, 0, 0, 1, 0, 0, 0),
++		    BV8(0, 0, 0, 0, 0, 1, 0, 0),
++		    BV8(0, 0, 0, 0, 0, 0, 1, 0),
++		    BV8(0, 0, 0, 0, 0, 0, 0, 1))
+ #endif /* CONFIG_AS_GFNI */
+ 
+ /* 4-bit mask */
+-- 
+cgit 
+

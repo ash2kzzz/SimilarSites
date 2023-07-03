@@ -1,0 +1,73 @@
+From 70d1d30355095a22c8aa98dba9ca12486deff020 Mon Sep 17 00:00:00 2001
+From: Trevor Wu <trevor.wu@mediatek.com>
+Date: Wed, 15 Feb 2023 20:50:16 +0800
+Subject: ASoC: mediatek: mt8188: correct etdm control return value
+
+In mt8188_etdm_clk_src_sel_put() function, val retrieved by FIELD_PREP
+is shifted to the corresponding bit filed, so it can compare with the
+register value directly.
+
+Originally, the redundant bit shift of the register value results in
+the wrong comparison result, so we remove bit shift operation in the
+patch.
+
+Fixes: 2babb4777489 ("ASoC: mediatek: mt8188: support etdm in platform driver")
+Signed-off-by: Trevor Wu <trevor.wu@mediatek.com>
+Link: https://lore.kernel.org/r/20230215125017.16044-1-trevor.wu@mediatek.com
+Signed-off-by: Mark Brown <broonie@kernel.org>
+---
+ sound/soc/mediatek/mt8188/mt8188-dai-etdm.c | 8 --------
+ 1 file changed, 8 deletions(-)
+
+diff --git a/sound/soc/mediatek/mt8188/mt8188-dai-etdm.c b/sound/soc/mediatek/mt8188/mt8188-dai-etdm.c
+index 071841903c620..1c53d4cb19bbe 100644
+--- a/sound/soc/mediatek/mt8188/mt8188-dai-etdm.c
++++ b/sound/soc/mediatek/mt8188/mt8188-dai-etdm.c
+@@ -679,7 +679,6 @@ static int mt8188_etdm_clk_src_sel_put(struct snd_kcontrol *kcontrol,
+ 	unsigned int old_val;
+ 	unsigned int mask;
+ 	unsigned int reg;
+-	unsigned int shift;
+ 
+ 	if (source >= e->items)
+ 		return -EINVAL;
+@@ -687,27 +686,22 @@ static int mt8188_etdm_clk_src_sel_put(struct snd_kcontrol *kcontrol,
+ 	if (!strcmp(kcontrol->id.name, "ETDM_OUT1_Clock_Source")) {
+ 		reg = ETDM_OUT1_CON4;
+ 		mask = ETDM_OUT_CON4_CLOCK_MASK;
+-		shift = ETDM_OUT_CON4_CLOCK_SHIFT;
+ 		val = FIELD_PREP(ETDM_OUT_CON4_CLOCK_MASK, source);
+ 	} else if (!strcmp(kcontrol->id.name, "ETDM_OUT2_Clock_Source")) {
+ 		reg = ETDM_OUT2_CON4;
+ 		mask = ETDM_OUT_CON4_CLOCK_MASK;
+-		shift = ETDM_OUT_CON4_CLOCK_SHIFT;
+ 		val = FIELD_PREP(ETDM_OUT_CON4_CLOCK_MASK, source);
+ 	} else if (!strcmp(kcontrol->id.name, "ETDM_OUT3_Clock_Source")) {
+ 		reg = ETDM_OUT3_CON4;
+ 		mask = ETDM_OUT_CON4_CLOCK_MASK;
+-		shift = ETDM_OUT_CON4_CLOCK_SHIFT;
+ 		val = FIELD_PREP(ETDM_OUT_CON4_CLOCK_MASK, source);
+ 	} else if (!strcmp(kcontrol->id.name, "ETDM_IN1_Clock_Source")) {
+ 		reg = ETDM_IN1_CON2;
+ 		mask = ETDM_IN_CON2_CLOCK_MASK;
+-		shift = ETDM_IN_CON2_CLOCK_SHIFT;
+ 		val = FIELD_PREP(ETDM_IN_CON2_CLOCK_MASK, source);
+ 	} else if (!strcmp(kcontrol->id.name, "ETDM_IN2_Clock_Source")) {
+ 		reg = ETDM_IN2_CON2;
+ 		mask = ETDM_IN_CON2_CLOCK_MASK;
+-		shift = ETDM_IN_CON2_CLOCK_SHIFT;
+ 		val = FIELD_PREP(ETDM_IN_CON2_CLOCK_MASK, source);
+ 	} else {
+ 		return -EINVAL;
+@@ -715,8 +709,6 @@ static int mt8188_etdm_clk_src_sel_put(struct snd_kcontrol *kcontrol,
+ 
+ 	regmap_read(afe->regmap, reg, &old_val);
+ 	old_val &= mask;
+-	old_val >>= shift;
+-
+ 	if (old_val == val)
+ 		return 0;
+ 
+-- 
+cgit 
+

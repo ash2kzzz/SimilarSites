@@ -1,0 +1,38 @@
+From ed0400ad547c0b88d2f06ecf22a089eb2e84c9b7 Mon Sep 17 00:00:00 2001
+From: Ilpo Järvinen <ilpo.jarvinen@linux.intel.com>
+Date: Mon, 23 Jan 2023 19:38:57 +0200
+Subject: serial: liteuart: Correct error rollback
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Goto to the correct rollback label instead of directly returning.
+
+Fixes: 5602cf99dcdc ("serial: liteuart: add IRQ support for the RX path")
+Reported-by: Stephen Rothwell <sfr@canb.auug.org.au>
+Reported-by: kernel test robot <lkp@intel.com>
+Reported-by: Dan Carpenter <error27@gmail.com>
+Signed-off-by: Ilpo Järvinen <ilpo.jarvinen@linux.intel.com>
+Reviewed-by: Gabriel Somlo <gsomlo@gmail.com>
+Link: https://lore.kernel.org/r/20230123173857.40695-3-ilpo.jarvinen@linux.intel.com
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+---
+ drivers/tty/serial/liteuart.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/tty/serial/liteuart.c b/drivers/tty/serial/liteuart.c
+index ef557d59e4c80..192ad681de354 100644
+--- a/drivers/tty/serial/liteuart.c
++++ b/drivers/tty/serial/liteuart.c
+@@ -313,7 +313,7 @@ static int liteuart_probe(struct platform_device *pdev)
+ 
+ 	ret = platform_get_irq_optional(pdev, 0);
+ 	if (ret < 0 && ret != -ENXIO)
+-		return ret;
++		goto err_erase_id;
+ 	if (ret > 0)
+ 		port->irq = ret;
+ 
+-- 
+cgit 
+

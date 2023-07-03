@@ -1,0 +1,36 @@
+From e4056e38ec87b4c21eb34bb8e38b1b0ca1221744 Mon Sep 17 00:00:00 2001
+From: Krzysztof Kozlowski <krzysztof.kozlowski@linaro.org>
+Date: Fri, 24 Mar 2023 09:41:27 +0100
+Subject: dt-bindings: pinctrl: qcom,sm8550-lpass-lpi: allow input-enabled and
+ bias-bus-hold
+
+Add missing common pin configuration properties: input-enabled and
+bias-bus-hold.
+
+Fixes: 268e97ccc311 ("dt-bindings: pinctrl: qcom,sm8550-lpass-lpi-pinctrl: add SM8550 LPASS")
+Signed-off-by: Krzysztof Kozlowski <krzysztof.kozlowski@linaro.org>
+Link: https://lore.kernel.org/r/20230324084127.29362-1-krzysztof.kozlowski@linaro.org
+Signed-off-by: Linus Walleij <linus.walleij@linaro.org>
+---
+ .../devicetree/bindings/pinctrl/qcom,sm8550-lpass-lpi-pinctrl.yaml      | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/Documentation/devicetree/bindings/pinctrl/qcom,sm8550-lpass-lpi-pinctrl.yaml b/Documentation/devicetree/bindings/pinctrl/qcom,sm8550-lpass-lpi-pinctrl.yaml
+index 5e90051ed314a..8f60a9113e7a2 100644
+--- a/Documentation/devicetree/bindings/pinctrl/qcom,sm8550-lpass-lpi-pinctrl.yaml
++++ b/Documentation/devicetree/bindings/pinctrl/qcom,sm8550-lpass-lpi-pinctrl.yaml
+@@ -96,9 +96,11 @@ $defs:
+           2: Lower Slew rate (slower edges)
+           3: Reserved (No adjustments)
+ 
++      bias-bus-hold: true
+       bias-pull-down: true
+       bias-pull-up: true
+       bias-disable: true
++      input-enable: true
+       output-high: true
+       output-low: true
+ 
+-- 
+cgit 
+

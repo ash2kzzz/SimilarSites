@@ -1,0 +1,43 @@
+From 95fcfc08537763bff21ec8c450d3d3cb1a60ad09 Mon Sep 17 00:00:00 2001
+From: Johan Hovold <johan+linaro@kernel.org>
+Date: Tue, 7 Mar 2023 17:44:03 +0100
+Subject: serial: qcom-geni: fix DMA mapping leak on shutdown
+
+Fix what appears to be a copy-paste error that can lead to a leaked DMA
+mapping on close() and failure to restart TX after the port is reopened.
+
+Note that rx_dma_addr is generally NULL when
+qcom_geni_serial_stop_tx_dma() is called as part of shutdown() (but
+tx_dma_addr need not be).
+
+Fixes: 2aaa43c70778 ("tty: serial: qcom-geni-serial: add support for serial engine DMA")
+Cc: stable <stable@kernel.org>
+Cc: Bartosz Golaszewski <bartosz.golaszewski@linaro.org>
+Signed-off-by: Johan Hovold <johan+linaro@kernel.org>
+Reviewed-by: Douglas Anderson <dianders@chromium.org>
+Reviewed-by: Srinivas Kandagatla <srinivas.kandagatla@linaro.org>
+Tested-by: Srinivas Kandagatla <srinivas.kandagatla@linaro.org>
+Reviewed-by: Andrew Halaney <ahalaney@redhat.com>
+Tested-by: Andrew Halaney <ahalaney@redhat.com> # sa8540p-ride
+Link: https://lore.kernel.org/r/20230307164405.14218-3-johan+linaro@kernel.org
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+---
+ drivers/tty/serial/qcom_geni_serial.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/tty/serial/qcom_geni_serial.c b/drivers/tty/serial/qcom_geni_serial.c
+index 11da05d8f8485..2aa3872e62835 100644
+--- a/drivers/tty/serial/qcom_geni_serial.c
++++ b/drivers/tty/serial/qcom_geni_serial.c
+@@ -596,7 +596,7 @@ static void qcom_geni_serial_stop_tx_dma(struct uart_port *uport)
+ 	if (!qcom_geni_serial_main_active(uport))
+ 		return;
+ 
+-	if (port->rx_dma_addr) {
++	if (port->tx_dma_addr) {
+ 		geni_se_tx_dma_unprep(&port->se, port->tx_dma_addr,
+ 				      port->tx_remaining);
+ 		port->tx_dma_addr = 0;
+-- 
+cgit 
+

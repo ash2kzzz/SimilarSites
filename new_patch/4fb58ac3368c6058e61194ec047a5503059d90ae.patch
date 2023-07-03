@@ -1,0 +1,46 @@
+From 4fb58ac3368c6058e61194ec047a5503059d90ae Mon Sep 17 00:00:00 2001
+From: Xin Long <lucien.xin@gmail.com>
+Date: Tue, 17 Jan 2023 13:42:12 -0500
+Subject: Revert "net: team: use IFF_NO_ADDRCONF flag to prevent ipv6 addrconf"
+
+This reverts commit 0aa64df30b382fc71d4fb1827d528e0eb3eff854.
+
+Currently IFF_NO_ADDRCONF is used to prevent all ipv6 addrconf for the
+slave ports of team, bonding and failover devices and it means no ipv6
+packets can be sent out through these slave ports. However, for team
+device, "nsna_ping" link_watch requires ipv6 addrconf. Otherwise, the
+link will be marked failure. This patch removes the IFF_NO_ADDRCONF
+flag set for team port, and we will fix the original issue in another
+patch, as Jakub suggested.
+
+Fixes: 0aa64df30b38 ("net: team: use IFF_NO_ADDRCONF flag to prevent ipv6 addrconf")
+Signed-off-by: Xin Long <lucien.xin@gmail.com>
+Link: https://lore.kernel.org/r/63e09531fc47963d2e4eff376653d3db21b97058.1673980932.git.lucien.xin@gmail.com
+Signed-off-by: Jakub Kicinski <kuba@kernel.org>
+---
+ drivers/net/team/team.c | 2 --
+ 1 file changed, 2 deletions(-)
+
+diff --git a/drivers/net/team/team.c b/drivers/net/team/team.c
+index fcd43d62d86bc..d10606f257c43 100644
+--- a/drivers/net/team/team.c
++++ b/drivers/net/team/team.c
+@@ -1044,7 +1044,6 @@ static int team_port_enter(struct team *team, struct team_port *port)
+ 			goto err_port_enter;
+ 		}
+ 	}
+-	port->dev->priv_flags |= IFF_NO_ADDRCONF;
+ 
+ 	return 0;
+ 
+@@ -1058,7 +1057,6 @@ static void team_port_leave(struct team *team, struct team_port *port)
+ {
+ 	if (team->ops.port_leave)
+ 		team->ops.port_leave(team, port);
+-	port->dev->priv_flags &= ~IFF_NO_ADDRCONF;
+ 	dev_put(team->dev);
+ }
+ 
+-- 
+cgit 
+

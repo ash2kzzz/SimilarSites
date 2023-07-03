@@ -1,0 +1,50 @@
+From 31c6ed4e89187beef8fe2f979c8881ca94839427 Mon Sep 17 00:00:00 2001
+From: Hal Feng <hal.feng@starfivetech.com>
+Date: Tue, 18 Apr 2023 20:37:56 +0800
+Subject: clk: starfive: Fix RESET_STARFIVE_JH7110 can't be selected in a
+ specified case
+
+When (ARCH_STARFIVE [=n] && COMPILE_TEST [=y] && RESET_CONTROLLER [=n]),
+RESET_STARFIVE_JH7110 can't be selected by CLK_STARFIVE_JH7110_SYS
+and CLK_STARFIVE_JH7110_AON.
+
+Add a condition `if RESET_CONTROLLER` to fix it. Also, delete redundant
+selected options of CLK_STARFIVE_JH7110_AON because these options are
+already selected by the dependency.
+
+Fixes: edab7204afe5 ("clk: starfive: Add StarFive JH7110 system clock driver")
+Fixes: b2ab3c94f41f ("clk: starfive: Add StarFive JH7110 always-on clock driver")
+Signed-off-by: Hal Feng <hal.feng@starfivetech.com>
+Link: https://lore.kernel.org/r/20230418123756.62495-2-hal.feng@starfivetech.com
+Reviewed-by: Conor Dooley <conor.dooley@microchip.com>
+Signed-off-by: Stephen Boyd <sboyd@kernel.org>
+---
+ drivers/clk/starfive/Kconfig | 5 +----
+ 1 file changed, 1 insertion(+), 4 deletions(-)
+
+diff --git a/drivers/clk/starfive/Kconfig b/drivers/clk/starfive/Kconfig
+index 71c1148ee5f66..5d2333106f134 100644
+--- a/drivers/clk/starfive/Kconfig
++++ b/drivers/clk/starfive/Kconfig
+@@ -26,7 +26,7 @@ config CLK_STARFIVE_JH7110_SYS
+ 	depends on ARCH_STARFIVE || COMPILE_TEST
+ 	select AUXILIARY_BUS
+ 	select CLK_STARFIVE_JH71X0
+-	select RESET_STARFIVE_JH7110
++	select RESET_STARFIVE_JH7110 if RESET_CONTROLLER
+ 	default ARCH_STARFIVE
+ 	help
+ 	  Say yes here to support the system clock controller on the
+@@ -35,9 +35,6 @@ config CLK_STARFIVE_JH7110_SYS
+ config CLK_STARFIVE_JH7110_AON
+ 	tristate "StarFive JH7110 always-on clock support"
+ 	depends on CLK_STARFIVE_JH7110_SYS
+-	select AUXILIARY_BUS
+-	select CLK_STARFIVE_JH71X0
+-	select RESET_STARFIVE_JH7110
+ 	default m if ARCH_STARFIVE
+ 	help
+ 	  Say yes here to support the always-on clock controller on the
+-- 
+cgit 
+

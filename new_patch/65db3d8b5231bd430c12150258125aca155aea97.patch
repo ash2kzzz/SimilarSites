@@ -1,0 +1,38 @@
+From 65db3d8b5231bd430c12150258125aca155aea97 Mon Sep 17 00:00:00 2001
+From: Marc Kleine-Budde <mkl@pengutronix.de>
+Date: Tue, 7 Feb 2023 21:15:01 +0100
+Subject: can: bittiming: can_calc_bittiming(): add missing parameter to no-op
+ function
+
+In commit 286c0e09e8e0 ("can: bittiming: can_changelink() pass extack
+down callstack") a new parameter was added to can_calc_bittiming(),
+however the static inline no-op (which is used if
+CONFIG_CAN_CALC_BITTIMING is disabled) wasn't converted.
+
+Add the new parameter to the static inline no-op of
+can_calc_bittiming().
+
+Fixes: 286c0e09e8e0 ("can: bittiming: can_changelink() pass extack down callstack")
+Reported-by: kernel test robot <lkp@intel.com>
+Link: https://lore.kernel.org/20230207201734.2905618-1-mkl@pengutronix.de
+Signed-off-by: Marc Kleine-Budde <mkl@pengutronix.de>
+---
+ include/linux/can/bittiming.h | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/include/linux/can/bittiming.h b/include/linux/can/bittiming.h
+index 6cb2ae308e3fe..9b8a9c39614bf 100644
+--- a/include/linux/can/bittiming.h
++++ b/include/linux/can/bittiming.h
+@@ -124,7 +124,7 @@ void can_calc_tdco(struct can_tdc *tdc, const struct can_tdc_const *tdc_const,
+ #else /* !CONFIG_CAN_CALC_BITTIMING */
+ static inline int
+ can_calc_bittiming(const struct net_device *dev, struct can_bittiming *bt,
+-		   const struct can_bittiming_const *btc)
++		   const struct can_bittiming_const *btc, struct netlink_ext_ack *extack)
+ {
+ 	netdev_err(dev, "bit-timing calculation not available\n");
+ 	return -EINVAL;
+-- 
+cgit 
+

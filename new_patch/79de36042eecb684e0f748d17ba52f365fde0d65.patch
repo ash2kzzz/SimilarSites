@@ -1,0 +1,45 @@
+From 79de36042eecb684e0f748d17ba52f365fde0d65 Mon Sep 17 00:00:00 2001
+From: Rob Herring <robh@kernel.org>
+Date: Fri, 5 May 2023 12:18:17 -0500
+Subject: powerpc/isa-bridge: Fix ISA mapping when "ranges" is not present
+
+Commit e4ab08be5b49 ("powerpc/isa-bridge: Remove open coded "ranges"
+parsing") broke PASemi Nemo board booting. The issue is the ISA I/O
+range was not getting mapped as the logic to handle no "ranges" was
+inverted. If phb_io_base_phys is non-zero, then the ISA range defaults
+to the first 64K of the PCI I/O space. phb_io_base_phys should only be 0
+when looking for a non-PCI ISA region.
+
+Fixes: e4ab08be5b49 ("powerpc/isa-bridge: Remove open coded "ranges" parsing")
+Reported-by: Christian Zigotzky <chzigotzky@xenosoft.de>
+Link: https://lore.kernel.org/all/301595ad-0edf-2113-b55f-f5b8051ed24c@xenosoft.de/
+Signed-off-by: Rob Herring <robh@kernel.org>
+Tested-by: Christian Zigotzky <chzigotzky@xenosoft.de>
+Signed-off-by: Michael Ellerman <mpe@ellerman.id.au>
+Link: https://msgid.link/20230505171816.3175865-1-robh@kernel.org
+---
+ arch/powerpc/kernel/isa-bridge.c | 5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/arch/powerpc/kernel/isa-bridge.c b/arch/powerpc/kernel/isa-bridge.c
+index 85bdd7d3652f8..48e0eaf1ad615 100644
+--- a/arch/powerpc/kernel/isa-bridge.c
++++ b/arch/powerpc/kernel/isa-bridge.c
+@@ -93,11 +93,12 @@ static int process_ISA_OF_ranges(struct device_node *isa_node,
+ 	}
+ 
+ inval_range:
+-	if (!phb_io_base_phys) {
++	if (phb_io_base_phys) {
+ 		pr_err("no ISA IO ranges or unexpected isa range, mapping 64k\n");
+ 		remap_isa_base(phb_io_base_phys, 0x10000);
++		return 0;
+ 	}
+-	return 0;
++	return -EINVAL;
+ }
+ 
+ 
+-- 
+cgit 
+

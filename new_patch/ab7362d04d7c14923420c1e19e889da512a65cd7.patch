@@ -1,0 +1,44 @@
+From ab7362d04d7c14923420c1e19e889da512a65cd7 Mon Sep 17 00:00:00 2001
+From: David Howells <dhowells@redhat.com>
+Date: Fri, 24 Feb 2023 14:31:15 +0000
+Subject: cifs: Fix cifs_writepages_region()
+
+Fix the cifs_writepages_region() to just jump over members of the batch
+that have been cleaned up rather than counting them as skipped.
+
+Unlike the other "skip_write" cases, this situation happens even for
+WB_SYNC_ALL, simply because the page has either been cleaned by somebody
+else, or was truncated.
+
+So in this case we're not "skipping" the write, we simply no longer need
+any write at all, so it's very different from the other skip_write cases.
+
+And we definitely shouldn't stop writing the rest just because of too
+many of these cases (or because we want to be rescheduled).
+
+Fixes: 3822a7c40997 ("Merge tag 'mm-stable-2023-02-20-13-37' of git://git.kernel.org/pub/scm/linux/kernel/git/akpm/mm")
+Signed-off-by: David Howells <dhowells@redhat.com>
+Link: https://lore.kernel.org/lkml/2213409.1677249075@warthog.procyon.org.uk/
+Signed-off-by: Linus Torvalds <torvalds@linux-foundation.org>
+---
+ fs/cifs/file.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/fs/cifs/file.c b/fs/cifs/file.c
+index 5365a32990888..ebfcaae8c4373 100644
+--- a/fs/cifs/file.c
++++ b/fs/cifs/file.c
+@@ -2893,8 +2893,9 @@ redo_folio:
+ 
+ 			if (folio_mapping(folio) != mapping ||
+ 			    !folio_test_dirty(folio)) {
++				start += folio_size(folio);
+ 				folio_unlock(folio);
+-				goto skip_write;
++				continue;
+ 			}
+ 
+ 			if (folio_test_writeback(folio) ||
+-- 
+cgit 
+

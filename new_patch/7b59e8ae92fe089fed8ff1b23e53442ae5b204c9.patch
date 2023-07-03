@@ -1,0 +1,61 @@
+From 7b59e8ae92fe089fed8ff1b23e53442ae5b204c9 Mon Sep 17 00:00:00 2001
+From: Douglas Anderson <dianders@chromium.org>
+Date: Fri, 16 Jun 2023 08:14:41 -0700
+Subject: arm64: dts: qcom: sc7280: Mark SCM as dma-coherent for chrome devices
+
+Just like for sc7180 devices using the Chrome bootflow (AKA trogdor
+and IDP), sc7280 devices using the Chrome bootflow also need their
+firmware marked dma-coherent. On sc7280 this wasn't causing WiFi to
+fail to startup, since WiFi works differently there. However, on
+sc7280 devices we were still getting the message at bootup after
+commit 7bd6680b47fa ("Revert "Revert "arm64: dma: Drop cache
+invalidation from arch_dma_prep_coherent()"""):
+
+ qcom_scm firmware:scm: Assign memory protection call failed -22
+ qcom_rmtfs_mem 9c900000.memory: assign memory failed
+ qcom_rmtfs_mem: probe of 9c900000.memory failed with error -22
+
+We should mark SCM properly just like we did for trogdor.
+
+Fixes: 7bd6680b47fa ("Revert "Revert "arm64: dma: Drop cache invalidation from arch_dma_prep_coherent()""")
+Fixes: 7a1f4e7f740d ("arm64: dts: qcom: sc7280: Add basic dts/dtsi files for sc7280 soc")
+Signed-off-by: Douglas Anderson <dianders@chromium.org>
+Link: https://lore.kernel.org/r/20230616081440.v2.4.I21dc14a63327bf81c6bb58fe8ed91dbdc9849ee2@changeid
+Signed-off-by: Bjorn Andersson <andersson@kernel.org>
+---
+ arch/arm64/boot/dts/qcom/sc7280-chrome-common.dtsi | 5 +++++
+ arch/arm64/boot/dts/qcom/sc7280.dtsi               | 2 +-
+ 2 files changed, 6 insertions(+), 1 deletion(-)
+
+diff --git a/arch/arm64/boot/dts/qcom/sc7280-chrome-common.dtsi b/arch/arm64/boot/dts/qcom/sc7280-chrome-common.dtsi
+index f562e4d2b6552..2e1cd219fc182 100644
+--- a/arch/arm64/boot/dts/qcom/sc7280-chrome-common.dtsi
++++ b/arch/arm64/boot/dts/qcom/sc7280-chrome-common.dtsi
+@@ -79,6 +79,11 @@
+ 	firmware-name = "ath11k/WCN6750/hw1.0/wpss.mdt";
+ };
+ 
++&scm {
++	/* TF-A firmware maps memory cached so mark dma-coherent to match. */
++	dma-coherent;
++};
++
+ &wifi {
+ 	status = "okay";
+ 
+diff --git a/arch/arm64/boot/dts/qcom/sc7280.dtsi b/arch/arm64/boot/dts/qcom/sc7280.dtsi
+index 2fd1d3c0eb345..36f0bb9b3cbb4 100644
+--- a/arch/arm64/boot/dts/qcom/sc7280.dtsi
++++ b/arch/arm64/boot/dts/qcom/sc7280.dtsi
+@@ -656,7 +656,7 @@
+ 	};
+ 
+ 	firmware {
+-		scm {
++		scm: scm {
+ 			compatible = "qcom,scm-sc7280", "qcom,scm";
+ 		};
+ 	};
+-- 
+cgit 
+

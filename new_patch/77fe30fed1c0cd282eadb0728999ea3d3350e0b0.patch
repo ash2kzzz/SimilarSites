@@ -1,0 +1,84 @@
+From 77fe30fed1c0cd282eadb0728999ea3d3350e0b0 Mon Sep 17 00:00:00 2001
+From: Arnaldo Carvalho de Melo <acme@redhat.com>
+Date: Mon, 2 Jan 2023 13:06:45 -0300
+Subject: perf tools: Fix segfault when trying to process tracepoints in
+ perf.data and not linked with libtraceevent
+
+When we have a perf.data file with tracepoints, such as:
+
+  # perf evlist -f
+  probe_perf:lzma_decompress_to_file
+  # Tip: use 'perf evlist --trace-fields' to show fields for tracepoint events
+  #
+
+We end up segfaulting when using perf built with NO_LIBTRACEEVENT=1 by
+trying to find an evsel with a NULL 'event_name' variable:
+
+  (gdb) run report --stdio -f
+  Starting program: /root/bin/perf report --stdio -f
+
+  Program received signal SIGSEGV, Segmentation fault.
+  0x000000000055219d in find_evsel (evlist=0xfda7b0, event_name=0x0) at util/sort.c:2830
+  warning: Source file is more recent than executable.
+  2830		if (event_name[0] == '%') {
+  Missing separate debuginfos, use: dnf debuginfo-install bzip2-libs-1.0.8-11.fc36.x86_64 cyrus-sasl-lib-2.1.27-18.fc36.x86_64 elfutils-debuginfod-client-0.188-3.fc36.x86_64 elfutils-libelf-0.188-3.fc36.x86_64 elfutils-libs-0.188-3.fc36.x86_64 glibc-2.35-20.fc36.x86_64 keyutils-libs-1.6.1-4.fc36.x86_64 krb5-libs-1.19.2-12.fc36.x86_64 libbrotli-1.0.9-7.fc36.x86_64 libcap-2.48-4.fc36.x86_64 libcom_err-1.46.5-2.fc36.x86_64 libcurl-7.82.0-12.fc36.x86_64 libevent-2.1.12-6.fc36.x86_64 libgcc-12.2.1-4.fc36.x86_64 libidn2-2.3.4-1.fc36.x86_64 libnghttp2-1.51.0-1.fc36.x86_64 libpsl-0.21.1-5.fc36.x86_64 libselinux-3.3-4.fc36.x86_64 libssh-0.9.6-4.fc36.x86_64 libstdc++-12.2.1-4.fc36.x86_64 libunistring-1.0-1.fc36.x86_64 libunwind-1.6.2-2.fc36.x86_64 libxcrypt-4.4.33-4.fc36.x86_64 libzstd-1.5.2-2.fc36.x86_64 numactl-libs-2.0.14-5.fc36.x86_64 opencsd-1.2.0-1.fc36.x86_64 openldap-2.6.3-1.fc36.x86_64 openssl-libs-3.0.5-2.fc36.x86_64 slang-2.3.2-11.fc36.x86_64 xz-libs-5.2.5-9.fc36.x86_64 zlib-1.2.11-33.fc36.x86_64
+  (gdb) bt
+  #0  0x000000000055219d in find_evsel (evlist=0xfda7b0, event_name=0x0) at util/sort.c:2830
+  #1  0x0000000000552416 in add_dynamic_entry (evlist=0xfda7b0, tok=0xffb6eb "trace", level=2) at util/sort.c:2976
+  #2  0x0000000000552d26 in sort_dimension__add (list=0xf93e00 <perf_hpp_list>, tok=0xffb6eb "trace", evlist=0xfda7b0, level=2) at util/sort.c:3193
+  #3  0x0000000000552e1c in setup_sort_list (list=0xf93e00 <perf_hpp_list>, str=0xffb6eb "trace", evlist=0xfda7b0) at util/sort.c:3227
+  #4  0x00000000005532fa in __setup_sorting (evlist=0xfda7b0) at util/sort.c:3381
+  #5  0x0000000000553cdc in setup_sorting (evlist=0xfda7b0) at util/sort.c:3608
+  #6  0x000000000042eb9f in cmd_report (argc=0, argv=0x7fffffffe470) at builtin-report.c:1596
+  #7  0x00000000004aee7e in run_builtin (p=0xf64ca0 <commands+288>, argc=3, argv=0x7fffffffe470) at perf.c:330
+  #8  0x00000000004af0f2 in handle_internal_command (argc=3, argv=0x7fffffffe470) at perf.c:384
+  #9  0x00000000004af241 in run_argv (argcp=0x7fffffffe29c, argv=0x7fffffffe290) at perf.c:428
+  #10 0x00000000004af5fc in main (argc=3, argv=0x7fffffffe470) at perf.c:562
+  (gdb)
+
+So check if we have tracepoint events in add_dynamic_entry() and bail
+out instead:
+
+  # perf report --stdio -f
+  This perf binary isn't linked with libtraceevent, can't process probe_perf:lzma_decompress_to_file
+  Error:
+  Unknown --sort key: `trace'
+  #
+
+Fixes: 378ef0f5d9d7f465 ("perf build: Use libtraceevent from the system")
+Acked-by: Ian Rogers <irogers@google.com>
+Cc: Adrian Hunter <adrian.hunter@intel.com>
+Cc: Jiri Olsa <jolsa@kernel.org>
+Cc: Namhyung Kim <namhyung@kernel.org>
+Link: http://lore.kernel.org/lkml/Y7MDb7kRaHZB6APC@kernel.org
+Signed-off-by: Arnaldo Carvalho de Melo <acme@redhat.com>
+---
+ tools/perf/util/sort.c | 12 ++++++++++++
+ 1 file changed, 12 insertions(+)
+
+diff --git a/tools/perf/util/sort.c b/tools/perf/util/sort.c
+index e188f74698dd3..37662cdec5eef 100644
+--- a/tools/perf/util/sort.c
++++ b/tools/perf/util/sort.c
+@@ -2971,6 +2971,18 @@ static int add_dynamic_entry(struct evlist *evlist, const char *tok,
+ 		ret = add_all_matching_fields(evlist, field_name, raw_trace, level);
+ 		goto out;
+ 	}
++#else
++	evlist__for_each_entry(evlist, evsel) {
++		if (evsel->core.attr.type == PERF_TYPE_TRACEPOINT) {
++			pr_err("%s %s", ret ? "," : "This perf binary isn't linked with libtraceevent, can't process", evsel__name(evsel));
++			ret = -ENOTSUP;
++		}
++	}
++
++	if (ret) {
++		pr_err("\n");
++		goto out;
++	}
+ #endif
+ 
+ 	evsel = find_evsel(evlist, event_name);
+-- 
+cgit 
+

@@ -1,0 +1,94 @@
+From 3ad1be6faef9a482c3098928220fcafaa51a1283 Mon Sep 17 00:00:00 2001
+From: Arnaldo Carvalho de Melo <acme@redhat.com>
+Date: Tue, 18 Apr 2023 12:46:02 -0300
+Subject: perf dso: Fix use before NULL check introduced by map__dso()
+ introduction
+
+James Clark noticed that the recent 63df0e4bc368adbd ("perf map: Add
+accessor for dso") patch accessed map->dso before the 'map' variable was
+NULL checked, which is a change in logic that leads to segmentation
+faults, so comb thru that patch to fix similar cases.
+
+Fixes: 63df0e4bc368adbd ("perf map: Add accessor for dso")
+Acked-by: Ian Rogers <irogers@google.com>
+Cc: Adrian Hunter <adrian.hunter@intel.com>
+Cc: Alexander Shishkin <alexander.shishkin@linux.intel.com>
+Cc: Ian Rogers <irogers@google.com>
+Cc: Ingo Molnar <mingo@redhat.com>
+Cc: James Clark <james.clark@arm.com>
+Cc: Jiri Olsa <jolsa@kernel.org>
+Cc: John Garry <john.g.garry@oracle.com>
+Cc: Leo Yan <leo.yan@linaro.org>
+Cc: Mark Rutland <mark.rutland@arm.com>
+Cc: Mathieu Poirier <mathieu.poirier@linaro.org>
+Cc: Mike Leach <mike.leach@linaro.org>
+Cc: Namhyung Kim <namhyung@kernel.org>
+Cc: Peter Zijlstra <peterz@infradead.org
+Cc: Suzuki Poulouse <suzuki.poulose@arm.com>
+Cc: Will Deacon <will@kernel.org>
+Link: https://lore.kernel.org/lkml/ZD68RYCVT8hqPuxr@kernel.org
+Signed-off-by: Arnaldo Carvalho de Melo <acme@redhat.com>
+---
+ tools/perf/builtin-script.c    | 7 +++----
+ tools/perf/ui/browsers/hists.c | 4 ++--
+ tools/perf/util/sort.c         | 2 +-
+ 3 files changed, 6 insertions(+), 7 deletions(-)
+
+diff --git a/tools/perf/builtin-script.c b/tools/perf/builtin-script.c
+index 8fba247b798ca..006f522d0e7f6 100644
+--- a/tools/perf/builtin-script.c
++++ b/tools/perf/builtin-script.c
+@@ -1075,8 +1075,7 @@ static int grab_bb(u8 *buffer, u64 start, u64 end,
+ 		return 0;
+ 	}
+ 
+-	dso = map__dso(al.map);
+-	if (!thread__find_map(thread, *cpumode, start, &al) || !dso) {
++	if (!thread__find_map(thread, *cpumode, start, &al) || (dso = map__dso(al.map)) == NULL) {
+ 		pr_debug("\tcannot resolve %" PRIx64 "-%" PRIx64 "\n", start, end);
+ 		return 0;
+ 	}
+@@ -1106,9 +1105,9 @@ static int map__fprintf_srccode(struct map *map, u64 addr, FILE *fp, struct srcc
+ 	unsigned line;
+ 	int len;
+ 	char *srccode;
+-	struct dso *dso = map__dso(map);
++	struct dso *dso;
+ 
+-	if (!map || !dso)
++	if (!map || (dso = map__dso(map)) == NULL)
+ 		return 0;
+ 	srcfile = get_srcline_split(dso,
+ 				    map__rip_2objdump(map, addr),
+diff --git a/tools/perf/ui/browsers/hists.c b/tools/perf/ui/browsers/hists.c
+index ab70e5f5fad23..69c81759a64f9 100644
+--- a/tools/perf/ui/browsers/hists.c
++++ b/tools/perf/ui/browsers/hists.c
+@@ -2499,9 +2499,9 @@ add_annotate_opt(struct hist_browser *browser __maybe_unused,
+ 		 struct map_symbol *ms,
+ 		 u64 addr)
+ {
+-	struct dso *dso = map__dso(ms->map);
++	struct dso *dso;
+ 
+-	if (!ms->map || !dso || dso->annotate_warned)
++	if (!ms->map || (dso = map__dso(ms->map)) == NULL || dso->annotate_warned)
+ 		return 0;
+ 
+ 	if (!ms->sym)
+diff --git a/tools/perf/util/sort.c b/tools/perf/util/sort.c
+index f2ffaf90648e4..31b1cd0935e27 100644
+--- a/tools/perf/util/sort.c
++++ b/tools/perf/util/sort.c
+@@ -1568,7 +1568,7 @@ static int hist_entry__dcacheline_snprintf(struct hist_entry *he, char *bf,
+ 
+ 	if (he->mem_info) {
+ 		struct map *map = he->mem_info->daddr.ms.map;
+-		struct dso *dso = map__dso(map);
++		struct dso *dso = map ? map__dso(map) : NULL;
+ 
+ 		addr = cl_address(he->mem_info->daddr.al_addr, chk_double_cl);
+ 		ms = &he->mem_info->daddr.ms;
+-- 
+cgit 
+

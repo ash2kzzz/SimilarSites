@@ -1,0 +1,36 @@
+From dd5fb04857d7346c9ea4901ec3ebe5b90b0e8868 Mon Sep 17 00:00:00 2001
+From: Kalesh AP <kalesh-anakkur.purayil@broadcom.com>
+Date: Thu, 18 May 2023 01:11:01 -0700
+Subject: RDMA/bnxt_re: Do not enable congestion control on VFs
+
+Congestion control needs to be enabled only on the PFs. FW fails the
+command if issued on VFs. Avoid sending the command on VFs.
+
+Fixes: f13bcef04ba0 ("RDMA/bnxt_re: Enable congestion control by default")
+Link: https://lore.kernel.org/r/1684397461-23082-4-git-send-email-selvin.xavier@broadcom.com
+Signed-off-by: Kalesh AP <kalesh-anakkur.purayil@broadcom.com>
+Reviewed-by: Selvin Thyparampil Xavier <selvin.xavier@broadcom.com>
+Signed-off-by: Selvin Xavier <selvin.xavier@broadcom.com>
+Signed-off-by: Jason Gunthorpe <jgg@nvidia.com>
+---
+ drivers/infiniband/hw/bnxt_re/main.c | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/drivers/infiniband/hw/bnxt_re/main.c b/drivers/infiniband/hw/bnxt_re/main.c
+index b9e2f89337e85..e34eccd178d0f 100644
+--- a/drivers/infiniband/hw/bnxt_re/main.c
++++ b/drivers/infiniband/hw/bnxt_re/main.c
+@@ -1336,6 +1336,10 @@ static void bnxt_re_setup_cc(struct bnxt_re_dev *rdev, bool enable)
+ {
+ 	struct bnxt_qplib_cc_param cc_param = {};
+ 
++	/* Do not enable congestion control on VFs */
++	if (rdev->is_virtfn)
++		return;
++
+ 	/* Currently enabling only for GenP5 adapters */
+ 	if (!bnxt_qplib_is_chip_gen_p5(rdev->chip_ctx))
+ 		return;
+-- 
+cgit 
+

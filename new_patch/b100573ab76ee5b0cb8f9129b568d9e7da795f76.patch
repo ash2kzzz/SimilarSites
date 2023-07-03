@@ -1,0 +1,36 @@
+From b100573ab76ee5b0cb8f9129b568d9e7da795f76 Mon Sep 17 00:00:00 2001
+From: Chris Mi <cmi@nvidia.com>
+Date: Tue, 11 Apr 2023 11:17:35 +0300
+Subject: net/mlx5e: TC, Add null pointer check for hardware miss support
+
+The cited commits add hardware miss support to tc action. But if
+the rules can't be offloaded, the pointers are null and system
+will panic when accessing them.
+
+Fix it by checking null pointer.
+
+Fixes: 08fe94ec5f77 ("net/mlx5e: TC, Remove special handling of CT action")
+Fixes: 6702782845a5 ("net/mlx5e: TC, Set CT miss to the specific ct action instance")
+Signed-off-by: Chris Mi <cmi@nvidia.com>
+Reviewed-by: Paul Blakey <paulb@nvidia.com>
+Signed-off-by: Saeed Mahameed <saeedm@nvidia.com>
+---
+ drivers/net/ethernet/mellanox/mlx5/core/en/tc_ct.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/drivers/net/ethernet/mellanox/mlx5/core/en/tc_ct.c b/drivers/net/ethernet/mellanox/mlx5/core/en/tc_ct.c
+index ead38ef694831..a254e728ac954 100644
+--- a/drivers/net/ethernet/mellanox/mlx5/core/en/tc_ct.c
++++ b/drivers/net/ethernet/mellanox/mlx5/core/en/tc_ct.c
+@@ -2021,6 +2021,8 @@ void
+ mlx5_tc_ct_delete_flow(struct mlx5_tc_ct_priv *priv,
+ 		       struct mlx5_flow_attr *attr)
+ {
++	if (!attr->ct_attr.ft) /* no ct action, return */
++		return;
+ 	if (!attr->ct_attr.nf_ft) /* means only ct clear action, and not ct_clear,ct() */
+ 		return;
+ 
+-- 
+cgit 
+

@@ -1,0 +1,53 @@
+From 8be8f170e8383fd1421e8b87950e90d7dd45be07 Mon Sep 17 00:00:00 2001
+From: Chuck Lever <chuck.lever@oracle.com>
+Date: Tue, 28 Mar 2023 13:47:58 -0400
+Subject: NFS: Remove "select RPCSEC_GSS_KRB5
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+If CONFIG_CRYPTO=n (e.g. arm/shmobile_defconfig):
+
+   WARNING: unmet direct dependencies detected for RPCSEC_GSS_KRB5
+     Depends on [n]: NETWORK_FILESYSTEMS [=y] && SUNRPC [=y] && CRYPTO [=n]
+     Selected by [y]:
+     - NFS_V4 [=y] && NETWORK_FILESYSTEMS [=y] && NFS_FS [=y]
+
+As NFSv4 can work without crypto enabled, remove the RPCSEC_GSS_KRB5
+dependency altogether.
+
+Trond says:
+> It is possible to use the NFSv4.1 client with just AUTH_SYS, and
+> in fact there are plenty of people out there using only that. The
+> fact that RFC5661 gets its knickers in a twist about RPCSEC_GSS
+> support is largely irrelevant to those people.
+>
+> The other issue is that ’select’ enforces the strict dependency
+> that if the NFS client is compiled into the kernel, then the
+> RPCSEC_GSS and kerberos code needs to be compiled in as well: they
+> cannot exist as modules.
+
+Fixes: e57d06527738 ("NFS & NFSD: Update GSS dependencies")
+Reported-by: kernel test robot <lkp@intel.com>
+Reported-by: Niklas Söderlund <niklas.soderlund@ragnatech.se>
+Suggested-by: Trond Myklebust <trondmy@hammerspace.com>
+Signed-off-by: Chuck Lever <chuck.lever@oracle.com>
+---
+ fs/nfs/Kconfig | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/fs/nfs/Kconfig b/fs/nfs/Kconfig
+index 450d6c3bc05e2..c1c7ed2fd860e 100644
+--- a/fs/nfs/Kconfig
++++ b/fs/nfs/Kconfig
+@@ -75,7 +75,6 @@ config NFS_V3_ACL
+ config NFS_V4
+ 	tristate "NFS client support for NFS version 4"
+ 	depends on NFS_FS
+-	select RPCSEC_GSS_KRB5
+ 	select KEYS
+ 	help
+ 	  This option enables support for version 4 of the NFS protocol
+-- 
+cgit 
+

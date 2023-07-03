@@ -1,0 +1,33 @@
+From bb649412d39f18eb2a8b7956209a068a08f4bc1e Mon Sep 17 00:00:00 2001
+From: Joerg Roedel <jroedel@suse.de>
+Date: Fri, 13 Jan 2023 20:15:28 +0100
+Subject: iommu/fsl_pamu: Fix compile error after adding set_platform_dma_ops
+
+The struct initializer for set_platform_dma_ops uses a semicolon as
+separator where a comma is required. Fix the compile error by using the
+correct separator.
+
+Fixes: c1fe9119ee70 ("iommu: Add set_platform_dma_ops callbacks")
+Signed-off-by: Joerg Roedel <jroedel@suse.de>
+Reviewed-by: Jason Gunthorpe <jgg@nvidia.com>
+Link: https://lore.kernel.org/r/20230113191528.23638-1-joro@8bytes.org
+---
+ drivers/iommu/fsl_pamu_domain.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/iommu/fsl_pamu_domain.c b/drivers/iommu/fsl_pamu_domain.c
+index e123161c211a5..bce3722970996 100644
+--- a/drivers/iommu/fsl_pamu_domain.c
++++ b/drivers/iommu/fsl_pamu_domain.c
+@@ -452,7 +452,7 @@ static const struct iommu_ops fsl_pamu_ops = {
+ 	.domain_alloc	= fsl_pamu_domain_alloc,
+ 	.probe_device	= fsl_pamu_probe_device,
+ 	.device_group   = fsl_pamu_device_group,
+-	.set_platform_dma_ops = fsl_pamu_set_platform_dma;
++	.set_platform_dma_ops = fsl_pamu_set_platform_dma,
+ 	.default_domain_ops = &(const struct iommu_domain_ops) {
+ 		.attach_dev	= fsl_pamu_attach_device,
+ 		.iova_to_phys	= fsl_pamu_iova_to_phys,
+-- 
+cgit 
+

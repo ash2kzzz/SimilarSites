@@ -1,0 +1,135 @@
+From e3cf2f8794b031ec0e640cb2dff95f45139ac4e9 Mon Sep 17 00:00:00 2001
+From: Taehee Yoo <ap420073@gmail.com>
+Date: Sun, 15 Jan 2023 12:15:34 +0000
+Subject: crypto: x86/aria-avx - fix build failure with old binutils
+
+The minimum version of binutils for kernel build is currently 2.23 and
+it doesn't support GFNI.
+So, it fails to build the aria-avx if the old binutils is used.
+The code using GFNI is an optional part of aria-avx.
+So, it disables GFNI part in it when the old binutils is used.
+In order to check whether the using binutils is supporting GFNI or not,
+AS_GFNI is added.
+
+Fixes: ba3579e6e45c ("crypto: aria-avx - add AES-NI/AVX/x86_64/GFNI assembler implementation of aria cipher")
+Reported-by: Jan Beulich <jbeulich@suse.com>
+Signed-off-by: Taehee Yoo <ap420073@gmail.com>
+Signed-off-by: Herbert Xu <herbert@gondor.apana.org.au>
+---
+ arch/x86/Kconfig.assembler              |  5 +++++
+ arch/x86/crypto/aria-aesni-avx-asm_64.S | 10 ++++++++++
+ arch/x86/crypto/aria_aesni_avx_glue.c   |  4 +++-
+ 3 files changed, 18 insertions(+), 1 deletion(-)
+
+diff --git a/arch/x86/Kconfig.assembler b/arch/x86/Kconfig.assembler
+index 26b8c08e2fc40..b88f784cb02ef 100644
+--- a/arch/x86/Kconfig.assembler
++++ b/arch/x86/Kconfig.assembler
+@@ -19,3 +19,8 @@ config AS_TPAUSE
+ 	def_bool $(as-instr,tpause %ecx)
+ 	help
+ 	  Supported by binutils >= 2.31.1 and LLVM integrated assembler >= V7
++
++config AS_GFNI
++	def_bool $(as-instr,vgf2p8mulb %xmm0$(comma)%xmm1$(comma)%xmm2)
++	help
++	  Supported by binutils >= 2.30 and LLVM integrated assembler
+diff --git a/arch/x86/crypto/aria-aesni-avx-asm_64.S b/arch/x86/crypto/aria-aesni-avx-asm_64.S
+index be6adc6e74587..fe0d84a7ced16 100644
+--- a/arch/x86/crypto/aria-aesni-avx-asm_64.S
++++ b/arch/x86/crypto/aria-aesni-avx-asm_64.S
+@@ -286,6 +286,7 @@
+ 	vpbroadcastb ((round * 16) + idx + 4)(rk), t0;	\
+ 	vpxor t0, x7, x7;
+ 
++#ifdef CONFIG_AS_GFNI
+ #define aria_sbox_8way_gfni(x0, x1, x2, x3,		\
+ 			    x4, x5, x6, x7,		\
+ 			    t0, t1, t2, t3,		\
+@@ -308,6 +309,8 @@
+ 	vgf2p8affineinvqb $0, t2, x3, x3;		\
+ 	vgf2p8affineinvqb $0, t2, x7, x7
+ 
++#endif /* CONFIG_AS_GFNI */
++
+ #define aria_sbox_8way(x0, x1, x2, x3,            	\
+ 		       x4, x5, x6, x7,			\
+ 		       t0, t1, t2, t3,			\
+@@ -547,6 +550,7 @@
+ 			     y4, y5, y6, y7,		\
+ 			     mem_tmp, 8);
+ 
++#ifdef CONFIG_AS_GFNI
+ #define aria_fe_gfni(x0, x1, x2, x3,			\
+ 		     x4, x5, x6, x7,			\
+ 		     y0, y1, y2, y3,			\
+@@ -701,6 +705,8 @@
+ 			     y4, y5, y6, y7,		\
+ 			     mem_tmp, 8);
+ 
++#endif /* CONFIG_AS_GFNI */
++
+ /* NB: section is mergeable, all elements must be aligned 16-byte blocks */
+ .section	.rodata.cst16, "aM", @progbits, 16
+ .align 16
+@@ -752,6 +758,7 @@
+ .Ltf_hi__x2__and__fwd_aff:
+ 	.octa 0x3F893781E95FE1576CDA64D2BA0CB204
+ 
++#ifdef CONFIG_AS_GFNI
+ .section	.rodata.cst8, "aM", @progbits, 8
+ .align 8
+ /* AES affine: */
+@@ -812,6 +819,7 @@
+ 		    BV8(0, 0, 0, 0, 0, 1, 0, 0),
+ 		    BV8(0, 0, 0, 0, 0, 0, 1, 0),
+ 		    BV8(0, 0, 0, 0, 0, 0, 0, 1))
++#endif /* CONFIG_AS_GFNI */
+ 
+ /* 4-bit mask */
+ .section	.rodata.cst4.L0f0f0f0f, "aM", @progbits, 4
+@@ -1080,6 +1088,7 @@ SYM_TYPED_FUNC_START(aria_aesni_avx_ctr_crypt_16way)
+ 	RET;
+ SYM_FUNC_END(aria_aesni_avx_ctr_crypt_16way)
+ 
++#ifdef CONFIG_AS_GFNI
+ SYM_FUNC_START_LOCAL(__aria_aesni_avx_gfni_crypt_16way)
+ 	/* input:
+ 	*      %r9: rk
+@@ -1298,3 +1307,4 @@ SYM_TYPED_FUNC_START(aria_aesni_avx_gfni_ctr_crypt_16way)
+ 	FRAME_END
+ 	RET;
+ SYM_FUNC_END(aria_aesni_avx_gfni_ctr_crypt_16way)
++#endif /* CONFIG_AS_GFNI */
+diff --git a/arch/x86/crypto/aria_aesni_avx_glue.c b/arch/x86/crypto/aria_aesni_avx_glue.c
+index 487094d64863c..4e1516b76669e 100644
+--- a/arch/x86/crypto/aria_aesni_avx_glue.c
++++ b/arch/x86/crypto/aria_aesni_avx_glue.c
+@@ -26,6 +26,7 @@ asmlinkage void aria_aesni_avx_ctr_crypt_16way(const void *ctx, u8 *dst,
+ 					       const u8 *src,
+ 					       u8 *keystream, u8 *iv);
+ EXPORT_SYMBOL_GPL(aria_aesni_avx_ctr_crypt_16way);
++#ifdef CONFIG_AS_GFNI
+ asmlinkage void aria_aesni_avx_gfni_encrypt_16way(const void *ctx, u8 *dst,
+ 						  const u8 *src);
+ EXPORT_SYMBOL_GPL(aria_aesni_avx_gfni_encrypt_16way);
+@@ -36,6 +37,7 @@ asmlinkage void aria_aesni_avx_gfni_ctr_crypt_16way(const void *ctx, u8 *dst,
+ 						    const u8 *src,
+ 						    u8 *keystream, u8 *iv);
+ EXPORT_SYMBOL_GPL(aria_aesni_avx_gfni_ctr_crypt_16way);
++#endif /* CONFIG_AS_GFNI */
+ 
+ static struct aria_avx_ops aria_ops;
+ 
+@@ -201,7 +203,7 @@ static int __init aria_avx_init(void)
+ 		return -ENODEV;
+ 	}
+ 
+-	if (boot_cpu_has(X86_FEATURE_GFNI)) {
++	if (boot_cpu_has(X86_FEATURE_GFNI) && IS_ENABLED(CONFIG_AS_GFNI)) {
+ 		aria_ops.aria_encrypt_16way = aria_aesni_avx_gfni_encrypt_16way;
+ 		aria_ops.aria_decrypt_16way = aria_aesni_avx_gfni_decrypt_16way;
+ 		aria_ops.aria_ctr_crypt_16way = aria_aesni_avx_gfni_ctr_crypt_16way;
+-- 
+cgit 
+

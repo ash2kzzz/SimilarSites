@@ -1,0 +1,36 @@
+From b317cebff59d9994ba041240654acb3c06b2f1f0 Mon Sep 17 00:00:00 2001
+From: Konrad Dybcio <konrad.dybcio@linaro.org>
+Date: Wed, 17 May 2023 04:18:49 +0200
+Subject: dt-bindings: cache: qcom,llcc: Fix SM8550 description
+
+SM8550 (LLCCv4.1) has 4 register regions, this was not described
+between its addition and the restructurization that happened in
+the commit referenced in the fixes tag.
+
+Fix it.
+
+Fixes: 43aa006e074c ("dt-bindings: arm: msm: Fix register regions used for LLCC banks")
+Signed-off-by: Konrad Dybcio <konrad.dybcio@linaro.org>
+Acked-by: Krzysztof Kozlowski <krzysztof.kozlowski@linaro.org>
+Acked-by: Manivannan Sadhasivam <mani@kernel.org>
+Signed-off-by: Bjorn Andersson <andersson@kernel.org>
+Link: https://lore.kernel.org/r/20230517-topic-kailua-llcc-v1-1-d57bd860c43e@linaro.org
+---
+ Documentation/devicetree/bindings/cache/qcom,llcc.yaml | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/Documentation/devicetree/bindings/cache/qcom,llcc.yaml b/Documentation/devicetree/bindings/cache/qcom,llcc.yaml
+index d8b91944180ae..44892aa589fd0 100644
+--- a/Documentation/devicetree/bindings/cache/qcom,llcc.yaml
++++ b/Documentation/devicetree/bindings/cache/qcom,llcc.yaml
+@@ -129,6 +129,7 @@ allOf:
+               - qcom,sm8250-llcc
+               - qcom,sm8350-llcc
+               - qcom,sm8450-llcc
++              - qcom,sm8550-llcc
+     then:
+       properties:
+         reg:
+-- 
+cgit 
+

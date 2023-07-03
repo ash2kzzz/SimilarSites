@@ -1,0 +1,65 @@
+From c9c4c070e0fe2551f82b20bbf14e4dbde88e573d Mon Sep 17 00:00:00 2001
+From: Yishai Hadas <yishaih@nvidia.com>
+Date: Sun, 8 Jan 2023 17:44:22 +0200
+Subject: vfio/mlx5: Fix UBSAN note
+
+Prevent calling roundup_pow_of_two() with value of 0 as it causes the
+below UBSAN note.
+
+Move this code and its few extra related lines to be called only when
+it's really applicable.
+
+UBSAN: shift-out-of-bounds in ./include/linux/log2.h:57:13
+shift exponent 64 is too large for 64-bit type 'long unsigned int'
+CPU: 15 PID: 1639 Comm: live_migration Not tainted 6.1.0-rc4 #1116
+Hardware name: QEMU Standard PC (Q35 + ICH9, 2009),
+BIOS rel-1.13.0-0-gf21b5a4aeb02-prebuilt.qemu.org 04/01/2014
+Call Trace:
+ <TASK>
+dump_stack_lvl+0x45/0x59
+ubsan_epilogue+0x5/0x36
+ __ubsan_handle_shift_out_of_bounds.cold+0x61/0xef
+? lock_is_held_type+0x98/0x110
+? rcu_read_lock_sched_held+0x3f/0x70
+mlx5vf_create_rc_qp.cold+0xe4/0xf2 [mlx5_vfio_pci]
+mlx5vf_start_page_tracker+0x769/0xcd0 [mlx5_vfio_pci]
+ vfio_device_fops_unl_ioctl+0x63f/0x700 [vfio]
+__x64_sys_ioctl+0x433/0x9a0
+do_syscall_64+0x3d/0x90
+entry_SYSCALL_64_after_hwframe+0x63/0xcd
+ </TASK>
+
+Fixes: 79c3cf279926 ("vfio/mlx5: Init QP based resources for dirty tracking")
+Signed-off-by: Yishai Hadas <yishaih@nvidia.com>
+Reviewed-by: Jason Gunthorpe <jgg@nvidia.com>
+Link: https://lore.kernel.org/r/20230108154427.32609-2-yishaih@nvidia.com
+Signed-off-by: Alex Williamson <alex.williamson@redhat.com>
+---
+ drivers/vfio/pci/mlx5/cmd.c | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/vfio/pci/mlx5/cmd.c b/drivers/vfio/pci/mlx5/cmd.c
+index 64e68d13cb98f..c5dcddbc4126c 100644
+--- a/drivers/vfio/pci/mlx5/cmd.c
++++ b/drivers/vfio/pci/mlx5/cmd.c
+@@ -1036,14 +1036,14 @@ mlx5vf_create_rc_qp(struct mlx5_core_dev *mdev,
+ 	if (!qp)
+ 		return ERR_PTR(-ENOMEM);
+ 
+-	qp->rq.wqe_cnt = roundup_pow_of_two(max_recv_wr);
+-	log_rq_stride = ilog2(MLX5_SEND_WQE_DS);
+-	log_rq_sz = ilog2(qp->rq.wqe_cnt);
+ 	err = mlx5_db_alloc_node(mdev, &qp->db, mdev->priv.numa_node);
+ 	if (err)
+ 		goto err_free;
+ 
+ 	if (max_recv_wr) {
++		qp->rq.wqe_cnt = roundup_pow_of_two(max_recv_wr);
++		log_rq_stride = ilog2(MLX5_SEND_WQE_DS);
++		log_rq_sz = ilog2(qp->rq.wqe_cnt);
+ 		err = mlx5_frag_buf_alloc_node(mdev,
+ 			wq_get_byte_sz(log_rq_sz, log_rq_stride),
+ 			&qp->buf, mdev->priv.numa_node);
+-- 
+cgit 
+

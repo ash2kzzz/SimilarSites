@@ -1,0 +1,33 @@
+From 452c165e3597691a953e3f4c4c0442c41c8e02f4 Mon Sep 17 00:00:00 2001
+From: Konrad Dybcio <konrad.dybcio@linaro.org>
+Date: Wed, 15 Mar 2023 15:11:20 +0100
+Subject: soc: qcom: icc-bwmon: Remove unused struct member
+
+bwmon->regmap was never used, as the regmap for bwmon is registered
+through devres and accessed through bwmon's regmap_field members.
+Remove it
+
+Fixes: ec63dcd3c863 ("soc: qcom: icc-bwmon: use regmap and prepare for BWMON v5")
+Reviewed-by: Krzysztof Kozlowski <krzysztof.kozlowski@linaro.org>
+Signed-off-by: Konrad Dybcio <konrad.dybcio@linaro.org>
+Signed-off-by: Bjorn Andersson <andersson@kernel.org>
+Link: https://lore.kernel.org/r/20230304-topic-ddr_bwmon-v3-2-77a050c2fbda@linaro.org
+---
+ drivers/soc/qcom/icc-bwmon.c | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/drivers/soc/qcom/icc-bwmon.c b/drivers/soc/qcom/icc-bwmon.c
+index d07be3700db60..d45caf512e2d0 100644
+--- a/drivers/soc/qcom/icc-bwmon.c
++++ b/drivers/soc/qcom/icc-bwmon.c
+@@ -164,7 +164,6 @@ struct icc_bwmon {
+ 	const struct icc_bwmon_data *data;
+ 	int irq;
+ 
+-	struct regmap *regmap;
+ 	struct regmap_field *regs[F_NUM_FIELDS];
+ 
+ 	unsigned int max_bw_kbps;
+-- 
+cgit 
+

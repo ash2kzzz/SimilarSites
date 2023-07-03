@@ -1,0 +1,42 @@
+From ae052e3ae09572194d7e574906db7272041577d3 Mon Sep 17 00:00:00 2001
+From: Nadav Amit <namit@vmware.com>
+Date: Wed, 8 Feb 2023 07:17:08 +0000
+Subject: x86/kprobes: Fix 1 byte conditional jump target
+
+Commit 3bc753c06dd0 ("kbuild: treat char as always unsigned") broke
+kprobes.  Setting a probe-point on 1 byte conditional jump can cause the
+kernel to crash when the (signed) relative jump offset gets treated as
+unsigned.
+
+Fix by replacing the unsigned 'immediate.bytes' (plus a cast) with the
+signed 'immediate.value' when assigning to the relative jump offset.
+
+[ dhansen: clarified changelog ]
+
+Fixes: 3bc753c06dd0 ("kbuild: treat char as always unsigned")
+Suggested-by: Masami Hiramatsu (Google) <mhiramat@kernel.org>
+Suggested-by: Dave Hansen <dave.hansen@intel.com>
+Signed-off-by: Nadav Amit <namit@vmware.com>
+Signed-off-by: Dave Hansen <dave.hansen@linux.intel.com>
+Acked-by: Peter Zijlstra (Intel) <peterz@infradead.org>
+Link: https://lore.kernel.org/all/20230208071708.4048-1-namit%40vmware.com
+---
+ arch/x86/kernel/kprobes/core.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/arch/x86/kernel/kprobes/core.c b/arch/x86/kernel/kprobes/core.c
+index b36f3c367cb24..695873c0f50b5 100644
+--- a/arch/x86/kernel/kprobes/core.c
++++ b/arch/x86/kernel/kprobes/core.c
+@@ -625,7 +625,7 @@ static int prepare_emulation(struct kprobe *p, struct insn *insn)
+ 		/* 1 byte conditional jump */
+ 		p->ainsn.emulate_op = kprobe_emulate_jcc;
+ 		p->ainsn.jcc.type = opcode & 0xf;
+-		p->ainsn.rel32 = *(char *)insn->immediate.bytes;
++		p->ainsn.rel32 = insn->immediate.value;
+ 		break;
+ 	case 0x0f:
+ 		opcode = insn->opcode.bytes[1];
+-- 
+cgit 
+

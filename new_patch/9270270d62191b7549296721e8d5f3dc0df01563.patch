@@ -1,0 +1,45 @@
+From 9270270d62191b7549296721e8d5f3dc0df01563 Mon Sep 17 00:00:00 2001
+From: Deren Wu <deren.wu@mediatek.com>
+Date: Tue, 14 Feb 2023 10:49:57 +0800
+Subject: wifi: mt76: mt7921: fix PCI DMA hang after reboot
+
+mt7921 just stop some workers and clean up chip status before reboot.
+In stress test, there are working activities still running at the period
+of .shutdown callback and that would cause some hosts cannot recover
+DMA after reboot. To avoid the floating state in reboot, we use
+mt7921_pci_remove() to fully deinit all resources.
+
+Fixes: f23a0cea8bd6 ("wifi: mt76: mt7921e: add pci .shutdown() support")
+Signed-off-by: Deren Wu <deren.wu@mediatek.com>
+Reviewed-by: AngeloGioacchino Del Regno <angelogioacchino.delregno@collabora.com>
+Signed-off-by: Felix Fietkau <nbd@nbd.name>
+---
+ drivers/net/wireless/mediatek/mt76/mt7921/pci.c | 12 +-----------
+ 1 file changed, 1 insertion(+), 11 deletions(-)
+
+diff --git a/drivers/net/wireless/mediatek/mt76/mt7921/pci.c b/drivers/net/wireless/mediatek/mt76/mt7921/pci.c
+index cb72ded372564..1a8a54a46dcc8 100644
+--- a/drivers/net/wireless/mediatek/mt76/mt7921/pci.c
++++ b/drivers/net/wireless/mediatek/mt76/mt7921/pci.c
+@@ -509,17 +509,7 @@ failed:
+ 
+ static void mt7921_pci_shutdown(struct pci_dev *pdev)
+ {
+-	struct mt76_dev *mdev = pci_get_drvdata(pdev);
+-	struct mt7921_dev *dev = container_of(mdev, struct mt7921_dev, mt76);
+-	struct mt76_connac_pm *pm = &dev->pm;
+-
+-	cancel_delayed_work_sync(&pm->ps_work);
+-	cancel_work_sync(&pm->wake_work);
+-
+-	/* chip cleanup before reboot */
+-	mt7921_mcu_drv_pmctrl(dev);
+-	mt7921_dma_cleanup(dev);
+-	mt7921_wfsys_reset(dev);
++	mt7921_pci_remove(pdev);
+ }
+ 
+ static DEFINE_SIMPLE_DEV_PM_OPS(mt7921_pm_ops, mt7921_pci_suspend, mt7921_pci_resume);
+-- 
+cgit 
+

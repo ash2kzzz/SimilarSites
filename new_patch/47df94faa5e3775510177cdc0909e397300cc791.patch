@@ -1,0 +1,53 @@
+From 47df94faa5e3775510177cdc0909e397300cc791 Mon Sep 17 00:00:00 2001
+From: Krzysztof Kozlowski <krzysztof.kozlowski@linaro.org>
+Date: Fri, 17 Mar 2023 09:21:37 +0100
+Subject: ASoC: dt-bindings: renesas: rsnd: correct comments syntax
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+yamllint expect space after '#' comment mark:
+
+  renesas,rsnd.yaml:282:4: [error] missing starting space in comment (comments)
+
+Fixes: 7f8b5b24bbb4 ("ASoC: dt-bindings: renesas,rsnd.yaml: add R-Car Gen4 support")
+Reported-by: Rafał Miłecki <zajec5@gmail.com>
+Link: https://lore.kernel.org/all/b2810924-169d-0bad-8f20-6ec2e683d170@gmail.com/
+Signed-off-by: Krzysztof Kozlowski <krzysztof.kozlowski@linaro.org>
+Link: https://lore.kernel.org/r/20230317082137.12629-1-krzysztof.kozlowski@linaro.org
+Signed-off-by: Mark Brown <broonie@kernel.org>
+---
+ Documentation/devicetree/bindings/sound/renesas,rsnd.yaml | 8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/Documentation/devicetree/bindings/sound/renesas,rsnd.yaml b/Documentation/devicetree/bindings/sound/renesas,rsnd.yaml
+index 676dfe7a7f176..68a93b2904339 100644
+--- a/Documentation/devicetree/bindings/sound/renesas,rsnd.yaml
++++ b/Documentation/devicetree/bindings/sound/renesas,rsnd.yaml
+@@ -279,9 +279,9 @@ required:
+ allOf:
+   - $ref: dai-common.yaml#
+ 
+-  #--------------------
++  # --------------------
+   # reg/reg-names
+-  #--------------------
++  # --------------------
+   # for Gen1
+   - if:
+       properties:
+@@ -336,9 +336,9 @@ allOf:
+               - ssi
+               - sdmc
+ 
+-  #--------------------
++  # --------------------
+   # clock-names
+-  #--------------------
++  # --------------------
+   - if:
+       properties:
+         compatible:
+-- 
+cgit 
+

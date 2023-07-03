@@ -1,0 +1,63 @@
+From 007ed7900aae514986770f6e14069ebd99c4a4c6 Mon Sep 17 00:00:00 2001
+From: Randy Dunlap <rdunlap@infradead.org>
+Date: Sun, 12 Feb 2023 23:03:24 -0800
+Subject: i3c: fix device.h kernel-doc warnings
+
+Fix all kernel-doc warnings in <linux/i3c/device.h>:
+
+include/linux/i3c/device.h:27: warning: contents before sections
+include/linux/i3c/device.h:196: warning: Excess function parameter 'dev' description in 'dev_to_i3cdev'
+
+Fixes: fa838c8ce537 ("i3c: move dev_to_i3cdev() to use container_of_const()")
+Fixes: 3a379bbcea0a ("i3c: Add core I3C infrastructure")
+Signed-off-by: Randy Dunlap <rdunlap@infradead.org>
+Cc: Boris Brezillon <boris.brezillon@bootlin.com>
+Cc: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+Cc: Alexandre Belloni <alexandre.belloni@bootlin.com>
+Cc: linux-i3c@lists.infradead.org
+Link: https://lore.kernel.org/r/20230213070324.1564-1-rdunlap@infradead.org
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+---
+ include/linux/i3c/device.h | 13 +++++++------
+ 1 file changed, 7 insertions(+), 6 deletions(-)
+
+diff --git a/include/linux/i3c/device.h b/include/linux/i3c/device.h
+index ce115ef08fec2..90fa83464f003 100644
+--- a/include/linux/i3c/device.h
++++ b/include/linux/i3c/device.h
+@@ -18,17 +18,18 @@
+ /**
+  * enum i3c_error_code - I3C error codes
+  *
++ * @I3C_ERROR_UNKNOWN: unknown error, usually means the error is not I3C
++ *		       related
++ * @I3C_ERROR_M0: M0 error
++ * @I3C_ERROR_M1: M1 error
++ * @I3C_ERROR_M2: M2 error
++ *
+  * These are the standard error codes as defined by the I3C specification.
+  * When -EIO is returned by the i3c_device_do_priv_xfers() or
+  * i3c_device_send_hdr_cmds() one can check the error code in
+  * &struct_i3c_priv_xfer.err or &struct i3c_hdr_cmd.err to get a better idea of
+  * what went wrong.
+  *
+- * @I3C_ERROR_UNKNOWN: unknown error, usually means the error is not I3C
+- *		       related
+- * @I3C_ERROR_M0: M0 error
+- * @I3C_ERROR_M1: M1 error
+- * @I3C_ERROR_M2: M2 error
+  */
+ enum i3c_error_code {
+ 	I3C_ERROR_UNKNOWN = 0,
+@@ -189,7 +190,7 @@ struct device *i3cdev_to_dev(struct i3c_device *i3cdev);
+ 
+ /**
+  * dev_to_i3cdev() - Returns the I3C device containing @dev
+- * @dev: device object
++ * @__dev: device object
+  *
+  * Return: a pointer to an I3C device object.
+  */
+-- 
+cgit 
+

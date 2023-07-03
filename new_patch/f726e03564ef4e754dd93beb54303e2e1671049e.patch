@@ -1,0 +1,135 @@
+From f726e03564ef4e754dd93beb54303e2e1671049e Mon Sep 17 00:00:00 2001
+From: John Fastabend <john.fastabend@gmail.com>
+Date: Mon, 22 May 2023 19:56:18 -0700
+Subject: bpf, sockmap: Test progs verifier error with latest clang
+
+With a relatively recent clang (7090c10273119) and with this commit
+to fix warnings in selftests (c8ed668593972) that uses __sink(err)
+to resolve unused variables. We get the following verifier error.
+
+root@6e731a24b33a:/host/tools/testing/selftests/bpf# ./test_sockmap
+libbpf: prog 'bpf_sockmap': BPF program load failed: Permission denied
+libbpf: prog 'bpf_sockmap': -- BEGIN PROG LOAD LOG --
+0: R1=ctx(off=0,imm=0) R10=fp0
+; op = (int) skops->op;
+0: (61) r2 = *(u32 *)(r1 +0)          ; R1=ctx(off=0,imm=0) R2_w=scalar(umax=4294967295,var_off=(0x0; 0xffffffff))
+; switch (op) {
+1: (16) if w2 == 0x4 goto pc+5        ; R2_w=scalar(umax=4294967295,var_off=(0x0; 0xffffffff))
+2: (56) if w2 != 0x5 goto pc+15       ; R2_w=5
+; lport = skops->local_port;
+3: (61) r2 = *(u32 *)(r1 +68)         ; R1=ctx(off=0,imm=0) R2_w=scalar(umax=4294967295,var_off=(0x0; 0xffffffff))
+; if (lport == 10000) {
+4: (56) if w2 != 0x2710 goto pc+13 18: R1=ctx(off=0,imm=0) R2=scalar(umax=4294967295,var_off=(0x0; 0xffffffff)) R10=fp0
+; __sink(err);
+18: (bc) w1 = w0
+R0 !read_ok
+processed 18 insns (limit 1000000) max_states_per_insn 0 total_states 2 peak_states 2 mark_read 1
+-- END PROG LOAD LOG --
+libbpf: prog 'bpf_sockmap': failed to load: -13
+libbpf: failed to load object 'test_sockmap_kern.bpf.o'
+load_bpf_file: (-1) No such file or directory
+ERROR: (-1) load bpf failed
+libbpf: prog 'bpf_sockmap': BPF program load failed: Permission denied
+libbpf: prog 'bpf_sockmap': -- BEGIN PROG LOAD LOG --
+0: R1=ctx(off=0,imm=0) R10=fp0
+; op = (int) skops->op;
+0: (61) r2 = *(u32 *)(r1 +0)          ; R1=ctx(off=0,imm=0) R2_w=scalar(umax=4294967295,var_off=(0x0; 0xffffffff))
+; switch (op) {
+1: (16) if w2 == 0x4 goto pc+5        ; R2_w=scalar(umax=4294967295,var_off=(0x0; 0xffffffff))
+2: (56) if w2 != 0x5 goto pc+15       ; R2_w=5
+; lport = skops->local_port;
+3: (61) r2 = *(u32 *)(r1 +68)         ; R1=ctx(off=0,imm=0) R2_w=scalar(umax=4294967295,var_off=(0x0; 0xffffffff))
+; if (lport == 10000) {
+4: (56) if w2 != 0x2710 goto pc+13 18: R1=ctx(off=0,imm=0) R2=scalar(umax=4294967295,var_off=(0x0; 0xffffffff)) R10=fp0
+; __sink(err);
+18: (bc) w1 = w0
+R0 !read_ok
+processed 18 insns (limit 1000000) max_states_per_insn 0 total_states 2 peak_states 2 mark_read 1
+-- END PROG LOAD LOG --
+libbpf: prog 'bpf_sockmap': failed to load: -13
+libbpf: failed to load object 'test_sockhash_kern.bpf.o'
+load_bpf_file: (-1) No such file or directory
+ERROR: (-1) load bpf failed
+libbpf: prog 'bpf_sockmap': BPF program load failed: Permission denied
+libbpf: prog 'bpf_sockmap': -- BEGIN PROG LOAD LOG --
+0: R1=ctx(off=0,imm=0) R10=fp0
+; op = (int) skops->op;
+0: (61) r2 = *(u32 *)(r1 +0)          ; R1=ctx(off=0,imm=0) R2_w=scalar(umax=4294967295,var_off=(0x0; 0xffffffff))
+; switch (op) {
+1: (16) if w2 == 0x4 goto pc+5        ; R2_w=scalar(umax=4294967295,var_off=(0x0; 0xffffffff))
+2: (56) if w2 != 0x5 goto pc+15       ; R2_w=5
+; lport = skops->local_port;
+3: (61) r2 = *(u32 *)(r1 +68)         ; R1=ctx(off=0,imm=0) R2_w=scalar(umax=4294967295,var_off=(0x0; 0xffffffff))
+; if (lport == 10000) {
+4: (56) if w2 != 0x2710 goto pc+13 18: R1=ctx(off=0,imm=0) R2=scalar(umax=4294967295,var_off=(0x0; 0xffffffff)) R10=fp0
+; __sink(err);
+18: (bc) w1 = w0
+R0 !read_ok
+processed 18 insns (limit 1000000) max_states_per_insn 0 total_states 2 peak_states 2 mark_read 1
+-- END PROG LOAD LOG --
+
+To fix simply remove the err value because its not actually used anywhere
+in the testing. We can investigate the root cause later. Future patch should
+probably actually test the err value as well. Although if the map updates
+fail they will get caught eventually by userspace.
+
+Fixes: c8ed668593972 ("selftests/bpf: fix lots of silly mistakes pointed out by compiler")
+Signed-off-by: John Fastabend <john.fastabend@gmail.com>
+Signed-off-by: Daniel Borkmann <daniel@iogearbox.net>
+Reviewed-by: Jakub Sitnicki <jakub@cloudflare.com>
+Link: https://lore.kernel.org/bpf/20230523025618.113937-15-john.fastabend@gmail.com
+---
+ tools/testing/selftests/bpf/progs/test_sockmap_kern.h | 12 +++++-------
+ 1 file changed, 5 insertions(+), 7 deletions(-)
+
+diff --git a/tools/testing/selftests/bpf/progs/test_sockmap_kern.h b/tools/testing/selftests/bpf/progs/test_sockmap_kern.h
+index baf9ebc6d903f..99d2ea9fb658f 100644
+--- a/tools/testing/selftests/bpf/progs/test_sockmap_kern.h
++++ b/tools/testing/selftests/bpf/progs/test_sockmap_kern.h
+@@ -191,7 +191,7 @@ SEC("sockops")
+ int bpf_sockmap(struct bpf_sock_ops *skops)
+ {
+ 	__u32 lport, rport;
+-	int op, err, ret;
++	int op, ret;
+ 
+ 	op = (int) skops->op;
+ 
+@@ -203,10 +203,10 @@ int bpf_sockmap(struct bpf_sock_ops *skops)
+ 		if (lport == 10000) {
+ 			ret = 1;
+ #ifdef SOCKMAP
+-			err = bpf_sock_map_update(skops, &sock_map, &ret,
++			bpf_sock_map_update(skops, &sock_map, &ret,
+ 						  BPF_NOEXIST);
+ #else
+-			err = bpf_sock_hash_update(skops, &sock_map, &ret,
++			bpf_sock_hash_update(skops, &sock_map, &ret,
+ 						   BPF_NOEXIST);
+ #endif
+ 		}
+@@ -218,10 +218,10 @@ int bpf_sockmap(struct bpf_sock_ops *skops)
+ 		if (bpf_ntohl(rport) == 10001) {
+ 			ret = 10;
+ #ifdef SOCKMAP
+-			err = bpf_sock_map_update(skops, &sock_map, &ret,
++			bpf_sock_map_update(skops, &sock_map, &ret,
+ 						  BPF_NOEXIST);
+ #else
+-			err = bpf_sock_hash_update(skops, &sock_map, &ret,
++			bpf_sock_hash_update(skops, &sock_map, &ret,
+ 						   BPF_NOEXIST);
+ #endif
+ 		}
+@@ -230,8 +230,6 @@ int bpf_sockmap(struct bpf_sock_ops *skops)
+ 		break;
+ 	}
+ 
+-	__sink(err);
+-
+ 	return 0;
+ }
+ 
+-- 
+cgit 
+

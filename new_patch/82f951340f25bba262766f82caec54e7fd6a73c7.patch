@@ -1,0 +1,39 @@
+From 82f951340f25bba262766f82caec54e7fd6a73c7 Mon Sep 17 00:00:00 2001
+From: "Liam R. Howlett" <Liam.Howlett@oracle.com>
+Date: Thu, 6 Apr 2023 15:30:50 -0400
+Subject: mm/mprotect: fix do_mprotect_pkey() return on error
+
+When the loop over the VMA is terminated early due to an error, the return
+code could be overwritten with ENOMEM.  Fix the return code by only
+setting the error on early loop termination when the error is not set.
+
+User-visible effects include: attempts to run mprotect() against a
+special mapping or with a poorly-aligned hugetlb address should return
+-EINVAL, but they presently return -ENOMEM.  In other cases an -EACCESS
+should be returned.
+
+Link: https://lkml.kernel.org/r/20230406193050.1363476-1-Liam.Howlett@oracle.com
+Fixes: 2286a6914c77 ("mm: change mprotect_fixup to vma iterator")
+Signed-off-by: Liam R. Howlett <Liam.Howlett@oracle.com>
+Cc: <stable@vger.kernel.org>
+Signed-off-by: Andrew Morton <akpm@linux-foundation.org>
+---
+ mm/mprotect.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/mm/mprotect.c b/mm/mprotect.c
+index 13e84d8c0797a..36351a00c0e82 100644
+--- a/mm/mprotect.c
++++ b/mm/mprotect.c
+@@ -838,7 +838,7 @@ static int do_mprotect_pkey(unsigned long start, size_t len,
+ 	}
+ 	tlb_finish_mmu(&tlb);
+ 
+-	if (vma_iter_end(&vmi) < end)
++	if (!error && vma_iter_end(&vmi) < end)
+ 		error = -ENOMEM;
+ 
+ out:
+-- 
+cgit 
+

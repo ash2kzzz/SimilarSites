@@ -1,0 +1,37 @@
+From efec2e2a722ed609fc7b64feef720fd601633b73 Mon Sep 17 00:00:00 2001
+From: Vladimir Oltean <vladimir.oltean@nxp.com>
+Date: Mon, 30 Jan 2023 21:30:51 +0200
+Subject: net: fman: memac: free mdio device if lynx_pcs_create() fails
+
+When memory allocation fails in lynx_pcs_create() and it returns NULL,
+there remains a dangling reference to the mdiodev returned by
+of_mdio_find_device() which is leaked as soon as memac_pcs_create()
+returns empty-handed.
+
+Fixes: a7c2a32e7f22 ("net: fman: memac: Use lynx pcs driver")
+Signed-off-by: Vladimir Oltean <vladimir.oltean@nxp.com>
+Reviewed-by: Sean Anderson <sean.anderson@seco.com>
+Acked-by: Madalin Bucur <madalin.bucur@oss.nxp.com>
+Link: https://lore.kernel.org/r/20230130193051.563315-1-vladimir.oltean@nxp.com
+Signed-off-by: Jakub Kicinski <kuba@kernel.org>
+---
+ drivers/net/ethernet/freescale/fman/fman_memac.c | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/drivers/net/ethernet/freescale/fman/fman_memac.c b/drivers/net/ethernet/freescale/fman/fman_memac.c
+index 9349f841bd064..587ad81a2dc32 100644
+--- a/drivers/net/ethernet/freescale/fman/fman_memac.c
++++ b/drivers/net/ethernet/freescale/fman/fman_memac.c
+@@ -1055,6 +1055,9 @@ static struct phylink_pcs *memac_pcs_create(struct device_node *mac_node,
+ 		return ERR_PTR(-EPROBE_DEFER);
+ 
+ 	pcs = lynx_pcs_create(mdiodev);
++	if (!pcs)
++		mdio_device_free(mdiodev);
++
+ 	return pcs;
+ }
+ 
+-- 
+cgit 
+

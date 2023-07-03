@@ -1,0 +1,33 @@
+From e12ad468c22065a2826b2fc4c11d2113a7975301 Mon Sep 17 00:00:00 2001
+From: Ingo Molnar <mingo@kernel.org>
+Date: Fri, 13 Jan 2023 13:43:20 +0100
+Subject: x86/gsseg: Add the new <asm/gsseg.h> header to <asm/asm-prototypes.h>
+
+Module build needs to be able to pick up the C prototype:
+
+  WARNING: modpost: EXPORT symbol "asm_load_gs_index" [vmlinux] version generation failed, symbol will not be versioned.
+  Is "asm_load_gs_index" prototyped in <asm/asm-prototypes.h>?
+
+Fixes: ae53fa187030 ("x86/gsseg: Move load_gs_index() to its own new header file")
+Reported-by: Stephen Rothwell <sfr@canb.auug.org.au>
+Signed-off-by: Ingo Molnar <mingo@kernel.org>
+Cc: linux-kernel@vger.kernel.org
+---
+ arch/x86/include/asm/asm-prototypes.h | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/arch/x86/include/asm/asm-prototypes.h b/arch/x86/include/asm/asm-prototypes.h
+index 8f80de627c60a..b1a98fa38828e 100644
+--- a/arch/x86/include/asm/asm-prototypes.h
++++ b/arch/x86/include/asm/asm-prototypes.h
+@@ -12,6 +12,7 @@
+ #include <asm/special_insns.h>
+ #include <asm/preempt.h>
+ #include <asm/asm.h>
++#include <asm/gsseg.h>
+ 
+ #ifndef CONFIG_X86_CMPXCHG64
+ extern void cmpxchg8b_emu(void);
+-- 
+cgit 
+

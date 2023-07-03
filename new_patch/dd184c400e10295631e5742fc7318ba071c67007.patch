@@ -1,0 +1,38 @@
+From dd184c400e10295631e5742fc7318ba071c67007 Mon Sep 17 00:00:00 2001
+From: Peter Ujfalusi <peter.ujfalusi@linux.intel.com>
+Date: Wed, 1 Feb 2023 13:28:46 +0200
+Subject: ASoC: topology: Set correct unload callback for graph type
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Using the control_unload for graph type of elem will lead surprises on
+module unload.
+
+The correct callback to use is the dapm_route_unload.
+
+Fixes: 31e9273912bf ("ASoC: topology: Use unload() op directly")
+Signed-off-by: Peter Ujfalusi <peter.ujfalusi@linux.intel.com>
+Reviewed-by: Amadeusz Sławiński <amadeuszx.slawinski@linux.intel.com>
+Link: https://lore.kernel.org/r/20230201112846.27707-3-peter.ujfalusi@linux.intel.com
+Signed-off-by: Mark Brown <broonie@kernel.org>
+---
+ sound/soc/soc-topology.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/sound/soc/soc-topology.c b/sound/soc/soc-topology.c
+index caf547816ea7e..78223603088e3 100644
+--- a/sound/soc/soc-topology.c
++++ b/sound/soc/soc-topology.c
+@@ -1081,7 +1081,7 @@ static int soc_tplg_dapm_graph_elems_load(struct soc_tplg *tplg,
+ 		/* add route dobj to dobj_list */
+ 		route->dobj.type = SND_SOC_DOBJ_GRAPH;
+ 		if (tplg->ops)
+-			route->dobj.unload = tplg->ops->control_unload;
++			route->dobj.unload = tplg->ops->dapm_route_unload;
+ 		route->dobj.index = tplg->index;
+ 		list_add(&route->dobj.list, &tplg->comp->dobj_list);
+ 
+-- 
+cgit 
+

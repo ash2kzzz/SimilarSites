@@ -1,0 +1,82 @@
+From 49f262bc3c7ab90bdb3491a659b28c0b397d52e8 Mon Sep 17 00:00:00 2001
+From: Arnd Bergmann <arnd@arndb.de>
+Date: Thu, 26 Jan 2023 22:17:31 +0100
+Subject: scsi: ufs: qcom: fix platform_msi_domain_free_irqs() reference
+
+The newly added MSI support is mostly hidden inside of an #ifdef,
+except for one line that now causes a build failure when MSI
+is disabled:
+
+drivers/ufs/host/ufs-qcom.c: In function 'ufs_qcom_remove':
+drivers/ufs/host/ufs-qcom.c:1698:9: error: implicit declaration of function 'platform_msi_domain_free_irqs' [-Werror=i]
+ 1698 |         platform_msi_domain_free_irqs(hba->dev);
+      |         ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Above that, the symbol that guards the other call was recently removed, so
+that is all dead code at the moment.
+
+Remove the incorrect #ifdef and instead of a Kconfig dependency to only
+allow building the driver when CONFIG_GENERIC_MSI_IRQ is enabled. This
+symbol is always present when PCI_MSI or ARM_GIC_V3_ITS are enabled, both
+of which should be present on kernels that can run on Qualcomm SoCs.
+
+The 'select RESET_CONTROLLER' in combination with this dependency
+unfortunately causes a dependency loop and this is a user-visible symbol,
+so it's better to change both to 'depends on'.
+
+Link: https://lore.kernel.org/r/20230126211831.2274211-1-arnd@kernel.org
+Fixes: 519b6274a777 ("scsi: ufs: qcom: Add MCQ ESI config vendor specific ops")
+Fixes: 13e7accb81d6 ("genirq: Get rid of GENERIC_MSI_IRQ_DOMAIN")
+Signed-off-by: Arnd Bergmann <arnd@arndb.de>
+Reviewed-by: Manivannan Sadhasivam <mani@kernel.org>
+Acked-by: Can Guo <quic_cang@quicinc.com>
+Signed-off-by: Martin K. Petersen <martin.petersen@oracle.com>
+---
+ drivers/ufs/host/Kconfig    | 3 ++-
+ drivers/ufs/host/ufs-qcom.c | 8 --------
+ 2 files changed, 2 insertions(+), 9 deletions(-)
+
+diff --git a/drivers/ufs/host/Kconfig b/drivers/ufs/host/Kconfig
+index 139064e70a347..6638814379218 100644
+--- a/drivers/ufs/host/Kconfig
++++ b/drivers/ufs/host/Kconfig
+@@ -57,8 +57,9 @@ config SCSI_UFS_DWC_TC_PLATFORM
+ config SCSI_UFS_QCOM
+ 	tristate "QCOM specific hooks to UFS controller platform driver"
+ 	depends on SCSI_UFSHCD_PLATFORM && ARCH_QCOM
++	depends on GENERIC_MSI_IRQ
++	depends on RESET_CONTROLLER
+ 	select QCOM_SCM if SCSI_UFS_CRYPTO
+-	select RESET_CONTROLLER
+ 	help
+ 	  This selects the QCOM specific additions to UFSHCD platform driver.
+ 	  UFS host on QCOM needs some vendor specific configuration before
+diff --git a/drivers/ufs/host/ufs-qcom.c b/drivers/ufs/host/ufs-qcom.c
+index 681da3ea71540..eb66b5f6cf194 100644
+--- a/drivers/ufs/host/ufs-qcom.c
++++ b/drivers/ufs/host/ufs-qcom.c
+@@ -1538,7 +1538,6 @@ static int ufs_qcom_get_outstanding_cqs(struct ufs_hba *hba,
+ 	return 0;
+ }
+ 
+-#ifdef CONFIG_GENERIC_MSI_IRQ_DOMAIN
+ static void ufs_qcom_write_msi_msg(struct msi_desc *desc, struct msi_msg *msg)
+ {
+ 	struct device *dev = msi_desc_to_dev(desc);
+@@ -1626,13 +1625,6 @@ out:
+ 	return ret;
+ }
+ 
+-#else
+-static int ufs_qcom_config_esi(struct ufs_hba *hba)
+-{
+-	return -EOPNOTSUPP;
+-}
+-#endif
+-
+ /*
+  * struct ufs_hba_qcom_vops - UFS QCOM specific variant operations
+  *
+-- 
+cgit 
+

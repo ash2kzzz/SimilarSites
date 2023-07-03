@@ -1,0 +1,29 @@
+From 6bddf115d0baed3095339024d942d7d1b5e7e4d6 Mon Sep 17 00:00:00 2001
+From: Vasily Gorbik <gor@linux.ibm.com>
+Date: Thu, 2 Feb 2023 19:22:35 +0100
+Subject: s390/boot: avoid potential amode31 truncation
+
+Fixes: bb1520d581a3 ("s390/mm: start kernel with DAT enabled")
+Reviewed-by: Alexander Gordeev <agordeev@linux.ibm.com>
+Signed-off-by: Vasily Gorbik <gor@linux.ibm.com>
+Signed-off-by: Heiko Carstens <hca@linux.ibm.com>
+---
+ arch/s390/boot/startup.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/arch/s390/boot/startup.c b/arch/s390/boot/startup.c
+index e7e2de386e24e..f5a7545d3c13d 100644
+--- a/arch/s390/boot/startup.c
++++ b/arch/s390/boot/startup.c
+@@ -271,7 +271,7 @@ static void offset_vmlinux_info(unsigned long offset)
+ static unsigned long reserve_amode31(unsigned long safe_addr)
+ {
+ 	__amode31_base = PAGE_ALIGN(safe_addr);
+-	return safe_addr + vmlinux.amode31_size;
++	return __amode31_base + vmlinux.amode31_size;
+ }
+ 
+ void startup_kernel(void)
+-- 
+cgit 
+

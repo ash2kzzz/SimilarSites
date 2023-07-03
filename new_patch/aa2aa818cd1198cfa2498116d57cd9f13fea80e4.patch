@@ -1,0 +1,30 @@
+From aa2aa818cd1198cfa2498116d57cd9f13fea80e4 Mon Sep 17 00:00:00 2001
+From: Johannes Berg <johannes.berg@intel.com>
+Date: Thu, 30 Mar 2023 22:48:45 +0200
+Subject: wifi: clean up erroneously introduced file
+
+Evidently Gregory sent this file but I (apparently every else) missed
+it entirely, remove that.
+
+Fixes: cf85123a210f ("wifi: iwlwifi: mvm: support enabling and disabling HW timestamping")
+Signed-off-by: Johannes Berg <johannes.berg@intel.com>
+---
+ intc-scripts/chromeOS/adjustments/024-time-sync.spatch | 6 ------
+ 1 file changed, 6 deletions(-)
+ delete mode 100644 intc-scripts/chromeOS/adjustments/024-time-sync.spatch
+
+diff --git a/intc-scripts/chromeOS/adjustments/024-time-sync.spatch b/intc-scripts/chromeOS/adjustments/024-time-sync.spatch
+deleted file mode 100644
+index 425e4700b3439..0000000000000
+--- a/intc-scripts/chromeOS/adjustments/024-time-sync.spatch
++++ /dev/null
+@@ -1,6 +0,0 @@
+-@@
+-struct ieee80211_hw *hw;
+-expression val;
+-@@
+--hw->wiphy->hw_timestamp_max_peers = val
+-+hw_timestamp_max_peers(hw)
+-- 
+cgit 
+

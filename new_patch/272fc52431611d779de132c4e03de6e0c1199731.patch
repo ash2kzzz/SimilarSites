@@ -1,0 +1,33 @@
+From 272fc52431611d779de132c4e03de6e0c1199731 Mon Sep 17 00:00:00 2001
+From: Krzysztof Kozlowski <krzysztof.kozlowski@linaro.org>
+Date: Thu, 2 Feb 2023 11:44:52 +0100
+Subject: arm64: dts: qcom: sm6115: correct TLMM gpio-ranges
+
+Correct the number of GPIOs in TLMM pin controller.
+
+Fixes: 97e563bf5ba1 ("arm64: dts: qcom: sm6115: Add basic soc dtsi")
+Signed-off-by: Krzysztof Kozlowski <krzysztof.kozlowski@linaro.org>
+Reviewed-by: Iskren Chernev <me@iskren.info>
+Acked-by: Linus Walleij <linus.walleij@linaro.org>
+Signed-off-by: Bjorn Andersson <andersson@kernel.org>
+Link: https://lore.kernel.org/r/20230202104452.299048-11-krzysztof.kozlowski@linaro.org
+---
+ arch/arm64/boot/dts/qcom/sm6115.dtsi | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/arch/arm64/boot/dts/qcom/sm6115.dtsi b/arch/arm64/boot/dts/qcom/sm6115.dtsi
+index fc199e43e01b7..4d6ec815b78b1 100644
+--- a/arch/arm64/boot/dts/qcom/sm6115.dtsi
++++ b/arch/arm64/boot/dts/qcom/sm6115.dtsi
+@@ -438,7 +438,7 @@
+ 			reg-names = "west", "south", "east";
+ 			interrupts = <GIC_SPI 227 IRQ_TYPE_LEVEL_HIGH>;
+ 			gpio-controller;
+-			gpio-ranges = <&tlmm 0 0 121>;
++			gpio-ranges = <&tlmm 0 0 114>; /* GPIOs + ufs_reset */
+ 			#gpio-cells = <2>;
+ 			interrupt-controller;
+ 			#interrupt-cells = <2>;
+-- 
+cgit 
+

@@ -1,0 +1,42 @@
+From 17f0669cfff88519fc05e32f78e8f5064c72727d Mon Sep 17 00:00:00 2001
+From: Sohil Mehta <sohil.mehta@intel.com>
+Date: Wed, 11 Jan 2023 19:32:11 +0000
+Subject: x86/vsyscall: Fix documentation to reflect the default mode
+
+The default vsyscall mode has been updated from emulate to xonly for a
+while. Update the kernel-parameters doc to reflect that.
+
+Fixes: 625b7b7f79c6 ("x86/vsyscall: Change the default vsyscall mode to xonly")
+Cc: Andy Lutomirski <luto@kernel.org>
+Signed-off-by: Sohil Mehta <sohil.mehta@intel.com>
+Reviewed-by: Tony Luck <tony.luck@intel.com>
+Reviewed-by: Kees Cook <keescook@chromium.org>
+Link: https://lore.kernel.org/r/20230111193211.1987047-1-sohil.mehta@intel.com
+Signed-off-by: Jonathan Corbet <corbet@lwn.net>
+---
+ Documentation/admin-guide/kernel-parameters.txt | 8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/Documentation/admin-guide/kernel-parameters.txt b/Documentation/admin-guide/kernel-parameters.txt
+index 80b14760314cc..348f7d5a78428 100644
+--- a/Documentation/admin-guide/kernel-parameters.txt
++++ b/Documentation/admin-guide/kernel-parameters.txt
+@@ -6766,11 +6766,11 @@
+ 			functions are at fixed addresses, they make nice
+ 			targets for exploits that can control RIP.
+ 
+-			emulate     [default] Vsyscalls turn into traps and are
+-			            emulated reasonably safely.  The vsyscall
+-				    page is readable.
++			emulate     Vsyscalls turn into traps and are emulated
++			            reasonably safely.  The vsyscall page is
++				    readable.
+ 
+-			xonly       Vsyscalls turn into traps and are
++			xonly       [default] Vsyscalls turn into traps and are
+ 			            emulated reasonably safely.  The vsyscall
+ 				    page is not readable.
+ 
+-- 
+cgit 
+

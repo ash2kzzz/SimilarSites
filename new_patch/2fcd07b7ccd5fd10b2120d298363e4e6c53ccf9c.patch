@@ -1,0 +1,44 @@
+From 2fcd07b7ccd5fd10b2120d298363e4e6c53ccf9c Mon Sep 17 00:00:00 2001
+From: "Liam R. Howlett" <Liam.Howlett@oracle.com>
+Date: Fri, 24 Feb 2023 16:20:55 -0500
+Subject: mm/mprotect: Fix successful vma_merge() of next in do_mprotect_pkey()
+
+If mprotect_fixup() successfully calls vma_merge() and replaces vma and
+the next vma, then the tmp variable in the do_mprotect_pkey() is not
+updated to point to the new vma end.  This results in the loop detecting
+a gap between VMAs that does not exist.
+
+Fix the faulty value of tmp by setting it to the end location of the vma
+iterator at the end of the loop.
+
+Link: https://lkml.kernel.org/r/20230224212055.1786100-1-Liam.Howlett@oracle.com
+Fixes: 2286a6914c77 ("mm: change mprotect_fixup to vma iterator")
+Link: https://lore.kernel.org/linux-mm/20230223120407.729110a6ecd1416ac59d9cb0@linux-foundation.org/
+Signed-off-by: Liam R. Howlett <Liam.Howlett@oracle.com>
+Reported-by: Bert Karwatzki <spasswolf@web.de>
+Link: https://bugzilla.kernel.org/show_bug.cgi?id=217061
+Tested-by: Bert Karwatzki <spasswolf@web.de>
+Reported-by: Linus Torvalds <torvalds@linux-foundation.org>
+Link: https://lore.kernel.org/linux-mm/CAHk-=wjFmVL7NiuxL54qLkoabni_yD-oF9=dpDgETtdsiCbhUg@mail.gmail.com/
+Tested-by: Linus Torvalds <torvalds@linux-foundation.org>
+Signed-off-by: Andrew Morton <akpm@linux-foundation.org>
+Signed-off-by: Linus Torvalds <torvalds@linux-foundation.org>
+---
+ mm/mprotect.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/mm/mprotect.c b/mm/mprotect.c
+index 1d4843c97c2a1..231929f119d95 100644
+--- a/mm/mprotect.c
++++ b/mm/mprotect.c
+@@ -832,6 +832,7 @@ static int do_mprotect_pkey(unsigned long start, size_t len,
+ 		if (error)
+ 			break;
+ 
++		tmp = vma_iter_end(&vmi);
+ 		nstart = tmp;
+ 		prot = reqprot;
+ 	}
+-- 
+cgit 
+

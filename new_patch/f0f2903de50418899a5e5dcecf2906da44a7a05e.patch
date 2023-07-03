@@ -1,0 +1,56 @@
+From f0f2903de50418899a5e5dcecf2906da44a7a05e Mon Sep 17 00:00:00 2001
+From: Dan Carpenter <error27@gmail.com>
+Date: Fri, 10 Mar 2023 15:31:13 +0300
+Subject: platform/x86: apple-gmux: return -EFAULT if copy fails
+
+The copy_to/from_user() functions return the number of bytes remaining
+to be copied, but we want to return -EFAULT to the user.
+
+Fixes: ce3fef2eb235 ("platform/x86: apple-gmux: add debugfs interface")
+Signed-off-by: Dan Carpenter <error27@gmail.com>
+Reviewed-by: Orlando Chamberlain <orlandlch.dev@gmail.com>
+Link: https://lore.kernel.org/r/0bdfa8c2-cb22-4bec-8773-584060613043@kili.mountain
+Reviewed-by: Hans de Goede <hdegoede@redhat.com>
+Signed-off-by: Hans de Goede <hdegoede@redhat.com>
+---
+ drivers/platform/x86/apple-gmux.c | 13 ++++++-------
+ 1 file changed, 6 insertions(+), 7 deletions(-)
+
+diff --git a/drivers/platform/x86/apple-gmux.c b/drivers/platform/x86/apple-gmux.c
+index ad81cb1df8f24..8aa81a3517b13 100644
+--- a/drivers/platform/x86/apple-gmux.c
++++ b/drivers/platform/x86/apple-gmux.c
+@@ -694,7 +694,6 @@ static ssize_t gmux_selected_port_data_write(struct file *file,
+ 		const char __user *userbuf, size_t count, loff_t *ppos)
+ {
+ 	struct apple_gmux_data *gmux_data = file->private_data;
+-	int ret;
+ 
+ 	if (*ppos)
+ 		return -EINVAL;
+@@ -702,16 +701,16 @@ static ssize_t gmux_selected_port_data_write(struct file *file,
+ 	if (count == 1) {
+ 		u8 data;
+ 
+-		ret = copy_from_user(&data, userbuf, 1);
+-		if (ret)
+-			return ret;
++		if (copy_from_user(&data, userbuf, 1))
++			return -EFAULT;
++
+ 		gmux_write8(gmux_data, gmux_data->selected_port, data);
+ 	} else if (count == 4) {
+ 		u32 data;
+ 
+-		ret = copy_from_user(&data, userbuf, 4);
+-		if (ret)
+-			return ret;
++		if (copy_from_user(&data, userbuf, 4))
++			return -EFAULT;
++
+ 		gmux_write32(gmux_data, gmux_data->selected_port, data);
+ 	} else
+ 		return -EINVAL;
+-- 
+cgit 
+

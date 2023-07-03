@@ -1,0 +1,46 @@
+From a6a9a5da68084d5eac6ef85ad09df7fc9c971de4 Mon Sep 17 00:00:00 2001
+From: Miaoqian Lin <linmq006@gmail.com>
+Date: Fri, 30 Dec 2022 12:31:00 +0400
+Subject: iommu: Fix refcount leak in iommu_device_claim_dma_owner
+
+iommu_group_get() returns the group with the reference incremented.
+Move iommu_group_get() after owner check to fix the refcount leak.
+
+Fixes: 89395ccedbc1 ("iommu: Add device-centric DMA ownership interfaces")
+Signed-off-by: Miaoqian Lin <linmq006@gmail.com>
+Reviewed-by: Lu Baolu <baolu.lu@linux.intel.com>
+Reviewed-by: Jason Gunthorpe <jgg@nvidia.com>
+Link: https://lore.kernel.org/r/20221230083100.1489569-1-linmq006@gmail.com
+[ joro: Remove *group = NULL initialization ]
+Signed-off-by: Joerg Roedel <jroedel@suse.de>
+---
+ drivers/iommu/iommu.c | 8 +++++---
+ 1 file changed, 5 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/iommu/iommu.c b/drivers/iommu/iommu.c
+index de91dd88705bd..5f6a85aea501e 100644
+--- a/drivers/iommu/iommu.c
++++ b/drivers/iommu/iommu.c
+@@ -3185,14 +3185,16 @@ EXPORT_SYMBOL_GPL(iommu_group_claim_dma_owner);
+  */
+ int iommu_device_claim_dma_owner(struct device *dev, void *owner)
+ {
+-	struct iommu_group *group = iommu_group_get(dev);
++	struct iommu_group *group;
+ 	int ret = 0;
+ 
+-	if (!group)
+-		return -ENODEV;
+ 	if (WARN_ON(!owner))
+ 		return -EINVAL;
+ 
++	group = iommu_group_get(dev);
++	if (!group)
++		return -ENODEV;
++
+ 	mutex_lock(&group->mutex);
+ 	if (group->owner_cnt) {
+ 		if (group->owner != owner) {
+-- 
+cgit 
+

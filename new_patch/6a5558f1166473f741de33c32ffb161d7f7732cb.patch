@@ -1,0 +1,86 @@
+From 6a5558f1166473f741de33c32ffb161d7f7732cb Mon Sep 17 00:00:00 2001
+From: Thomas Richter <tmricht@linux.ibm.com>
+Date: Tue, 7 Feb 2023 15:04:47 +0100
+Subject: perf tools: Fix perf tool build error in util/pfm.c
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+I have downloaded linux-next and build the perf tool using
+
+  # make LIBPFM4=1
+
+to have libpfm4 support built into perf. The build fails:
+
+ # make LIBPFM4=1
+....
+INSTALL libbpf_headers
+  CC      util/pfm.o
+util/pfm.c: In function ‘print_libpfm_event’:
+util/pfm.c:189:9: error: too many arguments to function ‘print_cb->print_event’
+  189 |         print_cb->print_event(print_state,
+      |         ^~~~~~~~
+util/pfm.c:220:25: error: too many arguments to function ‘print_cb->print_event’
+  220 |                         print_cb->print_event(print_state,
+
+The build error is caused by commit d9dc8874d6ce46cc ("perf pmu-events:
+Remove now unused event and metric variables") which changes the
+function prototype of
+
+  struct print_callbacks {
+      ...
+      void (*print_event)(...);  --> last two parameters removed.
+  };
+
+but does not adjust the usage of this function prototype in util/pfm.c.
+In file util/pfm.c function print_event() is still invoked with 13
+parameters instead of 11. The compile fails.
+
+When I adjust the file util/pfm.c as in this patch, the build works file.
+Please check this patch for correctness, I have just fixed the compile
+issue.
+
+Fixes: d9dc8874d6ce46cc ("perf pmu-events: Remove now unused event and metric variables")
+Signed-off-by: Thomas Richter <tmricht@linux.ibm.com>
+Tested-by: Arnaldo Carvalho de Melo <acme@redhat.com>
+Tested-by: Ian Rogers <irogers@google.com>
+Cc: Heiko Carstens <hca@linux.ibm.com>
+Cc: Ian Rogers <irogers@google.com>
+Cc: Sumanth Korikkar <sumanthk@linux.ibm.com>
+Cc: Sven Schnelle <svens@linux.ibm.com>
+Cc: Vasily Gorbik <gor@linux.ibm.com>
+Cc: egorenar@linux.ibm.com
+Cc: linux-kernel-next@vger.kernel.org
+Link: https://lore.kernel.org/r/20230207140447.1827741-1-tmricht@linux.ibm.com
+Signed-off-by: Arnaldo Carvalho de Melo <acme@redhat.com>
+---
+ tools/perf/util/pfm.c | 6 ++----
+ 1 file changed, 2 insertions(+), 4 deletions(-)
+
+diff --git a/tools/perf/util/pfm.c b/tools/perf/util/pfm.c
+index ac3227ba769c6..b59ba825ddc96 100644
+--- a/tools/perf/util/pfm.c
++++ b/tools/perf/util/pfm.c
+@@ -193,8 +193,7 @@ print_libpfm_event(const struct print_callbacks *print_cb, void *print_state,
+ 			/*scale_unit=*/NULL,
+ 			/*deprecated=*/NULL, "PFM event",
+ 			info->desc, /*long_desc=*/NULL,
+-			/*encoding_desc=*/buf->buf,
+-			/*metric_name=*/NULL, /*metric_expr=*/NULL);
++			/*encoding_desc=*/buf->buf);
+ 
+ 	pfm_for_each_event_attr(j, info) {
+ 		pfm_event_attr_info_t ainfo;
+@@ -224,8 +223,7 @@ print_libpfm_event(const struct print_callbacks *print_cb, void *print_state,
+ 					/*scale_unit=*/NULL,
+ 					/*deprecated=*/NULL, "PFM event",
+ 					ainfo.desc, /*long_desc=*/NULL,
+-					/*encoding_desc=*/buf->buf,
+-					/*metric_name=*/NULL, /*metric_expr=*/NULL);
++					/*encoding_desc=*/buf->buf);
+ 		}
+ 	}
+ }
+-- 
+cgit 
+

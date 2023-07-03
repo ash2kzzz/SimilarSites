@@ -1,0 +1,35 @@
+From 3bee9b573af515a8f15db70e7875ac96f87d57b5 Mon Sep 17 00:00:00 2001
+From: Dan Carpenter <error27@gmail.com>
+Date: Fri, 20 Jan 2023 16:47:12 +0300
+Subject: net: microchip: sparx5: Fix uninitialized variable in
+ vcap_path_exist()
+
+The "eport" variable needs to be initialized to NULL for this code to
+work.
+
+Fixes: 814e7693207f ("net: microchip: vcap api: Add a storage state to a VCAP rule")
+Signed-off-by: Dan Carpenter <error27@gmail.com>
+Reviewed-by: Steen Hegelund <Steen.Hegelund@microchip.com>
+Link: https://lore.kernel.org/r/Y8qbYAb+YSXo1DgR@kili
+Signed-off-by: Jakub Kicinski <kuba@kernel.org>
+---
+ drivers/net/ethernet/microchip/vcap/vcap_api.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/net/ethernet/microchip/vcap/vcap_api.c b/drivers/net/ethernet/microchip/vcap/vcap_api.c
+index d9cf2cd1925a0..2eaa857d8c1af 100644
+--- a/drivers/net/ethernet/microchip/vcap/vcap_api.c
++++ b/drivers/net/ethernet/microchip/vcap/vcap_api.c
+@@ -2010,7 +2010,8 @@ static int vcap_get_next_chain(struct vcap_control *vctrl,
+ static bool vcap_path_exist(struct vcap_control *vctrl, struct net_device *ndev,
+ 			    int dst_cid)
+ {
+-	struct vcap_enabled_port *eport, *elem;
++	struct vcap_enabled_port *eport = NULL;
++	struct vcap_enabled_port *elem;
+ 	struct vcap_admin *admin;
+ 	int tmp;
+ 
+-- 
+cgit 
+

@@ -1,0 +1,36 @@
+From f0c5b325dd80b295bd3959fff9166e1152e558bf Mon Sep 17 00:00:00 2001
+From: Heiner Kallweit <hkallweit1@gmail.com>
+Date: Thu, 16 Feb 2023 20:50:22 +0100
+Subject: dt-bindings: mmc: meson-gx: fix interrupt binding
+
+Reflect in the binding that the cd interrupt is optional,
+and add a description of the interrupts.
+
+Fixes: 09b31a610328 ("dt-bindings: mmc: meson-gx: support specifying cd interrupt")
+Signed-off-by: Heiner Kallweit <hkallweit1@gmail.com>
+Reviewed-by: Krzysztof Kozlowski <krzysztof.kozlowski@linaro.org>
+Link: https://lore.kernel.org/r/c1437eb6-0c01-809f-422b-cb1109489355@gmail.com
+Signed-off-by: Ulf Hansson <ulf.hansson@linaro.org>
+---
+ Documentation/devicetree/bindings/mmc/amlogic,meson-gx-mmc.yaml | 5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/Documentation/devicetree/bindings/mmc/amlogic,meson-gx-mmc.yaml b/Documentation/devicetree/bindings/mmc/amlogic,meson-gx-mmc.yaml
+index c8c30300daeb4..bc403ae9e5d9f 100644
+--- a/Documentation/devicetree/bindings/mmc/amlogic,meson-gx-mmc.yaml
++++ b/Documentation/devicetree/bindings/mmc/amlogic,meson-gx-mmc.yaml
+@@ -28,7 +28,10 @@ properties:
+     maxItems: 1
+ 
+   interrupts:
+-    maxItems: 2
++    minItems: 1
++    items:
++      - description: mmc controller instance
++      - description: card detect
+ 
+   clocks:
+     maxItems: 3
+-- 
+cgit 
+

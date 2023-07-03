@@ -1,0 +1,45 @@
+From c6001025d53ab56d7159cf313313c6b5bd250380 Mon Sep 17 00:00:00 2001
+From: Asutosh Das <quic_asutoshd@quicinc.com>
+Date: Wed, 8 Mar 2023 15:13:23 -0800
+Subject: scsi: ufs: mcq: Use active_reqs to check busy in clock scaling
+
+Multi Circular Queue doesn't use outstanding_reqs. However, the UFS clock
+scaling functions use outstanding_reqs to determine if there are requests
+pending. When MCQ is enabled, this check always returns false.
+
+Hence use active_reqs to check if there are pending requests.
+
+Fixes: eacb139b77ff ("scsi: ufs: core: mcq: Enable multi-circular queue")
+Signed-off-by: Asutosh Das <quic_asutoshd@quicinc.com>
+Reviewed-by: Manivannan Sadhasivam <mani@kernel.org>
+Link: https://lore.kernel.org/r/a24e0d646aac70eae0fc5e05fac0c58bb7e6e680.1678317160.git.quic_asutoshd@quicinc.com
+Signed-off-by: Martin K. Petersen <martin.petersen@oracle.com>
+---
+ drivers/ufs/core/ufshcd.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/ufs/core/ufshcd.c b/drivers/ufs/core/ufshcd.c
+index 05eac965ee275..37e178a9ac475 100644
+--- a/drivers/ufs/core/ufshcd.c
++++ b/drivers/ufs/core/ufshcd.c
+@@ -1500,7 +1500,7 @@ start_window:
+ 	scaling->window_start_t = curr_t;
+ 	scaling->tot_busy_t = 0;
+ 
+-	if (hba->outstanding_reqs) {
++	if (scaling->active_reqs) {
+ 		scaling->busy_start_t = curr_t;
+ 		scaling->is_busy_started = true;
+ 	} else {
+@@ -2118,7 +2118,7 @@ static void ufshcd_clk_scaling_update_busy(struct ufs_hba *hba)
+ 
+ 	spin_lock_irqsave(hba->host->host_lock, flags);
+ 	hba->clk_scaling.active_reqs--;
+-	if (!hba->outstanding_reqs && scaling->is_busy_started) {
++	if (!scaling->active_reqs && scaling->is_busy_started) {
+ 		scaling->tot_busy_t += ktime_to_us(ktime_sub(ktime_get(),
+ 					scaling->busy_start_t));
+ 		scaling->busy_start_t = 0;
+-- 
+cgit 
+

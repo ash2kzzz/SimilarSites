@@ -1,0 +1,99 @@
+From dd2f0a0a2f751b7aafaea5cbba8e65a55fd12f94 Mon Sep 17 00:00:00 2001
+From: Rae Moar <rmoar@google.com>
+Date: Fri, 27 Jan 2023 20:39:50 +0000
+Subject: kunit: fix bug in KUNIT_EXPECT_MEMEQ
+
+In KUNIT_EXPECT_MEMEQ and KUNIT_EXPECT_MEMNEQ, add check if one of the
+inputs is NULL and fail if this is the case.
+
+Currently, the kernel crashes if one of the inputs is NULL. Instead,
+fail the test and add an appropriate error message.
+
+Fixes: b8a926bea8b1 ("kunit: Introduce KUNIT_EXPECT_MEMEQ and KUNIT_EXPECT_MEMNEQ macros")
+
+This was found by the kernel test robot:
+https://lore.kernel.org/all/202212191448.D6EDPdOh-lkp@intel.com/
+
+Reported-by: kernel test robot <lkp@intel.com>
+
+Signed-off-by: Rae Moar <rmoar@google.com>
+Reviewed-by: David Gow <davidgow@google.com>
+Signed-off-by: Shuah Khan <skhan@linuxfoundation.org>
+---
+ include/kunit/test.h |  5 +++--
+ lib/kunit/assert.c   | 40 +++++++++++++++++++++++++---------------
+ 2 files changed, 28 insertions(+), 17 deletions(-)
+
+diff --git a/include/kunit/test.h b/include/kunit/test.h
+index 87ea90576b507..a20bff149bdf3 100644
+--- a/include/kunit/test.h
++++ b/include/kunit/test.h
+@@ -683,8 +683,9 @@ do {									       \
+ 		.right_text = #right,					       \
+ 	};								       \
+ 									       \
+-	if (likely(memcmp(__left, __right, __size) op 0))		       \
+-		break;							       \
++	if (likely(__left && __right))					       \
++		if (likely(memcmp(__left, __right, __size) op 0))	       \
++			break;						       \
+ 									       \
+ 	_KUNIT_FAILED(test,						       \
+ 		      assert_type,					       \
+diff --git a/lib/kunit/assert.c b/lib/kunit/assert.c
+index f5b50babe38d4..05a09652f5a10 100644
+--- a/lib/kunit/assert.c
++++ b/lib/kunit/assert.c
+@@ -241,24 +241,34 @@ void kunit_mem_assert_format(const struct kunit_assert *assert,
+ 	mem_assert = container_of(assert, struct kunit_mem_assert,
+ 				  assert);
+ 
+-	string_stream_add(stream,
+-			  KUNIT_SUBTEST_INDENT "Expected %s %s %s, but\n",
+-			  mem_assert->text->left_text,
+-			  mem_assert->text->operation,
+-			  mem_assert->text->right_text);
++	if (!mem_assert->left_value) {
++		string_stream_add(stream,
++				  KUNIT_SUBTEST_INDENT "Expected %s is not null, but is\n",
++				  mem_assert->text->left_text);
++	} else if (!mem_assert->right_value) {
++		string_stream_add(stream,
++				  KUNIT_SUBTEST_INDENT "Expected %s is not null, but is\n",
++				  mem_assert->text->right_text);
++	} else {
++		string_stream_add(stream,
++				KUNIT_SUBTEST_INDENT "Expected %s %s %s, but\n",
++				mem_assert->text->left_text,
++				mem_assert->text->operation,
++				mem_assert->text->right_text);
+ 
+-	string_stream_add(stream, KUNIT_SUBSUBTEST_INDENT "%s ==\n",
+-			  mem_assert->text->left_text);
+-	kunit_assert_hexdump(stream, mem_assert->left_value,
+-			     mem_assert->right_value, mem_assert->size);
++		string_stream_add(stream, KUNIT_SUBSUBTEST_INDENT "%s ==\n",
++				mem_assert->text->left_text);
++		kunit_assert_hexdump(stream, mem_assert->left_value,
++					mem_assert->right_value, mem_assert->size);
+ 
+-	string_stream_add(stream, "\n");
++		string_stream_add(stream, "\n");
+ 
+-	string_stream_add(stream, KUNIT_SUBSUBTEST_INDENT "%s ==\n",
+-			  mem_assert->text->right_text);
+-	kunit_assert_hexdump(stream, mem_assert->right_value,
+-			     mem_assert->left_value, mem_assert->size);
++		string_stream_add(stream, KUNIT_SUBSUBTEST_INDENT "%s ==\n",
++				mem_assert->text->right_text);
++		kunit_assert_hexdump(stream, mem_assert->right_value,
++					mem_assert->left_value, mem_assert->size);
+ 
+-	kunit_assert_print_msg(message, stream);
++		kunit_assert_print_msg(message, stream);
++	}
+ }
+ EXPORT_SYMBOL_GPL(kunit_mem_assert_format);
+-- 
+cgit 
+

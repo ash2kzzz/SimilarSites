@@ -1,0 +1,60 @@
+From 3ff6edbc17dbab87f705b1da93854ffff3912673 Mon Sep 17 00:00:00 2001
+From: Stanislaw Gruszka <stanislaw.gruszka@linux.intel.com>
+Date: Thu, 23 Mar 2023 13:54:59 +0100
+Subject: accel/ivpu: Do not use SSID 1
+
+The SSID=1 is used by the firmware as default value in
+case SSID mapping is not initialized. This allows
+detecting use of miss-configured memory contexts.
+The future FW versions may not allow using SSID=1.
+
+SSID=65 is valid value, number of contexts are limited
+by number of available command queues, but SSID can be
+any u16 value.
+
+Fixes: 35b137630f08 ("accel/ivpu: Introduce a new DRM driver for Intel VPU")
+Co-developed-by: Andrzej Kacprowski <andrzej.kacprowski@linux.intel.com>
+Signed-off-by: Andrzej Kacprowski <andrzej.kacprowski@linux.intel.com>
+Signed-off-by: Stanislaw Gruszka <stanislaw.gruszka@linux.intel.com>
+Reviewed-by: Jeffrey Hugo <quic_jhugo@quicinc.com>
+Signed-off-by: Jacek Lawrynowicz <jacek.lawrynowicz@linux.intel.com>
+Link: https://patchwork.freedesktop.org/patch/msgid/20230323125504.2586442-4-stanislaw.gruszka@linux.intel.com
+---
+ drivers/accel/ivpu/ivpu_drv.c | 4 ++--
+ drivers/accel/ivpu/ivpu_drv.h | 5 ++++-
+ 2 files changed, 6 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/accel/ivpu/ivpu_drv.c b/drivers/accel/ivpu/ivpu_drv.c
+index d9e311b403480..70245cf845938 100644
+--- a/drivers/accel/ivpu/ivpu_drv.c
++++ b/drivers/accel/ivpu/ivpu_drv.c
+@@ -474,8 +474,8 @@ static int ivpu_dev_init(struct ivpu_device *vdev)
+ 
+ 	vdev->hw->ops = &ivpu_hw_mtl_ops;
+ 	vdev->platform = IVPU_PLATFORM_INVALID;
+-	vdev->context_xa_limit.min = IVPU_GLOBAL_CONTEXT_MMU_SSID + 1;
+-	vdev->context_xa_limit.max = IVPU_CONTEXT_LIMIT;
++	vdev->context_xa_limit.min = IVPU_USER_CONTEXT_MIN_SSID;
++	vdev->context_xa_limit.max = IVPU_USER_CONTEXT_MAX_SSID;
+ 	atomic64_set(&vdev->unique_id_counter, 0);
+ 	xa_init_flags(&vdev->context_xa, XA_FLAGS_ALLOC);
+ 	xa_init_flags(&vdev->submitted_jobs_xa, XA_FLAGS_ALLOC1);
+diff --git a/drivers/accel/ivpu/ivpu_drv.h b/drivers/accel/ivpu/ivpu_drv.h
+index 1b2aa05840add..ef12a38e06e18 100644
+--- a/drivers/accel/ivpu/ivpu_drv.h
++++ b/drivers/accel/ivpu/ivpu_drv.h
+@@ -25,7 +25,10 @@
+ #define PCI_DEVICE_ID_MTL   0x7d1d
+ 
+ #define IVPU_GLOBAL_CONTEXT_MMU_SSID 0
+-#define IVPU_CONTEXT_LIMIT	     64
++/* SSID 1 is used by the VPU to represent invalid context */
++#define IVPU_USER_CONTEXT_MIN_SSID   2
++#define IVPU_USER_CONTEXT_MAX_SSID   (IVPU_USER_CONTEXT_MIN_SSID + 63)
++
+ #define IVPU_NUM_ENGINES	     2
+ 
+ #define IVPU_PLATFORM_SILICON 0
+-- 
+cgit 
+

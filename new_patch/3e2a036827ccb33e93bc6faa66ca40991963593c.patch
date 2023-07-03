@@ -1,0 +1,46 @@
+From 3e2a036827ccb33e93bc6faa66ca40991963593c Mon Sep 17 00:00:00 2001
+From: Dave Wysochanski <dwysocha@redhat.com>
+Date: Mon, 23 Jan 2023 11:58:47 -0500
+Subject: Documentation: Fix sysfs path for the NFSv4 client identifier
+
+The sysfs path for the NFS4 client identfier should start with
+the path component of 'nfs' for the kset, and then the 'net'
+path component for the netns object, followed by the
+'nfs_client' path component for the NFS client kobject,
+and ending with 'identifier' for the netns_client_id
+kobj_attribute.
+
+Fixes: a28faaddb2be ("Documentation: Add an explanation of NFSv4 client identifiers")
+Link: https://bugzilla.redhat.com/show_bug.cgi?id=1801326
+Reviewed-by: Chuck Lever <chuck.lever@oracle.com>
+Signed-off-by: Dave Wysochanski <dwysocha@redhat.com>
+Signed-off-by: Anna Schumaker <Anna.Schumaker@Netapp.com>
+---
+ Documentation/filesystems/nfs/client-identifier.rst | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/Documentation/filesystems/nfs/client-identifier.rst b/Documentation/filesystems/nfs/client-identifier.rst
+index 5147e15815a13..a94c7a9748d79 100644
+--- a/Documentation/filesystems/nfs/client-identifier.rst
++++ b/Documentation/filesystems/nfs/client-identifier.rst
+@@ -152,7 +152,7 @@ string:
+       via the kernel command line, or when the "nfs" module is
+       loaded.
+ 
+-    /sys/fs/nfs/client/net/identifier
++    /sys/fs/nfs/net/nfs_client/identifier
+       This virtual file, available since Linux 5.3, is local to the
+       network namespace in which it is accessed and so can provide
+       distinction between network namespaces (containers) when the
+@@ -164,7 +164,7 @@ then that uniquifier can be used. For example, a uniquifier might
+ be formed at boot using the container's internal identifier:
+ 
+     sha256sum /etc/machine-id | awk '{print $1}' \\
+-        > /sys/fs/nfs/client/net/identifier
++        > /sys/fs/nfs/net/nfs_client/identifier
+ 
+ Security considerations
+ -----------------------
+-- 
+cgit 
+

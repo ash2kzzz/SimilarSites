@@ -1,0 +1,34 @@
+From 4546334fc14fc1176384c7c7a426be9fef738c3e Mon Sep 17 00:00:00 2001
+From: Dmitry Baryshkov <dmitry.baryshkov@linaro.org>
+Date: Thu, 23 Mar 2023 17:47:25 +0300
+Subject: phy: qcom-qmp-combo: fix v3 offsets table
+
+SM8350 and SM8450 use qmp_combo_offsets_v3 table, which doesn't have
+PCS_USB offset. Add the usb3_pcs_usb entry to program correct registers
+while setting up sm8350 and sm8450 USB+DP combo PHYs.
+
+Fixes: 05bd18348b88 ("phy: qcom-qmp-combo: Add config for SM6350")
+Cc: Neil Armstrong <neil.armstrong@linaro.org>
+Signed-off-by: Dmitry Baryshkov <dmitry.baryshkov@linaro.org>
+Reviewed-by: Neil Armstrong <neil.armstrong@linaro.org>
+Link: https://lore.kernel.org/r/20230323144726.1614344-1-dmitry.baryshkov@linaro.org
+Signed-off-by: Vinod Koul <vkoul@kernel.org>
+---
+ drivers/phy/qualcomm/phy-qcom-qmp-combo.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/drivers/phy/qualcomm/phy-qcom-qmp-combo.c b/drivers/phy/qualcomm/phy-qcom-qmp-combo.c
+index c1483e157af4a..3b488d12c9330 100644
+--- a/drivers/phy/qualcomm/phy-qcom-qmp-combo.c
++++ b/drivers/phy/qualcomm/phy-qcom-qmp-combo.c
+@@ -1396,6 +1396,7 @@ static const struct qmp_combo_offsets qmp_combo_offsets_v3 = {
+ 	.usb3_serdes	= 0x1000,
+ 	.usb3_pcs_misc	= 0x1a00,
+ 	.usb3_pcs	= 0x1c00,
++	.usb3_pcs_usb	= 0x1f00,
+ 	.dp_serdes	= 0x2000,
+ 	.dp_txa		= 0x2200,
+ 	.dp_txb		= 0x2600,
+-- 
+cgit 
+

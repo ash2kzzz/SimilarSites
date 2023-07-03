@@ -1,0 +1,239 @@
+From 937e7a39068d806c1a951f19e38e1326be20f1b0 Mon Sep 17 00:00:00 2001
+From: Andy Shevchenko <andriy.shevchenko@linux.intel.com>
+Date: Thu, 29 Dec 2022 12:07:46 +0200
+Subject: pinctrl: nomadik: Add missing header(s)
+
+Do not imply that some of the generic headers may be always included.
+Instead, include explicitly what we are direct user of.
+
+While at it, sort headers alphabetically.
+
+Fixes: e5530adc17a7 ("pinctrl: Clean up headers")
+Cc: Randy Dunlap <rdunlap@infradead.org>
+Reported-by: Arnd Bergmann <arnd@arndb.de>
+Reported-by: kernel test robot <lkp@intel.com>
+Signed-off-by: Andy Shevchenko <andriy.shevchenko@linux.intel.com>
+Link: https://lore.kernel.org/r/20221229100746.35047-1-andriy.shevchenko@linux.intel.com
+Signed-off-by: Linus Walleij <linus.walleij@linaro.org>
+---
+ drivers/pinctrl/nomadik/pinctrl-ab8500.c          |  3 ++-
+ drivers/pinctrl/nomadik/pinctrl-ab8505.c          |  3 ++-
+ drivers/pinctrl/nomadik/pinctrl-abx500.c          | 32 +++++++++++++----------
+ drivers/pinctrl/nomadik/pinctrl-abx500.h          |  4 +++
+ drivers/pinctrl/nomadik/pinctrl-nomadik-db8500.c  |  3 +++
+ drivers/pinctrl/nomadik/pinctrl-nomadik-stn8815.c |  3 +++
+ drivers/pinctrl/nomadik/pinctrl-nomadik.c         | 32 ++++++++++++-----------
+ drivers/pinctrl/nomadik/pinctrl-nomadik.h         |  5 ++++
+ 8 files changed, 54 insertions(+), 31 deletions(-)
+
+diff --git a/drivers/pinctrl/nomadik/pinctrl-ab8500.c b/drivers/pinctrl/nomadik/pinctrl-ab8500.c
+index 3106a21cd277f..d7b244df058f2 100644
+--- a/drivers/pinctrl/nomadik/pinctrl-ab8500.c
++++ b/drivers/pinctrl/nomadik/pinctrl-ab8500.c
+@@ -6,9 +6,10 @@
+  */
+ 
+ #include <linux/kernel.h>
+-#include <linux/gpio/driver.h>
+ #include <linux/pinctrl/pinctrl.h>
++
+ #include <linux/mfd/abx500/ab8500.h>
++
+ #include "pinctrl-abx500.h"
+ 
+ /* All the pins that can be used for GPIO and some other functions */
+diff --git a/drivers/pinctrl/nomadik/pinctrl-ab8505.c b/drivers/pinctrl/nomadik/pinctrl-ab8505.c
+index b93af1fb37f01..45aa958b573e0 100644
+--- a/drivers/pinctrl/nomadik/pinctrl-ab8505.c
++++ b/drivers/pinctrl/nomadik/pinctrl-ab8505.c
+@@ -6,9 +6,10 @@
+  */
+ 
+ #include <linux/kernel.h>
+-#include <linux/gpio/driver.h>
+ #include <linux/pinctrl/pinctrl.h>
++
+ #include <linux/mfd/abx500/ab8500.h>
++
+ #include "pinctrl-abx500.h"
+ 
+ /* All the pins that can be used for GPIO and some other functions */
+diff --git a/drivers/pinctrl/nomadik/pinctrl-abx500.c b/drivers/pinctrl/nomadik/pinctrl-abx500.c
+index 7aa534576a459..28c3403df1b03 100644
+--- a/drivers/pinctrl/nomadik/pinctrl-abx500.c
++++ b/drivers/pinctrl/nomadik/pinctrl-abx500.c
+@@ -6,33 +6,37 @@
+  *
+  * Driver allows to use AxB5xx unused pins to be used as GPIO
+  */
+-#include <linux/kernel.h>
+-#include <linux/types.h>
+-#include <linux/slab.h>
+-#include <linux/init.h>
++#include <linux/bitops.h>
+ #include <linux/err.h>
+-#include <linux/of.h>
+-#include <linux/of_device.h>
+-#include <linux/platform_device.h>
+ #include <linux/gpio/driver.h>
++#include <linux/init.h>
++#include <linux/interrupt.h>
+ #include <linux/irq.h>
+ #include <linux/irqdomain.h>
+-#include <linux/interrupt.h>
+-#include <linux/bitops.h>
++#include <linux/kernel.h>
++#include <linux/of.h>
++#include <linux/of_device.h>
++#include <linux/platform_device.h>
++#include <linux/seq_file.h>
++#include <linux/slab.h>
++#include <linux/types.h>
++
+ #include <linux/mfd/abx500.h>
+ #include <linux/mfd/abx500/ab8500.h>
+-#include <linux/pinctrl/pinctrl.h>
++
+ #include <linux/pinctrl/consumer.h>
+-#include <linux/pinctrl/pinmux.h>
+-#include <linux/pinctrl/pinconf.h>
+-#include <linux/pinctrl/pinconf-generic.h>
+ #include <linux/pinctrl/machine.h>
++#include <linux/pinctrl/pinconf-generic.h>
++#include <linux/pinctrl/pinconf.h>
++#include <linux/pinctrl/pinctrl.h>
++#include <linux/pinctrl/pinmux.h>
+ 
+-#include "pinctrl-abx500.h"
+ #include "../core.h"
+ #include "../pinconf.h"
+ #include "../pinctrl-utils.h"
+ 
++#include "pinctrl-abx500.h"
++
+ /*
+  * GPIO registers offset
+  * Bank: 0x10
+diff --git a/drivers/pinctrl/nomadik/pinctrl-abx500.h b/drivers/pinctrl/nomadik/pinctrl-abx500.h
+index 90bb12fe8073f..d675220846752 100644
+--- a/drivers/pinctrl/nomadik/pinctrl-abx500.h
++++ b/drivers/pinctrl/nomadik/pinctrl-abx500.h
+@@ -2,6 +2,10 @@
+ #ifndef PINCTRL_PINCTRL_ABx500_H
+ #define PINCTRL_PINCTRL_ABx500_H
+ 
++#include <linux/types.h>
++
++struct pinctrl_pin_desc;
++
+ /* Package definitions */
+ #define PINCTRL_AB8500	0
+ #define PINCTRL_AB8505	1
+diff --git a/drivers/pinctrl/nomadik/pinctrl-nomadik-db8500.c b/drivers/pinctrl/nomadik/pinctrl-nomadik-db8500.c
+index 758d21f0a8503..490e0959e8be6 100644
+--- a/drivers/pinctrl/nomadik/pinctrl-nomadik-db8500.c
++++ b/drivers/pinctrl/nomadik/pinctrl-nomadik-db8500.c
+@@ -1,6 +1,9 @@
+ // SPDX-License-Identifier: GPL-2.0
+ #include <linux/kernel.h>
++#include <linux/types.h>
++
+ #include <linux/pinctrl/pinctrl.h>
++
+ #include "pinctrl-nomadik.h"
+ 
+ /* All the pins that can be used for GPIO and some other functions */
+diff --git a/drivers/pinctrl/nomadik/pinctrl-nomadik-stn8815.c b/drivers/pinctrl/nomadik/pinctrl-nomadik-stn8815.c
+index c0d7c86d09391..1552222ac68e7 100644
+--- a/drivers/pinctrl/nomadik/pinctrl-nomadik-stn8815.c
++++ b/drivers/pinctrl/nomadik/pinctrl-nomadik-stn8815.c
+@@ -1,6 +1,9 @@
+ // SPDX-License-Identifier: GPL-2.0
+ #include <linux/kernel.h>
++#include <linux/types.h>
++
+ #include <linux/pinctrl/pinctrl.h>
++
+ #include "pinctrl-nomadik.h"
+ 
+ /* All the pins that can be used for GPIO and some other functions */
+diff --git a/drivers/pinctrl/nomadik/pinctrl-nomadik.c b/drivers/pinctrl/nomadik/pinctrl-nomadik.c
+index f7d02513d8cc1..86a638077a697 100644
+--- a/drivers/pinctrl/nomadik/pinctrl-nomadik.c
++++ b/drivers/pinctrl/nomadik/pinctrl-nomadik.c
+@@ -7,30 +7,34 @@
+  *   Rewritten based on work by Prafulla WADASKAR <prafulla.wadaskar@st.com>
+  * Copyright (C) 2011-2013 Linus Walleij <linus.walleij@linaro.org>
+  */
+-#include <linux/kernel.h>
+-#include <linux/init.h>
+-#include <linux/device.h>
+-#include <linux/platform_device.h>
+-#include <linux/io.h>
++#include <linux/bitops.h>
+ #include <linux/clk.h>
++#include <linux/device.h>
+ #include <linux/err.h>
+ #include <linux/gpio/driver.h>
+-#include <linux/spinlock.h>
++#include <linux/init.h>
+ #include <linux/interrupt.h>
+-#include <linux/slab.h>
+-#include <linux/of_device.h>
++#include <linux/io.h>
++#include <linux/kernel.h>
+ #include <linux/of_address.h>
+-#include <linux/bitops.h>
++#include <linux/of_device.h>
++#include <linux/platform_device.h>
++#include <linux/seq_file.h>
++#include <linux/slab.h>
++#include <linux/spinlock.h>
++
++/* Since we request GPIOs from ourself */
++#include <linux/pinctrl/consumer.h>
+ #include <linux/pinctrl/machine.h>
++#include <linux/pinctrl/pinconf.h>
+ #include <linux/pinctrl/pinctrl.h>
+ #include <linux/pinctrl/pinmux.h>
+-#include <linux/pinctrl/pinconf.h>
+-/* Since we request GPIOs from ourself */
+-#include <linux/pinctrl/consumer.h>
+-#include "pinctrl-nomadik.h"
++
+ #include "../core.h"
+ #include "../pinctrl-utils.h"
+ 
++#include "pinctrl-nomadik.h"
++
+ /*
+  * The GPIO module in the Nomadik family of Systems-on-Chip is an
+  * AMBA device, managing 32 pins and alternate functions.  The logic block
+@@ -907,8 +911,6 @@ static int nmk_gpio_get_mode(struct nmk_gpio_chip *nmk_chip, int offset)
+ 	return (afunc ? NMK_GPIO_ALT_A : 0) | (bfunc ? NMK_GPIO_ALT_B : 0);
+ }
+ 
+-#include <linux/seq_file.h>
+-
+ static void nmk_gpio_dbg_show_one(struct seq_file *s,
+ 	struct pinctrl_dev *pctldev, struct gpio_chip *chip,
+ 	unsigned offset, unsigned gpio)
+diff --git a/drivers/pinctrl/nomadik/pinctrl-nomadik.h b/drivers/pinctrl/nomadik/pinctrl-nomadik.h
+index 84e2977573357..1ef2559bc5710 100644
+--- a/drivers/pinctrl/nomadik/pinctrl-nomadik.h
++++ b/drivers/pinctrl/nomadik/pinctrl-nomadik.h
+@@ -2,6 +2,11 @@
+ #ifndef PINCTRL_PINCTRL_NOMADIK_H
+ #define PINCTRL_PINCTRL_NOMADIK_H
+ 
++#include <linux/kernel.h>
++#include <linux/types.h>
++
++#include <linux/pinctrl/pinctrl.h>
++
+ /* Package definitions */
+ #define PINCTRL_NMK_STN8815	0
+ #define PINCTRL_NMK_DB8500	1
+-- 
+cgit 
+

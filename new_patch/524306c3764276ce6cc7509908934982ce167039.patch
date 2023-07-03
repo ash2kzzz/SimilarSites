@@ -1,0 +1,33 @@
+From 524306c3764276ce6cc7509908934982ce167039 Mon Sep 17 00:00:00 2001
+From: Richard Fitzgerald <rf@opensource.cirrus.com>
+Date: Thu, 1 Jun 2023 13:49:07 +0100
+Subject: ASoC: cs35l56: Remove NULL check from cs35l56_sdw_dai_set_stream()
+
+The dma pointer must be set to the passed stream pointer, even
+if that pointer is NULL.
+
+Fixes: e49611252900 ("ASoC: cs35l56: Add driver for Cirrus Logic CS35L56")
+Signed-off-by: Richard Fitzgerald <rf@opensource.cirrus.com>
+Link: https://lore.kernel.org/r/20230601124907.3128170-1-rf@opensource.cirrus.com
+Signed-off-by: Mark Brown <broonie@kernel.org>
+---
+ sound/soc/codecs/cs35l56.c | 3 ---
+ 1 file changed, 3 deletions(-)
+
+diff --git a/sound/soc/codecs/cs35l56.c b/sound/soc/codecs/cs35l56.c
+index d1677d76d0188..e0d2b9bb23262 100644
+--- a/sound/soc/codecs/cs35l56.c
++++ b/sound/soc/codecs/cs35l56.c
+@@ -704,9 +704,6 @@ static int cs35l56_sdw_dai_hw_free(struct snd_pcm_substream *substream,
+ static int cs35l56_sdw_dai_set_stream(struct snd_soc_dai *dai,
+ 				      void *sdw_stream, int direction)
+ {
+-	if (!sdw_stream)
+-		return 0;
+-
+ 	snd_soc_dai_dma_data_set(dai, direction, sdw_stream);
+ 
+ 	return 0;
+-- 
+cgit 
+

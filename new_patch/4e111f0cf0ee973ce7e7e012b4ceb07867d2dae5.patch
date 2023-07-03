@@ -1,0 +1,47 @@
+From 4e111f0cf0ee973ce7e7e012b4ceb07867d2dae5 Mon Sep 17 00:00:00 2001
+From: Tiezhu Yang <yangtiezhu@loongson.cn>
+Date: Fri, 19 May 2023 15:17:37 +0800
+Subject: perf bench syscall: Fix __NR_execve undeclared build error
+
+The __NR_execve definition for i386 was deleted by mistake
+in the commit ece7f7c0507c ("perf bench syscall: Add fork
+syscall benchmark"), add it to fix the build error on i386.
+
+Fixes: ece7f7c0507cc147 ("perf bench syscall: Add fork syscall benchmark")
+Reported-by: Linux Kernel Functional Testing <lkft@linaro.org>
+Signed-off-by: Tiezhu Yang <yangtiezhu@loongson.cn>
+Tested-by: Naresh Kamboju <naresh.kamboju@linaro.org>
+Cc: Adrian Hunter <adrian.hunter@intel.com>
+Cc: Alexander Shishkin <alexander.shishkin@linux.intel.com>
+Cc: Ian Rogers <irogers@google.com>
+Cc: Ingo Molnar <mingo@redhat.com>
+Cc: Jiri Olsa <jolsa@kernel.org>
+Cc: Mark Rutland <mark.rutland@arm.com>
+Cc: Namhyung Kim <namhyung@kernel.org>
+Cc: Peter Zijlstra <peterz@infradead.org>
+Cc: Tiezhu Yang <yangtiezhu@loongson.cn>
+Cc: loongson-kernel@lists.loongnix.cn
+Closes: https://lore.kernel.org/all/CA+G9fYvgBR1iB0CorM8OC4AM_w_tFzyQKHc+rF6qPzJL=TbfDQ@mail.gmail.com/
+Link: https://lore.kernel.org/r/1684480657-2375-1-git-send-email-yangtiezhu@loongson.cn
+Signed-off-by: Arnaldo Carvalho de Melo <acme@redhat.com>
+---
+ tools/arch/x86/include/uapi/asm/unistd_32.h | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/tools/arch/x86/include/uapi/asm/unistd_32.h b/tools/arch/x86/include/uapi/asm/unistd_32.h
+index b8ddfc4c4ab04..bc48a4dabe5db 100644
+--- a/tools/arch/x86/include/uapi/asm/unistd_32.h
++++ b/tools/arch/x86/include/uapi/asm/unistd_32.h
+@@ -2,6 +2,9 @@
+ #ifndef __NR_fork
+ #define __NR_fork 2
+ #endif
++#ifndef __NR_execve
++#define __NR_execve 11
++#endif
+ #ifndef __NR_getppid
+ #define __NR_getppid 64
+ #endif
+-- 
+cgit 
+

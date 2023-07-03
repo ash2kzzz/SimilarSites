@@ -1,0 +1,39 @@
+From 883e5ac6ee82c55b2f69099399a4d26cc456c5af Mon Sep 17 00:00:00 2001
+From: Geert Uytterhoeven <geert+renesas@glider.be>
+Date: Mon, 9 Jan 2023 14:26:41 +0100
+Subject: dt-bindings: mmc: renesas,sdhi: Fix RZ/V2M clock description
+
+The SD Card/MMC interface on the Renesas RZ/V2M SoC uses 4 clocks, like
+on RZ/G2L SoCs.
+
+The current description specifies 3 clocks, like on R-Car Gen3, which
+will lead to "make dtbs_check" failures:
+
+    arch/arm64/boot/dts/renesas/r9a09g011-v2mevk2.dtb: mmc@85000000: clocks: [[3, 1, 18], [3, 1, 20], [3, 1, 19], [3, 1, 17]] is too long
+	    From schema: Documentation/devicetree/bindings/mmc/renesas,sdhi.yaml
+
+Fixes: c8dbdf2a1044951b ("dt-bindings: mmc: renesas,sdhi: Document RZ/V2M support")
+Signed-off-by: Geert Uytterhoeven <geert+renesas@glider.be>
+Reviewed-by: Fabrizio Castro <fabrizio.castro.jz@renesas.com>
+Acked-by: Krzysztof Kozlowski <krzysztof.kozlowski@linaro.org>
+Link: https://lore.kernel.org/r/054c9f4dbb0bb1525f780d1e85c724436465c20c.1673270716.git.geert+renesas@glider.be
+Signed-off-by: Ulf Hansson <ulf.hansson@linaro.org>
+---
+ Documentation/devicetree/bindings/mmc/renesas,sdhi.yaml | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/Documentation/devicetree/bindings/mmc/renesas,sdhi.yaml b/Documentation/devicetree/bindings/mmc/renesas,sdhi.yaml
+index 4357736074898..fa089cbb155bd 100644
+--- a/Documentation/devicetree/bindings/mmc/renesas,sdhi.yaml
++++ b/Documentation/devicetree/bindings/mmc/renesas,sdhi.yaml
+@@ -122,6 +122,7 @@ allOf:
+               - renesas,sdhi-r9a07g043
+               - renesas,sdhi-r9a07g044
+               - renesas,sdhi-r9a07g054
++              - renesas,sdhi-r9a09g011
+     then:
+       properties:
+         clocks:
+-- 
+cgit 
+

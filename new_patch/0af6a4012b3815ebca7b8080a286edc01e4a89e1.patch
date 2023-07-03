@@ -1,0 +1,32 @@
+From 0af6a4012b3815ebca7b8080a286edc01e4a89e1 Mon Sep 17 00:00:00 2001
+From: Konrad Dybcio <konrad.dybcio@linaro.org>
+Date: Fri, 20 Jan 2023 22:00:56 +0100
+Subject: arm64: dts: qcom: sm8350: Feed DSI1 PHY clocks to DISPCC
+
+This was omitted but is necessary for DSI1 to function. Fix it.
+
+Fixes: d4a4410583ed ("arm64: dts: qcom: sm8350: Add display system nodes")
+Signed-off-by: Konrad Dybcio <konrad.dybcio@linaro.org>
+Reviewed-by: Dmitry Baryshkov <dmitry.baryshkov@linaro.org>
+Signed-off-by: Bjorn Andersson <andersson@kernel.org>
+Link: https://lore.kernel.org/r/20230120210101.2146852-4-konrad.dybcio@linaro.org
+---
+ arch/arm64/boot/dts/qcom/sm8350.dtsi | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/arch/arm64/boot/dts/qcom/sm8350.dtsi b/arch/arm64/boot/dts/qcom/sm8350.dtsi
+index 145287684afe4..a1962ad5d4f0d 100644
+--- a/arch/arm64/boot/dts/qcom/sm8350.dtsi
++++ b/arch/arm64/boot/dts/qcom/sm8350.dtsi
+@@ -3083,7 +3083,7 @@
+ 			reg = <0 0x0af00000 0 0x10000>;
+ 			clocks = <&rpmhcc RPMH_CXO_CLK>,
+ 				 <&mdss_dsi0_phy 0>, <&mdss_dsi0_phy 1>,
+-				 <0>, <0>,
++				 <&mdss_dsi1_phy 0>, <&mdss_dsi1_phy 1>,
+ 				 <0>,
+ 				 <0>;
+ 			clock-names = "bi_tcxo",
+-- 
+cgit 
+

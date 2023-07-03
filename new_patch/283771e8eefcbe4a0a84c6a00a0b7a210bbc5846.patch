@@ -1,0 +1,35 @@
+From 283771e8eefcbe4a0a84c6a00a0b7a210bbc5846 Mon Sep 17 00:00:00 2001
+From: Harshit Mogalapalli <harshit.m.mogalapalli@oracle.com>
+Date: Fri, 24 Mar 2023 07:55:35 -0700
+Subject: ASoC: cs35l56: Remove redundant return statement in
+ cs35l56_spi_probe()
+
+We have unreachable 'return ret' statement in cs35l56_spi_probe(),
+delete it as its dead code..
+
+This is found by static analysis with smatch.
+
+Fixes: e49611252900 ("ASoC: cs35l56: Add driver for Cirrus Logic CS35L56")
+Signed-off-by: Harshit Mogalapalli <harshit.m.mogalapalli@oracle.com>
+Reviewed-by: Richard Fitzgerald <rf@opensource.cirrus.com>
+Link: https://lore.kernel.org/r/20230324145535.3951689-1-harshit.m.mogalapalli@oracle.com
+Signed-off-by: Mark Brown <broonie@kernel.org>
+---
+ sound/soc/codecs/cs35l56-spi.c | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/sound/soc/codecs/cs35l56-spi.c b/sound/soc/codecs/cs35l56-spi.c
+index 80dcf37daae20..4b2084e85f292 100644
+--- a/sound/soc/codecs/cs35l56-spi.c
++++ b/sound/soc/codecs/cs35l56-spi.c
+@@ -29,7 +29,6 @@ static int cs35l56_spi_probe(struct spi_device *spi)
+ 	if (IS_ERR(cs35l56->regmap)) {
+ 		ret = PTR_ERR(cs35l56->regmap);
+ 		return dev_err_probe(&spi->dev, ret, "Failed to allocate register map\n");
+-		return ret;
+ 	}
+ 
+ 	cs35l56->dev = &spi->dev;
+-- 
+cgit 
+

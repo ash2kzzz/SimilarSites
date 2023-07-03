@@ -1,0 +1,74 @@
+From 001f61c4688f1dad18cfaa35ae364b35fb3cd66c Mon Sep 17 00:00:00 2001
+From: Armin Wolf <W_Armin@gmx.de>
+Date: Sat, 18 Feb 2023 12:53:17 +0100
+Subject: platform/x86: dell-ddv: Fix cache invalidation on resume
+
+If one or both sensor buffers could not be initialized, either
+due to missing hardware support or due to some error during probing,
+the resume handler will encounter undefined behaviour when
+attempting to lock buffers then protected by an uninitialized or
+destroyed mutex.
+Fix this by introducing a "active" flag which is set during probe,
+and only invalidate buffers which where flaged as "active".
+
+Tested on a Dell Inspiron 3505.
+
+Fixes: 3b7eeff93d29 ("platform/x86: dell-ddv: Add hwmon support")
+Signed-off-by: Armin Wolf <W_Armin@gmx.de>
+Link: https://lore.kernel.org/r/20230218115318.20662-1-W_Armin@gmx.de
+Signed-off-by: Hans de Goede <hdegoede@redhat.com>
+Reviewed-by: Hans de Goede <hdegoede@redhat.com>
+---
+ drivers/platform/x86/dell/dell-wmi-ddv.c | 8 +++++++-
+ 1 file changed, 7 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/platform/x86/dell/dell-wmi-ddv.c b/drivers/platform/x86/dell/dell-wmi-ddv.c
+index d547c9d097256..eff4e9649faf2 100644
+--- a/drivers/platform/x86/dell/dell-wmi-ddv.c
++++ b/drivers/platform/x86/dell/dell-wmi-ddv.c
+@@ -96,6 +96,7 @@ struct combined_chip_info {
+ };
+ 
+ struct dell_wmi_ddv_sensors {
++	bool active;
+ 	struct mutex lock;	/* protect caching */
+ 	unsigned long timestamp;
+ 	union acpi_object *obj;
+@@ -520,6 +521,9 @@ static struct hwmon_channel_info *dell_wmi_ddv_channel_create(struct device *dev
+ 
+ static void dell_wmi_ddv_hwmon_cache_invalidate(struct dell_wmi_ddv_sensors *sensors)
+ {
++	if (!sensors->active)
++		return;
++
+ 	mutex_lock(&sensors->lock);
+ 	kfree(sensors->obj);
+ 	sensors->obj = NULL;
+@@ -530,6 +534,7 @@ static void dell_wmi_ddv_hwmon_cache_destroy(void *data)
+ {
+ 	struct dell_wmi_ddv_sensors *sensors = data;
+ 
++	sensors->active = false;
+ 	mutex_destroy(&sensors->lock);
+ 	kfree(sensors->obj);
+ }
+@@ -549,6 +554,7 @@ static struct hwmon_channel_info *dell_wmi_ddv_channel_init(struct wmi_device *w
+ 		return ERR_PTR(ret);
+ 
+ 	mutex_init(&sensors->lock);
++	sensors->active = true;
+ 
+ 	ret = devm_add_action_or_reset(&wdev->dev, dell_wmi_ddv_hwmon_cache_destroy, sensors);
+ 	if (ret < 0)
+@@ -852,7 +858,7 @@ static int dell_wmi_ddv_resume(struct device *dev)
+ {
+ 	struct dell_wmi_ddv_data *data = dev_get_drvdata(dev);
+ 
+-	/* Force re-reading of all sensors */
++	/* Force re-reading of all active sensors */
+ 	dell_wmi_ddv_hwmon_cache_invalidate(&data->fans);
+ 	dell_wmi_ddv_hwmon_cache_invalidate(&data->temps);
+ 
+-- 
+cgit 
+

@@ -1,0 +1,38 @@
+From 4bd3e4c7e4e552aa148edd3f2a2326ccc3011122 Mon Sep 17 00:00:00 2001
+From: David Howells <dhowells@redhat.com>
+Date: Thu, 23 Feb 2023 08:15:39 +0000
+Subject: cifs: Fix an uninitialised variable
+
+Fix an uninitialised variable introduced in cifs.
+
+Fixes: 3d78fe73fa12 ("cifs: Build the RDMA SGE list directly from an iterator")
+Signed-off-by: David Howells <dhowells@redhat.com>
+Reviewed-by: Paulo Alcantara (SUSE) <pc@cjr.nz>
+cc: Steve French <sfrench@samba.org>
+cc: Shyam Prasad N <nspmangalore@gmail.com>
+cc: Rohith Surabattula <rohiths.msft@gmail.com>
+cc: Tom Talpey <tom@talpey.com>
+cc: Jeff Layton <jlayton@kernel.org>
+cc: linux-cifs@vger.kernel.org
+cc: linux-rdma@vger.kernel.org
+Signed-off-by: Steve French <stfrench@microsoft.com>
+---
+ fs/cifs/smbdirect.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/fs/cifs/smbdirect.c b/fs/cifs/smbdirect.c
+index 55b6e319a61dc..0362ebd4fa0fc 100644
+--- a/fs/cifs/smbdirect.c
++++ b/fs/cifs/smbdirect.c
+@@ -837,7 +837,7 @@ static int smbd_post_send_iter(struct smbd_connection *info,
+ 	int data_length;
+ 	struct smbd_request *request;
+ 	struct smbd_data_transfer *packet;
+-	int new_credits;
++	int new_credits = 0;
+ 
+ wait_credit:
+ 	/* Wait for send credits. A SMBD packet needs one credit */
+-- 
+cgit 
+

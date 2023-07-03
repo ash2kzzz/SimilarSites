@@ -1,0 +1,61 @@
+From 7a531c21f83d7c62825d00bee3a76c1ccfb5de9f Mon Sep 17 00:00:00 2001
+From: Masahiro Yamada <masahiroy@kernel.org>
+Date: Mon, 13 Mar 2023 05:07:27 +0900
+Subject: kbuild: deb-pkg: do not take KERNELRELEASE from the source version
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+KERNELRELEASE does not need to match the package version in changelog.
+Rather, it conventially matches what is called 'ABINAME', which is a
+part of the binary package names.
+
+Both are the same by default, but the former might be overridden by
+KDEB_PKGVERSION. In this case, the resulting package would not boot
+because /lib/modules/$(uname -r) does not point the module directory.
+
+Partially revert 3ab18a625ce4 ("kbuild: deb-pkg: improve the usability
+of source package").
+
+Reported-by: Péter Ujfalusi <peter.ujfalusi@linux.intel.com>
+Fixes: 3ab18a625ce4 ("kbuild: deb-pkg: improve the usability of source package")
+Signed-off-by: Masahiro Yamada <masahiroy@kernel.org>
+Tested-by: Peter Ujfalusi <peter.ujfalusi@linux.intel.com>
+---
+ scripts/package/deb-build-option | 9 ++++-----
+ scripts/package/mkdebian         | 1 +
+ 2 files changed, 5 insertions(+), 5 deletions(-)
+
+diff --git a/scripts/package/deb-build-option b/scripts/package/deb-build-option
+index b079b0d121d47..bd53624318f20 100755
+--- a/scripts/package/deb-build-option
++++ b/scripts/package/deb-build-option
+@@ -8,9 +8,8 @@ if [ -z "${CROSS_COMPILE}${cross_compiling}" -a "${DEB_HOST_ARCH}" != "${DEB_BUI
+ fi
+ 
+ version=$(dpkg-parsechangelog -S Version)
+-version_upstream="${version%-*}"
+-debian_revision="${version#${version_upstream}}"
+-debian_revision="${debian_revision#*-}"
++debian_revision="${version##*-}"
+ 
+-echo KERNELRELEASE=${version_upstream}
+-echo KBUILD_BUILD_VERSION=${debian_revision}
++if [ "${version}" != "${debian_revision}" ]; then
++	echo KBUILD_BUILD_VERSION=${debian_revision}
++fi
+diff --git a/scripts/package/mkdebian b/scripts/package/mkdebian
+index c6fbfb9f74ba1..31b050368cd07 100755
+--- a/scripts/package/mkdebian
++++ b/scripts/package/mkdebian
+@@ -244,6 +244,7 @@ KERNELRELEASE = ${KERNELRELEASE}
+ build-indep:
+ build-arch:
+ 	\$(MAKE) -f \$(srctree)/Makefile ARCH=${ARCH} \
++	KERNELRELEASE=\$(KERNELRELEASE) \
+ 	\$(shell \$(srctree)/scripts/package/deb-build-option) \
+ 	olddefconfig all
+ 
+-- 
+cgit 
+

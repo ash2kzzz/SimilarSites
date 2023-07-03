@@ -1,0 +1,135 @@
+From 79b8ee702c918f1936e17cc53e14bec388ce1045 Mon Sep 17 00:00:00 2001
+From: Qu Wenruo <wqu@suse.com>
+Date: Tue, 6 Jun 2023 15:08:28 +0800
+Subject: btrfs: scrub: also report errors hit during the initial read
+
+[BUG]
+After the recent scrub rework introduced in commit e02ee89baa66 ("btrfs:
+scrub: switch scrub_simple_mirror() to scrub_stripe infrastructure"),
+btrfs scrub no longer reports repaired errors any more:
+
+  # mkfs.btrfs -f $dev -d DUP
+  # mount $dev $mnt
+  # xfs_io -f -d -c "pwrite -b 64K -S 0xaa 0 64" $mnt/file
+  # umount $dev
+  # xfs_io -f -c "pwrite -S 0xff $phy1 64K" $dev # Corrupt the first mirror
+  # mount $dev $mnt
+  # btrfs scrub start -BR $mnt
+  scrub done for 725e7cb7-8a4a-4c77-9f2a-86943619e218
+  Scrub started:    Tue Jun  6 14:56:50 2023
+  Status:           finished
+  Duration:         0:00:00
+  	data_extents_scrubbed: 2
+  	tree_extents_scrubbed: 18
+  	data_bytes_scrubbed: 131072
+  	tree_bytes_scrubbed: 294912
+  	read_errors: 0
+  	csum_errors: 0 <<< No errors here
+  	verify_errors: 0
+         [...]
+  	uncorrectable_errors: 0
+  	unverified_errors: 0
+  	corrected_errors: 16		<<< Only corrected errors
+  	last_physical: 2723151872
+
+This can confuse btrfs-progs, as it relies on the csum_errors to
+determine if there is anything wrong.
+
+While on v6.3.x kernels, the report is different:
+
+ 	csum_errors: 16			<<<
+ 	verify_errors: 0
+	[...]
+ 	uncorrectable_errors: 0
+ 	unverified_errors: 0
+ 	corrected_errors: 16 <<<
+
+[CAUSE]
+In the reworked scrub, we update the scrub progress inside
+scrub_stripe_report_errors(), using various bitmaps to update the
+result.
+
+For example for csum_errors, we use bitmap_weight() of
+stripe->csum_error_bitmap.
+
+Unfortunately at that stage, all error bitmaps (except
+init_error_bitmap) are the result of the latest repair attempt, thus if
+the stripe is fully repaired, those error bitmaps will all be empty,
+resulting the above output mismatch.
+
+To fix this, record the number of errors into stripe->init_nr_*_errors.
+Since we don't really care about where those errors are, we only need to
+record the number of errors.
+
+Then in scrub_stripe_report_errors(), use those initial numbers to
+update the progress other than using the latest error bitmaps.
+
+Fixes: e02ee89baa66 ("btrfs: scrub: switch scrub_simple_mirror() to scrub_stripe infrastructure")
+Signed-off-by: Qu Wenruo <wqu@suse.com>
+Reviewed-by: David Sterba <dsterba@suse.com>
+Signed-off-by: David Sterba <dsterba@suse.com>
+---
+ fs/btrfs/scrub.c | 24 ++++++++++++++++++------
+ 1 file changed, 18 insertions(+), 6 deletions(-)
+
+diff --git a/fs/btrfs/scrub.c b/fs/btrfs/scrub.c
+index 72c2c093df4bb..50c241aba1a13 100644
+--- a/fs/btrfs/scrub.c
++++ b/fs/btrfs/scrub.c
+@@ -134,8 +134,14 @@ struct scrub_stripe {
+ 	 * The errors hit during the initial read of the stripe.
+ 	 *
+ 	 * Would be utilized for error reporting and repair.
++	 *
++	 * The remaining init_nr_* records the number of errors hit, only used
++	 * by error reporting.
+ 	 */
+ 	unsigned long init_error_bitmap;
++	unsigned int init_nr_io_errors;
++	unsigned int init_nr_csum_errors;
++	unsigned int init_nr_meta_errors;
+ 
+ 	/*
+ 	 * The following error bitmaps are all for the current status.
+@@ -1003,12 +1009,9 @@ skip:
+ 	sctx->stat.data_bytes_scrubbed += nr_data_sectors << fs_info->sectorsize_bits;
+ 	sctx->stat.tree_bytes_scrubbed += nr_meta_sectors << fs_info->sectorsize_bits;
+ 	sctx->stat.no_csum += nr_nodatacsum_sectors;
+-	sctx->stat.read_errors +=
+-		bitmap_weight(&stripe->io_error_bitmap, stripe->nr_sectors);
+-	sctx->stat.csum_errors +=
+-		bitmap_weight(&stripe->csum_error_bitmap, stripe->nr_sectors);
+-	sctx->stat.verify_errors +=
+-		bitmap_weight(&stripe->meta_error_bitmap, stripe->nr_sectors);
++	sctx->stat.read_errors += stripe->init_nr_io_errors;
++	sctx->stat.csum_errors += stripe->init_nr_csum_errors;
++	sctx->stat.verify_errors += stripe->init_nr_meta_errors;
+ 	sctx->stat.uncorrectable_errors +=
+ 		bitmap_weight(&stripe->error_bitmap, stripe->nr_sectors);
+ 	sctx->stat.corrected_errors += nr_repaired_sectors;
+@@ -1041,6 +1044,12 @@ static void scrub_stripe_read_repair_worker(struct work_struct *work)
+ 	scrub_verify_one_stripe(stripe, stripe->extent_sector_bitmap);
+ 	/* Save the initial failed bitmap for later repair and report usage. */
+ 	stripe->init_error_bitmap = stripe->error_bitmap;
++	stripe->init_nr_io_errors = bitmap_weight(&stripe->io_error_bitmap,
++						  stripe->nr_sectors);
++	stripe->init_nr_csum_errors = bitmap_weight(&stripe->csum_error_bitmap,
++						    stripe->nr_sectors);
++	stripe->init_nr_meta_errors = bitmap_weight(&stripe->meta_error_bitmap,
++						    stripe->nr_sectors);
+ 
+ 	if (bitmap_empty(&stripe->init_error_bitmap, stripe->nr_sectors))
+ 		goto out;
+@@ -1490,6 +1499,9 @@ static void scrub_stripe_reset_bitmaps(struct scrub_stripe *stripe)
+ {
+ 	stripe->extent_sector_bitmap = 0;
+ 	stripe->init_error_bitmap = 0;
++	stripe->init_nr_io_errors = 0;
++	stripe->init_nr_csum_errors = 0;
++	stripe->init_nr_meta_errors = 0;
+ 	stripe->error_bitmap = 0;
+ 	stripe->io_error_bitmap = 0;
+ 	stripe->csum_error_bitmap = 0;
+-- 
+cgit 
+

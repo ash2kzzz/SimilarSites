@@ -1,0 +1,94 @@
+From 4ab07209d5cc8cb6d2a5324c07b3efc3b2fde494 Mon Sep 17 00:00:00 2001
+From: Dave Marchevsky <davemarchevsky@fb.com>
+Date: Fri, 21 Apr 2023 00:44:31 -0700
+Subject: bpf: Fix bpf_refcount_acquire's refcount_t address calculation
+
+When calculating the address of the refcount_t struct within a local
+kptr, bpf_refcount_acquire_impl should add refcount_off bytes to the
+address of the local kptr. Due to some missing parens, the function is
+incorrectly adding sizeof(refcount_t) * refcount_off bytes. This patch
+fixes the calculation.
+
+Due to the incorrect calculation, bpf_refcount_acquire_impl was trying
+to refcount_inc some memory well past the end of local kptrs, resulting
+in kasan and refcount complaints, as reported in [0]. In that thread,
+Florian and Eduard discovered that bpf selftests written in the new
+style - with __success and an expected __retval, specifically - were
+not actually being run. As a result, selftests added in bpf_refcount
+series weren't really exercising this behavior, and thus didn't unearth
+the bug.
+
+With this fixed behavior it's safe to revert commit 7c4b96c00043
+("selftests/bpf: disable program test run for progs/refcounted_kptr.c"),
+this patch does so.
+
+  [0] https://lore.kernel.org/bpf/ZEEp+j22imoN6rn9@strlen.de/
+
+Fixes: 7c50b1cb76ac ("bpf: Add bpf_refcount_acquire kfunc")
+Reported-by: Florian Westphal <fw@strlen.de>
+Reported-by: Eduard Zingerman <eddyz87@gmail.com>
+Signed-off-by: Dave Marchevsky <davemarchevsky@fb.com>
+Signed-off-by: Daniel Borkmann <daniel@iogearbox.net>
+Tested-by: Eduard Zingerman <eddyz87@gmail.com>
+Link: https://lore.kernel.org/bpf/20230421074431.3548349-1-davemarchevsky@fb.com
+---
+ kernel/bpf/helpers.c                                | 2 +-
+ tools/testing/selftests/bpf/progs/refcounted_kptr.c | 8 ++++----
+ 2 files changed, 5 insertions(+), 5 deletions(-)
+
+diff --git a/kernel/bpf/helpers.c b/kernel/bpf/helpers.c
+index 00e5fb0682acc..8d368fa353f99 100644
+--- a/kernel/bpf/helpers.c
++++ b/kernel/bpf/helpers.c
+@@ -1925,7 +1925,7 @@ __bpf_kfunc void *bpf_refcount_acquire_impl(void *p__refcounted_kptr, void *meta
+ 	/* Could just cast directly to refcount_t *, but need some code using
+ 	 * bpf_refcount type so that it is emitted in vmlinux BTF
+ 	 */
+-	ref = (struct bpf_refcount *)p__refcounted_kptr + meta->record->refcount_off;
++	ref = (struct bpf_refcount *)(p__refcounted_kptr + meta->record->refcount_off);
+ 
+ 	refcount_inc((refcount_t *)ref);
+ 	return (void *)p__refcounted_kptr;
+diff --git a/tools/testing/selftests/bpf/progs/refcounted_kptr.c b/tools/testing/selftests/bpf/progs/refcounted_kptr.c
+index b6b2d4f97b19d..1d348a225140d 100644
+--- a/tools/testing/selftests/bpf/progs/refcounted_kptr.c
++++ b/tools/testing/selftests/bpf/progs/refcounted_kptr.c
+@@ -219,7 +219,7 @@ static long __read_from_unstash(int idx)
+ #define INSERT_READ_BOTH(rem_tree, rem_list, desc)			\
+ SEC("tc")								\
+ __description(desc)							\
+-__success /* __retval(579) temporarily disabled */			\
++__success __retval(579)							\
+ long insert_and_remove_tree_##rem_tree##_list_##rem_list(void *ctx)	\
+ {									\
+ 	long err, tree_data, list_data;					\
+@@ -258,7 +258,7 @@ INSERT_READ_BOTH(false, true, "insert_read_both: remove from list");
+ #define INSERT_READ_BOTH(rem_tree, rem_list, desc)			\
+ SEC("tc")								\
+ __description(desc)							\
+-__success /* __retval(579) temporarily disabled */			\
++__success __retval(579)							\
+ long insert_and_remove_lf_tree_##rem_tree##_list_##rem_list(void *ctx)	\
+ {									\
+ 	long err, tree_data, list_data;					\
+@@ -296,7 +296,7 @@ INSERT_READ_BOTH(false, true, "insert_read_both_list_first: remove from list");
+ #define INSERT_DOUBLE_READ_AND_DEL(read_fn, read_root, desc)		\
+ SEC("tc")								\
+ __description(desc)							\
+-__success /* temporarily __retval(-1) disabled */			\
++__success __retval(-1)							\
+ long insert_double_##read_fn##_and_del_##read_root(void *ctx)		\
+ {									\
+ 	long err, list_data;						\
+@@ -329,7 +329,7 @@ INSERT_DOUBLE_READ_AND_DEL(__read_from_list, head, "insert_double_del: 2x read-a
+ #define INSERT_STASH_READ(rem_tree, desc)				\
+ SEC("tc")								\
+ __description(desc)							\
+-__success /* __retval(84) temporarily disabled */			\
++__success __retval(84)							\
+ long insert_rbtree_and_stash__del_tree_##rem_tree(void *ctx)		\
+ {									\
+ 	long err, tree_data, map_data;					\
+-- 
+cgit 
+

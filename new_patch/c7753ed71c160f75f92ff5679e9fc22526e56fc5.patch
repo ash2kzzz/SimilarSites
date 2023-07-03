@@ -1,0 +1,37 @@
+From c7753ed71c160f75f92ff5679e9fc22526e56fc5 Mon Sep 17 00:00:00 2001
+From: Rob Herring <robh@kernel.org>
+Date: Tue, 18 Apr 2023 10:06:06 -0500
+Subject: dt-bindings: pinctrl: qcom,pmic-mpp: Fix schema for "qcom,paired"
+
+The "qcom,paired" schema is all wrong. First, it's a list rather than an
+object(dictionary). Second, it is missing a required type. The meta-schema
+normally catches this, but schemas under "$defs" was not getting checked.
+A fix for that is pending.
+
+Fixes: f9a06b810951 ("dt-bindings: pinctrl: qcom,pmic-mpp: Convert qcom pmic mpp bindings to YAML")
+Reviewed-by: Krzysztof Kozlowski <krzysztof.kozlowski@linaro.org>
+Link: https://lore.kernel.org/r/20230418150606.1528107-1-robh@kernel.org
+Signed-off-by: Rob Herring <robh@kernel.org>
+---
+ Documentation/devicetree/bindings/pinctrl/qcom,pmic-mpp.yaml | 5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/Documentation/devicetree/bindings/pinctrl/qcom,pmic-mpp.yaml b/Documentation/devicetree/bindings/pinctrl/qcom,pmic-mpp.yaml
+index c91d3e3a094b8..80f9606718570 100644
+--- a/Documentation/devicetree/bindings/pinctrl/qcom,pmic-mpp.yaml
++++ b/Documentation/devicetree/bindings/pinctrl/qcom,pmic-mpp.yaml
+@@ -144,8 +144,9 @@ $defs:
+         enum: [0, 1, 2, 3, 4, 5, 6, 7]
+ 
+       qcom,paired:
+-        - description:
+-            Indicates that the pin should be operating in paired mode.
++        type: boolean
++        description:
++          Indicates that the pin should be operating in paired mode.
+ 
+     required:
+       - pins
+-- 
+cgit 
+

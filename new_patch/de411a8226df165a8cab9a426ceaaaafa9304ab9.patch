@@ -1,0 +1,71 @@
+From de411a8226df165a8cab9a426ceaaaafa9304ab9 Mon Sep 17 00:00:00 2001
+From: Jiri Pirko <jiri@nvidia.com>
+Date: Thu, 26 Jan 2023 10:46:49 +0100
+Subject: net/mlx5e: Create auxdev devlink instance in the same ns as parent
+ devlink
+
+Commit cited in "fixes" tag moved the devlink port under separate
+devlink entity created for auxiliary device. Respect the network
+namespace of parent devlink entity and allocate the devlink there.
+
+Fixes: ee75f1fc44dd ("net/mlx5e: Create separate devlink instance for ethernet auxiliary device")
+Signed-off-by: Jiri Pirko <jiri@nvidia.com>
+Reviewed-by: Moshe Shemesh <moshe@nvidia.com>
+Signed-off-by: Saeed Mahameed <saeedm@nvidia.com>
+---
+ drivers/net/ethernet/mellanox/mlx5/core/en/devlink.c | 6 ++++--
+ drivers/net/ethernet/mellanox/mlx5/core/en/devlink.h | 3 ++-
+ drivers/net/ethernet/mellanox/mlx5/core/en_main.c    | 2 +-
+ 3 files changed, 7 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/net/ethernet/mellanox/mlx5/core/en/devlink.c b/drivers/net/ethernet/mellanox/mlx5/core/en/devlink.c
+index 724de9e06c54e..c6b6e290fd79d 100644
+--- a/drivers/net/ethernet/mellanox/mlx5/core/en/devlink.c
++++ b/drivers/net/ethernet/mellanox/mlx5/core/en/devlink.c
+@@ -7,12 +7,14 @@
+ static const struct devlink_ops mlx5e_devlink_ops = {
+ };
+ 
+-struct mlx5e_dev *mlx5e_create_devlink(struct device *dev)
++struct mlx5e_dev *mlx5e_create_devlink(struct device *dev,
++				       struct mlx5_core_dev *mdev)
+ {
+ 	struct mlx5e_dev *mlx5e_dev;
+ 	struct devlink *devlink;
+ 
+-	devlink = devlink_alloc(&mlx5e_devlink_ops, sizeof(*mlx5e_dev), dev);
++	devlink = devlink_alloc_ns(&mlx5e_devlink_ops, sizeof(*mlx5e_dev),
++				   devlink_net(priv_to_devlink(mdev)), dev);
+ 	if (!devlink)
+ 		return ERR_PTR(-ENOMEM);
+ 	devlink_register(devlink);
+diff --git a/drivers/net/ethernet/mellanox/mlx5/core/en/devlink.h b/drivers/net/ethernet/mellanox/mlx5/core/en/devlink.h
+index c31d1d97b8c7f..d5ec4461f300a 100644
+--- a/drivers/net/ethernet/mellanox/mlx5/core/en/devlink.h
++++ b/drivers/net/ethernet/mellanox/mlx5/core/en/devlink.h
+@@ -7,7 +7,8 @@
+ #include <net/devlink.h>
+ #include "en.h"
+ 
+-struct mlx5e_dev *mlx5e_create_devlink(struct device *dev);
++struct mlx5e_dev *mlx5e_create_devlink(struct device *dev,
++				       struct mlx5_core_dev *mdev);
+ void mlx5e_destroy_devlink(struct mlx5e_dev *mlx5e_dev);
+ int mlx5e_devlink_port_register(struct mlx5e_dev *mlx5e_dev,
+ 				struct mlx5_core_dev *mdev);
+diff --git a/drivers/net/ethernet/mellanox/mlx5/core/en_main.c b/drivers/net/ethernet/mellanox/mlx5/core/en_main.c
+index ea7c10e5d7dca..53feb05299436 100644
+--- a/drivers/net/ethernet/mellanox/mlx5/core/en_main.c
++++ b/drivers/net/ethernet/mellanox/mlx5/core/en_main.c
+@@ -5898,7 +5898,7 @@ static int mlx5e_probe(struct auxiliary_device *adev,
+ 	struct mlx5e_priv *priv;
+ 	int err;
+ 
+-	mlx5e_dev = mlx5e_create_devlink(&adev->dev);
++	mlx5e_dev = mlx5e_create_devlink(&adev->dev, mdev);
+ 	if (IS_ERR(mlx5e_dev))
+ 		return PTR_ERR(mlx5e_dev);
+ 	auxiliary_set_drvdata(adev, mlx5e_dev);
+-- 
+cgit 
+

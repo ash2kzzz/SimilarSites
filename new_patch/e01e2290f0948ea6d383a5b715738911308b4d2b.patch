@@ -1,0 +1,68 @@
+From e01e2290f0948ea6d383a5b715738911308b4d2b Mon Sep 17 00:00:00 2001
+From: Arnd Bergmann <arnd@arndb.de>
+Date: Wed, 5 Apr 2023 10:36:04 +0200
+Subject: scsi: hisi_sas: Work around build failure in suspend function
+
+The suspend/resume functions in this driver seem to have multiple problems,
+the latest one just got introduced by a bugfix:
+
+drivers/scsi/hisi_sas/hisi_sas_v3_hw.c: In function '_suspend_v3_hw':
+drivers/scsi/hisi_sas/hisi_sas_v3_hw.c:5142:39: error: 'struct dev_pm_info' has no member named 'usage_count'
+ 5142 |         if (atomic_read(&device->power.usage_count)) {
+drivers/scsi/hisi_sas/hisi_sas_v3_hw.c: In function '_suspend_v3_hw':
+drivers/scsi/hisi_sas/hisi_sas_v3_hw.c:5142:39: error: 'struct dev_pm_info' has no member named 'usage_count'
+ 5142 |         if (atomic_read(&device->power.usage_count)) {
+
+As far as I can tell, the 'usage_count' is not meant to be accessed by
+device drivers at all, though I don't know what the driver is supposed to
+do instead.
+
+Another problem is the use of the deprecated UNIVERSAL_DEV_PM_OPS(), and
+marking functions as __maybe_unused to avoid warnings about unused
+functions.  This should probably be changed to using
+DEFINE_RUNTIME_DEV_PM_OPS().
+
+Both changes require actually understanding what the driver needs to do,
+and being able to test this, so instead here is the simplest patch to make
+it pass the randconfig builds instead.
+
+Fixes: e368d38cb952 ("scsi: hisi_sas: Exit suspend state when usage count is greater than 0")
+Signed-off-by: Arnd Bergmann <arnd@arndb.de>
+Link: https://lore.kernel.org/r/20230405083611.3376739-1-arnd@kernel.org
+Reviewed-by: Xiang Chen <chenxiang66@hisilicon.com>
+Signed-off-by: Martin K. Petersen <martin.petersen@oracle.com>
+---
+ drivers/scsi/hisi_sas/hisi_sas_v3_hw.c | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/drivers/scsi/hisi_sas/hisi_sas_v3_hw.c b/drivers/scsi/hisi_sas/hisi_sas_v3_hw.c
+index d160b9b7479bd..12d588454f5de 100644
+--- a/drivers/scsi/hisi_sas/hisi_sas_v3_hw.c
++++ b/drivers/scsi/hisi_sas/hisi_sas_v3_hw.c
+@@ -5139,11 +5139,13 @@ static int _suspend_v3_hw(struct device *device)
+ 	flush_workqueue(hisi_hba->wq);
+ 	interrupt_disable_v3_hw(hisi_hba);
+ 
++#ifdef CONFIG_PM
+ 	if (atomic_read(&device->power.usage_count)) {
+ 		dev_err(dev, "PM suspend: host status cannot be suspended\n");
+ 		rc = -EBUSY;
+ 		goto err_out;
+ 	}
++#endif
+ 
+ 	rc = disable_host_v3_hw(hisi_hba);
+ 	if (rc) {
+@@ -5162,7 +5164,9 @@ static int _suspend_v3_hw(struct device *device)
+ 
+ err_out_recover_host:
+ 	enable_host_v3_hw(hisi_hba);
++#ifdef CONFIG_PM
+ err_out:
++#endif
+ 	interrupt_enable_v3_hw(hisi_hba);
+ 	clear_bit(HISI_SAS_REJECT_CMD_BIT, &hisi_hba->flags);
+ 	clear_bit(HISI_SAS_RESETTING_BIT, &hisi_hba->flags);
+-- 
+cgit 
+

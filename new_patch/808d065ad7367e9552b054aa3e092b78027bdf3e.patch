@@ -1,0 +1,39 @@
+From 808d065ad7367e9552b054aa3e092b78027bdf3e Mon Sep 17 00:00:00 2001
+From: Lukas Bulwahn <lukas.bulwahn@gmail.com>
+Date: Mon, 30 Jan 2023 08:31:09 +0100
+Subject: MAINTAINERS: repair file entry for STARFIVE TRNG DRIVER
+
+Commit c388f458bc34 ("hwrng: starfive - Add TRNG driver for StarFive SoC")
+adds the STARFIVE TRNG DRIVER section to MAINTAINERS, but refers to the
+non-existing file drivers/char/hw_random/starfive-trng.c rather than to the
+actually added file drivers/char/hw_random/jh7110-trng.c in this commit.
+
+Hence, ./scripts/get_maintainer.pl --self-test=patterns complains about a
+broken reference.
+
+Repair this file entry in STARFIVE TRNG DRIVER.
+
+Fixes: c388f458bc34 ("hwrng: starfive - Add TRNG driver for StarFive SoC")
+Signed-off-by: Lukas Bulwahn <lukas.bulwahn@gmail.com>
+Acked-by: Jia Jie Ho <jiajie.ho@starfivetech.com>
+Signed-off-by: Herbert Xu <herbert@gondor.apana.org.au>
+---
+ MAINTAINERS | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/MAINTAINERS b/MAINTAINERS
+index 4f59559597ab6..7c90bc235a0aa 100644
+--- a/MAINTAINERS
++++ b/MAINTAINERS
+@@ -19909,7 +19909,7 @@ STARFIVE TRNG DRIVER
+ M:	Jia Jie Ho <jiajie.ho@starfivetech.com>
+ S:	Supported
+ F:	Documentation/devicetree/bindings/rng/starfive*
+-F:	drivers/char/hw_random/starfive-trng.c
++F:	drivers/char/hw_random/jh7110-trng.c
+ 
+ STATIC BRANCH/CALL
+ M:	Peter Zijlstra <peterz@infradead.org>
+-- 
+cgit 
+

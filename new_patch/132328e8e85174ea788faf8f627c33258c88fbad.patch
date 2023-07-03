@@ -1,0 +1,123 @@
+From 132328e8e85174ea788faf8f627c33258c88fbad Mon Sep 17 00:00:00 2001
+From: Florian Westphal <fw@strlen.de>
+Date: Mon, 5 Jun 2023 15:14:45 +0200
+Subject: bpf: netfilter: Add BPF_NETFILTER bpf_attach_type
+
+Andrii Nakryiko writes:
+
+ And we currently don't have an attach type for NETLINK BPF link.
+ Thankfully it's not too late to add it. I see that link_create() in
+ kernel/bpf/syscall.c just bypasses attach_type check. We shouldn't
+ have done that. Instead we need to add BPF_NETLINK attach type to enum
+ bpf_attach_type. And wire all that properly throughout the kernel and
+ libbpf itself.
+
+This adds BPF_NETFILTER and uses it.  This breaks uabi but this
+wasn't in any non-rc release yet, so it should be fine.
+
+v2: check link_attack prog type in link_create too
+
+Fixes: 84601d6ee68a ("bpf: add bpf_link support for BPF_NETFILTER programs")
+Suggested-by: Andrii Nakryiko <andrii.nakryiko@gmail.com>
+Signed-off-by: Florian Westphal <fw@strlen.de>
+Signed-off-by: Andrii Nakryiko <andrii@kernel.org>
+Link: https://lore.kernel.org/bpf/CAEf4BzZ69YgrQW7DHCJUT_X+GqMq_ZQQPBwopaJJVGFD5=d5Vg@mail.gmail.com/
+Link: https://lore.kernel.org/bpf/20230605131445.32016-1-fw@strlen.de
+---
+ include/uapi/linux/bpf.h       | 1 +
+ kernel/bpf/syscall.c           | 9 +++++++++
+ tools/include/uapi/linux/bpf.h | 1 +
+ tools/lib/bpf/libbpf.c         | 3 ++-
+ tools/lib/bpf/libbpf_probes.c  | 2 ++
+ 5 files changed, 15 insertions(+), 1 deletion(-)
+
+diff --git a/include/uapi/linux/bpf.h b/include/uapi/linux/bpf.h
+index 1bb11a6ee6676..c994ff5b157cd 100644
+--- a/include/uapi/linux/bpf.h
++++ b/include/uapi/linux/bpf.h
+@@ -1035,6 +1035,7 @@ enum bpf_attach_type {
+ 	BPF_TRACE_KPROBE_MULTI,
+ 	BPF_LSM_CGROUP,
+ 	BPF_STRUCT_OPS,
++	BPF_NETFILTER,
+ 	__MAX_BPF_ATTACH_TYPE
+ };
+ 
+diff --git a/kernel/bpf/syscall.c b/kernel/bpf/syscall.c
+index 14f39c1e573ee..0c21d0d8efe49 100644
+--- a/kernel/bpf/syscall.c
++++ b/kernel/bpf/syscall.c
+@@ -2433,6 +2433,10 @@ bpf_prog_load_check_attach(enum bpf_prog_type prog_type,
+ 		default:
+ 			return -EINVAL;
+ 		}
++	case BPF_PROG_TYPE_NETFILTER:
++		if (expected_attach_type == BPF_NETFILTER)
++			return 0;
++		return -EINVAL;
+ 	case BPF_PROG_TYPE_SYSCALL:
+ 	case BPF_PROG_TYPE_EXT:
+ 		if (expected_attach_type)
+@@ -4590,7 +4594,12 @@ static int link_create(union bpf_attr *attr, bpfptr_t uattr)
+ 
+ 	switch (prog->type) {
+ 	case BPF_PROG_TYPE_EXT:
++		break;
+ 	case BPF_PROG_TYPE_NETFILTER:
++		if (attr->link_create.attach_type != BPF_NETFILTER) {
++			ret = -EINVAL;
++			goto out;
++		}
+ 		break;
+ 	case BPF_PROG_TYPE_PERF_EVENT:
+ 	case BPF_PROG_TYPE_TRACEPOINT:
+diff --git a/tools/include/uapi/linux/bpf.h b/tools/include/uapi/linux/bpf.h
+index 1bb11a6ee6676..c994ff5b157cd 100644
+--- a/tools/include/uapi/linux/bpf.h
++++ b/tools/include/uapi/linux/bpf.h
+@@ -1035,6 +1035,7 @@ enum bpf_attach_type {
+ 	BPF_TRACE_KPROBE_MULTI,
+ 	BPF_LSM_CGROUP,
+ 	BPF_STRUCT_OPS,
++	BPF_NETFILTER,
+ 	__MAX_BPF_ATTACH_TYPE
+ };
+ 
+diff --git a/tools/lib/bpf/libbpf.c b/tools/lib/bpf/libbpf.c
+index ad1ec893b41b2..a27f6e9ccce75 100644
+--- a/tools/lib/bpf/libbpf.c
++++ b/tools/lib/bpf/libbpf.c
+@@ -117,6 +117,7 @@ static const char * const attach_type_name[] = {
+ 	[BPF_PERF_EVENT]		= "perf_event",
+ 	[BPF_TRACE_KPROBE_MULTI]	= "trace_kprobe_multi",
+ 	[BPF_STRUCT_OPS]		= "struct_ops",
++	[BPF_NETFILTER]			= "netfilter",
+ };
+ 
+ static const char * const link_type_name[] = {
+@@ -8712,7 +8713,7 @@ static const struct bpf_sec_def section_defs[] = {
+ 	SEC_DEF("struct_ops+",		STRUCT_OPS, 0, SEC_NONE),
+ 	SEC_DEF("struct_ops.s+",	STRUCT_OPS, 0, SEC_SLEEPABLE),
+ 	SEC_DEF("sk_lookup",		SK_LOOKUP, BPF_SK_LOOKUP, SEC_ATTACHABLE),
+-	SEC_DEF("netfilter",		NETFILTER, 0, SEC_NONE),
++	SEC_DEF("netfilter",		NETFILTER, BPF_NETFILTER, SEC_NONE),
+ };
+ 
+ static size_t custom_sec_def_cnt;
+diff --git a/tools/lib/bpf/libbpf_probes.c b/tools/lib/bpf/libbpf_probes.c
+index 6065f408a59c1..b7d443129f1cd 100644
+--- a/tools/lib/bpf/libbpf_probes.c
++++ b/tools/lib/bpf/libbpf_probes.c
+@@ -180,7 +180,9 @@ static int probe_prog_load(enum bpf_prog_type prog_type,
+ 	case BPF_PROG_TYPE_SK_REUSEPORT:
+ 	case BPF_PROG_TYPE_FLOW_DISSECTOR:
+ 	case BPF_PROG_TYPE_CGROUP_SYSCTL:
++		break;
+ 	case BPF_PROG_TYPE_NETFILTER:
++		opts.expected_attach_type = BPF_NETFILTER;
+ 		break;
+ 	default:
+ 		return -EOPNOTSUPP;
+-- 
+cgit 
+

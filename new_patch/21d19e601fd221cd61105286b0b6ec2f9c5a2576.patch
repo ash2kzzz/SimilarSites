@@ -1,0 +1,40 @@
+From 21d19e601fd221cd61105286b0b6ec2f9c5a2576 Mon Sep 17 00:00:00 2001
+From: Andy Shevchenko <andriy.shevchenko@linux.intel.com>
+Date: Fri, 10 Mar 2023 13:15:44 +0200
+Subject: spi: mpc5xxx-psc: Remove goto to the unexisted label
+
+The previous cleanup patch had lost one of its parts in a crack,
+Finish the cleanup by removing the leftovers.
+
+Reported-by: kernel test robot <lkp@intel.com>
+Fixes: 9e21720a4958 ("spi: mpc5xxx-psc: use devm_clk_get_enabled() for core clock")
+Signed-off-by: Andy Shevchenko <andriy.shevchenko@linux.intel.com>
+Link: https://lore.kernel.org/r/20230310111544.57342-1-andriy.shevchenko@linux.intel.com
+Signed-off-by: Mark Brown <broonie@kernel.org>
+---
+ drivers/spi/spi-mpc512x-psc.c | 8 ++------
+ 1 file changed, 2 insertions(+), 6 deletions(-)
+
+diff --git a/drivers/spi/spi-mpc512x-psc.c b/drivers/spi/spi-mpc512x-psc.c
+index 77a228f633d1b..0b86f1804682e 100644
+--- a/drivers/spi/spi-mpc512x-psc.c
++++ b/drivers/spi/spi-mpc512x-psc.c
+@@ -511,13 +511,9 @@ static int mpc512x_psc_spi_of_probe(struct platform_device *pdev)
+ 
+ 	ret = mpc512x_psc_spi_port_config(master, mps);
+ 	if (ret < 0)
+-		goto free_ipg_clock;
+-
+-	ret = devm_spi_register_master(dev, master);
+-	if (ret < 0)
+-		goto free_ipg_clock;
++		return ret;
+ 
+-	return ret;
++	return devm_spi_register_master(dev, master);
+ }
+ 
+ static const struct of_device_id mpc512x_psc_spi_of_match[] = {
+-- 
+cgit 
+

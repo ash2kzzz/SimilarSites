@@ -1,0 +1,65 @@
+From 81a1dd10b072fd432f37cd5dc9eb3ed6ec5d386e Mon Sep 17 00:00:00 2001
+From: Björn Töpel <bjorn@rivosinc.com>
+Date: Tue, 28 Feb 2023 19:42:10 +0100
+Subject: riscv, lib: Fix Zbb strncmp
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+The Zbb optimized strncmp has two parts; a fast path that does XLEN/8B
+per iteration, and a slow that does one byte per iteration.
+
+The idea is to compare aligned XLEN chunks for most of strings, and do
+the remainder tail in the slow path.
+
+The Zbb strncmp has two issues in the fast path:
+
+Incorrect remainder handling (wrong compare): Assume that the string
+length is 9. On 64b systems, the fast path should do one iteration,
+and one iteration in the slow path. Instead, both were done in the
+fast path, which lead to incorrect results. An example:
+
+  strncmp("/dev/vda", "/dev/", 5);
+
+Correct by changing "bgt" to "bge".
+
+Missing NULL checks in the second string: This could lead to incorrect
+results for:
+
+  strncmp("/dev/vda", "/dev/vda\0", 8);
+
+Correct by adding an additional check.
+
+Fixes: b6fcdb191e36 ("RISC-V: add zbb support to string functions")
+Suggested-by: Heiko Stuebner <heiko.stuebner@vrull.eu>
+Signed-off-by: Björn Töpel <bjorn@rivosinc.com>
+Tested-by: Conor Dooley <conor.dooley@microchip.com>
+Tested-by: Guenter Roeck <linux@roeck-us.net>
+Link: https://lore.kernel.org/r/20230228184211.1585641-1-bjorn@kernel.org
+Signed-off-by: Palmer Dabbelt <palmer@rivosinc.com>
+---
+ arch/riscv/lib/strncmp.S | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/arch/riscv/lib/strncmp.S b/arch/riscv/lib/strncmp.S
+index e09de79e62b96..7ac2f667285ab 100644
+--- a/arch/riscv/lib/strncmp.S
++++ b/arch/riscv/lib/strncmp.S
+@@ -78,11 +78,13 @@ strncmp_zbb:
+ 	/* Main loop for aligned string.  */
+ 	.p2align 3
+ 1:
+-	bgt	a0, t6, 3f
++	bge	a0, t6, 3f
+ 	REG_L	t0, 0(a0)
+ 	REG_L	t1, 0(a1)
+ 	orc.b	t3, t0
+ 	bne	t3, t5, 2f
++	orc.b	t3, t1
++	bne	t3, t5, 2f
+ 	addi	a0, a0, SZREG
+ 	addi	a1, a1, SZREG
+ 	beq	t0, t1, 1b
+-- 
+cgit 
+

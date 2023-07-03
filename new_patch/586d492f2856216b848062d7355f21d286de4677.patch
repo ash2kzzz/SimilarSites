@@ -1,0 +1,71 @@
+From 586d492f2856216b848062d7355f21d286de4677 Mon Sep 17 00:00:00 2001
+From: Arnd Bergmann <arnd@arndb.de>
+Date: Fri, 14 Apr 2023 10:06:56 +0200
+Subject: crypto: ixp4xx - fix building wiht 64-bit dma_addr_t
+
+The crypt_ctl structure must be exactly 64 bytes long to work correctly,
+and it has to be a power-of-two size to allow turning the
+64-bit division in crypt_phys2virt() into a shift operation, avoiding
+the link failure:
+
+ERROR: modpost: "__aeabi_uldivmod" [drivers/crypto/intel/ixp4xx/ixp4xx_crypto.ko] undefined!
+
+The failure now shows up because the driver is available for compile
+testing after the move, and a previous fix turned the more descriptive
+BUILD_BUG_ON() into a link error.
+
+Change the variably-sized dma_addr_t into the expected 'u32' type that is
+needed for the hardware, and reinstate the size check for all 32-bit
+architectures to simplify debugging if it hits again.
+
+Fixes: 1bc7fdbf2677 ("crypto: ixp4xx - Move driver to drivers/crypto/intel/ixp4xx")
+Signed-off-by: Arnd Bergmann <arnd@arndb.de>
+Signed-off-by: Herbert Xu <herbert@gondor.apana.org.au>
+---
+ drivers/crypto/intel/ixp4xx/ixp4xx_crypto.c | 14 ++++++++------
+ 1 file changed, 8 insertions(+), 6 deletions(-)
+
+diff --git a/drivers/crypto/intel/ixp4xx/ixp4xx_crypto.c b/drivers/crypto/intel/ixp4xx/ixp4xx_crypto.c
+index 5d640f13ad1c0..ed15379a9818b 100644
+--- a/drivers/crypto/intel/ixp4xx/ixp4xx_crypto.c
++++ b/drivers/crypto/intel/ixp4xx/ixp4xx_crypto.c
+@@ -118,9 +118,9 @@ struct crypt_ctl {
+ 	u8 mode;		/* NPE_OP_*  operation mode */
+ #endif
+ 	u8 iv[MAX_IVLEN];	/* IV for CBC mode or CTR IV for CTR mode */
+-	dma_addr_t icv_rev_aes;	/* icv or rev aes */
+-	dma_addr_t src_buf;
+-	dma_addr_t dst_buf;
++	u32 icv_rev_aes;	/* icv or rev aes */
++	u32 src_buf;
++	u32 dst_buf;
+ #ifdef __ARMEB__
+ 	u16 auth_offs;		/* Authentication start offset */
+ 	u16 auth_len;		/* Authentication data length */
+@@ -263,7 +263,8 @@ static int setup_crypt_desc(void)
+ {
+ 	struct device *dev = &pdev->dev;
+ 
+-	BUILD_BUG_ON(!IS_ENABLED(CONFIG_COMPILE_TEST) &&
++	BUILD_BUG_ON(!(IS_ENABLED(CONFIG_COMPILE_TEST) &&
++		       IS_ENABLED(CONFIG_64BIT)) &&
+ 		     sizeof(struct crypt_ctl) != 64);
+ 	crypt_virt = dma_alloc_coherent(dev,
+ 					NPE_QLEN * sizeof(struct crypt_ctl),
+@@ -1170,10 +1171,11 @@ static int aead_perform(struct aead_request *req, int encrypt,
+ 	}
+ 
+ 	if (unlikely(lastlen < authsize)) {
++		dma_addr_t dma;
+ 		/* The 12 hmac bytes are scattered,
+ 		 * we need to copy them into a safe buffer */
+-		req_ctx->hmac_virt = dma_pool_alloc(buffer_pool, flags,
+-						    &crypt->icv_rev_aes);
++		req_ctx->hmac_virt = dma_pool_alloc(buffer_pool, flags, &dma);
++		crypt->icv_rev_aes = dma;
+ 		if (unlikely(!req_ctx->hmac_virt))
+ 			goto free_buf_dst;
+ 		if (!encrypt) {
+-- 
+cgit 
+

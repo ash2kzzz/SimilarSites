@@ -1,0 +1,55 @@
+From cb6b2e11a42decea2afc77df73ec7326db1ac25f Mon Sep 17 00:00:00 2001
+From: Moshe Shemesh <moshe@nvidia.com>
+Date: Mon, 6 Feb 2023 17:56:16 +0200
+Subject: devlink: Fix memleak in health diagnose callback
+
+The callback devlink_nl_cmd_health_reporter_diagnose_doit() miss
+devlink_fmsg_free(), which leads to memory leak.
+
+Fix it by adding devlink_fmsg_free().
+
+Fixes: e994a75fb7f9 ("devlink: remove reporter reference counting")
+Signed-off-by: Moshe Shemesh <moshe@nvidia.com>
+Reviewed-by: Jiri Pirko <jiri@nvidia.com>
+Reviewed-by: Simon Horman <simon.horman@corigine.com>
+Link: https://lore.kernel.org/r/1675698976-45993-1-git-send-email-moshe@nvidia.com
+Signed-off-by: Jakub Kicinski <kuba@kernel.org>
+---
+ net/devlink/leftover.c | 14 +++++++++-----
+ 1 file changed, 9 insertions(+), 5 deletions(-)
+
+diff --git a/net/devlink/leftover.c b/net/devlink/leftover.c
+index 97d30ea98b004..9d63736033404 100644
+--- a/net/devlink/leftover.c
++++ b/net/devlink/leftover.c
+@@ -6626,18 +6626,22 @@ static int devlink_nl_cmd_health_reporter_diagnose_doit(struct sk_buff *skb,
+ 
+ 	err = devlink_fmsg_obj_nest_start(fmsg);
+ 	if (err)
+-		return err;
++		goto out;
+ 
+ 	err = reporter->ops->diagnose(reporter, fmsg, info->extack);
+ 	if (err)
+-		return err;
++		goto out;
+ 
+ 	err = devlink_fmsg_obj_nest_end(fmsg);
+ 	if (err)
+-		return err;
++		goto out;
++
++	err = devlink_fmsg_snd(fmsg, info,
++			       DEVLINK_CMD_HEALTH_REPORTER_DIAGNOSE, 0);
+ 
+-	return devlink_fmsg_snd(fmsg, info,
+-				DEVLINK_CMD_HEALTH_REPORTER_DIAGNOSE, 0);
++out:
++	devlink_fmsg_free(fmsg);
++	return err;
+ }
+ 
+ static int
+-- 
+cgit 
+

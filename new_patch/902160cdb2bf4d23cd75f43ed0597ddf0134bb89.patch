@@ -1,0 +1,80 @@
+From 902160cdb2bf4d23cd75f43ed0597ddf0134bb89 Mon Sep 17 00:00:00 2001
+From: Kiran K <kiran.k@intel.com>
+Date: Wed, 8 Mar 2023 13:28:37 +0530
+Subject: Bluetooth: btinel: Check ACPI handle for NULL before accessing
+
+Older platforms and Virtual platforms which doesn't have support for
+bluetooth device in ACPI firmware will not have valid ACPI handle.
+Check for validity of handle before accessing.
+
+dmesg log from simics environment (virtual platform):
+
+BUG: unable to handle kernel NULL pointer dereference at
+0000000000000018
+IP: acpi_ns_walk_namespace+0x5c/0x278
+PGD 0 P4D 0
+Oops: 0000 [#1] SMP PTI
+Modules linked in: bnep intel_powerclamp coretemp kvm_intel
+kvm irqbypass intel_cstate input_leds joydev serio_raw mac_hid
+btusb(OE) btintel(OE) bluetooth(OE) lpc_ich compat(OE) ecdh_generic
+i7core_edac i5500_temp shpchp binfmt_misc sch_fq_codel parport_pc ppdev
+lp parport ip_tables x_tables autofs4 hid_generic usbhid hid e1000e
+psmouse ahci pata_acpi libahci ptp pps_core floppy
+CPU: 0 PID: 35 Comm: kworker/u3:0 Tainted: G           OE
+4.15.0-140-generic #144-Ubuntu
+Hardware name: Simics Simics, BIOS Simics 01/01/2011
+Workqueue: hci0 hci_power_on [bluetooth]
+RIP: 0010:acpi_ns_walk_namespace+0x5c/0x278
+RSP: 0000:ffffaa9c0049bba8 EFLAGS: 00010246
+RAX: 0000000000000001 RBX: 0000000000001001 RCX: 0000000000000010
+RDX: ffffffff92ea7e27 RSI: ffffffff92ea7e10 RDI: 00000000000000c8
+RBP: ffffaa9c0049bbf8 R08: 0000000000000000 R09: ffffffffc05b39d0
+R10: 0000000000000000 R11: 0000000000000001 R12: 0000000000000001
+R13: 0000000000000000 R14: ffffffffc05b39d0 R15: ffffaa9c0049bc70
+FS:  0000000000000000(0000) GS:ffff8be73fc00000(0000) knlGS:0000000000000000
+CS:  0010 DS: 0000 ES: 0000 CR0: 0000000080050033
+CR2: 0000000000000018 CR3: 0000000075f0e000 CR4: 00000000000006f0
+
+Fixes: 294d749b5df5 ("Bluetooth: btintel: Iterate only bluetooth device ACPI entries")
+Signed-off-by: Kiran K <kiran.k@intel.com>
+Signed-off-by: Luiz Augusto von Dentz <luiz.von.dentz@intel.com>
+---
+ drivers/bluetooth/btintel.c | 11 +++++++++--
+ 1 file changed, 9 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/bluetooth/btintel.c b/drivers/bluetooth/btintel.c
+index e8d4b59e89c5b..af774688f1c0d 100644
+--- a/drivers/bluetooth/btintel.c
++++ b/drivers/bluetooth/btintel.c
+@@ -2326,6 +2326,7 @@ static void btintel_set_ppag(struct hci_dev *hdev, struct intel_version_tlv *ver
+ 	struct btintel_ppag ppag;
+ 	struct sk_buff *skb;
+ 	struct btintel_loc_aware_reg ppag_cmd;
++	acpi_handle handle;
+ 
+ 	/* PPAG is not supported if CRF is HrP2, Jfp2, JfP1 */
+ 	switch (ver->cnvr_top & 0xFFF) {
+@@ -2335,12 +2336,18 @@ static void btintel_set_ppag(struct hci_dev *hdev, struct intel_version_tlv *ver
+ 		return;
+ 	}
+ 
++	handle = ACPI_HANDLE(GET_HCIDEV_DEV(hdev));
++	if (!handle) {
++		bt_dev_info(hdev, "No support for BT device in ACPI firmware");
++		return;
++	}
++
+ 	memset(&ppag, 0, sizeof(ppag));
+ 
+ 	ppag.hdev = hdev;
+ 	ppag.status = AE_NOT_FOUND;
+-	acpi_walk_namespace(ACPI_TYPE_PACKAGE, ACPI_HANDLE(GET_HCIDEV_DEV(hdev)),
+-			    1, NULL, btintel_ppag_callback, &ppag, NULL);
++	acpi_walk_namespace(ACPI_TYPE_PACKAGE, handle, 1, NULL,
++			    btintel_ppag_callback, &ppag, NULL);
+ 
+ 	if (ACPI_FAILURE(ppag.status)) {
+ 		if (ppag.status == AE_NOT_FOUND) {
+-- 
+cgit 
+

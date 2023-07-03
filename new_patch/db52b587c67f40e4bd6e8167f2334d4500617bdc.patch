@@ -1,0 +1,41 @@
+From db52b587c67f40e4bd6e8167f2334d4500617bdc Mon Sep 17 00:00:00 2001
+From: David Vernet <void@manifault.com>
+Date: Wed, 1 Mar 2023 13:49:10 -0600
+Subject: bpf, docs: Fix __uninit kfunc doc section
+
+In commit d96d937d7c5c ("bpf: Add __uninit kfunc annotation"), the
+__uninit kfunc annotation was documented in kfuncs.rst. You have to
+fully underline a section in rst, or the build will issue a warning that
+the title underline is too short:
+
+./Documentation/bpf/kfuncs.rst:104: WARNING: Title underline too short.
+
+2.2.2 __uninit Annotation
+--------------------
+
+This patch fixes that title underline.
+
+Fixes: d96d937d7c5c ("bpf: Add __uninit kfunc annotation")
+Signed-off-by: David Vernet <void@manifault.com>
+Link: https://lore.kernel.org/r/20230301194910.602738-2-void@manifault.com
+Signed-off-by: Alexei Starovoitov <ast@kernel.org>
+---
+ Documentation/bpf/kfuncs.rst | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/Documentation/bpf/kfuncs.rst b/Documentation/bpf/kfuncs.rst
+index 9a78533d25ac7..9d85bbc3b7713 100644
+--- a/Documentation/bpf/kfuncs.rst
++++ b/Documentation/bpf/kfuncs.rst
+@@ -101,7 +101,7 @@ size parameter, and the value of the constant matters for program safety, __k
+ suffix should be used.
+ 
+ 2.2.2 __uninit Annotation
+---------------------
++-------------------------
+ 
+ This annotation is used to indicate that the argument will be treated as
+ uninitialized.
+-- 
+cgit 
+

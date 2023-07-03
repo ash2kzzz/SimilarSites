@@ -1,0 +1,31 @@
+From 01407940f9cd3bd87f3b707f7175f6f41ac1238b Mon Sep 17 00:00:00 2001
+From: William Breathitt Gray <william.gray@linaro.org>
+Date: Mon, 3 Apr 2023 13:53:13 -0400
+Subject: gpio: 104-dio-48e: Enable use_raw_spinlock for dio48e_regmap_config
+
+The dio48e regmap can be used in an interrupt context by regmap-irq. To
+prevent a deadlock, enable use_raw_spinlock for dio48e_regmap_config.
+
+Fixes: 2f7e845f512f ("gpio: 104-dio-48e: Migrate to the regmap-irq API")
+Signed-off-by: William Breathitt Gray <william.gray@linaro.org>
+Reviewed-by: Linus Walleij <linus.walleij@linaro.org>
+Signed-off-by: Bartosz Golaszewski <bartosz.golaszewski@linaro.org>
+---
+ drivers/gpio/gpio-104-dio-48e.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/drivers/gpio/gpio-104-dio-48e.c b/drivers/gpio/gpio-104-dio-48e.c
+index a3846faf3780d..11c48130bb8f1 100644
+--- a/drivers/gpio/gpio-104-dio-48e.c
++++ b/drivers/gpio/gpio-104-dio-48e.c
+@@ -86,6 +86,7 @@ static const struct regmap_config dio48e_regmap_config = {
+ 	.volatile_table = &dio48e_volatile_table,
+ 	.precious_table = &dio48e_precious_table,
+ 	.cache_type = REGCACHE_FLAT,
++	.use_raw_spinlock = true,
+ };
+ 
+ /* only bit 3 on each respective Port C supports interrupts */
+-- 
+cgit 
+

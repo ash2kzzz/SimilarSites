@@ -1,0 +1,127 @@
+From dec24b3b339487e58ce2da2875e9ee0316cc7e70 Mon Sep 17 00:00:00 2001
+From: Kees Cook <keescook@chromium.org>
+Date: Tue, 20 Jun 2023 12:42:38 -0700
+Subject: net: wwan: iosm: Convert single instance struct member to flexible
+ array
+
+struct mux_adth actually ends with multiple struct mux_adth_dg members.
+This is seen both in the comments about the member:
+
+/**
+ * struct mux_adth - Structure of the Aggregated Datagram Table Header.
+ ...
+ * @dg:		datagramm table with variable length
+ */
+
+and in the preparation for populating it:
+
+                        adth_dg_size = offsetof(struct mux_adth, dg) +
+                                        ul_adb->dg_count[i] * sizeof(*dg);
+			...
+                        adth_dg_size -= offsetof(struct mux_adth, dg);
+                        memcpy(&adth->dg, ul_adb->dg[i], adth_dg_size);
+
+This was reported as a run-time false positive warning:
+
+memcpy: detected field-spanning write (size 16) of single field "&adth->dg" at drivers/net/wwan/iosm/iosm_ipc_mux_codec.c:852 (size 8)
+
+Adjust the struct mux_adth definition and associated sizeof() math; no binary
+output differences are observed in the resulting object file.
+
+Reported-by: Florian Klink <flokli@flokli.de>
+Closes: https://lore.kernel.org/lkml/dbfa25f5-64c8-5574-4f5d-0151ba95d232@gmail.com/
+Fixes: 1f52d7b62285 ("net: wwan: iosm: Enable M.2 7360 WWAN card support")
+Cc: M Chetan Kumar <m.chetan.kumar@intel.com>
+Cc: Bagas Sanjaya <bagasdotme@gmail.com>
+Cc: Intel Corporation <linuxwwan@intel.com>
+Cc: Loic Poulain <loic.poulain@linaro.org>
+Cc: Sergey Ryazanov <ryazanov.s.a@gmail.com>
+Cc: Johannes Berg <johannes@sipsolutions.net>
+Cc: "David S. Miller" <davem@davemloft.net>
+Cc: Eric Dumazet <edumazet@google.com>
+Cc: Jakub Kicinski <kuba@kernel.org>
+Cc: Paolo Abeni <pabeni@redhat.com>
+Cc: "Gustavo A. R. Silva" <gustavoars@kernel.org>
+Cc: netdev@vger.kernel.org
+Signed-off-by: Kees Cook <keescook@chromium.org>
+Reviewed-by: Gustavo A. R. Silva <gustavoars@kernel.org>
+Reviewed-by: Simon Horman <simon.horman@corigine.com>
+Link: https://lore.kernel.org/r/20230620194234.never.023-kees@kernel.org
+Signed-off-by: Paolo Abeni <pabeni@redhat.com>
+---
+ drivers/net/wwan/iosm/iosm_ipc_mux_codec.c | 15 ++++++---------
+ drivers/net/wwan/iosm/iosm_ipc_mux_codec.h |  2 +-
+ 2 files changed, 7 insertions(+), 10 deletions(-)
+
+diff --git a/drivers/net/wwan/iosm/iosm_ipc_mux_codec.c b/drivers/net/wwan/iosm/iosm_ipc_mux_codec.c
+index d6b166fc5c0ef..bff46f7ca59f3 100644
+--- a/drivers/net/wwan/iosm/iosm_ipc_mux_codec.c
++++ b/drivers/net/wwan/iosm/iosm_ipc_mux_codec.c
+@@ -626,14 +626,12 @@ static void mux_dl_adb_decode(struct iosm_mux *ipc_mux,
+ 		if (adth->signature != cpu_to_le32(IOSM_AGGR_MUX_SIG_ADTH))
+ 			goto adb_decode_err;
+ 
+-		if (le16_to_cpu(adth->table_length) < (sizeof(struct mux_adth) -
+-				sizeof(struct mux_adth_dg)))
++		if (le16_to_cpu(adth->table_length) < sizeof(struct mux_adth))
+ 			goto adb_decode_err;
+ 
+ 		/* Calculate the number of datagrams. */
+ 		nr_of_dg = (le16_to_cpu(adth->table_length) -
+-					sizeof(struct mux_adth) +
+-					sizeof(struct mux_adth_dg)) /
++					sizeof(struct mux_adth)) /
+ 					sizeof(struct mux_adth_dg);
+ 
+ 		/* Is the datagram table empty ? */
+@@ -649,7 +647,7 @@ static void mux_dl_adb_decode(struct iosm_mux *ipc_mux,
+ 		}
+ 
+ 		/* New aggregated datagram table. */
+-		dg = &adth->dg;
++		dg = adth->dg;
+ 		if (mux_dl_process_dg(ipc_mux, adbh, dg, skb, if_id,
+ 				      nr_of_dg) < 0)
+ 			goto adb_decode_err;
+@@ -849,7 +847,7 @@ static void ipc_mux_ul_encode_adth(struct iosm_mux *ipc_mux,
+ 			adth->if_id = i;
+ 			adth->table_length = cpu_to_le16(adth_dg_size);
+ 			adth_dg_size -= offsetof(struct mux_adth, dg);
+-			memcpy(&adth->dg, ul_adb->dg[i], adth_dg_size);
++			memcpy(adth->dg, ul_adb->dg[i], adth_dg_size);
+ 			ul_adb->if_cnt++;
+ 		}
+ 
+@@ -1426,14 +1424,13 @@ static int ipc_mux_get_payload_from_adb(struct iosm_mux *ipc_mux,
+ 
+ 		if (adth->signature == cpu_to_le32(IOSM_AGGR_MUX_SIG_ADTH)) {
+ 			nr_of_dg = (le16_to_cpu(adth->table_length) -
+-					sizeof(struct mux_adth) +
+-					sizeof(struct mux_adth_dg)) /
++					sizeof(struct mux_adth)) /
+ 					sizeof(struct mux_adth_dg);
+ 
+ 			if (nr_of_dg <= 0)
+ 				return payload_size;
+ 
+-			dg = &adth->dg;
++			dg = adth->dg;
+ 
+ 			for (i = 0; i < nr_of_dg; i++, dg++) {
+ 				if (le32_to_cpu(dg->datagram_index) <
+diff --git a/drivers/net/wwan/iosm/iosm_ipc_mux_codec.h b/drivers/net/wwan/iosm/iosm_ipc_mux_codec.h
+index 5d4e3b89542cc..f8df88f816c4c 100644
+--- a/drivers/net/wwan/iosm/iosm_ipc_mux_codec.h
++++ b/drivers/net/wwan/iosm/iosm_ipc_mux_codec.h
+@@ -161,7 +161,7 @@ struct mux_adth {
+ 	u8 opt_ipv4v6;
+ 	__le32 next_table_index;
+ 	__le32 reserved2;
+-	struct mux_adth_dg dg;
++	struct mux_adth_dg dg[];
+ };
+ 
+ /**
+-- 
+cgit 
+

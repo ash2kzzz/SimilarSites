@@ -1,0 +1,38 @@
+From a5982b3971007161b423b39aa843bdb6713a9d44 Mon Sep 17 00:00:00 2001
+From: Krzysztof Kozlowski <krzysztof.kozlowski@linaro.org>
+Date: Thu, 2 Mar 2023 16:47:24 +0100
+Subject: arm64: dts: qcom: sm8550: fix LPASS pinctrl slew base address
+
+The second LPASS pin controller IO address is supposed to be the MCC
+range which contains the slew rate registers.  The Linux driver then
+accesses slew rate register with hard-coded offset (0xa000).  However
+the DTS contained the address of slew rate register as the second IO
+address, thus any reads were effectively pass the memory space and lead
+to "Internal error: synchronous external aborts" when applying pin
+configuration.
+
+Fixes: 6de7f9c34358 ("arm64: dts: qcom: sm8550: add GPR and LPASS pin controller")
+Signed-off-by: Krzysztof Kozlowski <krzysztof.kozlowski@linaro.org>
+Reviewed-by: Neil Armstrong <neil.armstrong@linaro.org>
+Signed-off-by: Bjorn Andersson <andersson@kernel.org>
+Link: https://lore.kernel.org/r/20230302154724.856062-1-krzysztof.kozlowski@linaro.org
+---
+ arch/arm64/boot/dts/qcom/sm8550.dtsi | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/arch/arm64/boot/dts/qcom/sm8550.dtsi b/arch/arm64/boot/dts/qcom/sm8550.dtsi
+index 25f51245fe9bb..24aa724c12ea8 100644
+--- a/arch/arm64/boot/dts/qcom/sm8550.dtsi
++++ b/arch/arm64/boot/dts/qcom/sm8550.dtsi
+@@ -1997,7 +1997,7 @@
+ 		lpass_tlmm: pinctrl@6e80000 {
+ 			compatible = "qcom,sm8550-lpass-lpi-pinctrl";
+ 			reg = <0 0x06e80000 0 0x20000>,
+-			      <0 0x0725a000 0 0x10000>;
++			      <0 0x07250000 0 0x10000>;
+ 			gpio-controller;
+ 			#gpio-cells = <2>;
+ 			gpio-ranges = <&lpass_tlmm 0 0 23>;
+-- 
+cgit 
+

@@ -1,0 +1,41 @@
+From 158fb07ba6e77a21f46c3e9c5be44ebd8c4dd2cc Mon Sep 17 00:00:00 2001
+From: Lukas Bulwahn <lukas.bulwahn@gmail.com>
+Date: Tue, 9 May 2023 09:48:34 +0200
+Subject: MAINTAINERS: repair pattern in DIALOG SEMICONDUCTOR DRIVERS
+
+Commit 361104b05684c ("dt-bindings: mfd: Convert da9063 to yaml") converts
+da9063.txt to dlg,da9063.yaml and adds a new file pattern in MAINTAINERS.
+Unfortunately, the file pattern matches da90*.yaml, but the yaml file is
+prefixed with dlg,da90.
+
+Hence, ./scripts/get_maintainer.pl --self-test=patterns complains about a
+broken file pattern.
+
+Repair this file pattern in DIALOG SEMICONDUCTOR DRIVERS.
+
+Link: https://lkml.kernel.org/r/20230509074834.21521-1-lukas.bulwahn@gmail.com
+Fixes: 361104b05684c ("dt-bindings: mfd: Convert da9063 to yaml")
+Signed-off-by: Lukas Bulwahn <lukas.bulwahn@gmail.com>
+Acked-by: Conor Dooley <conor.dooley@microchip.com>
+Cc: Lee Jones <lee@kernel.org>
+Signed-off-by: Andrew Morton <akpm@linux-foundation.org>
+---
+ MAINTAINERS | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/MAINTAINERS b/MAINTAINERS
+index 7e0b87d5aa2e5..21d66f9696023 100644
+--- a/MAINTAINERS
++++ b/MAINTAINERS
+@@ -6019,7 +6019,7 @@ W:	http://www.dialog-semiconductor.com/products
+ F:	Documentation/devicetree/bindings/input/da90??-onkey.txt
+ F:	Documentation/devicetree/bindings/input/dlg,da72??.txt
+ F:	Documentation/devicetree/bindings/mfd/da90*.txt
+-F:	Documentation/devicetree/bindings/mfd/da90*.yaml
++F:	Documentation/devicetree/bindings/mfd/dlg,da90*.yaml
+ F:	Documentation/devicetree/bindings/regulator/dlg,da9*.yaml
+ F:	Documentation/devicetree/bindings/regulator/da92*.txt
+ F:	Documentation/devicetree/bindings/regulator/slg51000.txt
+-- 
+cgit 
+

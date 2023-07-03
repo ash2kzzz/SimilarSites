@@ -1,0 +1,34 @@
+From cdc26ee89bddb9b6b2ae026a46d97855d5ba6694 Mon Sep 17 00:00:00 2001
+From: Ryder Lee <ryder.lee@mediatek.com>
+Date: Mon, 24 Apr 2023 05:39:05 +0800
+Subject: wifi: mt76: mt7996: fix endianness of MT_TXD6_TX_RATE
+
+To avoid sparse warning:
+sparse: warning: invalid assignment: |=
+sparse:    left side has type restricted __le32
+sparse:    right side has type unsigned lon
+
+Fixes: 15ee62e73705 ("wifi: mt76: mt7996: enable BSS_CHANGED_BASIC_RATES support")
+Signed-off-by: Ryder Lee <ryder.lee@mediatek.com>
+Signed-off-by: Kalle Valo <kvalo@kernel.org>
+Link: https://lore.kernel.org/r/16fa938373e3b145cb07a2c98d2428fea2abadba.1682285873.git.ryder.lee@mediatek.com
+---
+ drivers/net/wireless/mediatek/mt76/mt7996/mac.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/net/wireless/mediatek/mt76/mt7996/mac.c b/drivers/net/wireless/mediatek/mt76/mt7996/mac.c
+index 130eb7b4fd914..39a4a73ef8e6a 100644
+--- a/drivers/net/wireless/mediatek/mt76/mt7996/mac.c
++++ b/drivers/net/wireless/mediatek/mt76/mt7996/mac.c
+@@ -1088,7 +1088,7 @@ void mt7996_mac_write_txwi(struct mt7996_dev *dev, __le32 *txwi,
+ 		else if (beacon && mvif->beacon_rates_idx)
+ 			idx = mvif->beacon_rates_idx;
+ 
+-		txwi[6] |= FIELD_PREP(MT_TXD6_TX_RATE, idx);
++		txwi[6] |= cpu_to_le32(FIELD_PREP(MT_TXD6_TX_RATE, idx));
+ 		txwi[3] |= cpu_to_le32(MT_TXD3_BA_DISABLE);
+ 	}
+ }
+-- 
+cgit 
+

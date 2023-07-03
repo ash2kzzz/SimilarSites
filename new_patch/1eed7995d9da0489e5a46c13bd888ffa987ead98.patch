@@ -1,0 +1,32 @@
+From 1eed7995d9da0489e5a46c13bd888ffa987ead98 Mon Sep 17 00:00:00 2001
+From: Konrad Dybcio <konrad.dybcio@linaro.org>
+Date: Fri, 20 Jan 2023 22:00:55 +0100
+Subject: arm64: dts: qcom: sm8350: Fix DSI1 interrupt
+
+The interrupt was wrong, likely copypasted from DSI0. Fix it.
+
+Fixes: d4a4410583ed ("arm64: dts: qcom: sm8350: Add display system nodes")
+Signed-off-by: Konrad Dybcio <konrad.dybcio@linaro.org>
+Reviewed-by: Dmitry Baryshkov <dmitry.baryshkov@linaro.org>
+Signed-off-by: Bjorn Andersson <andersson@kernel.org>
+Link: https://lore.kernel.org/r/20230120210101.2146852-3-konrad.dybcio@linaro.org
+---
+ arch/arm64/boot/dts/qcom/sm8350.dtsi | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/arch/arm64/boot/dts/qcom/sm8350.dtsi b/arch/arm64/boot/dts/qcom/sm8350.dtsi
+index 53f17d45e7898..145287684afe4 100644
+--- a/arch/arm64/boot/dts/qcom/sm8350.dtsi
++++ b/arch/arm64/boot/dts/qcom/sm8350.dtsi
+@@ -2986,7 +2986,7 @@
+ 				reg-names = "dsi_ctrl";
+ 
+ 				interrupt-parent = <&mdss>;
+-				interrupts = <4>;
++				interrupts = <5>;
+ 
+ 				clocks = <&dispcc DISP_CC_MDSS_BYTE1_CLK>,
+ 					 <&dispcc DISP_CC_MDSS_BYTE1_INTF_CLK>,
+-- 
+cgit 
+

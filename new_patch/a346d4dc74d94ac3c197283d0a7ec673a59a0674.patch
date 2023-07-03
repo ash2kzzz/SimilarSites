@@ -1,0 +1,49 @@
+From a346d4dc74d94ac3c197283d0a7ec673a59a0674 Mon Sep 17 00:00:00 2001
+From: Emanuele Ghidoli <emanuele.ghidoli@toradex.com>
+Date: Sun, 14 May 2023 11:22:43 +0200
+Subject: arm64: dts: colibri-imx8x: fix eval board pin configuration
+
+Fix pinctrl groups to have SODIMM 75 only in one group.
+Remove configuration of the pin at SoM level because it is normally
+used as CSI_MCLK at camera interface connector.
+Without this fix it is not possible, without redefining iomuxc pinctrl,
+to use CSI_MCLK signal and leads to the following error messages:
+
+imx8qxp-pinctrl scu:pinctrl: pin IMX8QXP_CSI_MCLK already requested
+imx8qxp-pinctrl scu:pinctrl: pin-147 (16-003c) status -22
+
+Fixes: 4d2adf738169 ("arm64: dts: colibri-imx8x: Split pinctrl_hog1")
+Signed-off-by: Emanuele Ghidoli <emanuele.ghidoli@toradex.com>
+Signed-off-by: Andrejs Cainikovs <andrejs.cainikovs@toradex.com>
+Signed-off-by: Francesco Dolcini <francesco.dolcini@toradex.com>
+Signed-off-by: Shawn Guo <shawnguo@kernel.org>
+---
+ arch/arm64/boot/dts/freescale/imx8x-colibri.dtsi | 5 ++---
+ 1 file changed, 2 insertions(+), 3 deletions(-)
+
+diff --git a/arch/arm64/boot/dts/freescale/imx8x-colibri.dtsi b/arch/arm64/boot/dts/freescale/imx8x-colibri.dtsi
+index 7cad79102e1af..6f88c11f16e1b 100644
+--- a/arch/arm64/boot/dts/freescale/imx8x-colibri.dtsi
++++ b/arch/arm64/boot/dts/freescale/imx8x-colibri.dtsi
+@@ -365,7 +365,7 @@
+ &iomuxc {
+ 	pinctrl-names = "default";
+ 	pinctrl-0 = <&pinctrl_ext_io0>, <&pinctrl_hog0>, <&pinctrl_hog1>,
+-		    <&pinctrl_hog2>, <&pinctrl_lpspi2_cs2>;
++		    <&pinctrl_lpspi2_cs2>;
+ 
+ 	/* On-module touch pen-down interrupt */
+ 	pinctrl_ad7879_int: ad7879intgrp {
+@@ -499,8 +499,7 @@
+ 	};
+ 
+ 	pinctrl_hog1: hog1grp {
+-		fsl,pins = <IMX8QXP_CSI_MCLK_LSIO_GPIO3_IO01			0x20>,		/* SODIMM  75 */
+-			   <IMX8QXP_QSPI0A_SCLK_LSIO_GPIO3_IO16			0x20>;		/* SODIMM  93 */
++		fsl,pins = <IMX8QXP_QSPI0A_SCLK_LSIO_GPIO3_IO16			0x20>;		/* SODIMM  93 */
+ 	};
+ 
+ 	pinctrl_hog2: hog2grp {
+-- 
+cgit 
+

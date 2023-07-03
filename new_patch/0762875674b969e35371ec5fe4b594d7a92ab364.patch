@@ -1,0 +1,32 @@
+From 0762875674b969e35371ec5fe4b594d7a92ab364 Mon Sep 17 00:00:00 2001
+From: Alexander Stein <alexander.stein@ew.tq-group.com>
+Date: Mon, 13 Mar 2023 09:36:21 +0100
+Subject: spi: nxp-flexspi: Add i.MX platform dependency
+
+This driver also supports various i.MX8 platforms. Add ARCH_MXC for
+selecting this driver without Layerscape support.
+
+Fixes: c6b15b2437a10 ("spi: nxp-flexspi: Fix ARCH_LAYERSCAPE dependency")
+Signed-off-by: Alexander Stein <alexander.stein@ew.tq-group.com>
+Link: https://lore.kernel.org/r/20230313083621.154729-1-alexander.stein@ew.tq-group.com
+Signed-off-by: Mark Brown <broonie@kernel.org>
+---
+ drivers/spi/Kconfig | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/spi/Kconfig b/drivers/spi/Kconfig
+index 80f3cade60065..cbf60b6a931c1 100644
+--- a/drivers/spi/Kconfig
++++ b/drivers/spi/Kconfig
+@@ -406,7 +406,7 @@ config SPI_HISI_SFC_V3XX
+ 
+ config SPI_NXP_FLEXSPI
+ 	tristate "NXP Flex SPI controller"
+-	depends on ARCH_LAYERSCAPE || COMPILE_TEST
++	depends on ARCH_LAYERSCAPE || ARCH_MXC || COMPILE_TEST
+ 	depends on HAS_IOMEM
+ 	help
+ 	  This enables support for the Flex SPI controller in master mode.
+-- 
+cgit 
+

@@ -1,0 +1,72 @@
+From 6a5cba7bed35580effda9fb1872b274da47e6b23 Mon Sep 17 00:00:00 2001
+From: Aaron Lewis <aaronlewis@google.com>
+Date: Tue, 20 Dec 2022 16:12:30 +0000
+Subject: KVM: x86/pmu: Correct the mask used in a pmu event filter lookup
+
+When checking if a pmu event the guest is attempting to program should
+be filtered, only consider the event select + unit mask in that
+decision. Use an architecture specific mask to mask out all other bits,
+including bits 35:32 on Intel.  Those bits are not part of the event
+select and should not be considered in that decision.
+
+Fixes: 66bb8a065f5a ("KVM: x86: PMU Event Filter")
+Signed-off-by: Aaron Lewis <aaronlewis@google.com>
+Link: https://lore.kernel.org/r/20221220161236.555143-2-aaronlewis@google.com
+Signed-off-by: Sean Christopherson <seanjc@google.com>
+---
+ arch/x86/kvm/pmu.c           | 3 ++-
+ arch/x86/kvm/pmu.h           | 2 ++
+ arch/x86/kvm/svm/pmu.c       | 1 +
+ arch/x86/kvm/vmx/pmu_intel.c | 1 +
+ 4 files changed, 6 insertions(+), 1 deletion(-)
+
+diff --git a/arch/x86/kvm/pmu.c b/arch/x86/kvm/pmu.c
+index d939d3b84e6f3..f5b933eeb5499 100644
+--- a/arch/x86/kvm/pmu.c
++++ b/arch/x86/kvm/pmu.c
+@@ -279,7 +279,8 @@ static bool check_pmu_event_filter(struct kvm_pmc *pmc)
+ 		goto out;
+ 
+ 	if (pmc_is_gp(pmc)) {
+-		key = pmc->eventsel & AMD64_RAW_EVENT_MASK_NB;
++		key = pmc->eventsel & (kvm_pmu_ops.EVENTSEL_EVENT |
++				       ARCH_PERFMON_EVENTSEL_UMASK);
+ 		if (bsearch(&key, filter->events, filter->nevents,
+ 			    sizeof(__u64), cmp_u64))
+ 			allow_event = filter->action == KVM_PMU_EVENT_ALLOW;
+diff --git a/arch/x86/kvm/pmu.h b/arch/x86/kvm/pmu.h
+index cdb91009701dd..30bfccc6df60c 100644
+--- a/arch/x86/kvm/pmu.h
++++ b/arch/x86/kvm/pmu.h
+@@ -40,6 +40,8 @@ struct kvm_pmu_ops {
+ 	void (*reset)(struct kvm_vcpu *vcpu);
+ 	void (*deliver_pmi)(struct kvm_vcpu *vcpu);
+ 	void (*cleanup)(struct kvm_vcpu *vcpu);
++
++	const u64 EVENTSEL_EVENT;
+ };
+ 
+ void kvm_pmu_ops_update(const struct kvm_pmu_ops *pmu_ops);
+diff --git a/arch/x86/kvm/svm/pmu.c b/arch/x86/kvm/svm/pmu.c
+index 1ff068f238412..5da8c292e3e3d 100644
+--- a/arch/x86/kvm/svm/pmu.c
++++ b/arch/x86/kvm/svm/pmu.c
+@@ -231,4 +231,5 @@ struct kvm_pmu_ops amd_pmu_ops __initdata = {
+ 	.refresh = amd_pmu_refresh,
+ 	.init = amd_pmu_init,
+ 	.reset = amd_pmu_reset,
++	.EVENTSEL_EVENT = AMD64_EVENTSEL_EVENT,
+ };
+diff --git a/arch/x86/kvm/vmx/pmu_intel.c b/arch/x86/kvm/vmx/pmu_intel.c
+index efce9ad70e4e9..7980fda3978d4 100644
+--- a/arch/x86/kvm/vmx/pmu_intel.c
++++ b/arch/x86/kvm/vmx/pmu_intel.c
+@@ -811,4 +811,5 @@ struct kvm_pmu_ops intel_pmu_ops __initdata = {
+ 	.reset = intel_pmu_reset,
+ 	.deliver_pmi = intel_pmu_deliver_pmi,
+ 	.cleanup = intel_pmu_cleanup,
++	.EVENTSEL_EVENT = ARCH_PERFMON_EVENTSEL_EVENT,
+ };
+-- 
+cgit 
+

@@ -1,0 +1,52 @@
+From e8a3c8bd687068bafb640ca524905f0bec716a13 Mon Sep 17 00:00:00 2001
+From: Jesper Dangaard Brouer <brouer@redhat.com>
+Date: Wed, 1 Feb 2023 18:32:05 +0100
+Subject: selftests/bpf: xdp_hw_metadata use strncpy for ifname
+
+The ifname char pointer is taken directly from the command line
+as input and the string is copied directly into struct ifreq
+via strcpy. This makes it easy to corrupt other members of ifreq
+and generally do stack overflows.
+
+Most often the ioctl will fail with:
+
+ ./xdp_hw_metadata: ioctl(SIOCETHTOOL): Bad address
+
+As people will likely copy-paste code for getting NIC queue
+channels (rxq_num) and enabling HW timestamping (hwtstamp_ioctl)
+lets make this code a bit more secure by using strncpy.
+
+Fixes: 297a3f124155 ("selftests/bpf: Simple program to dump XDP RX metadata")
+Signed-off-by: Jesper Dangaard Brouer <brouer@redhat.com>
+Signed-off-by: Daniel Borkmann <daniel@iogearbox.net>
+Acked-by: Stanislav Fomichev <sdf@google.com>
+Link: https://lore.kernel.org/bpf/167527272543.937063.16993147790832546209.stgit@firesoul
+---
+ tools/testing/selftests/bpf/xdp_hw_metadata.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/tools/testing/selftests/bpf/xdp_hw_metadata.c b/tools/testing/selftests/bpf/xdp_hw_metadata.c
+index 58fde35abad72..2a66bd3f2c9f8 100644
+--- a/tools/testing/selftests/bpf/xdp_hw_metadata.c
++++ b/tools/testing/selftests/bpf/xdp_hw_metadata.c
+@@ -270,7 +270,7 @@ static int rxq_num(const char *ifname)
+ 	struct ifreq ifr = {
+ 		.ifr_data = (void *)&ch,
+ 	};
+-	strcpy(ifr.ifr_name, ifname);
++	strncpy(ifr.ifr_name, ifname, IF_NAMESIZE - 1);
+ 	int fd, ret;
+ 
+ 	fd = socket(AF_UNIX, SOCK_DGRAM, 0);
+@@ -291,7 +291,7 @@ static void hwtstamp_ioctl(int op, const char *ifname, struct hwtstamp_config *c
+ 	struct ifreq ifr = {
+ 		.ifr_data = (void *)cfg,
+ 	};
+-	strcpy(ifr.ifr_name, ifname);
++	strncpy(ifr.ifr_name, ifname, IF_NAMESIZE - 1);
+ 	int fd, ret;
+ 
+ 	fd = socket(AF_UNIX, SOCK_DGRAM, 0);
+-- 
+cgit 
+

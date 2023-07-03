@@ -1,0 +1,31 @@
+From fd648e1010b1c6f248ae5ed089808f031fedcfba Mon Sep 17 00:00:00 2001
+From: Andy Shevchenko <andriy.shevchenko@linux.intel.com>
+Date: Sat, 21 Jan 2023 13:18:35 +0200
+Subject: gpio: zevio: Add missing header
+
+The commit 899f6a9c4364 ("gpio: zevio: Use proper headers and drop
+OF_GPIO dependency") missed one header this driver depends on. Add it.
+
+Fixes: 899f6a9c4364 ("gpio: zevio: Use proper headers and drop OF_GPIO dependency")
+Reported-by: kernel test robot <lkp@intel.com>
+Signed-off-by: Andy Shevchenko <andriy.shevchenko@linux.intel.com>
+Signed-off-by: Bartosz Golaszewski <bartosz.golaszewski@linaro.org>
+---
+ drivers/gpio/gpio-zevio.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/drivers/gpio/gpio-zevio.c b/drivers/gpio/gpio-zevio.c
+index 61e47456c33ae..f0f571b323f2b 100644
+--- a/drivers/gpio/gpio-zevio.c
++++ b/drivers/gpio/gpio-zevio.c
+@@ -10,6 +10,7 @@
+ #include <linux/init.h>
+ #include <linux/io.h>
+ #include <linux/mod_devicetable.h>
++#include <linux/platform_device.h>
+ #include <linux/slab.h>
+ #include <linux/spinlock.h>
+ 
+-- 
+cgit 
+

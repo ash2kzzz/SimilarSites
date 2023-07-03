@@ -1,0 +1,70 @@
+From f276aacf5d2f7fb57e400db44c807ea3b9525fd6 Mon Sep 17 00:00:00 2001
+From: Janne Grunau <j@jannau.net>
+Date: Fri, 13 Jan 2023 19:23:08 +0900
+Subject: spi: Use a 32-bit DT property for spi-cs-setup-delay-ns
+
+65us is not a reasonable maximum for this property, as some devices
+might need a much longer setup time (e.g. those driven by firmware on
+the other end). Plus, device tree property values are in 32-bit cells
+and smaller widths should not be used without good reason.
+
+Also move the logic to a helper function, since this will later be used
+to parse other CS delay properties too.
+
+Fixes: 33a2fde5f77b ("spi: Introduce spi-cs-setup-ns property")
+Signed-off-by: Janne Grunau <j@jannau.net>
+Signed-off-by: Hector Martin <marcan@marcan.st>
+Link: https://lore.kernel.org/r/20230113102309.18308-2-marcan@marcan.st
+Signed-off-by: Mark Brown <broonie@kernel.org>
+---
+ drivers/spi/spi.c | 23 ++++++++++++++++++-----
+ 1 file changed, 18 insertions(+), 5 deletions(-)
+
+diff --git a/drivers/spi/spi.c b/drivers/spi/spi.c
+index 15f174f4e0561..3f33934f5429a 100644
+--- a/drivers/spi/spi.c
++++ b/drivers/spi/spi.c
+@@ -2220,11 +2220,26 @@ void spi_flush_queue(struct spi_controller *ctlr)
+ /*-------------------------------------------------------------------------*/
+ 
+ #if defined(CONFIG_OF)
++static void of_spi_parse_dt_cs_delay(struct device_node *nc,
++				     struct spi_delay *delay, const char *prop)
++{
++	u32 value;
++
++	if (!of_property_read_u32(nc, prop, &value)) {
++		if (value > U16_MAX) {
++			delay->value = DIV_ROUND_UP(value, 1000);
++			delay->unit = SPI_DELAY_UNIT_USECS;
++		} else {
++			delay->value = value;
++			delay->unit = SPI_DELAY_UNIT_NSECS;
++		}
++	}
++}
++
+ static int of_spi_parse_dt(struct spi_controller *ctlr, struct spi_device *spi,
+ 			   struct device_node *nc)
+ {
+ 	u32 value;
+-	u16 cs_setup;
+ 	int rc;
+ 
+ 	/* Mode (clock phase/polarity/etc.) */
+@@ -2310,10 +2325,8 @@ static int of_spi_parse_dt(struct spi_controller *ctlr, struct spi_device *spi,
+ 	if (!of_property_read_u32(nc, "spi-max-frequency", &value))
+ 		spi->max_speed_hz = value;
+ 
+-	if (!of_property_read_u16(nc, "spi-cs-setup-delay-ns", &cs_setup)) {
+-		spi->cs_setup.value = cs_setup;
+-		spi->cs_setup.unit = SPI_DELAY_UNIT_NSECS;
+-	}
++	/* Device CS delays */
++	of_spi_parse_dt_cs_delay(nc, &spi->cs_setup, "spi-cs-setup-delay-ns");
+ 
+ 	return 0;
+ }
+-- 
+cgit 
+

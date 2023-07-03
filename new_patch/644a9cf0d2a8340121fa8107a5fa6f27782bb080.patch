@@ -1,0 +1,151 @@
+From 644a9cf0d2a8340121fa8107a5fa6f27782bb080 Mon Sep 17 00:00:00 2001
+From: Randy Dunlap <rdunlap@infradead.org>
+Date: Sun, 5 Mar 2023 20:00:35 -0800
+Subject: sh: remove sh5/sh64 last fragments
+
+A previous patch removed most of the sh5 (sh64) support from the
+kernel tree. Now remove the last stragglers.
+
+Fixes: 37744feebc08 ("sh: remove sh5 support")
+Signed-off-by: Randy Dunlap <rdunlap@infradead.org>
+Cc: Geert Uytterhoeven <geert+renesas@glider.be>
+Cc: Arnd Bergmann <arnd@arndb.de>
+Cc: Rich Felker <dalias@libc.org>
+Cc: Yoshinori Sato <ysato@users.sourceforge.jp>
+Cc: John Paul Adrian Glaubitz <glaubitz@physik.fu-berlin.de>
+Cc: linux-sh@vger.kernel.org
+Acked-by: John Paul Adrian Glaubitz <glaubitz@physik.fu-berlin.de>
+Reviewed-by: John Paul Adrian Glaubitz <glaubitz@physik.fu-berlin.de>
+Link: https://lore.kernel.org/r/20230306040037.20350-6-rdunlap@infradead.org
+Signed-off-by: John Paul Adrian Glaubitz <glaubitz@physik.fu-berlin.de>
+---
+ Documentation/kbuild/kbuild.rst                           | 1 -
+ Documentation/scheduler/sched-arch.rst                    | 2 --
+ Documentation/translations/zh_CN/scheduler/sched-arch.rst | 2 --
+ scripts/checkstack.pl                                     | 7 -------
+ tools/perf/arch/common.c                                  | 2 --
+ tools/scripts/Makefile.arch                               | 5 -----
+ tools/testing/selftests/mm/Makefile                       | 2 +-
+ tools/testing/selftests/mm/run_vmtests.sh                 | 2 +-
+ 8 files changed, 2 insertions(+), 21 deletions(-)
+
+diff --git a/Documentation/kbuild/kbuild.rst b/Documentation/kbuild/kbuild.rst
+index 5202186728b43..e22621f4af0b9 100644
+--- a/Documentation/kbuild/kbuild.rst
++++ b/Documentation/kbuild/kbuild.rst
+@@ -160,7 +160,6 @@ directory name found in the arch/ directory.
+ But some architectures such as x86 and sparc have aliases.
+ 
+ - x86: i386 for 32 bit, x86_64 for 64 bit
+-- sh: sh for 32 bit, sh64 for 64 bit
+ - sparc: sparc32 for 32 bit, sparc64 for 64 bit
+ 
+ CROSS_COMPILE
+diff --git a/Documentation/scheduler/sched-arch.rst b/Documentation/scheduler/sched-arch.rst
+index 0eaec669790a0..505cd27f9a92d 100644
+--- a/Documentation/scheduler/sched-arch.rst
++++ b/Documentation/scheduler/sched-arch.rst
+@@ -70,7 +70,5 @@ Possible arch problems I found (and either tried to fix or didn't):
+ 
+ ia64 - is safe_halt call racy vs interrupts? (does it sleep?) (See #4a)
+ 
+-sh64 - Is sleeping racy vs interrupts? (See #4a)
+-
+ sparc - IRQs on at this point(?), change local_irq_save to _disable.
+       - TODO: needs secondary CPUs to disable preempt (See #1)
+diff --git a/Documentation/translations/zh_CN/scheduler/sched-arch.rst b/Documentation/translations/zh_CN/scheduler/sched-arch.rst
+index 754a15c6b60f3..ce3f39d9b3cbe 100644
+--- a/Documentation/translations/zh_CN/scheduler/sched-arch.rst
++++ b/Documentation/translations/zh_CN/scheduler/sched-arch.rst
+@@ -70,7 +70,5 @@ arch/x86/kernel/process.c有轮询和睡眠空闲函数的例子。
+ 
+ ia64 - safe_halt的调用与中断相比，是否很荒谬？ (它睡眠了吗) (参考 #4a)
+ 
+-sh64 - 睡眠与中断相比，是否很荒谬？ (参考 #4a)
+-
+ sparc - 在这一点上，IRQ是开着的（？），把local_irq_save改为_disable。
+       - 待办事项: 需要第二个CPU来禁用抢占 (参考 #1)
+diff --git a/scripts/checkstack.pl b/scripts/checkstack.pl
+index d48dfed6d3dba..84f5fb7f1cecc 100755
+--- a/scripts/checkstack.pl
++++ b/scripts/checkstack.pl
+@@ -10,7 +10,6 @@
+ #	Mips port by Juan Quintela <quintela@mandrakesoft.com>
+ #	IA64 port via Andreas Dilger
+ #	Arm port by Holger Schurig
+-#	sh64 port by Paul Mundt
+ #	Random bits by Matt Mackall <mpm@selenic.com>
+ #	M68k port by Geert Uytterhoeven and Andreas Schwab
+ #	AArch64, PARISC ports by Kyle McMartin
+@@ -100,12 +99,6 @@ my (@stack, $re, $dre, $sub, $x, $xs, $funcre, $min_stack);
+ 		#  100092:	 e3 f0 ff c8 ff 71	 lay	 %r15,-56(%r15)
+ 		$re = qr/.*(?:lay|ag?hi).*\%r15,-(([0-9]{2}|[3-9])[0-9]{2})
+ 		      (?:\(\%r15\))?$/ox;
+-	} elsif ($arch =~ /^sh64$/) {
+-		#XXX: we only check for the immediate case presently,
+-		#     though we will want to check for the movi/sub
+-		#     pair for larger users. -- PFM.
+-		#a00048e0:       d4fc40f0        addi.l  r15,-240,r15
+-		$re = qr/.*addi\.l.*r15,-(([0-9]{2}|[3-9])[0-9]{2}),r15/o;
+ 	} elsif ($arch eq 'sparc' || $arch eq 'sparc64') {
+ 		# f0019d10:       9d e3 bf 90     save  %sp, -112, %sp
+ 		$re = qr/.*save.*%sp, -(([0-9]{2}|[3-9])[0-9]{2}), %sp/o;
+diff --git a/tools/perf/arch/common.c b/tools/perf/arch/common.c
+index 59dd875fd5e4e..cfe63dfab03a1 100644
+--- a/tools/perf/arch/common.c
++++ b/tools/perf/arch/common.c
+@@ -51,9 +51,7 @@ const char *const s390_triplets[] = {
+ 
+ const char *const sh_triplets[] = {
+ 	"sh-unknown-linux-gnu-",
+-	"sh64-unknown-linux-gnu-",
+ 	"sh-linux-gnu-",
+-	"sh64-linux-gnu-",
+ 	NULL
+ };
+ 
+diff --git a/tools/scripts/Makefile.arch b/tools/scripts/Makefile.arch
+index 1c72d07cb9fed..f6a50f06dfc45 100644
+--- a/tools/scripts/Makefile.arch
++++ b/tools/scripts/Makefile.arch
+@@ -29,11 +29,6 @@ ifeq ($(ARCH),sparc64)
+        SRCARCH := sparc
+ endif
+ 
+-# Additional ARCH settings for sh
+-ifeq ($(ARCH),sh64)
+-       SRCARCH := sh
+-endif
+-
+ # Additional ARCH settings for loongarch
+ ifeq ($(ARCH),loongarch32)
+        SRCARCH := loongarch
+diff --git a/tools/testing/selftests/mm/Makefile b/tools/testing/selftests/mm/Makefile
+index c31d952cff68f..fc35050b5542f 100644
+--- a/tools/testing/selftests/mm/Makefile
++++ b/tools/testing/selftests/mm/Makefile
+@@ -90,7 +90,7 @@ endif
+ 
+ endif
+ 
+-ifneq (,$(filter $(MACHINE),arm64 ia64 mips64 parisc64 ppc64 riscv64 s390x sh64 sparc64 x86_64))
++ifneq (,$(filter $(MACHINE),arm64 ia64 mips64 parisc64 ppc64 riscv64 s390x sparc64 x86_64))
+ TEST_GEN_FILES += va_128TBswitch
+ TEST_GEN_FILES += virtual_address_range
+ TEST_GEN_FILES += write_to_hugetlbfs
+diff --git a/tools/testing/selftests/mm/run_vmtests.sh b/tools/testing/selftests/mm/run_vmtests.sh
+index 8984e0bb58c7a..a9d6d52596f23 100644
+--- a/tools/testing/selftests/mm/run_vmtests.sh
++++ b/tools/testing/selftests/mm/run_vmtests.sh
+@@ -132,7 +132,7 @@ else
+ fi
+ 
+ # filter 64bit architectures
+-ARCH64STR="arm64 ia64 mips64 parisc64 ppc64 ppc64le riscv64 s390x sh64 sparc64 x86_64"
++ARCH64STR="arm64 ia64 mips64 parisc64 ppc64 ppc64le riscv64 s390x sparc64 x86_64"
+ if [ -z "$ARCH" ]; then
+ 	ARCH=$(uname -m 2>/dev/null | sed -e 's/aarch64.*/arm64/')
+ fi
+-- 
+cgit 
+

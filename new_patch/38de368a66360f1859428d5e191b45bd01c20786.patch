@@ -1,0 +1,52 @@
+From 38de368a66360f1859428d5e191b45bd01c20786 Mon Sep 17 00:00:00 2001
+From: Vinod Koul <vkoul@kernel.org>
+Date: Tue, 16 May 2023 23:13:11 +0530
+Subject: dmaengine: ti: k3-udma: annotate pm function with __maybe_unused
+
+We get a warning when PM is not set:
+
+../drivers/dma/ti/k3-udma.c:5552:12: warning: 'udma_pm_resume' defined but not used [-Wunused-function]
+ 5552 | static int udma_pm_resume(struct device *dev)
+      |            ^~~~~~~~~~~~~~
+../drivers/dma/ti/k3-udma.c:5530:12: warning: 'udma_pm_suspend' defined but not used [-Wunused-function]
+ 5530 | static int udma_pm_suspend(struct device *dev)
+      |            ^~~~~~~~~~~~~~~
+
+Fix this by annotating pm function with __maybe_unused
+
+Fixes: fbe05149e40b ("dmaengine: ti: k3-udma: Add system suspend/resume support")
+Reported-by: Randy Dunlap <rdunlap@infradead.org>
+Signed-off-by: Vinod Koul <vkoul@kernel.org>
+Acked-by: Randy Dunlap <rdunlap@infradead.org>
+Tested-by: Randy Dunlap <rdunlap@infradead.org> # build-tested
+Link: https://lore.kernel.org/r/20230516174311.117264-1-vkoul@kernel.org
+Signed-off-by: Vinod Koul <vkoul@kernel.org>
+---
+ drivers/dma/ti/k3-udma.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/dma/ti/k3-udma.c b/drivers/dma/ti/k3-udma.c
+index fc3a2a05ab7b7..b8329a23728d7 100644
+--- a/drivers/dma/ti/k3-udma.c
++++ b/drivers/dma/ti/k3-udma.c
+@@ -5527,7 +5527,7 @@ static int udma_probe(struct platform_device *pdev)
+ 	return ret;
+ }
+ 
+-static int udma_pm_suspend(struct device *dev)
++static int __maybe_unused udma_pm_suspend(struct device *dev)
+ {
+ 	struct udma_dev *ud = dev_get_drvdata(dev);
+ 	struct dma_device *dma_dev = &ud->ddev;
+@@ -5549,7 +5549,7 @@ static int udma_pm_suspend(struct device *dev)
+ 	return 0;
+ }
+ 
+-static int udma_pm_resume(struct device *dev)
++static int __maybe_unused udma_pm_resume(struct device *dev)
+ {
+ 	struct udma_dev *ud = dev_get_drvdata(dev);
+ 	struct dma_device *dma_dev = &ud->ddev;
+-- 
+cgit 
+

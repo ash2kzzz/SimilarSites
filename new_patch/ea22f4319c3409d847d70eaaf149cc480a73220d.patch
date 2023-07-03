@@ -1,0 +1,46 @@
+From ea22f4319c3409d847d70eaaf149cc480a73220d Mon Sep 17 00:00:00 2001
+From: Sudheer Mogilappagari <sudheer.mogilappagari@intel.com>
+Date: Wed, 11 Jan 2023 15:56:07 -0800
+Subject: ethtool: add netlink attr in rss get reply only if value is not null
+
+Current code for RSS_GET ethtool command includes netlink attributes
+in reply message to user space even if they are null. Added checks
+to include netlink attribute in reply message only if a value is
+received from driver. Drivers might return null for RSS indirection
+table or hash key. Instead of including attributes with empty value
+in the reply message, add netlink attribute only if there is content.
+
+Fixes: 7112a04664bf ("ethtool: add netlink based get rss support")
+Signed-off-by: Sudheer Mogilappagari <sudheer.mogilappagari@intel.com>
+Reviewed-by: Michal Kubecek <mkubecek@suse.cz>
+Link: https://lore.kernel.org/r/20230111235607.85509-1-sudheer.mogilappagari@intel.com
+Signed-off-by: Jakub Kicinski <kuba@kernel.org>
+---
+ net/ethtool/rss.c | 11 +++++++----
+ 1 file changed, 7 insertions(+), 4 deletions(-)
+
+diff --git a/net/ethtool/rss.c b/net/ethtool/rss.c
+index ebe6145aed3f1..be260ab34e580 100644
+--- a/net/ethtool/rss.c
++++ b/net/ethtool/rss.c
+@@ -122,10 +122,13 @@ rss_fill_reply(struct sk_buff *skb, const struct ethnl_req_info *req_base,
+ {
+ 	const struct rss_reply_data *data = RSS_REPDATA(reply_base);
+ 
+-	if (nla_put_u32(skb, ETHTOOL_A_RSS_HFUNC, data->hfunc) ||
+-	    nla_put(skb, ETHTOOL_A_RSS_INDIR,
+-		    sizeof(u32) * data->indir_size, data->indir_table) ||
+-	    nla_put(skb, ETHTOOL_A_RSS_HKEY, data->hkey_size, data->hkey))
++	if ((data->hfunc &&
++	     nla_put_u32(skb, ETHTOOL_A_RSS_HFUNC, data->hfunc)) ||
++	    (data->indir_size &&
++	     nla_put(skb, ETHTOOL_A_RSS_INDIR,
++		     sizeof(u32) * data->indir_size, data->indir_table)) ||
++	    (data->hkey_size &&
++	     nla_put(skb, ETHTOOL_A_RSS_HKEY, data->hkey_size, data->hkey)))
+ 		return -EMSGSIZE;
+ 
+ 	return 0;
+-- 
+cgit 
+

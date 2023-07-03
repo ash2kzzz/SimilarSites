@@ -1,0 +1,1595 @@
+From 3755b46a1bf47a6778f4ce33def1e6122796f57c Mon Sep 17 00:00:00 2001
+From: Miaoqian Lin <linmq006@gmail.com>
+Date: Thu, 15 Dec 2022 11:19:01 +0400
+Subject: backlight: backlight: Fix doc for backlight_device_get_by_name
+
+backlight_put() has been dropped, we should call put_device() to drop
+the reference taken by backlight_device_get_by_name().
+
+Fixes: 0f6a3256fd81 ("backlight: backlight: Drop backlight_put()")
+Signed-off-by: Miaoqian Lin <linmq006@gmail.com>
+Reviewed-by: Daniel Thompson <daniel.thompson@linaro.org>
+Signed-off-by: Lee Jones <lee@kernel.org>
+Link: https://lore.kernel.org/r/20221215071902.424005-1-linmq006@gmail.com
+---
+ drivers/video/backlight/backlight.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/video/backlight/backlight.c b/drivers/video/backlight/backlight.c
+index b788ff3d0f45e..6eea72aa8dbff 100644
+--- a/drivers/video/backlight/backlight.c
++++ b/drivers/video/backlight/backlight.c
+@@ -501,7 +501,7 @@ EXPORT_SYMBOL(backlight_device_get_by_type);
+  *
+  * This function looks up a backlight device by its name. It obtains a reference
+  * on the backlight device and it is the caller's responsibility to drop the
+- * reference by calling backlight_put().
++ * reference by calling put_device().
+  *
+  * Returns:
+  * A pointer to the backlight device if found, otherwise NULL.
+-- 
+cgit 
+
+
+From 81bc9eada9e75d011d055505a7a30b760af0455f Mon Sep 17 00:00:00 2001
+From: Yang Yingliang <yangyingliang@huawei.com>
+Date: Mon, 26 Sep 2022 22:20:59 +0800
+Subject: backlight: ktd253: Switch to use dev_err_probe() helper
+
+In the probe path, dev_err() can be replaced with dev_err_probe()
+which will check if error code is -EPROBE_DEFER and prints the
+error name. It also sets the defer probe reason which can be
+checked later through debugfs. It's more simple in error path.
+
+Signed-off-by: Yang Yingliang <yangyingliang@huawei.com>
+Reviewed-by: Daniel Thompson <daniel.thompson@linaro.org>
+Reviewed-by: Linus Walleij <linus.walleij@linaro.org>
+Signed-off-by: Lee Jones <lee@kernel.org>
+Link: https://lore.kernel.org/r/20220926142059.2294282-1-yangyingliang@huawei.com
+---
+ drivers/video/backlight/ktd253-backlight.c | 9 +++------
+ 1 file changed, 3 insertions(+), 6 deletions(-)
+
+diff --git a/drivers/video/backlight/ktd253-backlight.c b/drivers/video/backlight/ktd253-backlight.c
+index 37aa5a6695309..d7d43454f64a2 100644
+--- a/drivers/video/backlight/ktd253-backlight.c
++++ b/drivers/video/backlight/ktd253-backlight.c
+@@ -173,12 +173,9 @@ static int ktd253_backlight_probe(struct platform_device *pdev)
+ 	}
+ 
+ 	ktd253->gpiod = devm_gpiod_get(dev, "enable", GPIOD_OUT_LOW);
+-	if (IS_ERR(ktd253->gpiod)) {
+-		ret = PTR_ERR(ktd253->gpiod);
+-		if (ret != -EPROBE_DEFER)
+-			dev_err(dev, "gpio line missing or invalid.\n");
+-		return ret;
+-	}
++	if (IS_ERR(ktd253->gpiod))
++		return dev_err_probe(dev, PTR_ERR(ktd253->gpiod),
++				     "gpio line missing or invalid.\n");
+ 	gpiod_set_consumer_name(ktd253->gpiod, dev_name(dev));
+ 	/* Bring backlight to a known off state */
+ 	msleep(KTD253_T_OFF_MS);
+-- 
+cgit 
+
+
+From 901ae537b7977716dc6d2db34b3a75d64a72ab2b Mon Sep 17 00:00:00 2001
+From: Luca Weiss <luca@z3ntu.xyz>
+Date: Tue, 1 Nov 2022 17:17:59 +0100
+Subject: dt-bindings: backlight: qcom-wled: Add PMI8950 compatible
+
+Document the compatible for the wled block found in PMI8950.
+
+Signed-off-by: Luca Weiss <luca@z3ntu.xyz>
+Reviewed-by: Daniel Thompson <daniel.thompson@linaro.org>
+Acked-by: Rob Herring <robh@kernel.org>
+Signed-off-by: Lee Jones <lee@kernel.org>
+Link: https://lore.kernel.org/r/20221101161801.1058969-1-luca@z3ntu.xyz
+---
+ Documentation/devicetree/bindings/leds/backlight/qcom-wled.yaml | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/Documentation/devicetree/bindings/leds/backlight/qcom-wled.yaml b/Documentation/devicetree/bindings/leds/backlight/qcom-wled.yaml
+index 9acdb78955147..5f1849bdabba2 100644
+--- a/Documentation/devicetree/bindings/leds/backlight/qcom-wled.yaml
++++ b/Documentation/devicetree/bindings/leds/backlight/qcom-wled.yaml
+@@ -19,6 +19,7 @@ properties:
+   compatible:
+     enum:
+       - qcom,pm8941-wled
++      - qcom,pmi8950-wled
+       - qcom,pmi8994-wled
+       - qcom,pmi8998-wled
+       - qcom,pm660l-wled
+-- 
+cgit 
+
+
+From 5a7fbe452ad9e4a8988d4c20d7acf148383f8106 Mon Sep 17 00:00:00 2001
+From: Uwe Kleine-König <u.kleine-koenig@pengutronix.de>
+Date: Thu, 17 Nov 2022 08:21:51 +0100
+Subject: backlight: pwm_bl: Drop support for legacy PWM probing
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+There is no in-tree user left which relies on legacy probing. So drop
+support for it which removes another user of the deprecated
+pwm_request() function.
+
+Signed-off-by: Uwe Kleine-König <u.kleine-koenig@pengutronix.de>
+Reviewed-by: Daniel Thompson <daniel.thompson@linaro.org>
+Signed-off-by: Lee Jones <lee@kernel.org>
+Link: https://lore.kernel.org/r/20221117072151.3789691-1-u.kleine-koenig@pengutronix.de
+---
+ drivers/video/backlight/pwm_bl.c | 12 ------------
+ include/linux/pwm_backlight.h    |  1 -
+ 2 files changed, 13 deletions(-)
+
+diff --git a/drivers/video/backlight/pwm_bl.c b/drivers/video/backlight/pwm_bl.c
+index c0523a0269ee5..d0b22158cd70e 100644
+--- a/drivers/video/backlight/pwm_bl.c
++++ b/drivers/video/backlight/pwm_bl.c
+@@ -28,7 +28,6 @@ struct pwm_bl_data {
+ 	struct regulator	*power_supply;
+ 	struct gpio_desc	*enable_gpio;
+ 	unsigned int		scale;
+-	bool			legacy;
+ 	unsigned int		post_pwm_on_delay;
+ 	unsigned int		pwm_off_delay;
+ 	int			(*notify)(struct device *,
+@@ -455,7 +454,6 @@ static int pwm_backlight_probe(struct platform_device *pdev)
+ 	struct platform_pwm_backlight_data defdata;
+ 	struct backlight_properties props;
+ 	struct backlight_device *bl;
+-	struct device_node *node = pdev->dev.of_node;
+ 	struct pwm_bl_data *pb;
+ 	struct pwm_state state;
+ 	unsigned int i;
+@@ -506,12 +504,6 @@ static int pwm_backlight_probe(struct platform_device *pdev)
+ 	}
+ 
+ 	pb->pwm = devm_pwm_get(&pdev->dev, NULL);
+-	if (IS_ERR(pb->pwm) && PTR_ERR(pb->pwm) != -EPROBE_DEFER && !node) {
+-		dev_err(&pdev->dev, "unable to request PWM, trying legacy API\n");
+-		pb->legacy = true;
+-		pb->pwm = pwm_request(data->pwm_id, "pwm-backlight");
+-	}
+-
+ 	if (IS_ERR(pb->pwm)) {
+ 		ret = PTR_ERR(pb->pwm);
+ 		if (ret != -EPROBE_DEFER)
+@@ -604,8 +596,6 @@ static int pwm_backlight_probe(struct platform_device *pdev)
+ 	if (IS_ERR(bl)) {
+ 		dev_err(&pdev->dev, "failed to register backlight\n");
+ 		ret = PTR_ERR(bl);
+-		if (pb->legacy)
+-			pwm_free(pb->pwm);
+ 		goto err_alloc;
+ 	}
+ 
+@@ -639,8 +629,6 @@ static int pwm_backlight_remove(struct platform_device *pdev)
+ 
+ 	if (pb->exit)
+ 		pb->exit(&pdev->dev);
+-	if (pb->legacy)
+-		pwm_free(pb->pwm);
+ 
+ 	return 0;
+ }
+diff --git a/include/linux/pwm_backlight.h b/include/linux/pwm_backlight.h
+index 06086cb93b6ff..cdd2ac366bc72 100644
+--- a/include/linux/pwm_backlight.h
++++ b/include/linux/pwm_backlight.h
+@@ -8,7 +8,6 @@
+ #include <linux/backlight.h>
+ 
+ struct platform_pwm_backlight_data {
+-	int pwm_id;
+ 	unsigned int max_brightness;
+ 	unsigned int dft_brightness;
+ 	unsigned int lth_brightness;
+-- 
+cgit 
+
+
+From 3a396f9859755e822775319516cd71dabc2b4e69 Mon Sep 17 00:00:00 2001
+From: Randy Dunlap <rdunlap@infradead.org>
+Date: Thu, 12 Jan 2023 22:41:18 -0800
+Subject: backlight: sky81452: Fix sky81452_bl_platform_data kernel-doc
+
+Correct the struct name and add a short struct description to fix the
+kernel-doc notation.
+
+Prevents this kernel-doc warning:
+drivers/video/backlight/sky81452-backlight.c:64: warning: expecting prototype for struct sky81452_platform_data. Prototype was for struct sky81452_bl_platform_data instead
+
+Signed-off-by: Randy Dunlap <rdunlap@infradead.org>
+Reviewed-by: Daniel Thompson <daniel.thompson@linaro.org>
+Signed-off-by: Lee Jones <lee@kernel.org>
+Link: https://lore.kernel.org/r/20230113064118.30169-1-rdunlap@infradead.org
+---
+ drivers/video/backlight/sky81452-backlight.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/video/backlight/sky81452-backlight.c b/drivers/video/backlight/sky81452-backlight.c
+index c95e0de7f4e70..0172438c38ce3 100644
+--- a/drivers/video/backlight/sky81452-backlight.c
++++ b/drivers/video/backlight/sky81452-backlight.c
+@@ -41,7 +41,7 @@
+ #define SKY81452_MAX_BRIGHTNESS	(SKY81452_CS + 1)
+ 
+ /**
+- * struct sky81452_platform_data
++ * struct sky81452_bl_platform_data - backlight platform data
+  * @name:	backlight driver name.
+  *		If it is not defined, default name is lcd-backlight.
+  * @gpiod_enable:GPIO descriptor which control EN pin
+-- 
+cgit 
+
+
+From fef0b89a451fa06bf275dcd31afee09fffea5e17 Mon Sep 17 00:00:00 2001
+From: Stephen Kitt <steve@sk2.org>
+Date: Fri, 6 Jan 2023 17:48:53 +0100
+Subject: backlight: arcxcnn: Use backlight helper
+
+Instead of retrieving the backlight brightness in struct
+backlight_properties manually, and then checking whether the backlight
+should be on at all, use backlight_get_brightness() which does all
+this and insulates this from future changes.
+
+Signed-off-by: Stephen Kitt <steve@sk2.org>
+Reviewed-by: Sam Ravnborg <sam@ravnborg.org>
+Reviewed-by: Daniel Thompson <daniel.thompson@linaro.org>
+Signed-off-by: Lee Jones <lee@kernel.org>
+Link: https://lore.kernel.org/r/20230106164856.1453819-3-steve@sk2.org
+---
+ drivers/video/backlight/arcxcnn_bl.c | 5 +----
+ 1 file changed, 1 insertion(+), 4 deletions(-)
+
+diff --git a/drivers/video/backlight/arcxcnn_bl.c b/drivers/video/backlight/arcxcnn_bl.c
+index 555b036643fbc..e610d7a1d13df 100644
+--- a/drivers/video/backlight/arcxcnn_bl.c
++++ b/drivers/video/backlight/arcxcnn_bl.c
+@@ -130,12 +130,9 @@ static int arcxcnn_set_brightness(struct arcxcnn *lp, u32 brightness)
+ static int arcxcnn_bl_update_status(struct backlight_device *bl)
+ {
+ 	struct arcxcnn *lp = bl_get_data(bl);
+-	u32 brightness = bl->props.brightness;
++	u32 brightness = backlight_get_brightness(bl);
+ 	int ret;
+ 
+-	if (bl->props.state & (BL_CORE_SUSPENDED | BL_CORE_FBBLANK))
+-		brightness = 0;
+-
+ 	ret = arcxcnn_set_brightness(lp, brightness);
+ 	if (ret)
+ 		return ret;
+-- 
+cgit 
+
+
+From e3b2ac4088126eebcf2e6d5797f9a94bb67e491e Mon Sep 17 00:00:00 2001
+From: Stephen Kitt <steve@sk2.org>
+Date: Fri, 6 Jan 2023 17:48:54 +0100
+Subject: backlight: ipaq_micro: Use backlight helper
+
+Instead of retrieving the backlight brightness in struct
+backlight_properties manually, and then checking whether the backlight
+should be on at all, use backlight_get_brightness() which does all
+this and insulates this from future changes.
+
+Signed-off-by: Stephen Kitt <steve@sk2.org>
+Reviewed-by: Sam Ravnborg <sam@ravnborg.org>
+Reviewed-by: Daniel Thompson <daniel.thompson@linaro.org>
+Signed-off-by: Lee Jones <lee@kernel.org>
+Link: https://lore.kernel.org/r/20230106164856.1453819-4-steve@sk2.org
+---
+ drivers/video/backlight/ipaq_micro_bl.c | 7 +------
+ 1 file changed, 1 insertion(+), 6 deletions(-)
+
+diff --git a/drivers/video/backlight/ipaq_micro_bl.c b/drivers/video/backlight/ipaq_micro_bl.c
+index 85b16cc828789..f595b8c8cbb24 100644
+--- a/drivers/video/backlight/ipaq_micro_bl.c
++++ b/drivers/video/backlight/ipaq_micro_bl.c
+@@ -16,17 +16,12 @@
+ static int micro_bl_update_status(struct backlight_device *bd)
+ {
+ 	struct ipaq_micro *micro = dev_get_drvdata(&bd->dev);
+-	int intensity = bd->props.brightness;
++	int intensity = backlight_get_brightness(bd);
+ 	struct ipaq_micro_msg msg = {
+ 		.id = MSG_BACKLIGHT,
+ 		.tx_len = 3,
+ 	};
+ 
+-	if (bd->props.power != FB_BLANK_UNBLANK)
+-		intensity = 0;
+-	if (bd->props.state & (BL_CORE_FBBLANK | BL_CORE_SUSPENDED))
+-		intensity = 0;
+-
+ 	/*
+ 	 * Message format:
+ 	 * Byte 0: backlight instance (usually 1)
+-- 
+cgit 
+
+
+From 32fb2588ce69ec254cfd8269bc31d9fbe5b999aa Mon Sep 17 00:00:00 2001
+From: Stephen Kitt <steve@sk2.org>
+Date: Fri, 6 Jan 2023 17:48:52 +0100
+Subject: backlight: aat2870: Use backlight helper
+
+Instead of retrieving the backlight brightness in struct
+backlight_properties manually, and then checking whether the backlight
+should be on at all, use backlight_get_brightness() which does all
+this and insulates this from future changes.
+
+Signed-off-by: Stephen Kitt <steve@sk2.org>
+Reviewed-by: Daniel Thompson <daniel.thompson@linaro.org>
+Reviewed-by: Sam Ravnborg <sam@ravnborg.org>
+Signed-off-by: Lee Jones <lee@kernel.org>
+Link: https://lore.kernel.org/r/20230106164856.1453819-2-steve@sk2.org
+---
+ drivers/video/backlight/aat2870_bl.c | 7 +------
+ 1 file changed, 1 insertion(+), 6 deletions(-)
+
+diff --git a/drivers/video/backlight/aat2870_bl.c b/drivers/video/backlight/aat2870_bl.c
+index a7af9adafad66..1cbb303e9c88b 100644
+--- a/drivers/video/backlight/aat2870_bl.c
++++ b/drivers/video/backlight/aat2870_bl.c
+@@ -59,7 +59,7 @@ static int aat2870_bl_update_status(struct backlight_device *bd)
+ 	struct aat2870_bl_driver_data *aat2870_bl = bl_get_data(bd);
+ 	struct aat2870_data *aat2870 =
+ 			dev_get_drvdata(aat2870_bl->pdev->dev.parent);
+-	int brightness = bd->props.brightness;
++	int brightness = backlight_get_brightness(bd);
+ 	int ret;
+ 
+ 	if ((brightness < 0) || (bd->props.max_brightness < brightness)) {
+@@ -70,11 +70,6 @@ static int aat2870_bl_update_status(struct backlight_device *bd)
+ 	dev_dbg(&bd->dev, "brightness=%d, power=%d, state=%d\n",
+ 		 bd->props.brightness, bd->props.power, bd->props.state);
+ 
+-	if ((bd->props.power != FB_BLANK_UNBLANK) ||
+-			(bd->props.state & BL_CORE_FBBLANK) ||
+-			(bd->props.state & BL_CORE_SUSPENDED))
+-		brightness = 0;
+-
+ 	ret = aat2870->write(aat2870, AAT2870_BLM,
+ 			     (u8)aat2870_brightness(aat2870_bl, brightness));
+ 	if (ret < 0)
+-- 
+cgit 
+
+
+From 744fc2dada5073b8d9822c8c838c8141037ec651 Mon Sep 17 00:00:00 2001
+From: Arnd Bergmann <arnd@arndb.de>
+Date: Thu, 5 Jan 2023 14:46:04 +0100
+Subject: backlight: Remove pxa tosa support
+
+The PXA tosa machine was removed, so this backlight driver is no
+longer needed.
+
+Signed-off-by: Arnd Bergmann <arnd@arndb.de>
+Reviewed-by: Daniel Thompson <daniel.thompson@linaro.org>
+Signed-off-by: Lee Jones <lee@kernel.org>
+Link: https://lore.kernel.org/r/20230105134622.254560-10-arnd@kernel.org
+---
+ drivers/video/backlight/Kconfig    |  14 --
+ drivers/video/backlight/Makefile   |   2 -
+ drivers/video/backlight/tosa_bl.c  | 172 ----------------------
+ drivers/video/backlight/tosa_bl.h  |   8 --
+ drivers/video/backlight/tosa_lcd.c | 284 -------------------------------------
+ 5 files changed, 480 deletions(-)
+ delete mode 100644 drivers/video/backlight/tosa_bl.c
+ delete mode 100644 drivers/video/backlight/tosa_bl.h
+ delete mode 100644 drivers/video/backlight/tosa_lcd.c
+
+diff --git a/drivers/video/backlight/Kconfig b/drivers/video/backlight/Kconfig
+index 936ba1e4d35ec..01804847c39fc 100644
+--- a/drivers/video/backlight/Kconfig
++++ b/drivers/video/backlight/Kconfig
+@@ -90,13 +90,6 @@ config LCD_PLATFORM
+ 	  This driver provides a platform-device registered LCD power
+ 	  control interface.
+ 
+-config LCD_TOSA
+-	tristate "Sharp SL-6000 LCD Driver"
+-	depends on I2C && SPI && MACH_TOSA
+-	help
+-	  If you have an Sharp SL-6000 Zaurus say Y to enable a driver
+-	  for its LCD.
+-
+ config LCD_HP700
+ 	tristate "HP Jornada 700 series LCD Driver"
+ 	depends on SA1100_JORNADA720_SSP && !PREEMPTION
+@@ -288,13 +281,6 @@ config BACKLIGHT_APPLE
+ 	  If you have an Intel-based Apple say Y to enable a driver for its
+ 	  backlight.
+ 
+-config BACKLIGHT_TOSA
+-	tristate "Sharp SL-6000 Backlight Driver"
+-	depends on I2C && MACH_TOSA && LCD_TOSA
+-	help
+-	  If you have an Sharp SL-6000 Zaurus say Y to enable a driver
+-	  for its backlight
+-
+ config BACKLIGHT_QCOM_WLED
+ 	tristate "Qualcomm PMIC WLED Driver"
+ 	select REGMAP
+diff --git a/drivers/video/backlight/Makefile b/drivers/video/backlight/Makefile
+index e815f3f1deff4..2a9126dbfe790 100644
+--- a/drivers/video/backlight/Makefile
++++ b/drivers/video/backlight/Makefile
+@@ -15,7 +15,6 @@ obj-$(CONFIG_LCD_LTV350QV)		+= ltv350qv.o
+ obj-$(CONFIG_LCD_OTM3225A)		+= otm3225a.o
+ obj-$(CONFIG_LCD_PLATFORM)		+= platform_lcd.o
+ obj-$(CONFIG_LCD_TDO24M)		+= tdo24m.o
+-obj-$(CONFIG_LCD_TOSA)			+= tosa_lcd.o
+ obj-$(CONFIG_LCD_VGG2432A4)		+= vgg2432a4.o
+ 
+ obj-$(CONFIG_BACKLIGHT_88PM860X)	+= 88pm860x_bl.o
+@@ -53,7 +52,6 @@ obj-$(CONFIG_BACKLIGHT_QCOM_WLED)	+= qcom-wled.o
+ obj-$(CONFIG_BACKLIGHT_RT4831)		+= rt4831-backlight.o
+ obj-$(CONFIG_BACKLIGHT_SAHARA)		+= kb3886_bl.o
+ obj-$(CONFIG_BACKLIGHT_SKY81452)	+= sky81452-backlight.o
+-obj-$(CONFIG_BACKLIGHT_TOSA)		+= tosa_bl.o
+ obj-$(CONFIG_BACKLIGHT_TPS65217)	+= tps65217_bl.o
+ obj-$(CONFIG_BACKLIGHT_WM831X)		+= wm831x_bl.o
+ obj-$(CONFIG_BACKLIGHT_ARCXCNN) 	+= arcxcnn_bl.o
+diff --git a/drivers/video/backlight/tosa_bl.c b/drivers/video/backlight/tosa_bl.c
+deleted file mode 100644
+index 77b71f6c19b58..0000000000000
+--- a/drivers/video/backlight/tosa_bl.c
++++ /dev/null
+@@ -1,172 +0,0 @@
+-// SPDX-License-Identifier: GPL-2.0-only
+-/*
+- *  LCD / Backlight control code for Sharp SL-6000x (tosa)
+- *
+- *  Copyright (c) 2005		Dirk Opfer
+- *  Copyright (c) 2007,2008	Dmitry Baryshkov
+- */
+-
+-#include <linux/kernel.h>
+-#include <linux/module.h>
+-#include <linux/device.h>
+-#include <linux/spi/spi.h>
+-#include <linux/i2c.h>
+-#include <linux/gpio/consumer.h>
+-#include <linux/fb.h>
+-#include <linux/backlight.h>
+-#include <linux/slab.h>
+-
+-#include <asm/mach/sharpsl_param.h>
+-
+-#include "tosa_bl.h"
+-
+-#define COMADJ_DEFAULT	97
+-
+-#define DAC_CH1		0
+-#define DAC_CH2		1
+-
+-struct tosa_bl_data {
+-	struct i2c_client *i2c;
+-	struct backlight_device *bl;
+-	struct gpio_desc *gpio;
+-
+-	int comadj;
+-};
+-
+-static void tosa_bl_set_backlight(struct tosa_bl_data *data, int brightness)
+-{
+-	struct spi_device *spi = dev_get_platdata(&data->i2c->dev);
+-
+-	i2c_smbus_write_byte_data(data->i2c, DAC_CH1, data->comadj);
+-
+-	/* SetBacklightDuty */
+-	i2c_smbus_write_byte_data(data->i2c, DAC_CH2, (u8)(brightness & 0xff));
+-
+-	/* SetBacklightVR */
+-	gpiod_set_value(data->gpio, brightness & 0x100);
+-
+-	tosa_bl_enable(spi, brightness);
+-}
+-
+-static int tosa_bl_update_status(struct backlight_device *dev)
+-{
+-	struct backlight_properties *props = &dev->props;
+-	struct tosa_bl_data *data = bl_get_data(dev);
+-	int power = max(props->power, props->fb_blank);
+-	int brightness = props->brightness;
+-
+-	if (power)
+-		brightness = 0;
+-
+-	tosa_bl_set_backlight(data, brightness);
+-
+-	return 0;
+-}
+-
+-static int tosa_bl_get_brightness(struct backlight_device *dev)
+-{
+-	struct backlight_properties *props = &dev->props;
+-
+-	return props->brightness;
+-}
+-
+-static const struct backlight_ops bl_ops = {
+-	.get_brightness		= tosa_bl_get_brightness,
+-	.update_status		= tosa_bl_update_status,
+-};
+-
+-static int tosa_bl_probe(struct i2c_client *client)
+-{
+-	struct backlight_properties props;
+-	struct tosa_bl_data *data;
+-	int ret = 0;
+-
+-	data = devm_kzalloc(&client->dev, sizeof(struct tosa_bl_data),
+-				GFP_KERNEL);
+-	if (!data)
+-		return -ENOMEM;
+-
+-	data->comadj = sharpsl_param.comadj == -1 ? COMADJ_DEFAULT : sharpsl_param.comadj;
+-	data->gpio = devm_gpiod_get(&client->dev, "backlight", GPIOD_OUT_LOW);
+-	ret = PTR_ERR_OR_ZERO(data->gpio);
+-	if (ret) {
+-		dev_dbg(&data->bl->dev, "Unable to request gpio!\n");
+-		return ret;
+-	}
+-
+-	i2c_set_clientdata(client, data);
+-	data->i2c = client;
+-
+-	memset(&props, 0, sizeof(struct backlight_properties));
+-	props.type = BACKLIGHT_RAW;
+-	props.max_brightness = 512 - 1;
+-	data->bl = devm_backlight_device_register(&client->dev, "tosa-bl",
+-						&client->dev, data, &bl_ops,
+-						&props);
+-	if (IS_ERR(data->bl)) {
+-		ret = PTR_ERR(data->bl);
+-		goto err_reg;
+-	}
+-
+-	data->bl->props.brightness = 69;
+-	data->bl->props.power = FB_BLANK_UNBLANK;
+-
+-	backlight_update_status(data->bl);
+-
+-	return 0;
+-
+-err_reg:
+-	data->bl = NULL;
+-	return ret;
+-}
+-
+-static void tosa_bl_remove(struct i2c_client *client)
+-{
+-	struct tosa_bl_data *data = i2c_get_clientdata(client);
+-
+-	data->bl = NULL;
+-}
+-
+-#ifdef CONFIG_PM_SLEEP
+-static int tosa_bl_suspend(struct device *dev)
+-{
+-	struct tosa_bl_data *data = dev_get_drvdata(dev);
+-
+-	tosa_bl_set_backlight(data, 0);
+-
+-	return 0;
+-}
+-
+-static int tosa_bl_resume(struct device *dev)
+-{
+-	struct tosa_bl_data *data = dev_get_drvdata(dev);
+-
+-	backlight_update_status(data->bl);
+-	return 0;
+-}
+-#endif
+-
+-static SIMPLE_DEV_PM_OPS(tosa_bl_pm_ops, tosa_bl_suspend, tosa_bl_resume);
+-
+-static const struct i2c_device_id tosa_bl_id[] = {
+-	{ "tosa-bl", 0 },
+-	{ },
+-};
+-MODULE_DEVICE_TABLE(i2c, tosa_bl_id);
+-
+-static struct i2c_driver tosa_bl_driver = {
+-	.driver = {
+-		.name		= "tosa-bl",
+-		.pm		= &tosa_bl_pm_ops,
+-	},
+-	.probe_new	= tosa_bl_probe,
+-	.remove		= tosa_bl_remove,
+-	.id_table	= tosa_bl_id,
+-};
+-
+-module_i2c_driver(tosa_bl_driver);
+-
+-MODULE_AUTHOR("Dmitry Baryshkov");
+-MODULE_LICENSE("GPL v2");
+-MODULE_DESCRIPTION("LCD/Backlight control for Sharp SL-6000 PDA");
+-
+diff --git a/drivers/video/backlight/tosa_bl.h b/drivers/video/backlight/tosa_bl.h
+deleted file mode 100644
+index 589e17e6fdb2a..0000000000000
+--- a/drivers/video/backlight/tosa_bl.h
++++ /dev/null
+@@ -1,8 +0,0 @@
+-/* SPDX-License-Identifier: GPL-2.0-only */
+-#ifndef _TOSA_BL_H
+-#define _TOSA_BL_H
+-
+-struct spi_device;
+-extern int tosa_bl_enable(struct spi_device *spi, int enable);
+-
+-#endif
+diff --git a/drivers/video/backlight/tosa_lcd.c b/drivers/video/backlight/tosa_lcd.c
+deleted file mode 100644
+index 23d6c6bf0f543..0000000000000
+--- a/drivers/video/backlight/tosa_lcd.c
++++ /dev/null
+@@ -1,284 +0,0 @@
+-// SPDX-License-Identifier: GPL-2.0-only
+-/*
+- *  LCD / Backlight control code for Sharp SL-6000x (tosa)
+- *
+- *  Copyright (c) 2005		Dirk Opfer
+- *  Copyright (c) 2007,2008	Dmitry Baryshkov
+- */
+-
+-#include <linux/kernel.h>
+-#include <linux/module.h>
+-#include <linux/device.h>
+-#include <linux/spi/spi.h>
+-#include <linux/i2c.h>
+-#include <linux/slab.h>
+-#include <linux/gpio/consumer.h>
+-#include <linux/delay.h>
+-#include <linux/lcd.h>
+-#include <linux/fb.h>
+-
+-#include <asm/mach/sharpsl_param.h>
+-
+-#include "tosa_bl.h"
+-
+-#define POWER_IS_ON(pwr)	((pwr) <= FB_BLANK_NORMAL)
+-
+-#define TG_REG0_VQV	0x0001
+-#define TG_REG0_COLOR	0x0002
+-#define TG_REG0_UD	0x0004
+-#define TG_REG0_LR	0x0008
+-
+-/*
+- * Timing Generator
+- */
+-#define TG_PNLCTL 	0x00
+-#define TG_TPOSCTL 	0x01
+-#define TG_DUTYCTL 	0x02
+-#define TG_GPOSR 	0x03
+-#define TG_GPODR1 	0x04
+-#define TG_GPODR2 	0x05
+-#define TG_PINICTL 	0x06
+-#define TG_HPOSCTL 	0x07
+-
+-
+-#define	DAC_BASE	0x4e
+-
+-struct tosa_lcd_data {
+-	struct spi_device *spi;
+-	struct lcd_device *lcd;
+-	struct i2c_client *i2c;
+-	struct gpio_desc *gpiod_tg;
+-
+-	int lcd_power;
+-	bool is_vga;
+-};
+-
+-static int tosa_tg_send(struct spi_device *spi, int adrs, uint8_t data)
+-{
+-	u8 buf[1];
+-	struct spi_message msg;
+-	struct spi_transfer xfer = {
+-		.len		= 1,
+-		.cs_change	= 0,
+-		.tx_buf		= buf,
+-	};
+-
+-	buf[0] = ((adrs & 0x07) << 5) | (data & 0x1f);
+-	spi_message_init(&msg);
+-	spi_message_add_tail(&xfer, &msg);
+-
+-	return spi_sync(spi, &msg);
+-}
+-
+-int tosa_bl_enable(struct spi_device *spi, int enable)
+-{
+-	/* bl_enable GP04=1 otherwise GP04=0*/
+-	return tosa_tg_send(spi, TG_GPODR2, enable ? 0x01 : 0x00);
+-}
+-EXPORT_SYMBOL(tosa_bl_enable);
+-
+-static void tosa_lcd_tg_init(struct tosa_lcd_data *data)
+-{
+-	/* TG on */
+-	gpiod_set_value(data->gpiod_tg, 0);
+-
+-	mdelay(60);
+-
+-	/* delayed 0clk TCTL signal for VGA */
+-	tosa_tg_send(data->spi, TG_TPOSCTL, 0x00);
+-	/* GPOS0=powercontrol, GPOS1=GPIO, GPOS2=TCTL */
+-	tosa_tg_send(data->spi, TG_GPOSR, 0x02);
+-}
+-
+-static void tosa_lcd_tg_on(struct tosa_lcd_data *data)
+-{
+-	struct spi_device *spi = data->spi;
+-	int value = TG_REG0_COLOR | TG_REG0_UD | TG_REG0_LR;
+-
+-	if (data->is_vga)
+-		value |= TG_REG0_VQV;
+-
+-	tosa_tg_send(spi, TG_PNLCTL, value);
+-
+-	/* TG LCD pannel power up */
+-	tosa_tg_send(spi, TG_PINICTL, 0x4);
+-	mdelay(50);
+-
+-	/* TG LCD GVSS */
+-	tosa_tg_send(spi, TG_PINICTL, 0x0);
+-
+-	if (IS_ERR_OR_NULL(data->i2c)) {
+-		/*
+-		 * after the pannel is powered up the first time,
+-		 * we can access the i2c bus so probe for the DAC
+-		 */
+-		struct i2c_adapter *adap = i2c_get_adapter(0);
+-		struct i2c_board_info info = {
+-			.dev_name = "tosa-bl",
+-			.type	= "tosa-bl",
+-			.addr	= DAC_BASE,
+-			.platform_data = data->spi,
+-		};
+-		data->i2c = i2c_new_client_device(adap, &info);
+-	}
+-}
+-
+-static void tosa_lcd_tg_off(struct tosa_lcd_data *data)
+-{
+-	struct spi_device *spi = data->spi;
+-
+-	/* TG LCD VHSA off */
+-	tosa_tg_send(spi, TG_PINICTL, 0x4);
+-	mdelay(50);
+-
+-	/* TG LCD signal off */
+-	tosa_tg_send(spi, TG_PINICTL, 0x6);
+-	mdelay(50);
+-
+-	/* TG Off */
+-	gpiod_set_value(data->gpiod_tg, 1);
+-	mdelay(100);
+-}
+-
+-int tosa_lcd_set_power(struct lcd_device *lcd, int power)
+-{
+-	struct tosa_lcd_data *data = lcd_get_data(lcd);
+-
+-	if (POWER_IS_ON(power) && !POWER_IS_ON(data->lcd_power))
+-		tosa_lcd_tg_on(data);
+-
+-	if (!POWER_IS_ON(power) && POWER_IS_ON(data->lcd_power))
+-		tosa_lcd_tg_off(data);
+-
+-	data->lcd_power = power;
+-	return 0;
+-}
+-
+-static int tosa_lcd_get_power(struct lcd_device *lcd)
+-{
+-	struct tosa_lcd_data *data = lcd_get_data(lcd);
+-
+-	return data->lcd_power;
+-}
+-
+-static int tosa_lcd_set_mode(struct lcd_device *lcd, struct fb_videomode *mode)
+-{
+-	struct tosa_lcd_data *data = lcd_get_data(lcd);
+-
+-	if (mode->xres == 320 || mode->yres == 320)
+-		data->is_vga = false;
+-	else
+-		data->is_vga = true;
+-
+-	if (POWER_IS_ON(data->lcd_power))
+-		tosa_lcd_tg_on(data);
+-
+-	return 0;
+-}
+-
+-static struct lcd_ops tosa_lcd_ops = {
+-	.set_power = tosa_lcd_set_power,
+-	.get_power = tosa_lcd_get_power,
+-	.set_mode = tosa_lcd_set_mode,
+-};
+-
+-static int tosa_lcd_probe(struct spi_device *spi)
+-{
+-	int ret;
+-	struct tosa_lcd_data *data;
+-
+-	data = devm_kzalloc(&spi->dev, sizeof(struct tosa_lcd_data),
+-				GFP_KERNEL);
+-	if (!data)
+-		return -ENOMEM;
+-
+-	data->is_vga = true; /* default to VGA mode */
+-
+-	/*
+-	 * bits_per_word cannot be configured in platform data
+-	 */
+-	spi->bits_per_word = 8;
+-
+-	ret = spi_setup(spi);
+-	if (ret < 0)
+-		return ret;
+-
+-	data->spi = spi;
+-	spi_set_drvdata(spi, data);
+-
+-	data->gpiod_tg = devm_gpiod_get(&spi->dev, "tg #pwr", GPIOD_OUT_LOW);
+-	if (IS_ERR(data->gpiod_tg))
+-		return PTR_ERR(data->gpiod_tg);
+-
+-	mdelay(60);
+-
+-	tosa_lcd_tg_init(data);
+-
+-	tosa_lcd_tg_on(data);
+-
+-	data->lcd = devm_lcd_device_register(&spi->dev, "tosa-lcd", &spi->dev,
+-					data, &tosa_lcd_ops);
+-
+-	if (IS_ERR(data->lcd)) {
+-		ret = PTR_ERR(data->lcd);
+-		data->lcd = NULL;
+-		goto err_register;
+-	}
+-
+-	return 0;
+-
+-err_register:
+-	tosa_lcd_tg_off(data);
+-	return ret;
+-}
+-
+-static void tosa_lcd_remove(struct spi_device *spi)
+-{
+-	struct tosa_lcd_data *data = spi_get_drvdata(spi);
+-
+-	i2c_unregister_device(data->i2c);
+-
+-	tosa_lcd_tg_off(data);
+-}
+-
+-#ifdef CONFIG_PM_SLEEP
+-static int tosa_lcd_suspend(struct device *dev)
+-{
+-	struct tosa_lcd_data *data = dev_get_drvdata(dev);
+-
+-	tosa_lcd_tg_off(data);
+-
+-	return 0;
+-}
+-
+-static int tosa_lcd_resume(struct device *dev)
+-{
+-	struct tosa_lcd_data *data = dev_get_drvdata(dev);
+-
+-	tosa_lcd_tg_init(data);
+-	if (POWER_IS_ON(data->lcd_power))
+-		tosa_lcd_tg_on(data);
+-	else
+-		tosa_lcd_tg_off(data);
+-
+-	return 0;
+-}
+-#endif
+-
+-static SIMPLE_DEV_PM_OPS(tosa_lcd_pm_ops, tosa_lcd_suspend, tosa_lcd_resume);
+-
+-static struct spi_driver tosa_lcd_driver = {
+-	.driver = {
+-		.name		= "tosa-lcd",
+-		.pm		= &tosa_lcd_pm_ops,
+-	},
+-	.probe		= tosa_lcd_probe,
+-	.remove		= tosa_lcd_remove,
+-};
+-
+-module_spi_driver(tosa_lcd_driver);
+-
+-MODULE_AUTHOR("Dmitry Baryshkov");
+-MODULE_LICENSE("GPL v2");
+-MODULE_DESCRIPTION("LCD/Backlight control for Sharp SL-6000 PDA");
+-MODULE_ALIAS("spi:tosa-lcd");
+-- 
+cgit 
+
+
+From 00e7e698bff1dfdb74da6aff1d80508cdbde25f9 Mon Sep 17 00:00:00 2001
+From: Uwe Kleine-König <u.kleine-koenig@pengutronix.de>
+Date: Fri, 20 Jan 2023 13:00:17 +0100
+Subject: backlight: pwm_bl: Configure pwm only once per backlight toggle
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+When the function pwm_backlight_update_status() was called with
+brightness > 0, pwm_get_state() was called twice (once directly and once
+in compute_duty_cycle). Also pwm_apply_state() was called twice (once in
+pwm_backlight_power_on() and once directly).
+
+Optimize this to do both calls only once.
+
+Note that with this affects the order of regulator and PWM setup. It's
+not expected to have a relevant effect on hardware. The rationale for
+this is that the regulator (and the GPIO) are reasonable to switch in
+pwm_backlight_power_on()/pwm_backlight_power_off() but the PWM has
+nothing to do with power. (The post_pwm_on_delay and pwm_off_delay are
+still there though.)
+
+Signed-off-by: Uwe Kleine-König <u.kleine-koenig@pengutronix.de>
+Reviewed-by: Daniel Thompson <daniel.thompson@linaro.org>
+Signed-off-by: Lee Jones <lee@kernel.org>
+Link: https://lore.kernel.org/r/20230120120018.161103-2-u.kleine-koenig@pengutronix.de
+---
+ drivers/video/backlight/pwm_bl.c | 28 ++++++++++------------------
+ 1 file changed, 10 insertions(+), 18 deletions(-)
+
+diff --git a/drivers/video/backlight/pwm_bl.c b/drivers/video/backlight/pwm_bl.c
+index d0b22158cd70e..0509fecd57153 100644
+--- a/drivers/video/backlight/pwm_bl.c
++++ b/drivers/video/backlight/pwm_bl.c
+@@ -40,10 +40,8 @@ struct pwm_bl_data {
+ 
+ static void pwm_backlight_power_on(struct pwm_bl_data *pb)
+ {
+-	struct pwm_state state;
+ 	int err;
+ 
+-	pwm_get_state(pb->pwm, &state);
+ 	if (pb->enabled)
+ 		return;
+ 
+@@ -51,9 +49,6 @@ static void pwm_backlight_power_on(struct pwm_bl_data *pb)
+ 	if (err < 0)
+ 		dev_err(pb->dev, "failed to enable power supply\n");
+ 
+-	state.enabled = true;
+-	pwm_apply_state(pb->pwm, &state);
+-
+ 	if (pb->post_pwm_on_delay)
+ 		msleep(pb->post_pwm_on_delay);
+ 
+@@ -65,9 +60,6 @@ static void pwm_backlight_power_on(struct pwm_bl_data *pb)
+ 
+ static void pwm_backlight_power_off(struct pwm_bl_data *pb)
+ {
+-	struct pwm_state state;
+-
+-	pwm_get_state(pb->pwm, &state);
+ 	if (!pb->enabled)
+ 		return;
+ 
+@@ -77,28 +69,21 @@ static void pwm_backlight_power_off(struct pwm_bl_data *pb)
+ 	if (pb->pwm_off_delay)
+ 		msleep(pb->pwm_off_delay);
+ 
+-	state.enabled = false;
+-	state.duty_cycle = 0;
+-	pwm_apply_state(pb->pwm, &state);
+-
+ 	regulator_disable(pb->power_supply);
+ 	pb->enabled = false;
+ }
+ 
+-static int compute_duty_cycle(struct pwm_bl_data *pb, int brightness)
++static int compute_duty_cycle(struct pwm_bl_data *pb, int brightness, struct pwm_state *state)
+ {
+ 	unsigned int lth = pb->lth_brightness;
+-	struct pwm_state state;
+ 	u64 duty_cycle;
+ 
+-	pwm_get_state(pb->pwm, &state);
+-
+ 	if (pb->levels)
+ 		duty_cycle = pb->levels[brightness];
+ 	else
+ 		duty_cycle = brightness;
+ 
+-	duty_cycle *= state.period - lth;
++	duty_cycle *= state->period - lth;
+ 	do_div(duty_cycle, pb->scale);
+ 
+ 	return duty_cycle + lth;
+@@ -115,11 +100,18 @@ static int pwm_backlight_update_status(struct backlight_device *bl)
+ 
+ 	if (brightness > 0) {
+ 		pwm_get_state(pb->pwm, &state);
+-		state.duty_cycle = compute_duty_cycle(pb, brightness);
++		state.duty_cycle = compute_duty_cycle(pb, brightness, &state);
++		state.enabled = true;
+ 		pwm_apply_state(pb->pwm, &state);
++
+ 		pwm_backlight_power_on(pb);
+ 	} else {
+ 		pwm_backlight_power_off(pb);
++
++		pwm_get_state(pb->pwm, &state);
++		state.enabled = false;
++		state.duty_cycle = 0;
++		pwm_apply_state(pb->pwm, &state);
+ 	}
+ 
+ 	if (pb->notify_after)
+-- 
+cgit 
+
+
+From deaeeda2051fa280884bf5769021bcdeae5de44e Mon Sep 17 00:00:00 2001
+From: Uwe Kleine-König <u.kleine-koenig@pengutronix.de>
+Date: Fri, 20 Jan 2023 13:00:18 +0100
+Subject: backlight: pwm_bl: Don't rely on a disabled PWM emiting inactive
+ state
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Most but not all PWMs drive the PWM pin to its inactive state when
+disabled. However if there is no enable_gpio and no regulator the PWM
+must drive the inactive state to actually disable the backlight.
+
+So keep the PWM on in this case.
+
+Note that to determine if there is a regulator some effort is required
+because it might happen that there isn't actually one but the regulator
+core gave us a dummy. (A nice side effect is that this makes the
+regulator actually optional even on fully constrained systems.)
+
+This fixes backlight disabling e.g. on i.MX6 when an inverted PWM is
+used.
+
+Hint for the future: If this change results in a regression, the bug is
+in the lowlevel PWM driver.
+
+Signed-off-by: Uwe Kleine-König <u.kleine-koenig@pengutronix.de>
+Reviewed-by: Daniel Thompson <daniel.thompson@linaro.org>
+Signed-off-by: Lee Jones <lee@kernel.org>
+Link: https://lore.kernel.org/r/20230120120018.161103-3-u.kleine-koenig@pengutronix.de
+---
+ drivers/video/backlight/pwm_bl.c | 30 ++++++++++++++++++++++--------
+ 1 file changed, 22 insertions(+), 8 deletions(-)
+
+diff --git a/drivers/video/backlight/pwm_bl.c b/drivers/video/backlight/pwm_bl.c
+index 0509fecd57153..fb388148d98f7 100644
+--- a/drivers/video/backlight/pwm_bl.c
++++ b/drivers/video/backlight/pwm_bl.c
+@@ -45,9 +45,11 @@ static void pwm_backlight_power_on(struct pwm_bl_data *pb)
+ 	if (pb->enabled)
+ 		return;
+ 
+-	err = regulator_enable(pb->power_supply);
+-	if (err < 0)
+-		dev_err(pb->dev, "failed to enable power supply\n");
++	if (pb->power_supply) {
++		err = regulator_enable(pb->power_supply);
++		if (err < 0)
++			dev_err(pb->dev, "failed to enable power supply\n");
++	}
+ 
+ 	if (pb->post_pwm_on_delay)
+ 		msleep(pb->post_pwm_on_delay);
+@@ -69,7 +71,8 @@ static void pwm_backlight_power_off(struct pwm_bl_data *pb)
+ 	if (pb->pwm_off_delay)
+ 		msleep(pb->pwm_off_delay);
+ 
+-	regulator_disable(pb->power_supply);
++	if (pb->power_supply)
++		regulator_disable(pb->power_supply);
+ 	pb->enabled = false;
+ }
+ 
+@@ -109,8 +112,16 @@ static int pwm_backlight_update_status(struct backlight_device *bl)
+ 		pwm_backlight_power_off(pb);
+ 
+ 		pwm_get_state(pb->pwm, &state);
+-		state.enabled = false;
+ 		state.duty_cycle = 0;
++		/*
++		 * We cannot assume a disabled PWM to drive its output to the
++		 * inactive state. If we have an enable GPIO and/or a regulator
++		 * we assume that this isn't relevant and we can disable the PWM
++		 * to save power. If however there is neither an enable GPIO nor
++		 * a regulator keep the PWM on be sure to get a constant
++		 * inactive output.
++		 */
++		state.enabled = !pb->power_supply && !pb->enable_gpio;
+ 		pwm_apply_state(pb->pwm, &state);
+ 	}
+ 
+@@ -408,7 +419,7 @@ static int pwm_backlight_initial_power_state(const struct pwm_bl_data *pb)
+ 	if (pb->enable_gpio && gpiod_get_value_cansleep(pb->enable_gpio) == 0)
+ 		active = false;
+ 
+-	if (!regulator_is_enabled(pb->power_supply))
++	if (pb->power_supply && !regulator_is_enabled(pb->power_supply))
+ 		active = false;
+ 
+ 	if (!pwm_is_enabled(pb->pwm))
+@@ -489,10 +500,13 @@ static int pwm_backlight_probe(struct platform_device *pdev)
+ 		goto err_alloc;
+ 	}
+ 
+-	pb->power_supply = devm_regulator_get(&pdev->dev, "power");
++	pb->power_supply = devm_regulator_get_optional(&pdev->dev, "power");
+ 	if (IS_ERR(pb->power_supply)) {
+ 		ret = PTR_ERR(pb->power_supply);
+-		goto err_alloc;
++		if (ret == -ENODEV)
++			pb->power_supply = NULL;
++		else
++			goto err_alloc;
+ 	}
+ 
+ 	pb->pwm = devm_pwm_get(&pdev->dev, NULL);
+-- 
+cgit 
+
+
+From c8990c3889ea0a052edcff9dd890a3ab28bc5a47 Mon Sep 17 00:00:00 2001
+From: Jianhua Lu <lujianhua000@gmail.com>
+Date: Fri, 20 Jan 2023 23:50:17 +0800
+Subject: dt-bindings: leds: backlight: Add Kinetic KTZ8866 backlight
+
+Add Kinetic KTZ8866 backlight binding documentation.
+
+Signed-off-by: Jianhua Lu <lujianhua000@gmail.com>
+Reviewed-by: Krzysztof Kozlowski <krzysztof.kozlowski@linaro.org>
+Reviewed-by: Daniel Thompson <daniel.thompson@linaro.org>
+Signed-off-by: Lee Jones <lee@kernel.org>
+Link: https://lore.kernel.org/r/20230120155018.15376-1-lujianhua000@gmail.com
+---
+ .../bindings/leds/backlight/kinetic,ktz8866.yaml   | 76 ++++++++++++++++++++++
+ 1 file changed, 76 insertions(+)
+ create mode 100644 Documentation/devicetree/bindings/leds/backlight/kinetic,ktz8866.yaml
+
+diff --git a/Documentation/devicetree/bindings/leds/backlight/kinetic,ktz8866.yaml b/Documentation/devicetree/bindings/leds/backlight/kinetic,ktz8866.yaml
+new file mode 100644
+index 0000000000000..e1191453c2f0c
+--- /dev/null
++++ b/Documentation/devicetree/bindings/leds/backlight/kinetic,ktz8866.yaml
+@@ -0,0 +1,76 @@
++# SPDX-License-Identifier: (GPL-2.0 OR BSD-2-Clause)
++%YAML 1.2
++---
++$id: http://devicetree.org/schemas/leds/backlight/kinetic,ktz8866.yaml#
++$schema: http://devicetree.org/meta-schemas/core.yaml#
++
++title: Kinetic Technologies KTZ8866 backlight
++
++maintainers:
++  - Jianhua Lu <lujianhua000@gmail.com>
++
++description: |
++  The Kinetic Technologies KTZ8866 is a high efficiency 6-channels-current-sinks
++  led backlight with dual lcd bias power.
++  https://www.kinet-ic.com/ktz8866/
++
++allOf:
++  - $ref: common.yaml#
++
++properties:
++  compatible:
++    const: kinetic,ktz8866
++
++  vddpos-supply:
++    description: positive boost supply regulator.
++
++  vddneg-supply:
++    description: negative boost supply regulator.
++
++  enable-gpios:
++    description: GPIO to use to enable/disable the backlight (HWEN pin).
++    maxItems: 1
++
++  current-num-sinks:
++    description: number of the LED current sinks' channels.
++    enum: [1, 2, 3, 4, 5, 6]
++
++  kinetic,current-ramp-delay-ms:
++    description: |
++      LED current ramping delay time in milliseconds, note that the
++      case 1 will be mapped to 1μs.
++    enum: [1, 2, 4, 8, 16, 32, 64, 128, 192, 256, 320, 384, 448, 512, 576, 640]
++
++  kinetic,led-enable-ramp-delay-ms:
++    description: |
++      LED on/off ramping delay time in milliseconds, note that the case 0 will be
++      mapped to 512μs because ktz8866 can't ramp faster than it.
++    enum: [0, 1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192, 16384]
++
++  kinetic,enable-lcd-bias:
++    description: Set if we want to output bias power supply for LCD.
++    type: boolean
++
++required:
++  - compatible
++  - vddpos-supply
++  - vddneg-supply
++  - enable-gpios
++
++unevaluatedProperties: false
++
++examples:
++  - |
++    #include <dt-bindings/gpio/gpio.h>
++
++    backlight {
++        compatible = "kinetic,ktz8866";
++
++        vddpos-supply = <&bl_vddpos_5p5>;
++        vddneg-supply = <&bl_vddneg_5p5>;
++        enable-gpios = <&tlmm 139 GPIO_ACTIVE_HIGH>;
++        current-num-sinks = <5>;
++        kinetic,current-ramp-delay-ms = <128>;
++        kinetic,led-enable-ramp-delay-ms = <1>;
++        kinetic,enable-lcd-bias;
++    };
+-- 
+cgit 
+
+
+From f8449c8f73552b82e2a29dfdb99df54bd3a5aafc Mon Sep 17 00:00:00 2001
+From: Jianhua Lu <lujianhua000@gmail.com>
+Date: Fri, 20 Jan 2023 23:50:18 +0800
+Subject: backlight: ktz8866: Add support for Kinetic KTZ8866 backlight
+
+Add support for Kinetic KTZ8866 backlight, which is used in
+Xiaomi tablet, Mi Pad 5 series. This driver lightly based on
+downstream implementation [1].
+[1] https://github.com/MiCode/Xiaomi_Kernel_OpenSource/blob/elish-r-oss/drivers/video/backlight/ktz8866.c
+
+Signed-off-by: Jianhua Lu <lujianhua000@gmail.com>
+Reviewed-by: Daniel Thompson <daniel.thompson@linaro.org>
+Signed-off-by: Lee Jones <lee@kernel.org>
+Link: https://lore.kernel.org/r/20230120155018.15376-2-lujianhua000@gmail.com
+---
+ MAINTAINERS                       |   6 ++
+ drivers/video/backlight/Kconfig   |   8 ++
+ drivers/video/backlight/Makefile  |   1 +
+ drivers/video/backlight/ktz8866.c | 209 ++++++++++++++++++++++++++++++++++++++
+ 4 files changed, 224 insertions(+)
+ create mode 100644 drivers/video/backlight/ktz8866.c
+
+diff --git a/MAINTAINERS b/MAINTAINERS
+index f61eb221415bd..da1be637436b0 100644
+--- a/MAINTAINERS
++++ b/MAINTAINERS
+@@ -11674,6 +11674,12 @@ M:	John Hawley <warthog9@eaglescrag.net>
+ S:	Maintained
+ F:	tools/testing/ktest
+ 
++KTZ8866 BACKLIGHT DRIVER
++M:	Jianhua Lu <lujianhua000@gmail.com>
++S:	Maintained
++F:	Documentation/devicetree/bindings/leds/backlight/kinetic,ktz8866.yaml
++F:	drivers/video/backlight/ktz8866.c
++
+ L3MDEV
+ M:	David Ahern <dsahern@kernel.org>
+ L:	netdev@vger.kernel.org
+diff --git a/drivers/video/backlight/Kconfig b/drivers/video/backlight/Kconfig
+index 01804847c39fc..4c33e971c0f0e 100644
+--- a/drivers/video/backlight/Kconfig
++++ b/drivers/video/backlight/Kconfig
+@@ -183,6 +183,14 @@ config BACKLIGHT_KTD253
+ 	  which is a 1-wire GPIO-controlled backlight found in some mobile
+ 	  phones.
+ 
++config BACKLIGHT_KTZ8866
++	tristate "Backlight Driver for Kinetic KTZ8866"
++	depends on I2C
++	select REGMAP_I2C
++	help
++		Say Y to enable the backlight driver for the Kinetic KTZ8866
++		found in Xiaomi Mi Pad 5 series.
++
+ config BACKLIGHT_LM3533
+ 	tristate "Backlight Driver for LM3533"
+ 	depends on MFD_LM3533
+diff --git a/drivers/video/backlight/Makefile b/drivers/video/backlight/Makefile
+index 2a9126dbfe790..f72e1c3c59e95 100644
+--- a/drivers/video/backlight/Makefile
++++ b/drivers/video/backlight/Makefile
+@@ -35,6 +35,7 @@ obj-$(CONFIG_BACKLIGHT_HP680)		+= hp680_bl.o
+ obj-$(CONFIG_BACKLIGHT_HP700)		+= jornada720_bl.o
+ obj-$(CONFIG_BACKLIGHT_IPAQ_MICRO)	+= ipaq_micro_bl.o
+ obj-$(CONFIG_BACKLIGHT_KTD253)		+= ktd253-backlight.o
++obj-$(CONFIG_BACKLIGHT_KTZ8866)		+= ktz8866.o
+ obj-$(CONFIG_BACKLIGHT_LM3533)		+= lm3533_bl.o
+ obj-$(CONFIG_BACKLIGHT_LM3630A)		+= lm3630a_bl.o
+ obj-$(CONFIG_BACKLIGHT_LM3639)		+= lm3639_bl.o
+diff --git a/drivers/video/backlight/ktz8866.c b/drivers/video/backlight/ktz8866.c
+new file mode 100644
+index 0000000000000..97b723719e13a
+--- /dev/null
++++ b/drivers/video/backlight/ktz8866.c
+@@ -0,0 +1,209 @@
++// SPDX-License-Identifier: GPL-2.0-only
++/*
++ * Backlight driver for the Kinetic KTZ8866
++ *
++ * Copyright (C) 2022, 2023 Jianhua Lu <lujianhua000@gmail.com>
++ */
++
++#include <linux/backlight.h>
++#include <linux/err.h>
++#include <linux/gpio/consumer.h>
++#include <linux/i2c.h>
++#include <linux/module.h>
++#include <linux/of.h>
++#include <linux/regmap.h>
++
++#define DEFAULT_BRIGHTNESS 1500
++#define MAX_BRIGHTNESS 2047
++#define REG_MAX 0x15
++
++/* reg */
++#define DEVICE_ID 0x01
++#define BL_CFG1 0x02
++#define BL_CFG2 0x03
++#define BL_BRT_LSB 0x04
++#define BL_BRT_MSB 0x05
++#define BL_EN 0x08
++#define LCD_BIAS_CFG1 0x09
++#define LCD_BIAS_CFG2 0x0A
++#define LCD_BIAS_CFG3 0x0B
++#define LCD_BOOST_CFG 0x0C
++#define OUTP_CFG 0x0D
++#define OUTN_CFG 0x0E
++#define FLAG 0x0F
++#define BL_OPTION1 0x10
++#define BL_OPTION2 0x11
++#define PWM2DIG_LSBs 0x12
++#define PWM2DIG_MSBs 0x13
++#define BL_DIMMING 0x14
++#define PWM_RAMP_TIME 0x15
++
++/* definition */
++#define BL_EN_BIT BIT(6)
++#define LCD_BIAS_EN 0x9F
++#define PWM_HYST 0x5
++
++struct ktz8866 {
++	struct i2c_client *client;
++	struct regmap *regmap;
++	bool led_on;
++	struct gpio_desc *enable_gpio;
++};
++
++static const struct regmap_config ktz8866_regmap_config = {
++	.reg_bits = 8,
++	.val_bits = 8,
++	.max_register = REG_MAX,
++};
++
++static int ktz8866_write(struct ktz8866 *ktz, unsigned int reg,
++			 unsigned int val)
++{
++	return regmap_write(ktz->regmap, reg, val);
++}
++
++static int ktz8866_update_bits(struct ktz8866 *ktz, unsigned int reg,
++			       unsigned int mask, unsigned int val)
++{
++	return regmap_update_bits(ktz->regmap, reg, mask, val);
++}
++
++static int ktz8866_backlight_update_status(struct backlight_device *backlight_dev)
++{
++	struct ktz8866 *ktz = bl_get_data(backlight_dev);
++	unsigned int brightness = backlight_get_brightness(backlight_dev);
++
++	if (!ktz->led_on && brightness > 0) {
++		ktz8866_update_bits(ktz, BL_EN, BL_EN_BIT, BL_EN_BIT);
++		ktz->led_on = true;
++	} else if (brightness == 0) {
++		ktz8866_update_bits(ktz, BL_EN, BL_EN_BIT, 0);
++		ktz->led_on = false;
++	}
++
++	/* Set brightness */
++	ktz8866_write(ktz, BL_BRT_LSB, brightness & 0x7);
++	ktz8866_write(ktz, BL_BRT_MSB, (brightness >> 3) & 0xFF);
++
++	return 0;
++}
++
++static const struct backlight_ops ktz8866_backlight_ops = {
++	.options = BL_CORE_SUSPENDRESUME,
++	.update_status = ktz8866_backlight_update_status,
++};
++
++static void ktz8866_init(struct ktz8866 *ktz)
++{
++	unsigned int val = 0;
++
++	if (of_property_read_u32(ktz->client->dev.of_node, "current-num-sinks", &val))
++		ktz8866_write(ktz, BL_EN, BIT(val) - 1);
++	else
++		/* Enable all 6 current sinks if the number of current sinks isn't specified. */
++		ktz8866_write(ktz, BL_EN, BIT(6) - 1);
++
++	if (of_property_read_u32(ktz->client->dev.of_node, "kinetic,current-ramp-delay-ms", &val)) {
++		if (val <= 128)
++			ktz8866_write(ktz, BL_CFG2, BIT(7) | (ilog2(val) << 3) | PWM_HYST);
++		else
++			ktz8866_write(ktz, BL_CFG2, BIT(7) | ((5 + val / 64) << 3) | PWM_HYST);
++	}
++
++	if (of_property_read_u32(ktz->client->dev.of_node, "kinetic,led-enable-ramp-delay-ms", &val)) {
++		if (val == 0)
++			ktz8866_write(ktz, BL_DIMMING, 0);
++		else {
++			unsigned int ramp_off_time = ilog2(val) + 1;
++			unsigned int ramp_on_time = ramp_off_time << 4;
++			ktz8866_write(ktz, BL_DIMMING, ramp_on_time | ramp_off_time);
++		}
++	}
++
++	if (of_property_read_bool(ktz->client->dev.of_node, "kinetic,enable-lcd-bias"))
++		ktz8866_write(ktz, LCD_BIAS_CFG1, LCD_BIAS_EN);
++}
++
++static int ktz8866_probe(struct i2c_client *client,
++			 const struct i2c_device_id *id)
++{
++	struct backlight_device *backlight_dev;
++	struct backlight_properties props;
++	struct ktz8866 *ktz;
++	int ret = 0;
++
++	ktz = devm_kzalloc(&client->dev, sizeof(*ktz), GFP_KERNEL);
++	if (!ktz)
++		return -ENOMEM;
++
++	ktz->client = client;
++	ktz->regmap = devm_regmap_init_i2c(client, &ktz8866_regmap_config);
++	if (IS_ERR(ktz->regmap))
++		return dev_err_probe(&client->dev, PTR_ERR(ktz->regmap), "failed to init regmap\n");
++
++	ret = devm_regulator_get_enable(&client->dev, "vddpos");
++	if (ret)
++		return dev_err_probe(&client->dev, ret, "get regulator vddpos failed\n");
++	ret = devm_regulator_get_enable(&client->dev, "vddneg");
++	if (ret)
++		return dev_err_probe(&client->dev, ret, "get regulator vddneg failed\n");
++
++	ktz->enable_gpio = devm_gpiod_get_optional(&client->dev, "enable", GPIOD_OUT_HIGH);
++	if (IS_ERR(ktz->enable_gpio))
++		return PTR_ERR(ktz->enable_gpio);
++
++	memset(&props, 0, sizeof(props));
++	props.type = BACKLIGHT_RAW;
++	props.max_brightness = MAX_BRIGHTNESS;
++	props.brightness = DEFAULT_BRIGHTNESS;
++	props.scale = BACKLIGHT_SCALE_LINEAR;
++
++	backlight_dev = devm_backlight_device_register(&client->dev, "ktz8866-backlight",
++					&client->dev, ktz, &ktz8866_backlight_ops, &props);
++	if (IS_ERR(backlight_dev))
++		return dev_err_probe(&client->dev, PTR_ERR(backlight_dev),
++				"failed to register backlight device\n");
++
++	ktz8866_init(ktz);
++
++	i2c_set_clientdata(client, backlight_dev);
++	backlight_update_status(backlight_dev);
++
++	return 0;
++}
++
++static void ktz8866_remove(struct i2c_client *client)
++{
++	struct backlight_device *backlight_dev = i2c_get_clientdata(client);
++	backlight_dev->props.brightness = 0;
++	backlight_update_status(backlight_dev);
++}
++
++static const struct i2c_device_id ktz8866_ids[] = {
++	{ "ktz8866", 0 },
++	{},
++};
++MODULE_DEVICE_TABLE(i2c, ktz8866_ids);
++
++static const struct of_device_id ktz8866_match_table[] = {
++	{
++		.compatible = "kinetic,ktz8866",
++	},
++	{},
++};
++
++static struct i2c_driver ktz8866_driver = {
++	.driver = {
++		.name = "ktz8866",
++		.of_match_table = ktz8866_match_table,
++	},
++	.probe = ktz8866_probe,
++	.remove = ktz8866_remove,
++	.id_table = ktz8866_ids,
++};
++
++module_i2c_driver(ktz8866_driver);
++
++MODULE_DESCRIPTION("Kinetic KTZ8866 Backlight Driver");
++MODULE_AUTHOR("Jianhua Lu <lujianhua000@gmail.com>");
++MODULE_LICENSE("GPL");
+-- 
+cgit 
+
+
+From ad614f81d2e8b9704478921935c75ccd4024b854 Mon Sep 17 00:00:00 2001
+From: Uwe Kleine-König <u.kleine-koenig@pengutronix.de>
+Date: Fri, 27 Jan 2023 16:26:39 +0100
+Subject: backlight: ktz8866: Convert to i2c's .probe_new()
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+The probe function doesn't make use of the i2c_device_id * parameter so
+it can be trivially converted.
+
+Signed-off-by: Uwe Kleine-König <u.kleine-koenig@pengutronix.de>
+Signed-off-by: Lee Jones <lee@kernel.org>
+Link: https://lore.kernel.org/r/20230127152639.1347229-1-u.kleine-koenig@pengutronix.de
+---
+ drivers/video/backlight/ktz8866.c | 5 ++---
+ 1 file changed, 2 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/video/backlight/ktz8866.c b/drivers/video/backlight/ktz8866.c
+index 97b723719e13a..d38c13ad39c7a 100644
+--- a/drivers/video/backlight/ktz8866.c
++++ b/drivers/video/backlight/ktz8866.c
+@@ -124,8 +124,7 @@ static void ktz8866_init(struct ktz8866 *ktz)
+ 		ktz8866_write(ktz, LCD_BIAS_CFG1, LCD_BIAS_EN);
+ }
+ 
+-static int ktz8866_probe(struct i2c_client *client,
+-			 const struct i2c_device_id *id)
++static int ktz8866_probe(struct i2c_client *client)
+ {
+ 	struct backlight_device *backlight_dev;
+ 	struct backlight_properties props;
+@@ -197,7 +196,7 @@ static struct i2c_driver ktz8866_driver = {
+ 		.name = "ktz8866",
+ 		.of_match_table = ktz8866_match_table,
+ 	},
+-	.probe = ktz8866_probe,
++	.probe_new = ktz8866_probe,
+ 	.remove = ktz8866_remove,
+ 	.id_table = ktz8866_ids,
+ };
+-- 
+cgit 
+

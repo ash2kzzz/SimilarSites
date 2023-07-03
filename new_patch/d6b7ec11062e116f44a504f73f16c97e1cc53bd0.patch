@@ -1,0 +1,37 @@
+From d6b7ec11062e116f44a504f73f16c97e1cc53bd0 Mon Sep 17 00:00:00 2001
+From: Taehee Yoo <ap420073@gmail.com>
+Date: Sun, 15 Jan 2023 12:15:36 +0000
+Subject: crypto: x86/aria-avx512 - fix build failure with old binutils
+
+The minimum version of binutils for kernel build is currently 2.23 and
+it doesn't support GFNI.
+So, it fails to build the aria-avx512 if the old binutils is used.
+aria-avx512 requires GFNI, so it should not be allowed to build if the
+old binutils is used.
+The AS_AVX512 and AS_GFNI are added to the Kconfig to disable build
+aria-avx512 if the old binutils is used.
+
+Fixes: c970d42001f2 ("crypto: x86/aria - implement aria-avx512")
+Reported-by: Jan Beulich <jbeulich@suse.com>
+Signed-off-by: Taehee Yoo <ap420073@gmail.com>
+Signed-off-by: Herbert Xu <herbert@gondor.apana.org.au>
+---
+ arch/x86/crypto/Kconfig | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/arch/x86/crypto/Kconfig b/arch/x86/crypto/Kconfig
+index 688e848f740db..9bbfd01cfa2f1 100644
+--- a/arch/x86/crypto/Kconfig
++++ b/arch/x86/crypto/Kconfig
+@@ -325,7 +325,7 @@ config CRYPTO_ARIA_AESNI_AVX2_X86_64
+ 
+ config CRYPTO_ARIA_GFNI_AVX512_X86_64
+ 	tristate "Ciphers: ARIA with modes: ECB, CTR (AVX512/GFNI)"
+-	depends on X86 && 64BIT
++	depends on X86 && 64BIT && AS_AVX512 && AS_GFNI
+ 	select CRYPTO_SKCIPHER
+ 	select CRYPTO_SIMD
+ 	select CRYPTO_ALGAPI
+-- 
+cgit 
+

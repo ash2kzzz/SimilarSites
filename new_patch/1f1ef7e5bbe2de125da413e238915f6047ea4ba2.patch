@@ -1,0 +1,33 @@
+From 1f1ef7e5bbe2de125da413e238915f6047ea4ba2 Mon Sep 17 00:00:00 2001
+From: Charles Keepax <ckeepax@opensource.cirrus.com>
+Date: Wed, 14 Jun 2023 15:21:16 +0100
+Subject: ASoC: intel: sof_sdw: Fixup typo in device link checking
+
+The loop checking for multiple different devices on a single sdw link
+contains a typo accidentally using i twice instead of j. Correct to the
+correct index variable.
+
+Fixes: dc5a3e60a4b5 ("ASoC: Intel: sof_sdw: append codec type to dai link name")
+Signed-off-by: Charles Keepax <ckeepax@opensource.cirrus.com>
+Link: https://lore.kernel.org/r/20230614142116.1059677-1-ckeepax@opensource.cirrus.com
+Signed-off-by: Mark Brown <broonie@kernel.org>
+---
+ sound/soc/intel/boards/sof_sdw.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/sound/soc/intel/boards/sof_sdw.c b/sound/soc/intel/boards/sof_sdw.c
+index 6faf4a43eaf5a..144f082c63fda 100644
+--- a/sound/soc/intel/boards/sof_sdw.c
++++ b/sound/soc/intel/boards/sof_sdw.c
+@@ -1347,7 +1347,7 @@ static int sof_card_dai_links_create(struct device *dev,
+ 				if ((SDW_PART_ID(adr_link->adr_d[i].adr) !=
+ 				    SDW_PART_ID(adr_link->adr_d[j].adr)) ||
+ 				    (SDW_MFG_ID(adr_link->adr_d[i].adr) !=
+-				    SDW_MFG_ID(adr_link->adr_d[i].adr))) {
++				    SDW_MFG_ID(adr_link->adr_d[j].adr))) {
+ 					append_codec_type = true;
+ 					goto out;
+ 				}
+-- 
+cgit 
+

@@ -1,0 +1,35 @@
+From f16182ed9d8430adfab77f5929c23756c94b0230 Mon Sep 17 00:00:00 2001
+From: Geert Uytterhoeven <geert+renesas@glider.be>
+Date: Fri, 21 Apr 2023 11:58:06 +0200
+Subject: serial: 8250: Document termios parameter of serial8250_em485_config()
+
+With W=1:
+
+    drivers/tty/serial/8250/8250_port.c:679: warning: Function parameter or member 'termios' not described in 'serial8250_em485_config'
+
+Fix this by documenting the parameter.
+
+Fixes: ae50bb2752836277 ("serial: take termios_rwsem for ->rs485_config() & pass termios as param")
+Signed-off-by: Geert Uytterhoeven <geert+renesas@glider.be>
+Reviewed-by: Jiri Slaby <jirislaby@kernel.org>
+Link: https://lore.kernel.org/r/2bd1e62be1d5d33333002910372feecc6d52e78f.1682071013.git.geert+renesas@glider.be
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+---
+ drivers/tty/serial/8250/8250_port.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/drivers/tty/serial/8250/8250_port.c b/drivers/tty/serial/8250/8250_port.c
+index fe8d79c4ae95e..c153ba3a018a2 100644
+--- a/drivers/tty/serial/8250/8250_port.c
++++ b/drivers/tty/serial/8250/8250_port.c
+@@ -669,6 +669,7 @@ EXPORT_SYMBOL_GPL(serial8250_em485_supported);
+ /**
+  * serial8250_em485_config() - generic ->rs485_config() callback
+  * @port: uart port
++ * @termios: termios structure
+  * @rs485: rs485 settings
+  *
+  * Generic callback usable by 8250 uart drivers to activate rs485 settings
+-- 
+cgit 
+

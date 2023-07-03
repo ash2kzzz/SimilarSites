@@ -1,0 +1,30 @@
+From ec788f7e96ad4cd30338a09d466d9368acd73c26 Mon Sep 17 00:00:00 2001
+From: Shannon Nelson <shannon.nelson@amd.com>
+Date: Tue, 2 May 2023 13:27:52 -0700
+Subject: pds_core: remove CONFIG_DEBUG_FS from makefile
+
+This cruft from previous drafts should have been removed when
+the code was updated to not use the old style dummy helpers.
+
+Fixes: 55435ea7729a ("pds_core: initial framework for pds_core PF driver")
+Signed-off-by: Shannon Nelson <shannon.nelson@amd.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ drivers/net/ethernet/amd/pds_core/Makefile | 3 +--
+ 1 file changed, 1 insertion(+), 2 deletions(-)
+
+diff --git a/drivers/net/ethernet/amd/pds_core/Makefile b/drivers/net/ethernet/amd/pds_core/Makefile
+index 0abc33ce826c3..8239742e681f6 100644
+--- a/drivers/net/ethernet/amd/pds_core/Makefile
++++ b/drivers/net/ethernet/amd/pds_core/Makefile
+@@ -9,6 +9,5 @@ pds_core-y := main.o \
+ 	      dev.o \
+ 	      adminq.o \
+ 	      core.o \
++	      debugfs.o \
+ 	      fw.o
+-
+-pds_core-$(CONFIG_DEBUG_FS) += debugfs.o
+-- 
+cgit 
+

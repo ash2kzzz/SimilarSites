@@ -1,0 +1,36 @@
+From c88a15d9dd7dfabe2a13473fd1f9c4b9cd1b62c9 Mon Sep 17 00:00:00 2001
+From: Yang Yingliang <yangyingliang@huawei.com>
+Date: Sun, 29 Jan 2023 16:42:46 +0800
+Subject: coresight: tpda: fix return value check in tpda_probe()
+
+devm_ioremap_resource() never returns NULL pointer, it
+will return ERR_PTR() when it fails, so replace the check
+with IS_ERR().
+
+Fixes: 5b7916625c01 ("Coresight: Add TPDA link driver")
+Signed-off-by: Yang Yingliang <yangyingliang@huawei.com>
+[ Fix return value to the PTR_ERR(base) ]
+Signed-off-by: Suzuki K Poulose <suzuki.poulose@arm.com>
+Link: https://lore.kernel.org/r/20230129084246.537694-1-yangyingliang@huawei.com
+---
+ drivers/hwtracing/coresight/coresight-tpda.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/hwtracing/coresight/coresight-tpda.c b/drivers/hwtracing/coresight/coresight-tpda.c
+index 382d648529e72..f712e112ecff2 100644
+--- a/drivers/hwtracing/coresight/coresight-tpda.c
++++ b/drivers/hwtracing/coresight/coresight-tpda.c
+@@ -145,8 +145,8 @@ static int tpda_probe(struct amba_device *adev, const struct amba_id *id)
+ 	dev_set_drvdata(dev, drvdata);
+ 
+ 	base = devm_ioremap_resource(dev, &adev->res);
+-	if (!base)
+-		return -ENOMEM;
++	if (IS_ERR(base))
++		return PTR_ERR(base);
+ 	drvdata->base = base;
+ 
+ 	spin_lock_init(&drvdata->spinlock);
+-- 
+cgit 
+

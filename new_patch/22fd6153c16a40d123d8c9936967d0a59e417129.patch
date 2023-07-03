@@ -1,0 +1,45 @@
+From 22fd6153c16a40d123d8c9936967d0a59e417129 Mon Sep 17 00:00:00 2001
+From: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+Date: Tue, 7 Mar 2023 08:51:02 +0100
+Subject: driver core: class: fix block class problem when removing
+ CONFIG_SYSFS_DEPRECATED*
+
+In removing the CONFIG_SYSFS_DEPRECATED and CONFIG_SYSFS_DEPRECATED_V2
+config options, I messed up in the __class_register() function and got
+the logic incorrect.  Fix this all up by just removing the special case
+of a block device class logic in this function, as that is what is
+intended.
+
+In testing, this solves the boot problem on my systems, hopefully on
+others as well.
+
+Cc: "Rafael J. Wysocki" <rafael@kernel.org>
+Reported-by: Stephen Rothwell <sfr@canb.auug.org.au>
+Fixes: 721da5cee9d4 ("driver core: remove CONFIG_SYSFS_DEPRECATED and CONFIG_SYSFS_DEPRECATED_V2")
+Link: https://lore.kernel.org/r/20230307075102.3537-1-gregkh@linuxfoundation.org
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+---
+ drivers/base/class.c | 6 ------
+ 1 file changed, 6 deletions(-)
+
+diff --git a/drivers/base/class.c b/drivers/base/class.c
+index fb8f2a1e1c198..5983eead8391f 100644
+--- a/drivers/base/class.c
++++ b/drivers/base/class.c
+@@ -178,13 +178,7 @@ int __class_register(struct class *cls, struct lock_class_key *key)
+ 	if (!cls->dev_kobj)
+ 		cls->dev_kobj = sysfs_dev_char_kobj;
+ 
+-#if defined(CONFIG_BLOCK)
+-	/* let the block class directory show up in the root of sysfs */
+-	if (cls != &block_class)
+-		cp->subsys.kobj.kset = class_kset;
+-#else
+ 	cp->subsys.kobj.kset = class_kset;
+-#endif
+ 	cp->subsys.kobj.ktype = &class_ktype;
+ 	cp->class = cls;
+ 	cls->p = cp;
+-- 
+cgit 
+

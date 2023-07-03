@@ -1,0 +1,61 @@
+From 2b129f0b24ab578b02901b4a1744b7f97399faa0 Mon Sep 17 00:00:00 2001
+From: Reinette Chatre <reinette.chatre@intel.com>
+Date: Thu, 9 Feb 2023 13:49:00 -0800
+Subject: PCI/MSI: Provide missing stubs for CONFIG_PCI_MSI=n
+
+pci_msix_alloc_irq_at() and pci_msix_free_irq() are not declared when
+CONFIG_PCI_MSI is disabled.
+
+Users of these two calls do not yet exist but when users do appear (shown
+below is an attempt to use the new API in vfio-pci) the following errors
+will be encountered when compiling with CONFIG_PCI_MSI disabled:
+
+drivers/vfio/pci/vfio_pci_intrs.c:461:4: error: implicit declaration of\
+        function 'pci_msix_free_irq' is invalid in C99\
+        [-Werror,-Wimplicit-function-declaration]
+                           pci_msix_free_irq(pdev, msix_map);
+                           ^
+drivers/vfio/pci/vfio_pci_intrs.c:511:15: error: implicit declaration of\
+        function 'pci_msix_alloc_irq_at' is invalid in C99\
+        [-Werror,-Wimplicit-function-declaration]
+                   msix_map = pci_msix_alloc_irq_at(pdev, vector, NULL);
+
+Provide definitions for pci_msix_alloc_irq_at() and pci_msix_free_irq() in
+preparation for users that need to compile when CONFIG_PCI_MSI is
+disabled.
+
+Reported-by: kernel test robot <lkp@intel.com>
+Fixes: 34026364df8e ("PCI/MSI: Provide post-enable dynamic allocation interfaces for MSI-X")
+Signed-off-by: Reinette Chatre <reinette.chatre@intel.com>
+Signed-off-by: Thomas Gleixner <tglx@linutronix.de>
+Link: https://lore.kernel.org/r/158e40e1cfcfc58ae30ecb2bbfaf86e5bba7a1ef.1675978686.git.reinette.chatre@intel.com
+---
+ include/linux/pci.h | 12 ++++++++++++
+ 1 file changed, 12 insertions(+)
+
+diff --git a/include/linux/pci.h b/include/linux/pci.h
+index adffd65e84b4e..254c8a4126a89 100644
+--- a/include/linux/pci.h
++++ b/include/linux/pci.h
+@@ -1621,6 +1621,18 @@ pci_alloc_irq_vectors(struct pci_dev *dev, unsigned int min_vecs,
+ 					      flags, NULL);
+ }
+ 
++static inline struct msi_map pci_msix_alloc_irq_at(struct pci_dev *dev, unsigned int index,
++						   const struct irq_affinity_desc *affdesc)
++{
++	struct msi_map map = { .index = -ENOSYS, };
++
++	return map;
++}
++
++static inline void pci_msix_free_irq(struct pci_dev *pdev, struct msi_map map)
++{
++}
++
+ static inline void pci_free_irq_vectors(struct pci_dev *dev)
+ {
+ }
+-- 
+cgit 
+

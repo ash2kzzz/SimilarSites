@@ -1,0 +1,67 @@
+From 09113abfb6ba981cb7cb4960b230251afd8966dc Mon Sep 17 00:00:00 2001
+From: Tong Zhang <ztong0001@gmail.com>
+Date: Thu, 29 Dec 2022 10:37:31 -0800
+Subject: nvme-pci: fix error handling in nvme_pci_enable()
+
+There are two issues in nvme_pci_enable():
+
+ 1) If pci_alloc_irq_vectors() fails, device is left enabled. Fix this by
+    adding a goto disable statement.
+ 2) nvme_pci_configure_admin_queue could return -ENODEV, in this case,
+    we will need to free IRQ properly.  Otherwise the following warning
+    could be triggered:
+
+[    5.286752] WARNING: CPU: 0 PID: 33 at kernel/irq/irqdomain.c:253 irq_domain_remove+0x12d/0x140
+[    5.290547] Call Trace:
+[    5.290626]  <TASK>
+[    5.290695]  msi_remove_device_irq_domain+0xc9/0xf0
+[    5.290843]  msi_device_data_release+0x15/0x80
+[    5.290978]  release_nodes+0x58/0x90
+[    5.293788] WARNING: CPU: 0 PID: 33 at kernel/irq/msi.c:276 msi_device_data_release+0x76/0x80
+[    5.297573] Call Trace:
+[    5.297651]  <TASK>
+[    5.297719]  release_nodes+0x58/0x90
+[    5.297831]  devres_release_all+0xef/0x140
+[    5.298339]  device_unbind_cleanup+0x11/0xc0
+[    5.298479]  really_probe+0x296/0x320
+
+Fixes: a6ee7f19ebfd ("nvme-pci: call nvme_pci_configure_admin_queue from nvme_pci_enable")
+Co-developed-by: Keith Busch <kbusch@kernel.org>
+Signed-off-by: Tong Zhang <ztong0001@gmail.com>
+Reviewed-by: Keith Busch <kbusch@kernel.org>
+Signed-off-by: Christoph Hellwig <hch@lst.de>
+---
+ drivers/nvme/host/pci.c | 9 +++++++--
+ 1 file changed, 7 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/nvme/host/pci.c b/drivers/nvme/host/pci.c
+index 91f8adcf6056e..a2553b7d9bb8e 100644
+--- a/drivers/nvme/host/pci.c
++++ b/drivers/nvme/host/pci.c
+@@ -2533,7 +2533,7 @@ static int nvme_pci_enable(struct nvme_dev *dev)
+ 	 */
+ 	result = pci_alloc_irq_vectors(pdev, 1, 1, PCI_IRQ_ALL_TYPES);
+ 	if (result < 0)
+-		return result;
++		goto disable;
+ 
+ 	dev->ctrl.cap = lo_hi_readq(dev->bar + NVME_REG_CAP);
+ 
+@@ -2586,8 +2586,13 @@ static int nvme_pci_enable(struct nvme_dev *dev)
+ 	pci_enable_pcie_error_reporting(pdev);
+ 	pci_save_state(pdev);
+ 
+-	return nvme_pci_configure_admin_queue(dev);
++	result = nvme_pci_configure_admin_queue(dev);
++	if (result)
++		goto free_irq;
++	return result;
+ 
++ free_irq:
++	pci_free_irq_vectors(pdev);
+  disable:
+ 	pci_disable_device(pdev);
+ 	return result;
+-- 
+cgit 
+

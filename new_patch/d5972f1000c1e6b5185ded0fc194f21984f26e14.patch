@@ -1,0 +1,35 @@
+From d5972f1000c1e6b5185ded0fc194f21984f26e14 Mon Sep 17 00:00:00 2001
+From: Dan Carpenter <dan.carpenter@linaro.org>
+Date: Fri, 19 May 2023 22:43:03 +0300
+Subject: net/mlx5: Fix check for allocation failure in comp_irqs_request_pci()
+
+This function accidentally dereferences "cpus" instead of returning
+directly.
+
+Reported-by: kernel test robot <lkp@intel.com>
+Closes: https://lore.kernel.org/r/202305200354.KV3jU94w-lkp@intel.com/
+Fixes: b48a0f72bc3e ("net/mlx5: Refactor completion irq request/release code")
+Signed-off-by: Dan Carpenter <dan.carpenter@linaro.org>
+Reviewed-by: Simon Horman <simon.horman@corigine.com>
+Reviewed-by: Leon Romanovsky <leonro@nvidia.com>
+Signed-off-by: Saeed Mahameed <saeedm@nvidia.com>
+---
+ drivers/net/ethernet/mellanox/mlx5/core/eq.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/net/ethernet/mellanox/mlx5/core/eq.c b/drivers/net/ethernet/mellanox/mlx5/core/eq.c
+index fe698c79616c6..3db4866d7880f 100644
+--- a/drivers/net/ethernet/mellanox/mlx5/core/eq.c
++++ b/drivers/net/ethernet/mellanox/mlx5/core/eq.c
+@@ -824,7 +824,7 @@ static int comp_irqs_request_pci(struct mlx5_core_dev *dev)
+ 	ncomp_eqs = table->num_comp_eqs;
+ 	cpus = kcalloc(ncomp_eqs, sizeof(*cpus), GFP_KERNEL);
+ 	if (!cpus)
+-		ret = -ENOMEM;
++		return -ENOMEM;
+ 
+ 	i = 0;
+ 	rcu_read_lock();
+-- 
+cgit 
+

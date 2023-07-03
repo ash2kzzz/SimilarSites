@@ -1,0 +1,71 @@
+From f91bf3272a18356e8585f6bbba896d794632f2af Mon Sep 17 00:00:00 2001
+From: Marek Szyprowski <m.szyprowski@samsung.com>
+Date: Thu, 16 Mar 2023 00:25:14 +0100
+Subject: iommu/exynos: Fix set_platform_dma_ops() callback
+
+There are some subtle differences between release_device() and
+set_platform_dma_ops() callbacks, so separate those two callbacks. Device
+links should be removed only in release_device(), because they were
+created in probe_device() on purpose and they are needed for proper
+Exynos IOMMU driver operation. While fixing this, remove the conditional
+code as it is not really needed.
+
+Reported-by: Jason Gunthorpe <jgg@ziepe.ca>
+Fixes: 189d496b48b1 ("iommu/exynos: Add missing set_platform_dma_ops callback")
+Signed-off-by: Marek Szyprowski <m.szyprowski@samsung.com>
+Reviewed-by: Sam Protsenko <semen.protsenko@linaro.org>
+Link: https://lore.kernel.org/r/20230315232514.1046589-1-m.szyprowski@samsung.com
+Signed-off-by: Joerg Roedel <jroedel@suse.de>
+---
+ drivers/iommu/exynos-iommu.c | 17 ++++++++++-------
+ 1 file changed, 10 insertions(+), 7 deletions(-)
+
+diff --git a/drivers/iommu/exynos-iommu.c b/drivers/iommu/exynos-iommu.c
+index 483aaaeb6daea..1abd187c6075e 100644
+--- a/drivers/iommu/exynos-iommu.c
++++ b/drivers/iommu/exynos-iommu.c
+@@ -1415,23 +1415,26 @@ static struct iommu_device *exynos_iommu_probe_device(struct device *dev)
+ 	return &data->iommu;
+ }
+ 
+-static void exynos_iommu_release_device(struct device *dev)
++static void exynos_iommu_set_platform_dma(struct device *dev)
+ {
+ 	struct exynos_iommu_owner *owner = dev_iommu_priv_get(dev);
+-	struct sysmmu_drvdata *data;
+ 
+ 	if (owner->domain) {
+ 		struct iommu_group *group = iommu_group_get(dev);
+ 
+ 		if (group) {
+-#ifndef CONFIG_ARM
+-			WARN_ON(owner->domain !=
+-				iommu_group_default_domain(group));
+-#endif
+ 			exynos_iommu_detach_device(owner->domain, dev);
+ 			iommu_group_put(group);
+ 		}
+ 	}
++}
++
++static void exynos_iommu_release_device(struct device *dev)
++{
++	struct exynos_iommu_owner *owner = dev_iommu_priv_get(dev);
++	struct sysmmu_drvdata *data;
++
++	exynos_iommu_set_platform_dma(dev);
+ 
+ 	list_for_each_entry(data, &owner->controllers, owner_node)
+ 		device_link_del(data->link);
+@@ -1479,7 +1482,7 @@ static const struct iommu_ops exynos_iommu_ops = {
+ 	.domain_alloc = exynos_iommu_domain_alloc,
+ 	.device_group = generic_device_group,
+ #ifdef CONFIG_ARM
+-	.set_platform_dma_ops = exynos_iommu_release_device,
++	.set_platform_dma_ops = exynos_iommu_set_platform_dma,
+ #endif
+ 	.probe_device = exynos_iommu_probe_device,
+ 	.release_device = exynos_iommu_release_device,
+-- 
+cgit 
+

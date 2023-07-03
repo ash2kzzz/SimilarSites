@@ -1,0 +1,116 @@
+From 623c0751336e4035ab0047f2c152a02bd26b612b Mon Sep 17 00:00:00 2001
+From: Robert Richter <rrichter@amd.com>
+Date: Thu, 19 Jan 2023 10:49:34 +0100
+Subject: cxl/mbox: Fix Payload Length check for Get Log command
+
+Commit 2aeaf663b85e introduced strict checking for variable length
+payload size validation. The payload length of received data must
+match the size of the requested data by the caller except for the case
+where the min_out value is set.
+
+The Get Log command does not have a header with a length field set.
+The Log size is determined by the Get Supported Logs command (CXL 3.0,
+8.2.9.5.1). However, the actual size can be smaller and the number of
+valid bytes in the payload output must be determined reading the
+Payload Length field (CXL 3.0, Table 8-36, Note 2).
+
+Two issues arise: The command can successfully complete with a payload
+length of zero. And, the valid payload length must then also be
+consumed by the caller.
+
+Change cxl_xfer_log() to pass the number of payload bytes back to the
+caller to determine the number of log entries. Implement the payload
+handling as a special case where mbox_cmd->size_out is consulted when
+cxl_internal_send_cmd() returns -EIO. A WARN_ONCE() is added to check
+that -EIO is only returned in case of an unexpected output size.
+
+Logs can be bigger than the maximum payload length and multiple Get
+Log commands can be issued. If the received payload size is smaller
+than the maximum payload size we can assume all valid bytes have been
+fetched. Stop sending further Get Log commands then.
+
+On that occasion, change debug messages to also report the opcodes of
+supported commands.
+
+The variable payload commands GET_LSA and SET_LSA are not affected by
+this strict check: SET_LSA cannot be broken because SET_LSA does not
+return an output payload, and GET_LSA never expects short reads.
+
+Fixes: 2aeaf663b85e ("cxl/mbox: Add variable output size validation for internal commands")
+Signed-off-by: Robert Richter <rrichter@amd.com>
+Reviewed-by: Dave Jiang <dave.jiang@intel.com>
+Reviewed-by: Jonathan Cameron <Jonathan.Cameron@huawei.com>
+Link: https://lore.kernel.org/r/20230119094934.86067-1-rrichter@amd.com
+Signed-off-by: Dan Williams <dan.j.williams@intel.com>
+---
+ drivers/cxl/core/mbox.c | 25 ++++++++++++++++++++++---
+ 1 file changed, 22 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/cxl/core/mbox.c b/drivers/cxl/core/mbox.c
+index cae43cea00cd5..202d49dd99118 100644
+--- a/drivers/cxl/core/mbox.c
++++ b/drivers/cxl/core/mbox.c
+@@ -170,6 +170,12 @@ int cxl_internal_send_cmd(struct cxl_dev_state *cxlds,
+ 	out_size = mbox_cmd->size_out;
+ 	min_out = mbox_cmd->min_out;
+ 	rc = cxlds->mbox_send(cxlds, mbox_cmd);
++	/*
++	 * EIO is reserved for a payload size mismatch and mbox_send()
++	 * may not return this error.
++	 */
++	if (WARN_ONCE(rc == -EIO, "Bad return code: -EIO"))
++		return -ENXIO;
+ 	if (rc)
+ 		return rc;
+ 
+@@ -550,9 +556,9 @@ int cxl_send_cmd(struct cxl_memdev *cxlmd, struct cxl_send_command __user *s)
+ 	return 0;
+ }
+ 
+-static int cxl_xfer_log(struct cxl_dev_state *cxlds, uuid_t *uuid, u32 size, u8 *out)
++static int cxl_xfer_log(struct cxl_dev_state *cxlds, uuid_t *uuid, u32 *size, u8 *out)
+ {
+-	u32 remaining = size;
++	u32 remaining = *size;
+ 	u32 offset = 0;
+ 
+ 	while (remaining) {
+@@ -576,6 +582,17 @@ static int cxl_xfer_log(struct cxl_dev_state *cxlds, uuid_t *uuid, u32 size, u8
+ 		};
+ 
+ 		rc = cxl_internal_send_cmd(cxlds, &mbox_cmd);
++
++		/*
++		 * The output payload length that indicates the number
++		 * of valid bytes can be smaller than the Log buffer
++		 * size.
++		 */
++		if (rc == -EIO && mbox_cmd.size_out < xfer_size) {
++			offset += mbox_cmd.size_out;
++			break;
++		}
++
+ 		if (rc < 0)
+ 			return rc;
+ 
+@@ -584,6 +601,8 @@ static int cxl_xfer_log(struct cxl_dev_state *cxlds, uuid_t *uuid, u32 size, u8
+ 		offset += xfer_size;
+ 	}
+ 
++	*size = offset;
++
+ 	return 0;
+ }
+ 
+@@ -695,7 +714,7 @@ int cxl_enumerate_cmds(struct cxl_dev_state *cxlds)
+ 			goto out;
+ 		}
+ 
+-		rc = cxl_xfer_log(cxlds, &uuid, size, log);
++		rc = cxl_xfer_log(cxlds, &uuid, &size, log);
+ 		if (rc) {
+ 			kvfree(log);
+ 			goto out;
+-- 
+cgit 
+

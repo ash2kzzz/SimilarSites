@@ -1,0 +1,31 @@
+From 933141e4eb49d8b48721e2377835063a1e8fb823 Mon Sep 17 00:00:00 2001
+From: Chao Yu <chao@kernel.org>
+Date: Sat, 28 Jan 2023 18:32:26 +0800
+Subject: f2fs: fix to handle F2FS_IOC_START_ATOMIC_REPLACE in
+ f2fs_compat_ioctl()
+
+Otherwise, 32-bits binary call ioctl(F2FS_IOC_START_ATOMIC_REPLACE) will
+fail in 64-bits kernel.
+
+Fixes: 41e8f85a75fc ("f2fs: introduce F2FS_IOC_START_ATOMIC_REPLACE")
+Signed-off-by: Chao Yu <chao@kernel.org>
+Signed-off-by: Jaegeuk Kim <jaegeuk@kernel.org>
+---
+ fs/f2fs/file.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/fs/f2fs/file.c b/fs/f2fs/file.c
+index 65199574cd7db..f05148a9dc99a 100644
+--- a/fs/f2fs/file.c
++++ b/fs/f2fs/file.c
+@@ -4814,6 +4814,7 @@ long f2fs_compat_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
+ 	case F2FS_IOC32_MOVE_RANGE:
+ 		return f2fs_compat_ioc_move_range(file, arg);
+ 	case F2FS_IOC_START_ATOMIC_WRITE:
++	case F2FS_IOC_START_ATOMIC_REPLACE:
+ 	case F2FS_IOC_COMMIT_ATOMIC_WRITE:
+ 	case F2FS_IOC_START_VOLATILE_WRITE:
+ 	case F2FS_IOC_RELEASE_VOLATILE_WRITE:
+-- 
+cgit 
+

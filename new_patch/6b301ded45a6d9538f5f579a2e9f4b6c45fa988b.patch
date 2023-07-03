@@ -1,0 +1,42 @@
+From 6b301ded45a6d9538f5f579a2e9f4b6c45fa988b Mon Sep 17 00:00:00 2001
+From: Harshit Mogalapalli <harshit.m.mogalapalli@oracle.com>
+Date: Mon, 20 Mar 2023 23:14:15 -0700
+Subject: tpm: Fix a possible dereference of ERR_PTR in tpm_init()
+
+Smatch reports:
+	drivers/char/tpm/tpm-interface.c:470 tpm_init() error:
+	'tpm_class' dereferencing possible ERR_PTR()
+
+If class_create() returns error pointer, we are dereferencing a possible
+error pointer. Fix this by moving the dereference post error handling.
+
+Fixes: a010eb881243 ("tpm: fix up the tpm_class shutdown_pre pointer when created")
+Signed-off-by: Harshit Mogalapalli <harshit.m.mogalapalli@oracle.com>
+Link: https://lore.kernel.org/r/20230321061416.626561-1-harshit.m.mogalapalli@oracle.com
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+---
+ drivers/char/tpm/tpm-interface.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/char/tpm/tpm-interface.c b/drivers/char/tpm/tpm-interface.c
+index 43e23a04433a2..4463d00182909 100644
+--- a/drivers/char/tpm/tpm-interface.c
++++ b/drivers/char/tpm/tpm-interface.c
+@@ -467,12 +467,13 @@ static int __init tpm_init(void)
+ 	int rc;
+ 
+ 	tpm_class = class_create("tpm");
+-	tpm_class->shutdown_pre = tpm_class_shutdown;
+ 	if (IS_ERR(tpm_class)) {
+ 		pr_err("couldn't create tpm class\n");
+ 		return PTR_ERR(tpm_class);
+ 	}
+ 
++	tpm_class->shutdown_pre = tpm_class_shutdown;
++
+ 	tpmrm_class = class_create("tpmrm");
+ 	if (IS_ERR(tpmrm_class)) {
+ 		pr_err("couldn't create tpmrm class\n");
+-- 
+cgit 
+

@@ -1,0 +1,37 @@
+From c70313cd177d28ea15a3f5cb3e6f10292a782c63 Mon Sep 17 00:00:00 2001
+From: Jeffrey Hugo <quic_jhugo@quicinc.com>
+Date: Thu, 19 Jan 2023 09:26:08 -0700
+Subject: docs: accel: Fix debugfs path
+
+The device specific directory in debugfs does not have "accel".  For
+example, the documentation says device 0 should have a debugfs entry as
+/sys/kernel/debug/accel/accel0/ but in reality the entry is
+/sys/kernel/debug/accel/0/
+
+Fix the documentation to match the implementation.
+
+Fixes: 8c5577a5ccc6 ("doc: add documentation for accel subsystem")
+Signed-off-by: Jeffrey Hugo <quic_jhugo@quicinc.com>
+Reviewed-by: Oded Gabbay <ogabbay@kernel.org>
+Link: https://lore.kernel.org/r/1674145568-31513-1-git-send-email-quic_jhugo@quicinc.com
+Signed-off-by: Jonathan Corbet <corbet@lwn.net>
+---
+ Documentation/accel/introduction.rst | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/Documentation/accel/introduction.rst b/Documentation/accel/introduction.rst
+index 6f31af14b1fc4..11cade51f387a 100644
+--- a/Documentation/accel/introduction.rst
++++ b/Documentation/accel/introduction.rst
+@@ -69,7 +69,7 @@ The accelerator devices will be exposed to the user space with the dedicated
+ 
+ - device char files - /dev/accel/accel*
+ - sysfs             - /sys/class/accel/accel*/
+-- debugfs           - /sys/kernel/debug/accel/accel*/
++- debugfs           - /sys/kernel/debug/accel/*/
+ 
+ Getting Started
+ ===============
+-- 
+cgit 
+

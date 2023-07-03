@@ -1,0 +1,43 @@
+From 0a17567b4a85243ac1620886b75b3813acde41fc Mon Sep 17 00:00:00 2001
+From: Jingbo Xu <jefflexu@linux.alibaba.com>
+Date: Mon, 15 May 2023 18:39:41 +0800
+Subject: erofs: fix null-ptr-deref caused by erofs_xattr_prefixes_init
+
+Fragments and dedupe share one feature bit, and thus packed inode may not
+exist when fragment feature bit (dedupe feature bit exactly) is set, e.g.
+when deduplication feature is in use while fragments feature is not.  In
+this case, sbi->packed_inode could be NULL while fragments feature bit
+is set.
+
+Fix this by accessing packed inode only when it exists.
+
+Reported-by: syzbot+902d5a9373ae8f748a94@syzkaller.appspotmail.com
+Link: https://syzkaller.appspot.com/bug?extid=902d5a9373ae8f748a94
+Reported-and-tested-by: syzbot+bbb353775d51424087f2@syzkaller.appspotmail.com
+Fixes: 9e382914617c ("erofs: add helpers to load long xattr name prefixes")
+Fixes: 6a318ccd7e08 ("erofs: enable long extended attribute name prefixes")
+Signed-off-by: Jingbo Xu <jefflexu@linux.alibaba.com>
+Reviewed-by: Yue Hu <huyue2@coolpad.com>
+Reviewed-by: Chao Yu <chao@kernel.org>
+Link: https://lore.kernel.org/r/20230515103941.129784-1-jefflexu@linux.alibaba.com
+Signed-off-by: Gao Xiang <hsiangkao@linux.alibaba.com>
+---
+ fs/erofs/xattr.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/fs/erofs/xattr.c b/fs/erofs/xattr.c
+index cd80499351e05..bbfe7ce170d21 100644
+--- a/fs/erofs/xattr.c
++++ b/fs/erofs/xattr.c
+@@ -675,7 +675,7 @@ int erofs_xattr_prefixes_init(struct super_block *sb)
+ 	if (!pfs)
+ 		return -ENOMEM;
+ 
+-	if (erofs_sb_has_fragments(sbi))
++	if (sbi->packed_inode)
+ 		buf.inode = sbi->packed_inode;
+ 	else
+ 		erofs_init_metabuf(&buf, sb);
+-- 
+cgit 
+

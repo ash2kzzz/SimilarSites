@@ -1,0 +1,32 @@
+From c753ccb2629f536b8c4feae5c223d5873c814d23 Mon Sep 17 00:00:00 2001
+From: Tzafrir Cohen <nvidia@cohens.org.il>
+Date: Tue, 14 Mar 2023 15:02:48 +0200
+Subject: Makefile: Make kernelrelease target work with M=
+
+That commit required the use of filechk_kernel.release for the
+kernelrelease Makefile target. It is currently only being set when
+KBUILD_EXTMOD is not set. Make sure it is set in that case as well.
+
+Fixes: 1cb86b6c3136 ("kbuild: save overridden KERNELRELEASE in include/config/kernel.release")
+Signed-off-by: Tzafrir Cohen <nvidia@cohens.org.il>
+Signed-off-by: Masahiro Yamada <masahiroy@kernel.org>
+---
+ Makefile | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/Makefile b/Makefile
+index d7bd0eb9b3463..d0a0ba8e5a2e6 100644
+--- a/Makefile
++++ b/Makefile
+@@ -1886,6 +1886,8 @@ endif
+ 
+ else # KBUILD_EXTMOD
+ 
++filechk_kernel.release = echo $(KERNELRELEASE)
++
+ ###
+ # External module support.
+ # When building external modules the kernel used as basis is considered
+-- 
+cgit 
+

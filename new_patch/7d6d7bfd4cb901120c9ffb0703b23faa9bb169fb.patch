@@ -1,0 +1,44 @@
+From 7d6d7bfd4cb901120c9ffb0703b23faa9bb169fb Mon Sep 17 00:00:00 2001
+From: Dmitry Baryshkov <dmitry.baryshkov@linaro.org>
+Date: Mon, 9 Jan 2023 02:29:24 +0200
+Subject: interconnect: qcom: sdx55: drop IP0 remnants
+
+Drop two defines leftover from the commit 2fb251c26560 ("interconnect:
+qcom: sdx55: Drop IP0 interconnects"), which dropped handling of the IP0
+resource in favour of handling it in the clk-rpmh driver.
+
+Fixes: 2fb251c26560 ("interconnect: qcom: sdx55: Drop IP0 interconnects")
+Signed-off-by: Dmitry Baryshkov <dmitry.baryshkov@linaro.org>
+Reviewed-by: Konrad Dybcio <konrad.dybcio@linaro.org>
+Reviewed-by: Manivannan Sadhasivam <manivannan.sadhasivam@linaro.org>
+Link: https://lore.kernel.org/r/20230109002935.244320-2-dmitry.baryshkov@linaro.org
+Signed-off-by: Georgi Djakov <djakov@kernel.org>
+---
+ drivers/interconnect/qcom/sdx55.h | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/interconnect/qcom/sdx55.h b/drivers/interconnect/qcom/sdx55.h
+index deff8afe06310..46cbabec8aa1f 100644
+--- a/drivers/interconnect/qcom/sdx55.h
++++ b/drivers/interconnect/qcom/sdx55.h
+@@ -6,7 +6,7 @@
+ #ifndef __DRIVERS_INTERCONNECT_QCOM_SDX55_H
+ #define __DRIVERS_INTERCONNECT_QCOM_SDX55_H
+ 
+-#define SDX55_MASTER_IPA_CORE			0
++/* 0 was used by MASTER_IPA_CORE, now represented as RPMh clock */
+ #define SDX55_MASTER_LLCC			1
+ #define SDX55_MASTER_TCU_0			2
+ #define SDX55_MASTER_SNOC_GC_MEM_NOC		3
+@@ -28,7 +28,7 @@
+ #define SDX55_MASTER_QDSS_ETR			19
+ #define SDX55_MASTER_SDCC_1			20
+ #define SDX55_MASTER_USB3			21
+-#define SDX55_SLAVE_IPA_CORE			22
++/* 22 was used by SLAVE_IPA_CORE, now represented as RPMh clock */
+ #define SDX55_SLAVE_EBI_CH0			23
+ #define SDX55_SLAVE_LLCC			24
+ #define SDX55_SLAVE_MEM_NOC_SNOC		25
+-- 
+cgit 
+

@@ -1,0 +1,63 @@
+From 9ffe9265375cbaf6c01647e31ae9fee8595b698c Mon Sep 17 00:00:00 2001
+From: Hou Wenlong <houwenlong.hwl@antgroup.com>
+Date: Mon, 10 Oct 2022 20:19:13 +0800
+Subject: KVM: x86/mmu: Fix wrong gfn range of tlb flushing in
+ kvm_set_pte_rmapp()
+
+When the spte of hupe page is dropped in kvm_set_pte_rmapp(), the whole
+gfn range covered by the spte should be flushed. However,
+rmap_walk_init_level() doesn't align down the gfn for new level like tdp
+iterator does, then the gfn used in kvm_set_pte_rmapp() is not the base
+gfn of huge page. And the size of gfn range is wrong too for huge page.
+Use the base gfn of huge page and the size of huge page for flushing
+tlbs for huge page. Also introduce a helper function to flush the given
+page (huge or not) of guest memory, which would help prevent future
+buggy use of kvm_flush_remote_tlbs_with_address() in such case.
+
+Fixes: c3134ce240eed ("KVM: Replace old tlb flush function with new one to flush a specified range.")
+Signed-off-by: Hou Wenlong <houwenlong.hwl@antgroup.com>
+Link: https://lore.kernel.org/r/0ce24d7078fa5f1f8d64b0c59826c50f32f8065e.1665214747.git.houwenlong.hwl@antgroup.com
+Signed-off-by: Sean Christopherson <seanjc@google.com>
+---
+ arch/x86/kvm/mmu/mmu.c          | 2 +-
+ arch/x86/kvm/mmu/mmu_internal.h | 9 +++++++++
+ 2 files changed, 10 insertions(+), 1 deletion(-)
+
+diff --git a/arch/x86/kvm/mmu/mmu.c b/arch/x86/kvm/mmu/mmu.c
+index f3bef56a89a33..52be98e0102ac 100644
+--- a/arch/x86/kvm/mmu/mmu.c
++++ b/arch/x86/kvm/mmu/mmu.c
+@@ -1469,7 +1469,7 @@ restart:
+ 	}
+ 
+ 	if (need_flush && kvm_available_flush_tlb_with_range()) {
+-		kvm_flush_remote_tlbs_with_address(kvm, gfn, 1);
++		kvm_flush_remote_tlbs_gfn(kvm, gfn, level);
+ 		return false;
+ 	}
+ 
+diff --git a/arch/x86/kvm/mmu/mmu_internal.h b/arch/x86/kvm/mmu/mmu_internal.h
+index 486be0f9fe164..cc58631e23368 100644
+--- a/arch/x86/kvm/mmu/mmu_internal.h
++++ b/arch/x86/kvm/mmu/mmu_internal.h
+@@ -169,8 +169,17 @@ void kvm_mmu_gfn_allow_lpage(const struct kvm_memory_slot *slot, gfn_t gfn);
+ bool kvm_mmu_slot_gfn_write_protect(struct kvm *kvm,
+ 				    struct kvm_memory_slot *slot, u64 gfn,
+ 				    int min_level);
++
+ void kvm_flush_remote_tlbs_with_address(struct kvm *kvm,
+ 					u64 start_gfn, u64 pages);
++
++/* Flush the given page (huge or not) of guest memory. */
++static inline void kvm_flush_remote_tlbs_gfn(struct kvm *kvm, gfn_t gfn, int level)
++{
++	kvm_flush_remote_tlbs_with_address(kvm, gfn_round_for_level(gfn, level),
++					   KVM_PAGES_PER_HPAGE(level));
++}
++
+ unsigned int pte_list_count(struct kvm_rmap_head *rmap_head);
+ 
+ extern int nx_huge_pages;
+-- 
+cgit 
+

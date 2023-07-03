@@ -1,0 +1,44 @@
+From c2a978c171a6d44d4d9710e7e4455f75d34aecee Mon Sep 17 00:00:00 2001
+From: Andrew Lunn <andrew@lunn.ch>
+Date: Fri, 17 Feb 2023 04:15:20 +0100
+Subject: net: phy: Read EEE abilities when using .features
+
+A PHY driver can use a static integer value to indicate what link mode
+features it supports, i.e, its abilities.. This is the old way, but
+useful when dynamically determining the devices features does not
+work, e.g. support of fibre.
+
+EEE support has been moved into phydev->supported_eee. This needs to
+be set otherwise the code assumes EEE is not supported. It is normally
+set as part of reading the devices abilities. However if a static
+integer value was used, the dynamic reading of the abilities is not
+performed. Add a call to genphy_c45_read_eee_abilities() to read the
+EEE abilities.
+
+Fixes: 8b68710a3121 ("net: phy: start using genphy_c45_ethtool_get/set_eee()")
+Signed-off-by: Andrew Lunn <andrew@lunn.ch>
+Reviewed-by: Oleksij Rempel <o.rempel@pengutronix.de>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ drivers/net/phy/phy_device.c | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/net/phy/phy_device.c b/drivers/net/phy/phy_device.c
+index 8d927c5e3bf8d..71becceb8764c 100644
+--- a/drivers/net/phy/phy_device.c
++++ b/drivers/net/phy/phy_device.c
+@@ -3113,8 +3113,10 @@ static int phy_probe(struct device *dev)
+ 	 * a controller will attach, and may modify one
+ 	 * or both of these values
+ 	 */
+-	if (phydrv->features)
++	if (phydrv->features) {
+ 		linkmode_copy(phydev->supported, phydrv->features);
++		genphy_c45_read_eee_abilities(phydev);
++	}
+ 	else if (phydrv->get_features)
+ 		err = phydrv->get_features(phydev);
+ 	else if (phydev->is_c45)
+-- 
+cgit 
+

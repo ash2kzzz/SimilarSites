@@ -1,0 +1,63 @@
+From dfdeda67ea2dac57d2d7506d65cfe5a0878ad285 Mon Sep 17 00:00:00 2001
+From: Aaron Lewis <aaronlewis@google.com>
+Date: Tue, 7 Mar 2023 14:13:56 +0000
+Subject: KVM: x86/pmu: Prevent the PMU from counting disallowed events
+
+When counting "Instructions Retired" (0xc0) in a guest, KVM will
+occasionally increment the PMU counter regardless of if that event is
+being filtered. This is because some PMU events are incremented via
+kvm_pmu_trigger_event(), which doesn't know about the event filter. Add
+the event filter to kvm_pmu_trigger_event(), so events that are
+disallowed do not increment their counters.
+
+Fixes: 9cd803d496e7 ("KVM: x86: Update vPMCs when retiring instructions")
+Signed-off-by: Aaron Lewis <aaronlewis@google.com>
+Reviewed-by: Like Xu <likexu@tencent.com>
+Link: https://lore.kernel.org/r/20230307141400.1486314-2-aaronlewis@google.com
+[sean: prepend "pmc" to the new function]
+Signed-off-by: Sean Christopherson <seanjc@google.com>
+---
+ arch/x86/kvm/pmu.c | 13 ++++++++-----
+ 1 file changed, 8 insertions(+), 5 deletions(-)
+
+diff --git a/arch/x86/kvm/pmu.c b/arch/x86/kvm/pmu.c
+index 2226db9601e26..597a8f8f90b94 100644
+--- a/arch/x86/kvm/pmu.c
++++ b/arch/x86/kvm/pmu.c
+@@ -400,6 +400,12 @@ static bool check_pmu_event_filter(struct kvm_pmc *pmc)
+ 	return is_fixed_event_allowed(filter, pmc->idx);
+ }
+ 
++static bool pmc_event_is_allowed(struct kvm_pmc *pmc)
++{
++	return pmc_is_globally_enabled(pmc) && pmc_speculative_in_use(pmc) &&
++	       check_pmu_event_filter(pmc);
++}
++
+ static void reprogram_counter(struct kvm_pmc *pmc)
+ {
+ 	struct kvm_pmu *pmu = pmc_to_pmu(pmc);
+@@ -409,10 +415,7 @@ static void reprogram_counter(struct kvm_pmc *pmc)
+ 
+ 	pmc_pause_counter(pmc);
+ 
+-	if (!pmc_speculative_in_use(pmc) || !pmc_is_globally_enabled(pmc))
+-		goto reprogram_complete;
+-
+-	if (!check_pmu_event_filter(pmc))
++	if (!pmc_event_is_allowed(pmc))
+ 		goto reprogram_complete;
+ 
+ 	if (pmc->counter < pmc->prev_counter)
+@@ -688,7 +691,7 @@ void kvm_pmu_trigger_event(struct kvm_vcpu *vcpu, u64 perf_hw_id)
+ 	for_each_set_bit(i, pmu->all_valid_pmc_idx, X86_PMC_IDX_MAX) {
+ 		pmc = static_call(kvm_x86_pmu_pmc_idx_to_pmc)(pmu, i);
+ 
+-		if (!pmc || !pmc_is_globally_enabled(pmc) || !pmc_speculative_in_use(pmc))
++		if (!pmc || !pmc_event_is_allowed(pmc))
+ 			continue;
+ 
+ 		/* Ignore checks for edge detect, pin control, invert and CMASK bits */
+-- 
+cgit 
+

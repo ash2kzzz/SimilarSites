@@ -1,0 +1,49 @@
+From eb56a4cbc3ea348dc07fbe82531c27cce83df3b9 Mon Sep 17 00:00:00 2001
+From: "Joel Fernandes (Google)" <joel@joelfernandes.org>
+Date: Fri, 10 Mar 2023 01:18:12 +0000
+Subject: mac802154: Rename kfree_rcu() to kvfree_rcu_mightsleep()
+
+The k[v]free_rcu() macro's single-argument form is deprecated.
+Therefore switch to the new k[v]free_rcu_mightsleep() variant. The goal
+is to avoid accidental use of the single-argument forms, which can
+introduce functionality bugs in atomic contexts and latency bugs in
+non-atomic contexts.
+
+The callers are holding a mutex so the context allows blocking. Hence
+using the API with a single argument will be fine, but use its new name.
+
+There is no functionality change with this patch.
+
+Fixes: 57588c71177f ("mac802154: Handle passive scanning")
+Acked-by: Stefan Schmidt <stefan@datenfreihafen.org>
+Reviewed-by: Paul E. McKenney <paulmck@kernel.org>
+Signed-off-by: Joel Fernandes (Google) <joel@joelfernandes.org>
+---
+ net/mac802154/scan.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/net/mac802154/scan.c b/net/mac802154/scan.c
+index 9b0933a185ebc..5c191bedd72c4 100644
+--- a/net/mac802154/scan.c
++++ b/net/mac802154/scan.c
+@@ -52,7 +52,7 @@ static int mac802154_scan_cleanup_locked(struct ieee802154_local *local,
+ 	request = rcu_replace_pointer(local->scan_req, NULL, 1);
+ 	if (!request)
+ 		return 0;
+-	kfree_rcu(request);
++	kvfree_rcu_mightsleep(request);
+ 
+ 	/* Advertize first, while we know the devices cannot be removed */
+ 	if (aborted)
+@@ -403,7 +403,7 @@ int mac802154_stop_beacons_locked(struct ieee802154_local *local,
+ 	request = rcu_replace_pointer(local->beacon_req, NULL, 1);
+ 	if (!request)
+ 		return 0;
+-	kfree_rcu(request);
++	kvfree_rcu_mightsleep(request);
+ 
+ 	nl802154_beaconing_done(wpan_dev);
+ 
+-- 
+cgit 
+

@@ -1,0 +1,47 @@
+From 32db18d606c9a6eac7ac8bb12b4bf0e2eb1d5d14 Mon Sep 17 00:00:00 2001
+From: Bagas Sanjaya <bagasdotme@gmail.com>
+Date: Tue, 28 Feb 2023 14:45:22 +0700
+Subject: bpf, doc: Do not link to docs.kernel.org for kselftest link
+
+The question on how to run BPF selftests have a reference link to kernel
+selftest documentation (Documentation/dev-tools/kselftest.rst). However,
+it uses external link to the documentation at kernel.org/docs (aka
+docs.kernel.org) instead, which requires Internet access.
+
+Fix this and replace the link with internal linking, by using :doc: directive
+while keeping the anchor text.
+
+Fixes: b7a27c3aafa252 ("bpf, doc: howto use/run the BPF selftests")
+Signed-off-by: Bagas Sanjaya <bagasdotme@gmail.com>
+Signed-off-by: Daniel Borkmann <daniel@iogearbox.net>
+Link: https://lore.kernel.org/bpf/20230228074523.11493-2-bagasdotme@gmail.com
+---
+ Documentation/bpf/bpf_devel_QA.rst | 6 ++----
+ 1 file changed, 2 insertions(+), 4 deletions(-)
+
+diff --git a/Documentation/bpf/bpf_devel_QA.rst b/Documentation/bpf/bpf_devel_QA.rst
+index 715f7321020f2..eb087c599ffa4 100644
+--- a/Documentation/bpf/bpf_devel_QA.rst
++++ b/Documentation/bpf/bpf_devel_QA.rst
+@@ -461,8 +461,8 @@ needed::
+ 
+   $ sudo make run_tests
+ 
+-See the kernels selftest `Documentation/dev-tools/kselftest.rst`_
+-document for further documentation.
++See :doc:`kernel selftest documentation </dev-tools/kselftest>`
++for details.
+ 
+ To maximize the number of tests passing, the .config of the kernel
+ under test should match the config file fragment in
+@@ -688,7 +688,5 @@ when:
+ .. _netdev-FAQ: Documentation/process/maintainer-netdev.rst
+ .. _selftests:
+    https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/tree/tools/testing/selftests/bpf/
+-.. _Documentation/dev-tools/kselftest.rst:
+-   https://www.kernel.org/doc/html/latest/dev-tools/kselftest.html
+ 
+ Happy BPF hacking!
+-- 
+cgit 
+

@@ -1,0 +1,32 @@
+From 65609d3206f784489eb1ebd6fce64b84a42cc63c Mon Sep 17 00:00:00 2001
+From: Dan Carpenter <error27@gmail.com>
+Date: Mon, 27 Feb 2023 13:06:33 +0300
+Subject: i2c: gxp: fix an error code in probe
+
+This is passing IS_ERR() instead of PTR_ERR() so instead of an error
+code it prints and returns the number 1.
+
+Fixes: 4a55ed6f89f5 ("i2c: Add GXP SoC I2C Controller")
+Signed-off-by: Dan Carpenter <error27@gmail.com>
+Reviewed-by: Nick Hawkins <nick.hawkins@hpe.com>
+Signed-off-by: Wolfram Sang <wsa@kernel.org>
+---
+ drivers/i2c/busses/i2c-gxp.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/i2c/busses/i2c-gxp.c b/drivers/i2c/busses/i2c-gxp.c
+index fda7809e72baa..d4b55d989a268 100644
+--- a/drivers/i2c/busses/i2c-gxp.c
++++ b/drivers/i2c/busses/i2c-gxp.c
+@@ -516,7 +516,7 @@ static int gxp_i2c_probe(struct platform_device *pdev)
+ 		i2cg_map = syscon_regmap_lookup_by_phandle(pdev->dev.of_node,
+ 							   "hpe,sysreg");
+ 		if (IS_ERR(i2cg_map)) {
+-			return dev_err_probe(&pdev->dev, IS_ERR(i2cg_map),
++			return dev_err_probe(&pdev->dev, PTR_ERR(i2cg_map),
+ 					     "failed to map i2cg_handle\n");
+ 		}
+ 
+-- 
+cgit 
+

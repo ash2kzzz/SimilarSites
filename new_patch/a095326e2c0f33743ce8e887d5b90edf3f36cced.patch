@@ -1,0 +1,32 @@
+From a095326e2c0f33743ce8e887d5b90edf3f36cced Mon Sep 17 00:00:00 2001
+From: Chuck Lever <chuck.lever@oracle.com>
+Date: Thu, 11 May 2023 11:47:09 -0400
+Subject: net/handshake: Remove unneeded check from handshake_dup()
+
+handshake_req_submit() now verifies that the socket has a file.
+
+Fixes: 3b3009ea8abb ("net/handshake: Create a NETLINK service for handling handshake requests")
+Reviewed-by: Simon Horman <simon.horman@corigine.com>
+Signed-off-by: Chuck Lever <chuck.lever@oracle.com>
+Signed-off-by: Jakub Kicinski <kuba@kernel.org>
+---
+ net/handshake/netlink.c | 3 ---
+ 1 file changed, 3 deletions(-)
+
+diff --git a/net/handshake/netlink.c b/net/handshake/netlink.c
+index 35c9c445e0b85..7ec8a76c3c8a7 100644
+--- a/net/handshake/netlink.c
++++ b/net/handshake/netlink.c
+@@ -99,9 +99,6 @@ static int handshake_dup(struct socket *sock)
+ 	struct file *file;
+ 	int newfd;
+ 
+-	if (!sock->file)
+-		return -EBADF;
+-
+ 	file = get_file(sock->file);
+ 	newfd = get_unused_fd_flags(O_CLOEXEC);
+ 	if (newfd < 0) {
+-- 
+cgit 
+

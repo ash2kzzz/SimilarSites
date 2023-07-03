@@ -1,0 +1,82 @@
+From 5f300fd59a2ae90b8a7fb5ed3d5fd43768236c38 Mon Sep 17 00:00:00 2001
+From: Arnd Bergmann <arnd@arndb.de>
+Date: Fri, 14 Apr 2023 10:03:53 +0200
+Subject: mm: make arch_has_descending_max_zone_pfns() static
+
+clang produces a build failure on x86 for some randconfig builds after a
+change that moves around code to mm/mm_init.c:
+
+Cannot find symbol for section 2: .text.
+mm/mm_init.o: failed
+
+I have not been able to figure out why this happens, but the __weak
+annotation on arch_has_descending_max_zone_pfns() is the trigger here.
+
+Removing the weak function in favor of an open-coded Kconfig option check
+avoids the problem and becomes clearer as well as better to optimize by
+the compiler.
+
+[arnd@arndb.de: fix logic bug]
+  Link: https://lkml.kernel.org/r/20230415081904.969049-1-arnd@kernel.org
+Link: https://lkml.kernel.org/r/20230414080418.110236-1-arnd@kernel.org
+Fixes: 9420f89db2dd ("mm: move most of core MM initialization to mm/mm_init.c")
+Signed-off-by: Arnd Bergmann <arnd@arndb.de>
+Acked-by: Vlastimil Babka <vbabka@suse.cz>
+Tested-by: SeongJae Park <sj@kernel.org>
+Tested-by: Geert Uytterhoeven <geert+renesas@glider.be>
+Acked-by: Mike Rapoport (IBM) <rppt@kernel.org>
+Cc: kernel test robot <oliver.sang@intel.com>
+Signed-off-by: Andrew Morton <akpm@linux-foundation.org>
+---
+ arch/arc/mm/init.c | 5 -----
+ include/linux/mm.h | 1 -
+ mm/mm_init.c       | 4 ++--
+ 3 files changed, 2 insertions(+), 8 deletions(-)
+
+diff --git a/arch/arc/mm/init.c b/arch/arc/mm/init.c
+index ce4e939a7f077..2b89b6c538019 100644
+--- a/arch/arc/mm/init.c
++++ b/arch/arc/mm/init.c
+@@ -74,11 +74,6 @@ void __init early_init_dt_add_memory_arch(u64 base, u64 size)
+ 		base, TO_MB(size), !in_use ? "Not used":"");
+ }
+ 
+-bool arch_has_descending_max_zone_pfns(void)
+-{
+-	return !IS_ENABLED(CONFIG_ARC_HAS_PAE40);
+-}
+-
+ /*
+  * First memory setup routine called from setup_arch()
+  * 1. setup swapper's mm @init_mm
+diff --git a/include/linux/mm.h b/include/linux/mm.h
+index e249208f8fbec..5e5ef6ee4003e 100644
+--- a/include/linux/mm.h
++++ b/include/linux/mm.h
+@@ -3035,7 +3035,6 @@ extern void setup_per_cpu_pageset(void);
+ extern int min_free_kbytes;
+ extern int watermark_boost_factor;
+ extern int watermark_scale_factor;
+-extern bool arch_has_descending_max_zone_pfns(void);
+ 
+ /* nommu.c */
+ extern atomic_long_t mmap_pages_allocated;
+diff --git a/mm/mm_init.c b/mm/mm_init.c
+index dd3a6ed9663fa..a0ec3b3acb5ea 100644
+--- a/mm/mm_init.c
++++ b/mm/mm_init.c
+@@ -1752,9 +1752,9 @@ static void __init free_area_init_memoryless_node(int nid)
+  * Some architectures, e.g. ARC may have ZONE_HIGHMEM below ZONE_NORMAL. For
+  * such cases we allow max_zone_pfn sorted in the descending order
+  */
+-bool __weak arch_has_descending_max_zone_pfns(void)
++static bool arch_has_descending_max_zone_pfns(void)
+ {
+-	return false;
++	return IS_ENABLED(CONFIG_ARC) && !IS_ENABLED(CONFIG_ARC_HAS_PAE40);
+ }
+ 
+ /**
+-- 
+cgit 
+

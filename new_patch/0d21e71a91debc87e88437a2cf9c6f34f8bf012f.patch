@@ -1,0 +1,131 @@
+From 0d21e71a91debc87e88437a2cf9c6f34f8bf012f Mon Sep 17 00:00:00 2001
+From: Rob Herring <robh@kernel.org>
+Date: Wed, 19 Apr 2023 14:35:13 -0500
+Subject: PCI: Restrict device disabled status check to DT
+
+Commit 6fffbc7ae137 ("PCI: Honor firmware's device disabled status")
+checked the firmware device status for both DT and ACPI devices. That
+caused a regression in some ACPI systems. The exact reason isn't clear.
+It's possibly a firmware bug. For now, at least, refactor the check to
+be for DT based systems only.
+
+Note that the original implementation leaked a refcount which is now
+correctly handled.
+
+[bhelgaas: Per ACPI r6.5, sec 6.3.7, for devices on an enumerable bus, _STA
+must return with bit[0] ("device is present") set]
+
+Link: https://lore.kernel.org/all/m2fs9lgndw.fsf@gmail.com/
+Fixes: 6fffbc7ae137 ("PCI: Honor firmware's device disabled status")
+Link: https://lore.kernel.org/r/20230419193513.708818-1-robh@kernel.org
+Link: https://bugzilla.kernel.org/show_bug.cgi?id=217317
+Reported-by: Donald Hunter <donald.hunter@gmail.com>
+Reported-by: Vitaly Kuznetsov <vkuznets@redhat.com>
+Tested-by: Donald Hunter <donald.hunter@gmail.com>
+Tested-by: Vitaly Kuznetsov <vkuznets@redhat.com>
+Signed-off-by: Rob Herring <robh@kernel.org>
+Signed-off-by: Bjorn Helgaas <bhelgaas@google.com>
+Cc: Binbin Zhou <zhoubinbin@loongson.cn>
+Cc: Liu Peibao <liupeibao@loongson.cn>
+Cc: Huacai Chen <chenhuacai@loongson.cn>
+---
+ drivers/pci/of.c    | 30 ++++++++++++++++++++++++------
+ drivers/pci/pci.h   |  4 ++--
+ drivers/pci/probe.c |  8 ++++----
+ 3 files changed, 30 insertions(+), 12 deletions(-)
+
+diff --git a/drivers/pci/of.c b/drivers/pci/of.c
+index 196834ed44fe8..4c2ef2e28fb5e 100644
+--- a/drivers/pci/of.c
++++ b/drivers/pci/of.c
+@@ -16,14 +16,32 @@
+ #include "pci.h"
+ 
+ #ifdef CONFIG_PCI
+-void pci_set_of_node(struct pci_dev *dev)
++/**
++ * pci_set_of_node - Find and set device's DT device_node
++ * @dev: the PCI device structure to fill
++ *
++ * Returns 0 on success with of_node set or when no device is described in the
++ * DT. Returns -ENODEV if the device is present, but disabled in the DT.
++ */
++int pci_set_of_node(struct pci_dev *dev)
+ {
++	struct device_node *node;
++
+ 	if (!dev->bus->dev.of_node)
+-		return;
+-	dev->dev.of_node = of_pci_find_child_device(dev->bus->dev.of_node,
+-						    dev->devfn);
+-	if (dev->dev.of_node)
+-		dev->dev.fwnode = &dev->dev.of_node->fwnode;
++		return 0;
++
++	node = of_pci_find_child_device(dev->bus->dev.of_node, dev->devfn);
++	if (!node)
++		return 0;
++
++	if (!of_device_is_available(node)) {
++		of_node_put(node);
++		return -ENODEV;
++	}
++
++	dev->dev.of_node = node;
++	dev->dev.fwnode = &node->fwnode;
++	return 0;
+ }
+ 
+ void pci_release_of_node(struct pci_dev *dev)
+diff --git a/drivers/pci/pci.h b/drivers/pci/pci.h
+index d2c08670a20ed..2b48a0aa8008e 100644
+--- a/drivers/pci/pci.h
++++ b/drivers/pci/pci.h
+@@ -624,7 +624,7 @@ int of_pci_get_max_link_speed(struct device_node *node);
+ u32 of_pci_get_slot_power_limit(struct device_node *node,
+ 				u8 *slot_power_limit_value,
+ 				u8 *slot_power_limit_scale);
+-void pci_set_of_node(struct pci_dev *dev);
++int pci_set_of_node(struct pci_dev *dev);
+ void pci_release_of_node(struct pci_dev *dev);
+ void pci_set_bus_of_node(struct pci_bus *bus);
+ void pci_release_bus_of_node(struct pci_bus *bus);
+@@ -662,7 +662,7 @@ of_pci_get_slot_power_limit(struct device_node *node,
+ 	return 0;
+ }
+ 
+-static inline void pci_set_of_node(struct pci_dev *dev) { }
++static inline int pci_set_of_node(struct pci_dev *dev) { return 0; }
+ static inline void pci_release_of_node(struct pci_dev *dev) { }
+ static inline void pci_set_bus_of_node(struct pci_bus *bus) { }
+ static inline void pci_release_bus_of_node(struct pci_bus *bus) { }
+diff --git a/drivers/pci/probe.c b/drivers/pci/probe.c
+index a3f68b6ba6ac2..f96fa83f26273 100644
+--- a/drivers/pci/probe.c
++++ b/drivers/pci/probe.c
+@@ -1826,7 +1826,7 @@ int pci_setup_device(struct pci_dev *dev)
+ 	u32 class;
+ 	u16 cmd;
+ 	u8 hdr_type;
+-	int pos = 0;
++	int err, pos = 0;
+ 	struct pci_bus_region region;
+ 	struct resource *res;
+ 
+@@ -1840,10 +1840,10 @@ int pci_setup_device(struct pci_dev *dev)
+ 	dev->error_state = pci_channel_io_normal;
+ 	set_pcie_port_type(dev);
+ 
+-	pci_set_of_node(dev);
++	err = pci_set_of_node(dev);
++	if (err)
++		return err;
+ 	pci_set_acpi_fwnode(dev);
+-	if (dev->dev.fwnode && !fwnode_device_is_available(dev->dev.fwnode))
+-		return -ENODEV;
+ 
+ 	pci_dev_assign_slot(dev);
+ 
+-- 
+cgit 
+

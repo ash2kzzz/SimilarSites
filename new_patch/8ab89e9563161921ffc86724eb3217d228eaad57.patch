@@ -1,0 +1,57 @@
+From 8ab89e9563161921ffc86724eb3217d228eaad57 Mon Sep 17 00:00:00 2001
+From: Lukas Bulwahn <lukas.bulwahn@gmail.com>
+Date: Mon, 20 Mar 2023 14:54:18 +0100
+Subject: m68k: Kconfig.machine: remove obsolete configs ROMBASE and ROMSIZE
+
+The configs ROMBASE and ROMSIZE were used in arch/m68k/68360/head-ram.S,
+which was removed with commit a3595962d824 ("m68knommu: remove obsolete
+68360 support").
+
+Remove the obsolete configs ROMBASE and ROMSIZE.
+
+Signed-off-by: Lukas Bulwahn <lukas.bulwahn@gmail.com>
+Fixes: a3595962d82495f5 ("m68knommu: remove obsolete 68360 support")
+Reviewed-by: Geert Uytterhoeven <geert@linux-m68k.org>
+Signed-off-by: Greg Ungerer <gerg@linux-m68k.org>
+---
+ arch/m68k/Kconfig.machine | 17 -----------------
+ 1 file changed, 17 deletions(-)
+
+diff --git a/arch/m68k/Kconfig.machine b/arch/m68k/Kconfig.machine
+index e2f961208f18b..255d50574065f 100644
+--- a/arch/m68k/Kconfig.machine
++++ b/arch/m68k/Kconfig.machine
+@@ -439,15 +439,6 @@ config ROM
+ 	  that can be stored in flash, with possibly the text, and data
+ 	  regions being copied out to RAM at startup.
+ 
+-config ROMBASE
+-	hex "Address of the base of ROM device"
+-	default "0"
+-	depends on ROM
+-	help
+-	  Define the address that the ROM region starts at. Some platforms
+-	  use this to set their chip select region accordingly for the boot
+-	  device.
+-
+ config ROMVEC
+ 	hex "Address of the base of the ROM vectors"
+ 	default "0"
+@@ -465,14 +456,6 @@ config ROMSTART
+ 	  Define the start address of the system image in ROM. Commonly this
+ 	  is strait after the ROM vectors.
+ 
+-config ROMSIZE
+-	hex "Size of the ROM device"
+-	default "0x100000"
+-	depends on ROM
+-	help
+-	  Size of the ROM device. On some platforms this is used to setup
+-	  the chip select that controls the boot ROM device.
+-
+ choice
+ 	prompt "Kernel executes from"
+ 	help
+-- 
+cgit 
+

@@ -1,0 +1,44 @@
+From 99676a5766412f3936c55b9d18565d248e5463ee Mon Sep 17 00:00:00 2001
+From: Horatiu Vultur <horatiu.vultur@microchip.com>
+Date: Mon, 17 Apr 2023 09:26:41 +0200
+Subject: net: lan966x: Fix lan966x_ifh_get
+
+From time to time, it was observed that the nanosecond part of the
+received timestamp, which is extracted from the IFH, it was actually
+bigger than 1 second. So then when actually calculating the full
+received timestamp, based on the nanosecond part from IFH and the second
+part which is read from HW, it was actually wrong.
+
+The issue seems to be inside the function lan966x_ifh_get, which
+extracts information from an IFH(which is an byte array) and returns the
+value in a u64. When extracting the timestamp value from the IFH, which
+starts at bit 192 and have the size of 32 bits, then if the most
+significant bit was set in the timestamp, then this bit was extended
+then the return value became 0xffffffff... . And the reason of this is
+because constants without any postfix are treated as signed longs and
+that is the reason why '1 << 31' becomes 0xffffffff80000000.
+This is fixed by adding the postfix 'ULL' to 1.
+
+Fixes: fd7627833ddf ("net: lan966x: Stop using packing library")
+Signed-off-by: Horatiu Vultur <horatiu.vultur@microchip.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ drivers/net/ethernet/microchip/lan966x/lan966x_main.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/net/ethernet/microchip/lan966x/lan966x_main.c b/drivers/net/ethernet/microchip/lan966x/lan966x_main.c
+index 9be6462f1cc56..2b6e046e1d10b 100644
+--- a/drivers/net/ethernet/microchip/lan966x/lan966x_main.c
++++ b/drivers/net/ethernet/microchip/lan966x/lan966x_main.c
+@@ -605,7 +605,7 @@ static u64 lan966x_ifh_get(u8 *ifh, size_t pos, size_t length)
+ 			v = ifh[IFH_LEN_BYTES - (j / 8) - 1];
+ 
+ 		if (v & (1 << k))
+-			val |= (1 << i);
++			val |= (1ULL << i);
+ 	}
+ 
+ 	return val;
+-- 
+cgit 
+

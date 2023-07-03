@@ -1,0 +1,43 @@
+From 0b891c83d8c54cb70e186456c2191adb5fd98c56 Mon Sep 17 00:00:00 2001
+From: Arnd Bergmann <arnd@arndb.de>
+Date: Sat, 29 Apr 2023 22:36:04 +0200
+Subject: module: include internal.h in module/dups.c
+
+Two newly introduced functions are declared in a header that is not
+included before the definition, causing a warning with sparse or
+'make W=1':
+
+kernel/module/dups.c:118:6: error: no previous prototype for 'kmod_dup_request_exists_wait' [-Werror=missing-prototypes]
+  118 | bool kmod_dup_request_exists_wait(char *module_name, bool wait, int *dup_ret)
+      |      ^~~~~~~~~~~~~~~~~~~~~~~~~~~~
+kernel/module/dups.c:220:6: error: no previous prototype for 'kmod_dup_request_announce' [-Werror=missing-prototypes]
+  220 | void kmod_dup_request_announce(char *module_name, int ret)
+      |      ^~~~~~~~~~~~~~~~~~~~~~~~~
+
+Add an explicit include to ensure the prototypes match.
+
+Fixes: 8660484ed1cf ("module: add debugging auto-load duplicate module support")
+Reported-by: kernel test robot <lkp@intel.com>
+Link: https://lore.kernel.org/oe-kbuild-all/202304141440.DYO4NAzp-lkp@intel.com/
+Signed-off-by: Arnd Bergmann <arnd@arndb.de>
+Signed-off-by: Luis Chamberlain <mcgrof@kernel.org>
+---
+ kernel/module/dups.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/kernel/module/dups.c b/kernel/module/dups.c
+index aa8e1361fdb51..f3d7ea1e96d82 100644
+--- a/kernel/module/dups.c
++++ b/kernel/module/dups.c
+@@ -32,6 +32,8 @@
+ #include <linux/async.h>
+ #include <linux/uaccess.h>
+ 
++#include "internal.h"
++
+ #undef MODULE_PARAM_PREFIX
+ #define MODULE_PARAM_PREFIX "module."
+ static bool enable_dups_trace = IS_ENABLED(CONFIG_MODULE_DEBUG_AUTOLOAD_DUPS_TRACE);
+-- 
+cgit 
+

@@ -1,0 +1,68 @@
+From bc4db83470034b4644a8bf164a984bdb68b61622 Mon Sep 17 00:00:00 2001
+From: Alexander Lobakin <alexandr.lobakin@intel.com>
+Date: Fri, 10 Feb 2023 18:06:13 +0100
+Subject: ice: fix ice_tx_ring:: Xdp_tx_active underflow
+
+xdp_tx_active is used to indicate whether an XDP ring has any %XDP_TX
+frames queued to shortcut processing Tx cleaning for XSk-enabled queues.
+When !XSk, it simply indicates whether the ring has any queued frames in
+general.
+It gets increased on each frame placed onto the ring and counts the
+whole frame, not each frag. However, currently it gets decremented in
+ice_clean_xdp_tx_buf(), which is called per each buffer, i.e. per each
+frag. Thus, on completing multi-frag frames, an underflow happens.
+Move the decrement to the outer function and do it once per frame, not
+buf. Also, do that on the stack and update the ring counter after the
+loop is done to save several cycles.
+XSk rings are fine since there are no frags at the moment.
+
+Fixes: 3246a10752a7 ("ice: Add support for XDP multi-buffer on Tx side")
+Signed-off-by: Alexander Lobakin <alexandr.lobakin@intel.com>
+Signed-off-by: Daniel Borkmann <daniel@iogearbox.net>
+Acked-by: Maciej Fijalkowski <maciej.fijalkowski@intel.com>
+Link: https://lore.kernel.org/bpf/20230210170618.1973430-2-alexandr.lobakin@intel.com
+---
+ drivers/net/ethernet/intel/ice/ice_txrx_lib.c | 5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/net/ethernet/intel/ice/ice_txrx_lib.c b/drivers/net/ethernet/intel/ice/ice_txrx_lib.c
+index 9bbed3f14e427..d1a7171e618ba 100644
+--- a/drivers/net/ethernet/intel/ice/ice_txrx_lib.c
++++ b/drivers/net/ethernet/intel/ice/ice_txrx_lib.c
+@@ -231,7 +231,6 @@ ice_clean_xdp_tx_buf(struct ice_tx_ring *xdp_ring, struct ice_tx_buf *tx_buf)
+ 	dma_unmap_single(xdp_ring->dev, dma_unmap_addr(tx_buf, dma),
+ 			 dma_unmap_len(tx_buf, len), DMA_TO_DEVICE);
+ 	dma_unmap_len_set(tx_buf, len, 0);
+-	xdp_ring->xdp_tx_active--;
+ 	page_frag_free(tx_buf->raw_buf);
+ 	tx_buf->raw_buf = NULL;
+ }
+@@ -246,8 +245,8 @@ static u32 ice_clean_xdp_irq(struct ice_tx_ring *xdp_ring)
+ 	u32 ntc = xdp_ring->next_to_clean;
+ 	struct ice_tx_desc *tx_desc;
+ 	u32 cnt = xdp_ring->count;
++	u32 frags, xdp_tx = 0;
+ 	u32 ready_frames = 0;
+-	u32 frags;
+ 	u32 idx;
+ 	u32 ret;
+ 
+@@ -274,6 +273,7 @@ static u32 ice_clean_xdp_irq(struct ice_tx_ring *xdp_ring)
+ 		total_pkts++;
+ 		/* count head + frags */
+ 		ready_frames -= frags + 1;
++		xdp_tx++;
+ 
+ 		if (xdp_ring->xsk_pool)
+ 			xsk_buff_free(tx_buf->xdp);
+@@ -295,6 +295,7 @@ static u32 ice_clean_xdp_irq(struct ice_tx_ring *xdp_ring)
+ 
+ 	tx_desc->cmd_type_offset_bsz = 0;
+ 	xdp_ring->next_to_clean = ntc;
++	xdp_ring->xdp_tx_active -= xdp_tx;
+ 	ice_update_tx_ring_stats(xdp_ring, total_pkts, total_bytes);
+ 
+ 	return ret;
+-- 
+cgit 
+

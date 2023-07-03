@@ -1,0 +1,50 @@
+From 690917c647e245da76183656400d4926427a8b93 Mon Sep 17 00:00:00 2001
+From: Namhyung Kim <namhyung@kernel.org>
+Date: Wed, 24 May 2023 17:03:07 -0700
+Subject: perf bpf filter: Fix a broken perf sample data naming for BPF CO-RE
+
+BPF CO-RE requires 3 underscores for the ignored suffix rule but it
+mistakenly used only 2.  Let's fix it.
+
+Fixes: 3a8b8fc3174891c4 ("perf bpf filter: Support pre-5.16 kernels where 'mem_hops' isn't in 'union perf_mem_data_src'")
+Signed-off-by: Namhyung Kim <namhyung@kernel.org>
+Acked-by: Andrii Nakryiko <andrii@kernel.org>
+Acked-by: John Fastabend <john.fastabend@gmail.com>
+Cc: Adrian Hunter <adrian.hunter@intel.com>
+Cc: Ian Rogers <irogers@google.com>
+Cc: Ingo Molnar <mingo@kernel.org>
+Cc: Jiri Olsa <jolsa@kernel.org>
+Cc: Peter Zijlstra <peterz@infradead.org>
+Cc: Song Liu <song@kernel.org>
+Cc: bpf@vger.kernel.org
+Link: https://lore.kernel.org/r/20230525000307.3202449-1-namhyung@kernel.org
+Signed-off-by: Arnaldo Carvalho de Melo <acme@redhat.com>
+---
+ tools/perf/util/bpf_skel/sample_filter.bpf.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/tools/perf/util/bpf_skel/sample_filter.bpf.c b/tools/perf/util/bpf_skel/sample_filter.bpf.c
+index cffe493af1ed5..fb94f52806266 100644
+--- a/tools/perf/util/bpf_skel/sample_filter.bpf.c
++++ b/tools/perf/util/bpf_skel/sample_filter.bpf.c
+@@ -25,7 +25,7 @@ struct perf_sample_data___new {
+ } __attribute__((preserve_access_index));
+ 
+ /* new kernel perf_mem_data_src definition */
+-union perf_mem_data_src__new {
++union perf_mem_data_src___new {
+ 	__u64 val;
+ 	struct {
+ 		__u64   mem_op:5,	/* type of opcode */
+@@ -108,7 +108,7 @@ static inline __u64 perf_get_sample(struct bpf_perf_event_data_kern *kctx,
+ 		if (entry->part == 7)
+ 			return kctx->data->data_src.mem_blk;
+ 		if (entry->part == 8) {
+-			union perf_mem_data_src__new *data = (void *)&kctx->data->data_src;
++			union perf_mem_data_src___new *data = (void *)&kctx->data->data_src;
+ 
+ 			if (bpf_core_field_exists(data->mem_hops))
+ 				return data->mem_hops;
+-- 
+cgit 
+

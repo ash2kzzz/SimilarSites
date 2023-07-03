@@ -1,0 +1,47 @@
+From 40afb3b14496afb01d5b3d028444e09d29b95559 Mon Sep 17 00:00:00 2001
+From: Dragos Tatulea <dtatulea@nvidia.com>
+Date: Mon, 3 Apr 2023 20:03:11 +0300
+Subject: net/mlx5e: RX, Fix XDP_TX page release for legacy rq nonlinear case
+
+When the XDP handler marks the data for transmission (XDP_TX),
+it is incorrect to release the page fragment. Instead, the
+fragments should be marked as MLX5E_WQE_FRAG_SKIP_RELEASE
+because XDP will release the page directly to the page_pool
+(page_pool_put_defragged_page) after TX completion.
+
+The linear case already does this. This patch fixes the
+nonlinear part as well.
+
+Also, the looping over the fragments was incorrect: When handling
+pages after XDP_TX in the legacy rq nonlinear case, the loop was
+skipping the first wqe fragment.
+
+Fixes: 3f93f82988bc ("net/mlx5e: RX, Defer page release in legacy rq for better recycling")
+Signed-off-by: Dragos Tatulea <dtatulea@nvidia.com>
+Reviewed-by: Tariq Toukan <tariqt@nvidia.com>
+Signed-off-by: Saeed Mahameed <saeedm@nvidia.com>
+---
+ drivers/net/ethernet/mellanox/mlx5/core/en_rx.c | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/net/ethernet/mellanox/mlx5/core/en_rx.c b/drivers/net/ethernet/mellanox/mlx5/core/en_rx.c
+index 5dc9075410943..69634829558e2 100644
+--- a/drivers/net/ethernet/mellanox/mlx5/core/en_rx.c
++++ b/drivers/net/ethernet/mellanox/mlx5/core/en_rx.c
+@@ -1746,10 +1746,10 @@ mlx5e_skb_from_cqe_nonlinear(struct mlx5e_rq *rq, struct mlx5e_wqe_frag_info *wi
+ 	prog = rcu_dereference(rq->xdp_prog);
+ 	if (prog && mlx5e_xdp_handle(rq, prog, &mxbuf)) {
+ 		if (test_bit(MLX5E_RQ_FLAG_XDP_XMIT, rq->flags)) {
+-			int i;
++			struct mlx5e_wqe_frag_info *pwi;
+ 
+-			for (i = wi - head_wi; i < rq->wqe.info.num_frags; i++)
+-				mlx5e_put_rx_frag(rq, &head_wi[i]);
++			for (pwi = head_wi; pwi < wi; pwi++)
++				pwi->flags |= BIT(MLX5E_WQE_FRAG_SKIP_RELEASE);
+ 		}
+ 		return NULL; /* page/packet was consumed by XDP */
+ 	}
+-- 
+cgit 
+

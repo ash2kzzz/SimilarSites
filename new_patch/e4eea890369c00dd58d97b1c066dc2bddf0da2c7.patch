@@ -1,0 +1,60 @@
+From e4eea890369c00dd58d97b1c066dc2bddf0da2c7 Mon Sep 17 00:00:00 2001
+From: Dan Carpenter <error27@gmail.com>
+Date: Thu, 6 Apr 2023 11:55:17 +0300
+Subject: Bluetooth: vhci: Fix info leak in force_devcd_write()
+
+There are a number of bugs here:
+
+1) If "count" is less than sizeof(dump_data.data) then it copies
+   uninitialized data.
+2) If simple_write_to_buffer() returns -EFAULT then we run into a
+   problem "ret < count" comparison.  "count" is an unsigned long so the
+   comparison is type promoted to unsigned long and the negative returns
+   become high positive values.  That also results in copying
+   uninitialized data.
+3) If "*ppos" is non-zero then the first part of the dump_data
+   buffer is uninitialized.  Using copy_from_user() instead of
+   simple_write_to_buffer() is more appropriate here.
+
+Fixes: d5d5df6da0aa ("Bluetooth: Add vhci devcoredump support")
+Signed-off-by: Dan Carpenter <error27@gmail.com>
+Signed-off-by: Luiz Augusto von Dentz <luiz.von.dentz@intel.com>
+---
+ drivers/bluetooth/hci_vhci.c | 16 ++++++++++------
+ 1 file changed, 10 insertions(+), 6 deletions(-)
+
+diff --git a/drivers/bluetooth/hci_vhci.c b/drivers/bluetooth/hci_vhci.c
+index 691fe93b19768..40e2b9fa11a26 100644
+--- a/drivers/bluetooth/hci_vhci.c
++++ b/drivers/bluetooth/hci_vhci.c
+@@ -323,17 +323,21 @@ static ssize_t force_devcd_write(struct file *file, const char __user *user_buf,
+ 	struct hci_dev *hdev = data->hdev;
+ 	struct sk_buff *skb = NULL;
+ 	struct devcoredump_test_data dump_data;
++	size_t data_size;
+ 	int ret;
+ 
+-	ret = simple_write_to_buffer(&dump_data, sizeof(dump_data), ppos,
+-				     user_buf, count);
+-	if (ret < count)
+-		return ret;
++	if (count < offsetof(struct devcoredump_test_data, data) ||
++	    count > sizeof(dump_data))
++		return -EINVAL;
++
++	if (copy_from_user(&dump_data, user_buf, count))
++		return -EFAULT;
+ 
+-	skb = alloc_skb(sizeof(dump_data.data), GFP_ATOMIC);
++	data_size = count - offsetof(struct devcoredump_test_data, data);
++	skb = alloc_skb(data_size, GFP_ATOMIC);
+ 	if (!skb)
+ 		return -ENOMEM;
+-	skb_put_data(skb, &dump_data.data, sizeof(dump_data.data));
++	skb_put_data(skb, &dump_data.data, data_size);
+ 
+ 	hci_devcd_register(hdev, vhci_coredump, vhci_coredump_hdr, NULL);
+ 
+-- 
+cgit 
+

@@ -1,0 +1,35 @@
+From 28113cfada8bce91c627b057f68cd723cac2cf73 Mon Sep 17 00:00:00 2001
+From: Vladimir Oltean <vladimir.oltean@nxp.com>
+Date: Mon, 23 Jan 2023 20:45:38 +0200
+Subject: net: mscc: ocelot: fix incorrect verify_enabled reporting in ethtool
+ get_mm()
+
+We don't read the verify_enabled variable from hardware in the MAC Merge
+layer state GET operation, instead we always leave it set to "false".
+The user may think something is wrong if they set verify_enabled to
+true, then read it back and see it's still false, even though the
+configuration took place.
+
+Fixes: 6505b6805655 ("net: mscc: ocelot: add MAC Merge layer support for VSC9959")
+Signed-off-by: Vladimir Oltean <vladimir.oltean@nxp.com>
+Link: https://lore.kernel.org/r/20230123184538.3420098-1-vladimir.oltean@nxp.com
+Signed-off-by: Jakub Kicinski <kuba@kernel.org>
+---
+ drivers/net/ethernet/mscc/ocelot_mm.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/drivers/net/ethernet/mscc/ocelot_mm.c b/drivers/net/ethernet/mscc/ocelot_mm.c
+index 08820f2341a1b..0a8f21ae23f02 100644
+--- a/drivers/net/ethernet/mscc/ocelot_mm.c
++++ b/drivers/net/ethernet/mscc/ocelot_mm.c
+@@ -165,6 +165,7 @@ int ocelot_port_get_mm(struct ocelot *ocelot, int port,
+ 	state->tx_enabled = !!(val & DEV_MM_CONFIG_ENABLE_CONFIG_MM_TX_ENA);
+ 
+ 	val = ocelot_port_readl(ocelot_port, DEV_MM_VERIF_CONFIG);
++	state->verify_enabled = !(val & DEV_MM_CONFIG_VERIF_CONFIG_PRM_VERIFY_DIS);
+ 	state->verify_time = DEV_MM_CONFIG_VERIF_CONFIG_PRM_VERIFY_TIME_X(val);
+ 	state->max_verify_time = 128;
+ 
+-- 
+cgit 
+

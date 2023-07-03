@@ -1,0 +1,43 @@
+From f2e9d083f768ec147da3e3e5209030d3c090c689 Mon Sep 17 00:00:00 2001
+From: Oleksij Rempel <o.rempel@pengutronix.de>
+Date: Fri, 24 Mar 2023 14:39:08 +0100
+Subject: net: phy: micrel: correct KSZ9131RNX EEE capabilities and
+ advertisement
+
+The KSZ9131RNX incorrectly shows EEE capabilities in its registers.
+Although the "EEE control and capability 1" (Register 3.20) is set to 0,
+indicating no EEE support, the "EEE advertisement 1" (Register 7.60) is
+set to 0x6, advertising EEE support for 1000BaseT/Full and
+100BaseT/Full.
+This inconsistency causes PHYlib to assume there is no EEE support,
+preventing control over EEE advertisement, which is enabled by default.
+
+This patch resolves the issue by utilizing the ksz9477_get_features()
+function to correctly set the EEE capabilities for the KSZ9131RNX. This
+adjustment allows proper control over EEE advertisement and ensures
+accurate representation of the device's capabilities.
+
+Fixes: 8b68710a3121 ("net: phy: start using genphy_c45_ethtool_get/set_eee()")
+Reported-by: Marek Vasut <marex@denx.de>
+Tested-by: Marek Vasut <marex@denx.de>
+Signed-off-by: Oleksij Rempel <o.rempel@pengutronix.de>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ drivers/net/phy/micrel.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/drivers/net/phy/micrel.c b/drivers/net/phy/micrel.c
+index 2c84fccef4f64..4e884e4ba0ead 100644
+--- a/drivers/net/phy/micrel.c
++++ b/drivers/net/phy/micrel.c
+@@ -4151,6 +4151,7 @@ static struct phy_driver ksphy_driver[] = {
+ 	.resume		= kszphy_resume,
+ 	.cable_test_start	= ksz9x31_cable_test_start,
+ 	.cable_test_get_status	= ksz9x31_cable_test_get_status,
++	.get_features	= ksz9477_get_features,
+ }, {
+ 	.phy_id		= PHY_ID_KSZ8873MLL,
+ 	.phy_id_mask	= MICREL_PHY_ID_MASK,
+-- 
+cgit 
+

@@ -1,0 +1,75 @@
+From 7a13a2eef645f2d2e3018d6ea518f121b35a87c8 Mon Sep 17 00:00:00 2001
+From: Yinjun Zhang <yinjun.zhang@corigine.com>
+Date: Wed, 8 Feb 2023 11:22:57 +0100
+Subject: nfp: fix incorrect use of mbox in IPsec code
+
+The mailbox configuration mechanism requires writing several registers,
+which shouldn't be interrupted, so need lock to avoid race condition.
+
+The base offset of mailbox configuration registers is not fixed, it
+depends on TLV caps read from application firmware.
+
+Fixes: 859a497fe80c ("nfp: implement xfrm callbacks and expose ipsec offload feature to upper layer")
+Signed-off-by: Yinjun Zhang <yinjun.zhang@corigine.com>
+Signed-off-by: Simon Horman <simon.horman@corigine.com>
+Signed-off-by: Jakub Kicinski <kuba@kernel.org>
+---
+ drivers/net/ethernet/netronome/nfp/crypto/ipsec.c | 15 ++++++++++++---
+ drivers/net/ethernet/netronome/nfp/nfp_net_ctrl.h |  1 -
+ 2 files changed, 12 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/net/ethernet/netronome/nfp/crypto/ipsec.c b/drivers/net/ethernet/netronome/nfp/crypto/ipsec.c
+index 4632268695cb9..6d9d1c89ae6aa 100644
+--- a/drivers/net/ethernet/netronome/nfp/crypto/ipsec.c
++++ b/drivers/net/ethernet/netronome/nfp/crypto/ipsec.c
+@@ -132,23 +132,32 @@ struct nfp_ipsec_cfg_mssg {
+ static int nfp_ipsec_cfg_cmd_issue(struct nfp_net *nn, int type, int saidx,
+ 				   struct nfp_ipsec_cfg_mssg *msg)
+ {
++	unsigned int offset = nn->tlv_caps.mbox_off + NFP_NET_CFG_MBOX_SIMPLE_VAL;
+ 	int i, msg_size, ret;
+ 
++	ret = nfp_net_mbox_lock(nn, sizeof(*msg));
++	if (ret)
++		return ret;
++
+ 	msg->cmd = type;
+ 	msg->sa_idx = saidx;
+ 	msg->rsp = 0;
+ 	msg_size = ARRAY_SIZE(msg->raw);
+ 
+ 	for (i = 0; i < msg_size; i++)
+-		nn_writel(nn, NFP_NET_CFG_MBOX_VAL + 4 * i, msg->raw[i]);
++		nn_writel(nn, offset + 4 * i, msg->raw[i]);
+ 
+ 	ret = nfp_net_mbox_reconfig(nn, NFP_NET_CFG_MBOX_CMD_IPSEC);
+-	if (ret < 0)
++	if (ret < 0) {
++		nn_ctrl_bar_unlock(nn);
+ 		return ret;
++	}
+ 
+ 	/* For now we always read the whole message response back */
+ 	for (i = 0; i < msg_size; i++)
+-		msg->raw[i] = nn_readl(nn, NFP_NET_CFG_MBOX_VAL + 4 * i);
++		msg->raw[i] = nn_readl(nn, offset + 4 * i);
++
++	nn_ctrl_bar_unlock(nn);
+ 
+ 	switch (msg->rsp) {
+ 	case NFP_IPSEC_CFG_MSSG_OK:
+diff --git a/drivers/net/ethernet/netronome/nfp/nfp_net_ctrl.h b/drivers/net/ethernet/netronome/nfp/nfp_net_ctrl.h
+index 51124309ae1f4..f03dcadff7385 100644
+--- a/drivers/net/ethernet/netronome/nfp/nfp_net_ctrl.h
++++ b/drivers/net/ethernet/netronome/nfp/nfp_net_ctrl.h
+@@ -403,7 +403,6 @@
+  */
+ #define NFP_NET_CFG_MBOX_BASE		0x1800
+ #define NFP_NET_CFG_MBOX_VAL_MAX_SZ	0x1F8
+-#define NFP_NET_CFG_MBOX_VAL		0x1808
+ #define NFP_NET_CFG_MBOX_SIMPLE_CMD	0x0
+ #define NFP_NET_CFG_MBOX_SIMPLE_RET	0x4
+ #define NFP_NET_CFG_MBOX_SIMPLE_VAL	0x8
+-- 
+cgit 
+

@@ -1,0 +1,123 @@
+From 4f4e54b1041e60694117893cd986831153a3e719 Mon Sep 17 00:00:00 2001
+From: Kalesh AP <kalesh-anakkur.purayil@broadcom.com>
+Date: Sun, 16 Apr 2023 23:58:19 -0700
+Subject: bnxt_en: Fix a possible NULL pointer dereference in unload path
+
+In the driver unload path, the driver currently checks the valid
+BNXT_FLAG_ROCE_CAP flag in bnxt_rdma_aux_device_uninit() before
+proceeding.  This is flawed because the flag may not be set initially
+during driver load.  It may be set later after the NVRAM setting is
+changed followed by a firmware reset.  Relying on the
+BNXT_FLAG_ROCE_CAP flag may crash in bnxt_rdma_aux_device_uninit() if
+the aux device was never initialized:
+
+BUG: unable to handle kernel NULL pointer dereference at 0000000000000000
+PGD 8ae6aa067 P4D 0
+Oops: 0000 [#1] SMP NOPTI
+CPU: 39 PID: 42558 Comm: rmmod Kdump: loaded Tainted: G           OE    --------- -  - 4.18.0-348.el8.x86_64 #1
+Hardware name: Dell Inc. PowerEdge R750/0WT8Y6, BIOS 1.5.4 12/17/2021
+RIP: 0010:device_del+0x1b/0x410
+Code: 89 a5 50 03 00 00 4c 89 a5 58 03 00 00 eb 89 0f 1f 44 00 00 41 56 41 55 41 54 4c 8d a7 80 00 00 00 55 53 48 89 fb 48 83 ec 18 <48> 8b 2f 4c 89 e7 65 48 8b 04 25 28 00 00 00 48 89 44 24 10 31 c0
+RSP: 0018:ff7f82bf469a7dc8 EFLAGS: 00010292
+RAX: 0000000000000000 RBX: 0000000000000000 RCX: 0000000000000000
+RDX: 0000000000000000 RSI: 0000000000000206 RDI: 0000000000000000
+RBP: ff31b7cd114b0ac0 R08: 0000000000000000 R09: ffffffff935c3400
+R10: ff31b7cd45bc3440 R11: 0000000000000001 R12: 0000000000000080
+R13: ffffffffc1069f40 R14: 0000000000000000 R15: 0000000000000000
+FS:  00007fc9903ce740(0000) GS:ff31b7d4ffac0000(0000) knlGS:0000000000000000
+CS:  0010 DS: 0000 ES: 0000 CR0: 0000000080050033
+CR2: 0000000000000000 CR3: 0000000992fee004 CR4: 0000000000773ee0
+DR0: 0000000000000000 DR1: 0000000000000000 DR2: 0000000000000000
+DR3: 0000000000000000 DR6: 00000000fffe0ff0 DR7: 0000000000000400
+PKRU: 55555554
+Call Trace:
+ bnxt_rdma_aux_device_uninit+0x1f/0x30 [bnxt_en]
+ bnxt_remove_one+0x2f/0x1f0 [bnxt_en]
+ pci_device_remove+0x3b/0xc0
+ device_release_driver_internal+0x103/0x1f0
+ driver_detach+0x54/0x88
+ bus_remove_driver+0x77/0xc9
+ pci_unregister_driver+0x2d/0xb0
+ bnxt_exit+0x16/0x2c [bnxt_en]
+ __x64_sys_delete_module+0x139/0x280
+ do_syscall_64+0x5b/0x1a0
+ entry_SYSCALL_64_after_hwframe+0x65/0xca
+RIP: 0033:0x7fc98f3af71b
+
+Fix this by modifying the check inside bnxt_rdma_aux_device_uninit()
+to check for bp->aux_priv instead.  We also need to make some changes
+in bnxt_rdma_aux_device_init() to make sure that bp->aux_priv is set
+only when the aux device is fully initialized.
+
+Fixes: d80d88b0dfff ("bnxt_en: Add auxiliary driver support")
+Reviewed-by: Ajit Khaparde <ajit.khaparde@broadcom.com>
+Signed-off-by: Kalesh AP <kalesh-anakkur.purayil@broadcom.com>
+Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+Signed-off-by: Paolo Abeni <pabeni@redhat.com>
+---
+ drivers/net/ethernet/broadcom/bnxt/bnxt_ulp.c | 19 ++++++++++---------
+ 1 file changed, 10 insertions(+), 9 deletions(-)
+
+diff --git a/drivers/net/ethernet/broadcom/bnxt/bnxt_ulp.c b/drivers/net/ethernet/broadcom/bnxt/bnxt_ulp.c
+index e7b5e28ee29f1..852eb449ccae2 100644
+--- a/drivers/net/ethernet/broadcom/bnxt/bnxt_ulp.c
++++ b/drivers/net/ethernet/broadcom/bnxt/bnxt_ulp.c
+@@ -304,7 +304,7 @@ void bnxt_rdma_aux_device_uninit(struct bnxt *bp)
+ 	struct auxiliary_device *adev;
+ 
+ 	/* Skip if no auxiliary device init was done. */
+-	if (!(bp->flags & BNXT_FLAG_ROCE_CAP))
++	if (!bp->aux_priv)
+ 		return;
+ 
+ 	aux_priv = bp->aux_priv;
+@@ -324,6 +324,7 @@ static void bnxt_aux_dev_release(struct device *dev)
+ 	bp->edev = NULL;
+ 	kfree(aux_priv->edev);
+ 	kfree(aux_priv);
++	bp->aux_priv = NULL;
+ }
+ 
+ static void bnxt_set_edev_info(struct bnxt_en_dev *edev, struct bnxt *bp)
+@@ -359,19 +360,18 @@ void bnxt_rdma_aux_device_init(struct bnxt *bp)
+ 	if (!(bp->flags & BNXT_FLAG_ROCE_CAP))
+ 		return;
+ 
+-	bp->aux_priv = kzalloc(sizeof(*bp->aux_priv), GFP_KERNEL);
+-	if (!bp->aux_priv)
++	aux_priv = kzalloc(sizeof(*bp->aux_priv), GFP_KERNEL);
++	if (!aux_priv)
+ 		goto exit;
+ 
+-	bp->aux_priv->id = ida_alloc(&bnxt_aux_dev_ids, GFP_KERNEL);
+-	if (bp->aux_priv->id < 0) {
++	aux_priv->id = ida_alloc(&bnxt_aux_dev_ids, GFP_KERNEL);
++	if (aux_priv->id < 0) {
+ 		netdev_warn(bp->dev,
+ 			    "ida alloc failed for ROCE auxiliary device\n");
+-		kfree(bp->aux_priv);
++		kfree(aux_priv);
+ 		goto exit;
+ 	}
+ 
+-	aux_priv = bp->aux_priv;
+ 	aux_dev = &aux_priv->aux_dev;
+ 	aux_dev->id = aux_priv->id;
+ 	aux_dev->name = "rdma";
+@@ -380,10 +380,11 @@ void bnxt_rdma_aux_device_init(struct bnxt *bp)
+ 
+ 	rc = auxiliary_device_init(aux_dev);
+ 	if (rc) {
+-		ida_free(&bnxt_aux_dev_ids, bp->aux_priv->id);
+-		kfree(bp->aux_priv);
++		ida_free(&bnxt_aux_dev_ids, aux_priv->id);
++		kfree(aux_priv);
+ 		goto exit;
+ 	}
++	bp->aux_priv = aux_priv;
+ 
+ 	/* From this point, all cleanup will happen via the .release callback &
+ 	 * any error unwinding will need to include a call to
+-- 
+cgit 
+

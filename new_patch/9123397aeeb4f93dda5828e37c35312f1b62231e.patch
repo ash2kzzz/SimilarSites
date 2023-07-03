@@ -1,0 +1,58 @@
+From 9123397aeeb4f93dda5828e37c35312f1b62231e Mon Sep 17 00:00:00 2001
+From: Jesper Dangaard Brouer <brouer@redhat.com>
+Date: Wed, 12 Apr 2023 21:48:55 +0200
+Subject: mlx4: bpf_xdp_metadata_rx_hash add xdp rss hash type
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Update API for bpf_xdp_metadata_rx_hash() with arg for xdp rss hash type
+via matching individual Completion Queue Entry (CQE) status bits.
+
+Fixes: ab46182d0dcb ("net/mlx4_en: Support RX XDP metadata")
+Signed-off-by: Jesper Dangaard Brouer <brouer@redhat.com>
+Acked-by: Toke Høiland-Jørgensen <toke@redhat.com>
+Acked-by: Stanislav Fomichev <sdf@google.com>
+Link: https://lore.kernel.org/r/168132893562.340624.12779118462402031248.stgit@firesoul
+Signed-off-by: Alexei Starovoitov <ast@kernel.org>
+---
+ drivers/net/ethernet/mellanox/mlx4/en_rx.c | 19 ++++++++++++++++++-
+ 1 file changed, 18 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/net/ethernet/mellanox/mlx4/en_rx.c b/drivers/net/ethernet/mellanox/mlx4/en_rx.c
+index 73d10aa4c503f..332472fe49902 100644
+--- a/drivers/net/ethernet/mellanox/mlx4/en_rx.c
++++ b/drivers/net/ethernet/mellanox/mlx4/en_rx.c
+@@ -685,11 +685,28 @@ int mlx4_en_xdp_rx_hash(const struct xdp_md *ctx, u32 *hash,
+ 			enum xdp_rss_hash_type *rss_type)
+ {
+ 	struct mlx4_en_xdp_buff *_ctx = (void *)ctx;
++	struct mlx4_cqe *cqe = _ctx->cqe;
++	enum xdp_rss_hash_type xht = 0;
++	__be16 status;
+ 
+ 	if (unlikely(!(_ctx->dev->features & NETIF_F_RXHASH)))
+ 		return -ENODATA;
+ 
+-	*hash = be32_to_cpu(_ctx->cqe->immed_rss_invalid);
++	*hash = be32_to_cpu(cqe->immed_rss_invalid);
++	status = cqe->status;
++	if (status & cpu_to_be16(MLX4_CQE_STATUS_TCP))
++		xht = XDP_RSS_L4_TCP;
++	if (status & cpu_to_be16(MLX4_CQE_STATUS_UDP))
++		xht = XDP_RSS_L4_UDP;
++	if (status & cpu_to_be16(MLX4_CQE_STATUS_IPV4 | MLX4_CQE_STATUS_IPV4F))
++		xht |= XDP_RSS_L3_IPV4;
++	if (status & cpu_to_be16(MLX4_CQE_STATUS_IPV6)) {
++		xht |= XDP_RSS_L3_IPV6;
++		if (cqe->ipv6_ext_mask)
++			xht |= XDP_RSS_L3_DYNHDR;
++	}
++	*rss_type = xht;
++
+ 	return 0;
+ }
+ 
+-- 
+cgit 
+

@@ -1,0 +1,42 @@
+From 0c16c83ed57fc66b033306ba426a5b324966a33e Mon Sep 17 00:00:00 2001
+From: Arnd Bergmann <arnd@arndb.de>
+Date: Tue, 14 Feb 2023 11:30:49 +0100
+Subject: dax: cxl: add CXL_REGION dependency
+
+There is already a dependency on CXL_REGION, which depends on CXL_BUS,
+but since CXL_REGION is a 'bool' symbol, it's possible to configure
+DAX as built-in even though CXL itself is a loadable module:
+
+x86_64-linux-ld: drivers/dax/cxl.o: in function `cxl_dax_region_probe':
+cxl.c:(.text+0xb): undefined reference to `to_cxl_dax_region'
+x86_64-linux-ld: drivers/dax/cxl.o: in function `cxl_dax_region_driver_init':
+cxl.c:(.init.text+0x10): undefined reference to `__cxl_driver_register'
+x86_64-linux-ld: drivers/dax/cxl.o: in function `cxl_dax_region_driver_exit':
+cxl.c:(.exit.text+0x9): undefined reference to `cxl_driver_unregister'
+
+Prevent this with another depndency on the tristate symbol.
+
+Fixes: 09d09e04d2fc ("cxl/dax: Create dax devices for CXL RAM regions")
+Signed-off-by: Arnd Bergmann <arnd@arndb.de>
+Link: https://lore.kernel.org/r/20230214103054.1082908-1-arnd@kernel.org
+Signed-off-by: Dan Williams <dan.j.williams@intel.com>
+---
+ drivers/dax/Kconfig | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/dax/Kconfig b/drivers/dax/Kconfig
+index bd06e16c7ac82..7e1008d756b8f 100644
+--- a/drivers/dax/Kconfig
++++ b/drivers/dax/Kconfig
+@@ -47,7 +47,7 @@ config DEV_DAX_HMEM
+ 
+ config DEV_DAX_CXL
+ 	tristate "CXL DAX: direct access to CXL RAM regions"
+-	depends on CXL_REGION && DEV_DAX
++	depends on CXL_BUS && CXL_REGION && DEV_DAX
+ 	default CXL_REGION && DEV_DAX
+ 	help
+ 	  CXL RAM regions are either mapped by platform-firmware
+-- 
+cgit 
+

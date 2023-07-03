@@ -1,0 +1,31 @@
+From 941811980df00161fe639c252dabe6488875887c Mon Sep 17 00:00:00 2001
+From: Dan Carpenter <error27@gmail.com>
+Date: Mon, 6 Feb 2023 17:47:38 +0300
+Subject: spi: spidev: Fix double unlock in spidev_sync()
+
+This unlocks twice due to a merge issue.
+
+Fixes: 35bba23e6732 ("Merge remote-tracking branch 'spi/for-6.2' into spi-6.2")
+Signed-off-by: Dan Carpenter <error27@gmail.com>
+Link: https://lore.kernel.org/r/Y+ETCk7XKfAy8yWQ@kili
+Signed-off-by: Mark Brown <broonie@kernel.org>
+---
+ drivers/spi/spidev.c | 2 --
+ 1 file changed, 2 deletions(-)
+
+diff --git a/drivers/spi/spidev.c b/drivers/spi/spidev.c
+index f836567c631b5..5a038c6674018 100644
+--- a/drivers/spi/spidev.c
++++ b/drivers/spi/spidev.c
+@@ -115,8 +115,6 @@ spidev_sync(struct spidev_data *spidev, struct spi_message *message)
+ 	else
+ 		status = spidev_sync_unlocked(spi, message);
+ 
+-	mutex_unlock(&spidev->spi_lock);
+-
+ 	mutex_unlock(&spidev->spi_lock);
+ 	return status;
+ }
+-- 
+cgit 
+

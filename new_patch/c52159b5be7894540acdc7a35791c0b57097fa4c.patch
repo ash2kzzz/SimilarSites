@@ -1,0 +1,37 @@
+From c52159b5be7894540acdc7a35791c0b57097fa4c Mon Sep 17 00:00:00 2001
+From: Tom Rix <trix@redhat.com>
+Date: Mon, 3 Apr 2023 20:23:17 -0400
+Subject: iommufd/selftest: Set varaiable mock_iommu_device
+ storage-class-specifier to static
+
+smatch reports:
+
+drivers/iommu/iommufd/selftest.c:295:21: warning: symbol
+  'mock_iommu_device' was not declared. Should it be static?
+
+This variable is only used in one file so it should be static.
+
+Fixes: 65c619ae0680 ("iommufd/selftest: Make selftest create a more complete mock device")
+Link: https://lore.kernel.org/r/20230404002317.1912530-1-trix@redhat.com
+Signed-off-by: Tom Rix <trix@redhat.com>
+Signed-off-by: Jason Gunthorpe <jgg@nvidia.com>
+---
+ drivers/iommu/iommufd/selftest.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/iommu/iommufd/selftest.c b/drivers/iommu/iommufd/selftest.c
+index 4463060ec84b6..74c2076105d48 100644
+--- a/drivers/iommu/iommufd/selftest.c
++++ b/drivers/iommu/iommufd/selftest.c
+@@ -292,7 +292,7 @@ static const struct iommu_ops mock_ops = {
+ 		},
+ };
+ 
+-struct iommu_device mock_iommu_device = {
++static struct iommu_device mock_iommu_device = {
+ 	.ops = &mock_ops,
+ };
+ 
+-- 
+cgit 
+

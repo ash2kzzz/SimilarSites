@@ -1,0 +1,37 @@
+From 7ae69d7087a9a4d014e11b5328a49091cc1682f8 Mon Sep 17 00:00:00 2001
+From: Shaoqin Huang <shahuang@redhat.com>
+Date: Thu, 2 Feb 2023 10:57:15 +0800
+Subject: selftests: KVM: Replace optarg with arg in guest_modes_cmdline
+
+The parameter arg in guest_modes_cmdline not being used now, and the
+optarg should be replaced with arg in guest_modes_cmdline.
+
+And this is the chance to change strtoul() to atoi_non_negative(), since
+guest mode ID will never be negative.
+
+Signed-off-by: Shaoqin Huang <shahuang@redhat.com>
+Fixes: e42ac777d661 ("KVM: selftests: Factor out guest mode code")
+Reviewed-by: Andrew Jones <andrew.jones@linux.dev>
+Reviewed-by: Vipin Sharma <vipinsh@google.com>
+Link: https://lore.kernel.org/r/20230202025716.216323-1-shahuang@redhat.com
+Signed-off-by: Sean Christopherson <seanjc@google.com>
+---
+ tools/testing/selftests/kvm/lib/guest_modes.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/tools/testing/selftests/kvm/lib/guest_modes.c b/tools/testing/selftests/kvm/lib/guest_modes.c
+index 99a575bbbc52a..1df3ce4b16fd8 100644
+--- a/tools/testing/selftests/kvm/lib/guest_modes.c
++++ b/tools/testing/selftests/kvm/lib/guest_modes.c
+@@ -127,7 +127,7 @@ void guest_modes_cmdline(const char *arg)
+ 		mode_selected = true;
+ 	}
+ 
+-	mode = strtoul(optarg, NULL, 10);
++	mode = atoi_non_negative("Guest mode ID", arg);
+ 	TEST_ASSERT(mode < NUM_VM_MODES, "Guest mode ID %d too big", mode);
+ 	guest_modes[mode].enabled = true;
+ }
+-- 
+cgit 
+

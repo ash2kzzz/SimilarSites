@@ -1,0 +1,40 @@
+From 23badca4248a9a467f630adbd1557f664585e1db Mon Sep 17 00:00:00 2001
+From: Trevor Wu <trevor.wu@mediatek.com>
+Date: Wed, 1 Mar 2023 19:01:59 +0800
+Subject: ASoC: mediatek: mt8188: add missing initialization
+
+In etdm dai driver, dai_etdm_parse_of() function is used to parse dts
+properties to get parameters. There are two for-loops which are
+sepearately for all etdm and etdm input only cases. In etdm in only
+loop, dai_id is not initialized, so it keeps the value intiliazed in
+another loop.
+
+In the patch, add the missing initialization to fix the unexpected
+parsing problem.
+
+Fixes: 2babb4777489 ("ASoC: mediatek: mt8188: support etdm in platform driver")
+Signed-off-by: Trevor Wu <trevor.wu@mediatek.com>
+Reviewed-by: AngeloGioacchino Del Regno <angelogioacchino.delregno@collabora.com>
+Link: https://lore.kernel.org/r/20230301110200.26177-2-trevor.wu@mediatek.com
+Signed-off-by: Mark Brown <broonie@kernel.org>
+---
+ sound/soc/mediatek/mt8188/mt8188-dai-etdm.c | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/sound/soc/mediatek/mt8188/mt8188-dai-etdm.c b/sound/soc/mediatek/mt8188/mt8188-dai-etdm.c
+index 1c53d4cb19bbe..7a37752d42444 100644
+--- a/sound/soc/mediatek/mt8188/mt8188-dai-etdm.c
++++ b/sound/soc/mediatek/mt8188/mt8188-dai-etdm.c
+@@ -2498,6 +2498,9 @@ static void mt8188_dai_etdm_parse_of(struct mtk_base_afe *afe)
+ 
+ 	/* etdm in only */
+ 	for (i = 0; i < 2; i++) {
++		dai_id = ETDM_TO_DAI_ID(i);
++		etdm_data = afe_priv->dai_priv[dai_id];
++
+ 		snprintf(prop, sizeof(prop), "mediatek,%s-chn-disabled",
+ 			 of_afe_etdms[i].name);
+ 
+-- 
+cgit 
+

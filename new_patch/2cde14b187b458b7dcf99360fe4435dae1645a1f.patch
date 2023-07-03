@@ -1,0 +1,35 @@
+From 2cde14b187b458b7dcf99360fe4435dae1645a1f Mon Sep 17 00:00:00 2001
+From: Stanislaw Gruszka <stanislaw.gruszka@linux.intel.com>
+Date: Wed, 1 Mar 2023 17:25:08 +0100
+Subject: accel: Build sub-directories based on config options
+
+When accel drivers are disabled do not process into
+sub-directories and create built-in archives:
+
+  AR      drivers/accel/habanalabs/built-in.a
+  AR      drivers/accel/ivpu/built-in.a
+
+Fixes: 35b137630f08 ("accel/ivpu: Introduce a new DRM driver for Intel VPU")
+Signed-off-by: Stanislaw Gruszka <stanislaw.gruszka@linux.intel.com>
+Reviewed-by: Jeffrey Hugo <quic_jhugo@quicinc.com>
+Link: https://patchwork.freedesktop.org/patch/msgid/20230301162508.3963484-1-stanislaw.gruszka@linux.intel.com
+(cherry picked from commit dd61bbd0d1fba48cd9464e047a7f90b70a463e39)
+Signed-off-by: Jacek Lawrynowicz <jacek.lawrynowicz@linux.intel.com>
+---
+ drivers/accel/Makefile | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/accel/Makefile b/drivers/accel/Makefile
+index 07aa77aed1c8d..f22fd44d586b2 100644
+--- a/drivers/accel/Makefile
++++ b/drivers/accel/Makefile
+@@ -1,4 +1,4 @@
+ # SPDX-License-Identifier: GPL-2.0-only
+ 
+-obj-y	+= habanalabs/
+-obj-y	+= ivpu/
++obj-$(CONFIG_DRM_ACCEL_HABANALABS)	+= habanalabs/
++obj-$(CONFIG_DRM_ACCEL_IVPU)		+= ivpu/
+-- 
+cgit 
+

@@ -1,0 +1,34 @@
+From 695fa5a64cf52ab1aa2c89c93bbb1fd08995304a Mon Sep 17 00:00:00 2001
+From: Shaoqin Huang <shahuang@redhat.com>
+Date: Wed, 8 Feb 2023 15:18:00 +0800
+Subject: KVM: selftests: Remove duplicate macro definition
+
+The KVM_GUEST_PAGE_TABLE_MIN_PADDR macro has been defined in
+include/kvm_util_base.h. So remove the duplicate definition in
+lib/kvm_util.c.
+
+Fixes: cce0c23dd944 ("KVM: selftests: Add wrapper to allocate page table page")
+Signed-off-by: Shaoqin Huang <shahuang@redhat.com>
+Link: https://lore.kernel.org/r/20230208071801.68620-1-shahuang@redhat.com
+Signed-off-by: Sean Christopherson <seanjc@google.com>
+---
+ tools/testing/selftests/kvm/lib/kvm_util.c | 3 ---
+ 1 file changed, 3 deletions(-)
+
+diff --git a/tools/testing/selftests/kvm/lib/kvm_util.c b/tools/testing/selftests/kvm/lib/kvm_util.c
+index 56d5ea949cbbe..a3648c3f273f0 100644
+--- a/tools/testing/selftests/kvm/lib/kvm_util.c
++++ b/tools/testing/selftests/kvm/lib/kvm_util.c
+@@ -1941,9 +1941,6 @@ vm_paddr_t vm_phy_page_alloc(struct kvm_vm *vm, vm_paddr_t paddr_min,
+ 	return vm_phy_pages_alloc(vm, 1, paddr_min, memslot);
+ }
+ 
+-/* Arbitrary minimum physical address used for virtual translation tables. */
+-#define KVM_GUEST_PAGE_TABLE_MIN_PADDR 0x180000
+-
+ vm_paddr_t vm_alloc_page_table(struct kvm_vm *vm)
+ {
+ 	return vm_phy_page_alloc(vm, KVM_GUEST_PAGE_TABLE_MIN_PADDR,
+-- 
+cgit 
+

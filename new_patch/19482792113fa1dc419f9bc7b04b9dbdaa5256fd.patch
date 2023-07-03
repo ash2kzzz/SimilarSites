@@ -1,0 +1,43 @@
+From 19482792113fa1dc419f9bc7b04b9dbdaa5256fd Mon Sep 17 00:00:00 2001
+From: Kemeng Shi <shikemeng@huaweicloud.com>
+Date: Wed, 14 Jun 2023 06:50:25 +0800
+Subject: Revert "ext4: remove unnecessary check in ext4_bg_num_gdb_nometa"
+
+This reverts commit ad3f09be6cfe332be8ff46c78e6ec0f8839107aa.
+
+The reverted commit was intended to simpfy the code to get group
+descriptor block number in non-meta block group by assuming
+s_gdb_count is block number used for all non-meta block group descriptors.
+However s_gdb_count is block number used for all meta *and* non-meta
+group descriptors. So s_gdb_group will be > actual group descriptor block
+number used for all non-meta block group which should be "total non-meta
+block group" / "group descriptors per block", e.g. s_first_meta_bg.
+
+Signed-off-by: Kemeng Shi <shikemeng@huaweicloud.com>
+Link: https://lore.kernel.org/r/20230613225025.3859522-1-shikemeng@huaweicloud.com
+Fixes: ad3f09be6cfe ("ext4: remove unnecessary check in ext4_bg_num_gdb_nometa")
+Cc: stable@kernel.org
+Signed-off-by: Theodore Ts'o <tytso@mit.edu>
+---
+ fs/ext4/balloc.c | 5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/fs/ext4/balloc.c b/fs/ext4/balloc.c
+index c1edde817be88..09c75a3127c72 100644
+--- a/fs/ext4/balloc.c
++++ b/fs/ext4/balloc.c
+@@ -886,7 +886,10 @@ static unsigned long ext4_bg_num_gdb_nometa(struct super_block *sb,
+ 	if (!ext4_bg_has_super(sb, group))
+ 		return 0;
+ 
+-	return EXT4_SB(sb)->s_gdb_count;
++	if (ext4_has_feature_meta_bg(sb))
++		return le32_to_cpu(EXT4_SB(sb)->s_es->s_first_meta_bg);
++	else
++		return EXT4_SB(sb)->s_gdb_count;
+ }
+ 
+ /**
+-- 
+cgit 
+

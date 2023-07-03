@@ -1,0 +1,56 @@
+From 71deb8a5658c592ccad5ededb2ceffef6fcbba5f Mon Sep 17 00:00:00 2001
+From: Bagas Sanjaya <bagasdotme@gmail.com>
+Date: Thu, 20 Apr 2023 08:18:36 +1000
+Subject: xfs: Extend table marker on deprecated mount options table
+
+Sphinx reports htmldocs warning on deprecated mount options table:
+
+/home/bagas/repo/linux-kernel/Documentation/admin-guide/xfs.rst:243: WARNING: Malformed table.
+Text in column margin in table line 5.
+
+===========================     ================
+  Name                          Removal Schedule
+===========================     ================
+Mounting with V4 filesystem     September 2030
+Mounting ascii-ci filesystem    September 2030
+ikeep/noikeep                   September 2025
+attr2/noattr2                   September 2025
+===========================     ================
+
+Extend the table markers to take account of the second name entry
+("Mounting ascii-ci filesystem"), which is now the widest and
+to fix the above warning.
+
+Fixes: 7ba83850ca2691 ("xfs: deprecate the ascii-ci feature")
+Signed-off-by: Bagas Sanjaya <bagasdotme@gmail.com>
+Reviewed-by: Darrick J. Wong <djwong@kernel.org>
+Signed-off-by: Dave Chinner <david@fromorbit.com>
+---
+ Documentation/admin-guide/xfs.rst | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/Documentation/admin-guide/xfs.rst b/Documentation/admin-guide/xfs.rst
+index e85a9404d5c08..3a9c041d7f6c3 100644
+--- a/Documentation/admin-guide/xfs.rst
++++ b/Documentation/admin-guide/xfs.rst
+@@ -236,14 +236,14 @@ the dates listed above.
+ Deprecated Mount Options
+ ========================
+ 
+-===========================     ================
++============================    ================
+   Name				Removal Schedule
+-===========================     ================
++============================    ================
+ Mounting with V4 filesystem     September 2030
+ Mounting ascii-ci filesystem    September 2030
+ ikeep/noikeep			September 2025
+ attr2/noattr2			September 2025
+-===========================     ================
++============================    ================
+ 
+ 
+ Removed Mount Options
+-- 
+cgit 
+

@@ -1,0 +1,60 @@
+From 70a640c0efa7667453c3911b13335304ce46ad8b Mon Sep 17 00:00:00 2001
+From: Geert Uytterhoeven <geert@linux-m68k.org>
+Date: Wed, 26 Apr 2023 15:35:45 +0200
+Subject: regmap: REGMAP_KUNIT should not select REGMAP
+
+Enabling a (modular) test should not silently enable additional kernel
+functionality, as that may increase the attack vector of a product.
+
+Fix this by:
+  1. making REGMAP visible if CONFIG_KUNIT_ALL_TESTS is enabled,
+  2. making REGMAP_KUNIT depend on REGMAP instead of selecting it.
+
+After this, one can safely enable CONFIG_KUNIT_ALL_TESTS=m to build
+modules for all appropriate tests for ones system, without pulling in
+extra unwanted functionality, while still allowing a tester to manually
+enable REGMAP and its test suite on a system where REGMAP is not enabled
+by default.
+
+Fixes: 2238959b6ad27040 ("regmap: Add some basic kunit tests")
+Signed-off-by: Geert Uytterhoeven <geert@linux-m68k.org
+Link: https://lore.kernel.org/r/b0a5dbb17c1d5ea482e052e585ae83bb69c48806.1682516005.git.geert@linux-m68k.org
+Signed-off-by: Mark Brown <broonie@kernel.org
+---
+ drivers/base/regmap/Kconfig | 13 ++++++++++---
+ 1 file changed, 10 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/base/regmap/Kconfig b/drivers/base/regmap/Kconfig
+index 33a8366e22a58..0db2021f7477f 100644
+--- a/drivers/base/regmap/Kconfig
++++ b/drivers/base/regmap/Kconfig
+@@ -4,16 +4,23 @@
+ # subsystems should select the appropriate symbols.
+ 
+ config REGMAP
++	bool "Register Map support" if KUNIT_ALL_TESTS
+ 	default y if (REGMAP_I2C || REGMAP_SPI || REGMAP_SPMI || REGMAP_W1 || REGMAP_AC97 || REGMAP_MMIO || REGMAP_IRQ || REGMAP_SOUNDWIRE || REGMAP_SOUNDWIRE_MBQ || REGMAP_SCCB || REGMAP_I3C || REGMAP_SPI_AVMM || REGMAP_MDIO || REGMAP_FSI)
+ 	select IRQ_DOMAIN if REGMAP_IRQ
+ 	select MDIO_BUS if REGMAP_MDIO
+-	bool
++	help
++	  Enable support for the Register Map (regmap) access API.
++
++	  Usually, this option is automatically selected when needed.
++	  However, you may want to enable it manually for running the regmap
++	  KUnit tests.
++
++	  If unsure, say N.
+ 
+ config REGMAP_KUNIT
+ 	tristate "KUnit tests for regmap"
+-	depends on KUNIT
++	depends on KUNIT && REGMAP
+ 	default KUNIT_ALL_TESTS
+-	select REGMAP
+ 	select REGMAP_RAM
+ 
+ config REGMAP_AC97
+-- 
+cgit 
+

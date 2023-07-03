@@ -1,0 +1,48 @@
+From 420c4495b5e56cc11e6802ce98400544f698b393 Mon Sep 17 00:00:00 2001
+From: Tudor Ambarus <tudor.ambarus@linaro.org>
+Date: Tue, 9 May 2023 19:39:00 +0000
+Subject: mtd: spi-nor: spansion: make sure local struct does not contain
+ garbage
+
+Following errors were seen with um-x86_64-gcc12/um-allyesconfig:
++ /kisskb/src/drivers/mtd/spi-nor/spansion.c: error: 'op' is used uninitialized [-Werror=uninitialized]:  => 495:27, 364:27
+
+Initialise local struct spi_mem_op with all zeros at declaration in
+order to avoid using garbage data for fields that are not explicitly
+set afterwards.
+
+Reported-by: Geert Uytterhoeven <geert@linux-m68k.org>
+Fixes: c87c9b11c53ce ("mtd: spi-nor: spansion: Determine current address mode")
+Fixes: 6afcc84080c41 ("mtd: spi-nor: spansion: Add support for Infineon S25FS256T")
+Signed-off-by: Tudor Ambarus <tudor.ambarus@linaro.org>
+Signed-off-by: Miquel Raynal <miquel.raynal@bootlin.com>
+Link: https://lore.kernel.org/linux-mtd/20230509193900.948753-1-tudor.ambarus@linaro.org
+---
+ drivers/mtd/spi-nor/spansion.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/mtd/spi-nor/spansion.c b/drivers/mtd/spi-nor/spansion.c
+index 15f9a80c10b9b..36876aa849ede 100644
+--- a/drivers/mtd/spi-nor/spansion.c
++++ b/drivers/mtd/spi-nor/spansion.c
+@@ -361,7 +361,7 @@ static int cypress_nor_determine_addr_mode_by_sr1(struct spi_nor *nor,
+  */
+ static int cypress_nor_set_addr_mode_nbytes(struct spi_nor *nor)
+ {
+-	struct spi_mem_op op;
++	struct spi_mem_op op = {};
+ 	u8 addr_mode;
+ 	int ret;
+ 
+@@ -492,7 +492,7 @@ s25fs256t_post_bfpt_fixup(struct spi_nor *nor,
+ 			  const struct sfdp_parameter_header *bfpt_header,
+ 			  const struct sfdp_bfpt *bfpt)
+ {
+-	struct spi_mem_op op;
++	struct spi_mem_op op = {};
+ 	int ret;
+ 
+ 	ret = cypress_nor_set_addr_mode_nbytes(nor);
+-- 
+cgit 
+

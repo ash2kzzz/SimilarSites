@@ -1,0 +1,33 @@
+From 1fb7696ac6c3ac470dd002e639af80e7e170b25f Mon Sep 17 00:00:00 2001
+From: Yang Yingliang <yangyingliang@huawei.com>
+Date: Thu, 19 Jan 2023 15:51:25 +0800
+Subject: netfilter: nf_tables: fix wrong pointer passed to PTR_ERR()
+
+It should be 'chain' passed to PTR_ERR() in the error path
+after calling nft_chain_lookup() in nf_tables_delrule().
+
+Fixes: f80a612dd77c ("netfilter: nf_tables: add support to destroy operation")
+Signed-off-by: Yang Yingliang <yangyingliang@huawei.com>
+Reviewed-by: Simon Horman <simon.horman@corigine.com>
+Acked-by: Fernando Fernandez Mancera <ffmancera@riseup.net>
+Signed-off-by: Pablo Neira Ayuso <pablo@netfilter.org>
+---
+ net/netfilter/nf_tables_api.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/net/netfilter/nf_tables_api.c b/net/netfilter/nf_tables_api.c
+index 2abf473c8f672..d73edbd4eec45 100644
+--- a/net/netfilter/nf_tables_api.c
++++ b/net/netfilter/nf_tables_api.c
+@@ -3724,7 +3724,7 @@ static int nf_tables_delrule(struct sk_buff *skb, const struct nfnl_info *info,
+ 		chain = nft_chain_lookup(net, table, nla[NFTA_RULE_CHAIN],
+ 					 genmask);
+ 		if (IS_ERR(chain)) {
+-			if (PTR_ERR(rule) == -ENOENT &&
++			if (PTR_ERR(chain) == -ENOENT &&
+ 			    NFNL_MSG_TYPE(info->nlh->nlmsg_type) == NFT_MSG_DESTROYRULE)
+ 				return 0;
+ 
+-- 
+cgit 
+

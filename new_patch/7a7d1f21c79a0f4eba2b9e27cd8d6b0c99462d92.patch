@@ -1,0 +1,41 @@
+From 7a7d1f21c79a0f4eba2b9e27cd8d6b0c99462d92 Mon Sep 17 00:00:00 2001
+From: Dmitry Baryshkov <dmitry.baryshkov@linaro.org>
+Date: Wed, 18 Jan 2023 05:17:16 +0200
+Subject: dt-bindings: display/msm: qcom, sc8280xp-mdss: add DP / eDP child
+ nodes
+
+Describe DP and eDP devices as subdevices to the MDSS on SC8280XP
+platform.
+
+Fixes: 45af56bf2d74 ("dt-bindings: display/msm: Add binding for SC8280XP MDSS")
+Signed-off-by: Dmitry Baryshkov <dmitry.baryshkov@linaro.org>
+Acked-by: Rob Herring <robh@kernel.org>
+Patchwork: https://patchwork.freedesktop.org/patch/518799/
+Link: https://lore.kernel.org/r/20230118031718.1714861-2-dmitry.baryshkov@linaro.org
+Signed-off-by: Dmitry Baryshkov <dmitry.baryshkov@linaro.org>
+---
+ .../devicetree/bindings/display/msm/qcom,sc8280xp-mdss.yaml       | 8 ++++++++
+ 1 file changed, 8 insertions(+)
+
+diff --git a/Documentation/devicetree/bindings/display/msm/qcom,sc8280xp-mdss.yaml b/Documentation/devicetree/bindings/display/msm/qcom,sc8280xp-mdss.yaml
+index b67e7874ed567..c239544bc37f2 100644
+--- a/Documentation/devicetree/bindings/display/msm/qcom,sc8280xp-mdss.yaml
++++ b/Documentation/devicetree/bindings/display/msm/qcom,sc8280xp-mdss.yaml
+@@ -38,6 +38,14 @@ patternProperties:
+       compatible:
+         const: qcom,sc8280xp-dpu
+ 
++  "^displayport-controller@[0-9a-f]+$":
++    type: object
++    properties:
++      compatible:
++        enum:
++          - qcom,sc8280xp-dp
++          - qcom,sc8280xp-edp
++
+ unevaluatedProperties: false
+ 
+ examples:
+-- 
+cgit 
+

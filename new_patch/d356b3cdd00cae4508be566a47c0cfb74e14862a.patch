@@ -1,0 +1,35 @@
+From d356b3cdd00cae4508be566a47c0cfb74e14862a Mon Sep 17 00:00:00 2001
+From: Sandeep Dhavale <dhavale@google.com>
+Date: Sat, 1 Apr 2023 06:05:08 +0000
+Subject: usb: gadget: f_fs: Fix ffs_epfile_read_iter to handle ITER_UBUF
+
+iov_iter for ffs_epfile_read_iter can be ITER_UBUF with io_uring.
+In that case dup_iter() does not have to allocate anything and it
+can return NULL. ffs_epfile_read_iter treats this as a failure and
+returns -ENOMEM. Fix it by checking if iter_is_ubuf().
+
+Fixes: 1e23db450cff ("io_uring: use iter_ubuf for single range imports")
+Signed-off-by: Sandeep Dhavale <dhavale@google.com>
+Acked-by: Jens Axboe <axboe@kernel.dk>
+Link: https://lore.kernel.org/r/20230401060509.3608259-2-dhavale@google.com
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+---
+ drivers/usb/gadget/function/f_fs.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/usb/gadget/function/f_fs.c b/drivers/usb/gadget/function/f_fs.c
+index ddfc537c7526b..56cdfb2e42113 100644
+--- a/drivers/usb/gadget/function/f_fs.c
++++ b/drivers/usb/gadget/function/f_fs.c
+@@ -1251,7 +1251,7 @@ static ssize_t ffs_epfile_read_iter(struct kiocb *kiocb, struct iov_iter *to)
+ 	p->kiocb = kiocb;
+ 	if (p->aio) {
+ 		p->to_free = dup_iter(&p->data, to, GFP_KERNEL);
+-		if (!p->to_free) {
++		if (!iter_is_ubuf(&p->data) && !p->to_free) {
+ 			kfree(p);
+ 			return -ENOMEM;
+ 		}
+-- 
+cgit 
+

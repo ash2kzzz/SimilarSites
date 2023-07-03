@@ -1,0 +1,54 @@
+From b550bc90bb8218da8c944f28b99cb372ad969749 Mon Sep 17 00:00:00 2001
+From: James Clark <james.clark@arm.com>
+Date: Tue, 18 Apr 2023 15:12:03 +0100
+Subject: perf cs-etm: Fix segfault in dso lookup
+
+map__dso() is called before thread__find_map() which always results in a
+null pointer dereference. Fix it by finding first, then checking if it
+exists.
+
+Fixes: 63df0e4bc368adbd ("perf map: Add accessor for dso")
+Signed-off-by: James Clark <james.clark@arm.com>
+Cc: Adrian Hunter <adrian.hunter@intel.com>
+Cc: Alexander Shishkin <alexander.shishkin@linux.intel.com>
+Cc: Ian Rogers <irogers@google.com>
+Cc: Ingo Molnar <mingo@redhat.com>
+Cc: Jiri Olsa <jolsa@kernel.org>
+Cc: John Garry <john.g.garry@oracle.com>
+Cc: Leo Yan <leo.yan@linaro.org>
+Cc: Mark Rutland <mark.rutland@arm.com>
+Cc: Mathieu Poirier <mathieu.poirier@linaro.org>
+Cc: Mike Leach <mike.leach@linaro.org>
+Cc: Namhyung Kim <namhyung@kernel.org>
+Cc: Peter Zijlstra <peterz@infradead.org>
+Cc: Suzuki Poulouse <suzuki.poulose@arm.com>
+Cc: Will Deacon <will@kernel.org>
+Cc: coresight@lists.linaro.org
+Cc: linux-arm-kernel@lists.infradead.org
+Link: https://lore.kernel.org/r/20230418141203.673465-1-james.clark@arm.com
+Signed-off-by: Arnaldo Carvalho de Melo <acme@redhat.com>
+---
+ tools/perf/util/cs-etm.c | 6 ++++--
+ 1 file changed, 4 insertions(+), 2 deletions(-)
+
+diff --git a/tools/perf/util/cs-etm.c b/tools/perf/util/cs-etm.c
+index 1038659687009..8dd81ddd9e4e7 100644
+--- a/tools/perf/util/cs-etm.c
++++ b/tools/perf/util/cs-etm.c
+@@ -885,9 +885,11 @@ static u32 cs_etm__mem_access(struct cs_etm_queue *etmq, u8 trace_chan_id,
+ 		thread = etmq->etm->unknown_thread;
+ 	}
+ 
+-	dso = map__dso(al.map);
++	if (!thread__find_map(thread, cpumode, address, &al))
++		return 0;
+ 
+-	if (!thread__find_map(thread, cpumode, address, &al) || !dso)
++	dso = map__dso(al.map);
++	if (!dso)
+ 		return 0;
+ 
+ 	if (dso->data.status == DSO_DATA_STATUS_ERROR &&
+-- 
+cgit 
+

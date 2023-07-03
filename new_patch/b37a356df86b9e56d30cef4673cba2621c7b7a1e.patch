@@ -1,0 +1,32 @@
+From b37a356df86b9e56d30cef4673cba2621c7b7a1e Mon Sep 17 00:00:00 2001
+From: Tomi Valkeinen <tomi.valkeinen@ideasonboard.com>
+Date: Mon, 22 May 2023 11:52:45 +0100
+Subject: media: v4l2-subdev: Fix missing kerneldoc for client_caps
+
+Add missing kernel doc for the new 'client_caps' field in struct
+v4l2_subdev_fh.
+
+Signed-off-by: Tomi Valkeinen <tomi.valkeinen@ideasonboard.com>
+Reviewed-by: Laurent Pinchart <laurent.pinchart@ideasonboard.com>
+Fixes: f57fa2959244 ("media: v4l2-subdev: Add new ioctl for client capabilities")
+Signed-off-by: Sakari Ailus <sakari.ailus@linux.intel.com>
+Signed-off-by: Mauro Carvalho Chehab <mchehab@kernel.org>
+---
+ include/media/v4l2-subdev.h | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/include/media/v4l2-subdev.h b/include/media/v4l2-subdev.h
+index cfd19e72d0fc4..b325df0d54d61 100644
+--- a/include/media/v4l2-subdev.h
++++ b/include/media/v4l2-subdev.h
+@@ -1119,6 +1119,7 @@ struct v4l2_subdev {
+  * @vfh: pointer to &struct v4l2_fh
+  * @state: pointer to &struct v4l2_subdev_state
+  * @owner: module pointer to the owner of this file handle
++ * @client_caps: bitmask of ``V4L2_SUBDEV_CLIENT_CAP_*``
+  */
+ struct v4l2_subdev_fh {
+ 	struct v4l2_fh vfh;
+-- 
+cgit 
+

@@ -1,0 +1,32 @@
+From 450bdf5bd6c6b78372620da2c32c5a58ab0f124e Mon Sep 17 00:00:00 2001
+From: Lorenzo Bianconi <lorenzo@kernel.org>
+Date: Sun, 12 Feb 2023 10:57:58 +0100
+Subject: hv_netvsc: add missing NETDEV_XDP_ACT_NDO_XMIT xdp-features flag
+
+Add missing ndo_xdp_xmit bit to xdp_features capability flag.
+
+Fixes: 66c0e13ad236 ("drivers: net: turn on XDP features")
+Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
+Link: https://lore.kernel.org/r/8e3747018f0fd0b5d6e6b9aefe8d9448ca3a3288.1676195726.git.lorenzo@kernel.org
+Signed-off-by: Jakub Kicinski <kuba@kernel.org>
+---
+ drivers/net/hyperv/netvsc_drv.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/net/hyperv/netvsc_drv.c b/drivers/net/hyperv/netvsc_drv.c
+index a9b139bbdb2cb..e34ccd47ae57a 100644
+--- a/drivers/net/hyperv/netvsc_drv.c
++++ b/drivers/net/hyperv/netvsc_drv.c
+@@ -2559,7 +2559,8 @@ static int netvsc_probe(struct hv_device *dev,
+ 
+ 	netdev_lockdep_set_classes(net);
+ 
+-	net->xdp_features = NETDEV_XDP_ACT_BASIC | NETDEV_XDP_ACT_REDIRECT;
++	net->xdp_features = NETDEV_XDP_ACT_BASIC | NETDEV_XDP_ACT_REDIRECT |
++			    NETDEV_XDP_ACT_NDO_XMIT;
+ 
+ 	/* MTU range: 68 - 1500 or 65521 */
+ 	net->min_mtu = NETVSC_MTU_MIN;
+-- 
+cgit 
+

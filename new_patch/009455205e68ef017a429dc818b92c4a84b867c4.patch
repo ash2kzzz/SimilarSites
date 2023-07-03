@@ -1,0 +1,47 @@
+From 009455205e68ef017a429dc818b92c4a84b867c4 Mon Sep 17 00:00:00 2001
+From: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+Date: Fri, 24 Mar 2023 10:08:14 +0100
+Subject: driver core: bus: move documentation for lock_key to proper location.
+
+In commit 37e98d9bedb5 ("driver core: bus: move lock_class_key into
+dynamic structure"), the lock_key variable moved out of struct bus_type
+and into struct subsys_private, yet the documentation for it did not
+move.  Fix that up and place the documentation comment in the correct
+location.
+
+Cc: "Rafael J. Wysocki" <rafael@kernel.org>
+Fixes: 37e98d9bedb5 ("driver core: bus: move lock_class_key into dynamic structure")
+Link: https://lore.kernel.org/r/20230324090814.386654-1-gregkh@linuxfoundation.org
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+---
+ drivers/base/base.h        | 1 +
+ include/linux/device/bus.h | 1 -
+ 2 files changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/base/base.h b/drivers/base/base.h
+index a2d3a1d0fa9bb..d3e081dc4b133 100644
+--- a/drivers/base/base.h
++++ b/drivers/base/base.h
+@@ -33,6 +33,7 @@
+  *              avoid namespace conflicts
+  * @class - pointer back to the struct class that this structure is associated
+  *          with.
++ * @lock_key:	Lock class key for use by the lock validator
+  *
+  * This structure is the one that is the actual kobject allowing struct
+  * bus_type/class to be statically allocated safely.  Nothing outside of the
+diff --git a/include/linux/device/bus.h b/include/linux/device/bus.h
+index 65a5e2c0f04dd..ae10c43227543 100644
+--- a/include/linux/device/bus.h
++++ b/include/linux/device/bus.h
+@@ -65,7 +65,6 @@ struct fwnode_handle;
+  * @iommu_ops:  IOMMU specific operations for this bus, used to attach IOMMU
+  *              driver implementations to a bus and allow the driver to do
+  *              bus-specific setup
+- * @lock_key:	Lock class key for use by the lock validator
+  * @need_parent_lock:	When probing or removing a device on this bus, the
+  *			device core should lock the device's parent.
+  *
+-- 
+cgit 
+

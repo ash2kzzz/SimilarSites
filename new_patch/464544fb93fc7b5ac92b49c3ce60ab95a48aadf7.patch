@@ -1,0 +1,57 @@
+From 464544fb93fc7b5ac92b49c3ce60ab95a48aadf7 Mon Sep 17 00:00:00 2001
+From: Ming Lei <ming.lei@redhat.com>
+Date: Wed, 18 Jan 2023 12:23:18 +0800
+Subject: block: ublk: fix doc build warning
+
+Fix the following warning:
+
+Documentation/block/ublk.rst:157: WARNING: Enumerated list ends without a blank line; unexpected unindent.
+Documentation/block/ublk.rst:171: WARNING: Enumerated list ends without a blank line; unexpected unindent.
+
+Fixes: 56f5160bc1b8 ("ublk_drv: add mechanism for supporting unprivileged ublk device")
+Reported-by: Stephen Rothwell <sfr@canb.auug.org.au>
+Signed-off-by: Ming Lei <ming.lei@redhat.com>
+Link: https://lore.kernel.org/r/20230118042318.127900-1-ming.lei@redhat.com
+Signed-off-by: Jens Axboe <axboe@kernel.dk>
+---
+ Documentation/block/ublk.rst | 6 ++++++
+ 1 file changed, 6 insertions(+)
+
+diff --git a/Documentation/block/ublk.rst b/Documentation/block/ublk.rst
+index 2916fcf3ab44a..1713b2890abb0 100644
+--- a/Documentation/block/ublk.rst
++++ b/Documentation/block/ublk.rst
+@@ -154,7 +154,9 @@ managing and controlling ublk devices with help of several control commands:
+   How to deal with userspace/kernel compatibility:
+ 
+   1) if kernel is capable of handling ``UBLK_F_UNPRIVILEGED_DEV``
++
+     If ublk server supports ``UBLK_F_UNPRIVILEGED_DEV``:
++
+     ublk server should send ``UBLK_CMD_GET_DEV_INFO2``, given anytime
+     unprivileged application needs to query devices the current user owns,
+     when the application has no idea if ``UBLK_F_UNPRIVILEGED_DEV`` is set
+@@ -162,16 +164,20 @@ managing and controlling ublk devices with help of several control commands:
+     retrieve it via ``UBLK_CMD_GET_DEV_INFO2``
+ 
+     If ublk server doesn't support ``UBLK_F_UNPRIVILEGED_DEV``:
++
+     ``UBLK_CMD_GET_DEV_INFO`` is always sent to kernel, and the feature of
+     UBLK_F_UNPRIVILEGED_DEV isn't available for user
+ 
+   2) if kernel isn't capable of handling ``UBLK_F_UNPRIVILEGED_DEV``
++
+     If ublk server supports ``UBLK_F_UNPRIVILEGED_DEV``:
++
+     ``UBLK_CMD_GET_DEV_INFO2`` is tried first, and will be failed, then
+     ``UBLK_CMD_GET_DEV_INFO`` needs to be retried given
+     ``UBLK_F_UNPRIVILEGED_DEV`` can't be set
+ 
+     If ublk server doesn't support ``UBLK_F_UNPRIVILEGED_DEV``:
++
+     ``UBLK_CMD_GET_DEV_INFO`` is always sent to kernel, and the feature of
+     ``UBLK_F_UNPRIVILEGED_DEV`` isn't available for user
+ 
+-- 
+cgit 
+

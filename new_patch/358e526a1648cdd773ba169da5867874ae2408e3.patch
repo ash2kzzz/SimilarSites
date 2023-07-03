@@ -1,0 +1,63 @@
+From 358e526a1648cdd773ba169da5867874ae2408e3 Mon Sep 17 00:00:00 2001
+From: Michael Ellerman <mpe@ellerman.id.au>
+Date: Fri, 19 May 2023 21:38:06 +1000
+Subject: powerpc/mm: Reinstate ARCH_FORCE_MAX_ORDER ranges
+
+Commit 1e8fed873e74 ("powerpc: drop ranges for definition of
+ARCH_FORCE_MAX_ORDER") removed the limits on the possible values for
+ARCH_FORCE_MAX_ORDER.
+
+However removing the ranges entirely causes some common work flows to
+break. For example building a defconfig (which uses 64K pages), changing
+the page size to 4K, and rebuilding used to work, because
+ARCH_FORCE_MAX_ORDER would be clamped to 12 by the ranges.
+
+With the ranges removed it creates a kernel that builds but crashes at
+boot:
+  kernel BUG at mm/huge_memory.c:470!
+  Oops: Exception in kernel mode, sig: 5 [#1]
+  ...
+  NIP hugepage_init+0x9c/0x278
+  LR  do_one_initcall+0x80/0x320
+  Call Trace:
+    do_one_initcall+0x80/0x320
+    kernel_init_freeable+0x304/0x3ac
+    kernel_init+0x30/0x1a0
+    ret_from_kernel_user_thread+0x14/0x1c
+
+The reasoning for removing the ranges was that some of the values were
+too large. So take that into account and limit the maximums to 10 which
+is the default max, except for the 4K case which uses 12.
+
+Fixes: 1e8fed873e74 ("powerpc: drop ranges for definition of ARCH_FORCE_MAX_ORDER")
+Signed-off-by: Michael Ellerman <mpe@ellerman.id.au>
+Link: https://msgid.link/20230519113806.370635-1-mpe@ellerman.id.au
+---
+ arch/powerpc/Kconfig | 6 ++++++
+ 1 file changed, 6 insertions(+)
+
+diff --git a/arch/powerpc/Kconfig b/arch/powerpc/Kconfig
+index 539d1f03ff42a..bff5820b7cda1 100644
+--- a/arch/powerpc/Kconfig
++++ b/arch/powerpc/Kconfig
+@@ -906,11 +906,17 @@ config DATA_SHIFT
+ 
+ config ARCH_FORCE_MAX_ORDER
+ 	int "Order of maximal physically contiguous allocations"
++	range 7 8 if PPC64 && PPC_64K_PAGES
+ 	default "8" if PPC64 && PPC_64K_PAGES
++	range 12 12 if PPC64 && !PPC_64K_PAGES
+ 	default "12" if PPC64 && !PPC_64K_PAGES
++	range 8 10 if PPC32 && PPC_16K_PAGES
+ 	default "8" if PPC32 && PPC_16K_PAGES
++	range 6 10 if PPC32 && PPC_64K_PAGES
+ 	default "6" if PPC32 && PPC_64K_PAGES
++	range 4 10 if PPC32 && PPC_256K_PAGES
+ 	default "4" if PPC32 && PPC_256K_PAGES
++	range 10 10
+ 	default "10"
+ 	help
+ 	  The kernel page allocator limits the size of maximal physically
+-- 
+cgit 
+

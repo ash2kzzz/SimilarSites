@@ -1,0 +1,38 @@
+From 34224133458ca48caf2b57df335e870f1abb7af5 Mon Sep 17 00:00:00 2001
+From: Andrzej Kacprowski <andrzej.kacprowski@linux.intel.com>
+Date: Thu, 23 Mar 2023 13:55:04 +0100
+Subject: accel/ivpu: Fix IPC buffer header status field value
+
+IPC messages transmitted to the device must be marked as
+allocated - status field must be set to 1. The VPU driver
+has IVPU_IPC_HDR_ALLOCATED incorrectly defined. Future VPU
+firmware versions will reject all IPC messages with invalid
+status and will not work with a VPU driver that is missing
+this fix.
+
+Fixes: 5d7422cfb498 ("accel/ivpu: Add IPC driver and JSM messages")
+Signed-off-by: Andrzej Kacprowski <andrzej.kacprowski@linux.intel.com>
+Signed-off-by: Stanislaw Gruszka <stanislaw.gruszka@linux.intel.com>
+Reviewed-by: Jeffrey Hugo <quic_jhugo@quicinc.com>
+Signed-off-by: Jacek Lawrynowicz <jacek.lawrynowicz@linux.intel.com>
+Link: https://patchwork.freedesktop.org/patch/msgid/20230323125504.2586442-9-stanislaw.gruszka@linux.intel.com
+---
+ drivers/accel/ivpu/ivpu_ipc.h | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/accel/ivpu/ivpu_ipc.h b/drivers/accel/ivpu/ivpu_ipc.h
+index 9838202ecfadf..68f5b6668e00b 100644
+--- a/drivers/accel/ivpu/ivpu_ipc.h
++++ b/drivers/accel/ivpu/ivpu_ipc.h
+@@ -21,7 +21,7 @@ struct ivpu_bo;
+ #define IVPU_IPC_ALIGNMENT	   64
+ 
+ #define IVPU_IPC_HDR_FREE	   0
+-#define IVPU_IPC_HDR_ALLOCATED	   0
++#define IVPU_IPC_HDR_ALLOCATED	   1
+ 
+ /**
+  * struct ivpu_ipc_hdr - The IPC message header structure, exchanged
+-- 
+cgit 
+

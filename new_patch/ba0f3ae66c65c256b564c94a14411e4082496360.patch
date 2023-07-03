@@ -1,0 +1,62 @@
+From ba0f3ae66c65c256b564c94a14411e4082496360 Mon Sep 17 00:00:00 2001
+From: Bagas Sanjaya <bagasdotme@gmail.com>
+Date: Sat, 21 Jan 2023 11:00:13 +0700
+Subject: Documentation: coresight: Extend title heading syntax in TPDM and
+ TPDA documentation
+
+kernel test robot reported htmldocs warnings:
+
+Documentation/trace/coresight/coresight-tpda.rst:3: WARNING: Title overline too short.
+Documentation/trace/coresight/coresight-tpdm.rst:3: WARNING: Title overline too short.
+
+Extend title heading syntax (overline and underline) to match title text to
+fix these warnings.
+
+While at it, trim unneeded period in the title text.
+
+Link: https://lore.kernel.org/linux-doc/202301210955.zYxDrLgv-lkp@intel.com/
+Fixes: 758d638667d474 ("Documentation: trace: Add documentation for TPDM and TPDA")
+Reported-by: kernel test robot <lkp@intel.com>
+Signed-off-by: Bagas Sanjaya <bagasdotme@gmail.com>
+Signed-off-by: Suzuki K Poulose <suzuki.poulose@arm.com>
+Link: https://lore.kernel.org/r/20230121040015.28139-2-bagasdotme@gmail.com
+---
+ Documentation/trace/coresight/coresight-tpda.rst | 6 +++---
+ Documentation/trace/coresight/coresight-tpdm.rst | 6 +++---
+ 2 files changed, 6 insertions(+), 6 deletions(-)
+
+diff --git a/Documentation/trace/coresight/coresight-tpda.rst b/Documentation/trace/coresight/coresight-tpda.rst
+index 350dad4eda472..a37f387ceaea1 100644
+--- a/Documentation/trace/coresight/coresight-tpda.rst
++++ b/Documentation/trace/coresight/coresight-tpda.rst
+@@ -1,8 +1,8 @@
+ .. SPDX-License-Identifier: GPL-2.0
+ 
+-==============================
+-The trace performance monitoring and diagnostics aggregator(TPDA).
+-==============================
++=================================================================
++The trace performance monitoring and diagnostics aggregator(TPDA)
++=================================================================
+ 
+     :Author:   Jinlong Mao <quic_jinlmao@quicinc.com>
+     :Date:     January 2023
+diff --git a/Documentation/trace/coresight/coresight-tpdm.rst b/Documentation/trace/coresight/coresight-tpdm.rst
+index 4ba40b0db550d..6c6e95109072f 100644
+--- a/Documentation/trace/coresight/coresight-tpdm.rst
++++ b/Documentation/trace/coresight/coresight-tpdm.rst
+@@ -1,8 +1,8 @@
+ .. SPDX-License-Identifier: GPL-2.0
+ 
+-==============================
+-Trace performance monitoring and diagnostics monitor(TPDM).
+-==============================
++==========================================================
++Trace performance monitoring and diagnostics monitor(TPDM)
++==========================================================
+ 
+     :Author:   Jinlong Mao <quic_jinlmao@quicinc.com>
+     :Date:     January 2023
+-- 
+cgit 
+

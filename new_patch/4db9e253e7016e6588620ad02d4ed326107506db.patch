@@ -1,0 +1,58 @@
+From 4db9e253e7016e6588620ad02d4ed326107506db Mon Sep 17 00:00:00 2001
+From: Alexandre Ghiti <alexghiti@rivosinc.com>
+Date: Fri, 28 Apr 2023 14:09:32 +0200
+Subject: riscv: Move .rela.dyn to the init sections
+
+The recent introduction of relocatable kernels prepared the move of
+.rela.dyn to the init section, but actually forgot to do so, so do it
+here.
+
+Before this patch: "Freeing unused kernel image (initmem) memory: 2592K"
+After this patch:  "Freeing unused kernel image (initmem) memory: 6288K"
+
+The difference corresponds to the size of the .rela.dyn section:
+"[42] .rela.dyn         RELA             ffffffff8197e798  0127f798
+       000000000039c660  0000000000000018   A      47     0     8"
+
+Fixes: 559d1e45a16d ("riscv: Use --emit-relocs in order to move .rela.dyn in init")
+Signed-off-by: Alexandre Ghiti <alexghiti@rivosinc.com>
+Link: https://lore.kernel.org/r/20230428120932.22735-1-alexghiti@rivosinc.com
+Cc: stable@vger.kernel.org
+Signed-off-by: Palmer Dabbelt <palmer@rivosinc.com>
+---
+ arch/riscv/kernel/vmlinux.lds.S | 12 ++++++------
+ 1 file changed, 6 insertions(+), 6 deletions(-)
+
+diff --git a/arch/riscv/kernel/vmlinux.lds.S b/arch/riscv/kernel/vmlinux.lds.S
+index 305877d85e96b..f03b5697f8e05 100644
+--- a/arch/riscv/kernel/vmlinux.lds.S
++++ b/arch/riscv/kernel/vmlinux.lds.S
+@@ -104,6 +104,12 @@ SECTIONS
+ 		*(.rel.dyn*)
+ 	}
+ 
++	.rela.dyn : ALIGN(8) {
++		__rela_dyn_start = .;
++		*(.rela .rela*)
++		__rela_dyn_end = .;
++	}
++
+ 	__init_data_end = .;
+ 
+ 	. = ALIGN(8);
+@@ -130,12 +136,6 @@ SECTIONS
+ 		*(.sdata*)
+ 	}
+ 
+-	.rela.dyn : ALIGN(8) {
+-		__rela_dyn_start = .;
+-		*(.rela .rela*)
+-		__rela_dyn_end = .;
+-	}
+-
+ 	.got : { *(.got*) }
+ 
+ #ifdef CONFIG_RELOCATABLE
+-- 
+cgit 
+

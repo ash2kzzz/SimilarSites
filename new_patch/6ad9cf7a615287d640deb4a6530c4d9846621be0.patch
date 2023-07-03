@@ -1,0 +1,37 @@
+From 6ad9cf7a615287d640deb4a6530c4d9846621be0 Mon Sep 17 00:00:00 2001
+From: Lukas Bulwahn <lukas.bulwahn@gmail.com>
+Date: Mon, 24 Apr 2023 13:40:43 +0200
+Subject: MAINTAINERS: adjust file entry for ARM/APPLE MACHINE SUPPORT
+
+Commit de614ac31955 ("MAINTAINERS: Add entries for Apple PWM driver") adds
+an entry for Documentation/devicetree/bindings/pwm/pwm-apple.yaml, but
+commit 87a3a3929c71 ("dt-bindings: pwm: Add Apple PWM controller") from
+the same patch series actually adds the devicetree binding file with the
+name apple,s5l-fpwm.yaml.
+
+Adjust the file entry to the file actually added.
+
+Fixes: de614ac31955 ("MAINTAINERS: Add entries for Apple PWM driver")
+Signed-off-by: Lukas Bulwahn <lukas.bulwahn@gmail.com>
+Link: https://lore.kernel.org/r/20230424114043.22475-1-lukas.bulwahn@gmail.com
+Signed-off-by: Krzysztof Kozlowski <krzysztof.kozlowski@linaro.org>
+---
+ MAINTAINERS | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/MAINTAINERS b/MAINTAINERS
+index 7e0b87d5aa2e5..47fa34c4cbb2f 100644
+--- a/MAINTAINERS
++++ b/MAINTAINERS
+@@ -1961,7 +1961,7 @@ F:	Documentation/devicetree/bindings/nvmem/apple,efuses.yaml
+ F:	Documentation/devicetree/bindings/pci/apple,pcie.yaml
+ F:	Documentation/devicetree/bindings/pinctrl/apple,pinctrl.yaml
+ F:	Documentation/devicetree/bindings/power/apple*
+-F:	Documentation/devicetree/bindings/pwm/pwm-apple.yaml
++F:	Documentation/devicetree/bindings/pwm/apple,s5l-fpwm.yaml
+ F:	Documentation/devicetree/bindings/watchdog/apple,wdt.yaml
+ F:	arch/arm64/boot/dts/apple/
+ F:	drivers/bluetooth/hci_bcm4377.c
+-- 
+cgit 
+

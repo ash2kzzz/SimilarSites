@@ -1,0 +1,38 @@
+From d57fd4926ab81ad5749c6950047ea40863a52e18 Mon Sep 17 00:00:00 2001
+From: Arnaldo Carvalho de Melo <acme@redhat.com>
+Date: Mon, 17 Apr 2023 16:19:38 -0300
+Subject: perf cpumap: Remove initializations done in perf_cpu_map__alloc()
+
+When extracting this patch from Ian's original patch I forgot to remove
+the setting of ->nr and ->refcnt, no need to do those initializations
+again as those are done in perf_cpu_map__alloc() already, duh.
+
+Cc: Ian Rogers <irogers@google.com>
+Fixes: 1f94479edb4decdc ("libperf: Make perf_cpu_map__alloc() available as an internal function for tools/perf to use")
+Signed-off-by: Arnaldo Carvalho de Melo <acme@redhat.com>
+---
+ tools/perf/util/cpumap.c | 7 +------
+ 1 file changed, 1 insertion(+), 6 deletions(-)
+
+diff --git a/tools/perf/util/cpumap.c b/tools/perf/util/cpumap.c
+index 072831f0cad46..7008705d745c0 100644
+--- a/tools/perf/util/cpumap.c
++++ b/tools/perf/util/cpumap.c
+@@ -163,13 +163,8 @@ struct perf_cpu_map *perf_cpu_map__empty_new(int nr)
+ 	struct perf_cpu_map *cpus = perf_cpu_map__alloc(nr);
+ 
+ 	if (cpus != NULL) {
+-		int i;
+-
+-		cpus->nr = nr;
+-		for (i = 0; i < nr; i++)
++		for (int i = 0; i < nr; i++)
+ 			cpus->map[i].cpu = -1;
+-
+-		refcount_set(&cpus->refcnt, 1);
+ 	}
+ 
+ 	return cpus;
+-- 
+cgit 
+

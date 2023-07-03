@@ -1,0 +1,62 @@
+From 3c249fe4de1608a9af56563606d4f6eb3a64a47f Mon Sep 17 00:00:00 2001
+From: Lorenzo Bianconi <lorenzo@kernel.org>
+Date: Thu, 9 Mar 2023 13:25:28 +0100
+Subject: net: thunderx: take into account xdp_features setting tx/rx queues
+
+thunderx nic allows xdp just if enough hw queues are available for XDP.
+Take into account queues configuration setting xdp_features.
+
+Fixes: 66c0e13ad236 ("drivers: net: turn on XDP features")
+Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
+Signed-off-by: Jakub Kicinski <kuba@kernel.org>
+---
+ drivers/net/ethernet/cavium/thunder/nicvf_ethtool.c | 17 +++++++++++------
+ drivers/net/ethernet/cavium/thunder/nicvf_main.c    |  4 +++-
+ 2 files changed, 14 insertions(+), 7 deletions(-)
+
+diff --git a/drivers/net/ethernet/cavium/thunder/nicvf_ethtool.c b/drivers/net/ethernet/cavium/thunder/nicvf_ethtool.c
+index e5c71f9078523..d8d71bf97983b 100644
+--- a/drivers/net/ethernet/cavium/thunder/nicvf_ethtool.c
++++ b/drivers/net/ethernet/cavium/thunder/nicvf_ethtool.c
+@@ -735,12 +735,17 @@ static int nicvf_set_channels(struct net_device *dev,
+ 	if (channel->tx_count > nic->max_queues)
+ 		return -EINVAL;
+ 
+-	if (nic->xdp_prog &&
+-	    ((channel->tx_count + channel->rx_count) > nic->max_queues)) {
+-		netdev_err(nic->netdev,
+-			   "XDP mode, RXQs + TXQs > Max %d\n",
+-			   nic->max_queues);
+-		return -EINVAL;
++	if (channel->tx_count + channel->rx_count > nic->max_queues) {
++		if (nic->xdp_prog) {
++			netdev_err(nic->netdev,
++				   "XDP mode, RXQs + TXQs > Max %d\n",
++				   nic->max_queues);
++			return -EINVAL;
++		}
++
++		xdp_clear_features_flag(nic->netdev);
++	} else if (!pass1_silicon(nic->pdev)) {
++		xdp_set_features_flag(dev, NETDEV_XDP_ACT_BASIC);
+ 	}
+ 
+ 	if (if_up)
+diff --git a/drivers/net/ethernet/cavium/thunder/nicvf_main.c b/drivers/net/ethernet/cavium/thunder/nicvf_main.c
+index 8b25313c7f6b8..eff350e0bc2a8 100644
+--- a/drivers/net/ethernet/cavium/thunder/nicvf_main.c
++++ b/drivers/net/ethernet/cavium/thunder/nicvf_main.c
+@@ -2218,7 +2218,9 @@ static int nicvf_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
+ 	netdev->netdev_ops = &nicvf_netdev_ops;
+ 	netdev->watchdog_timeo = NICVF_TX_TIMEOUT;
+ 
+-	netdev->xdp_features = NETDEV_XDP_ACT_BASIC;
++	if (!pass1_silicon(nic->pdev) &&
++	    nic->rx_queues + nic->tx_queues <= nic->max_queues)
++		netdev->xdp_features = NETDEV_XDP_ACT_BASIC;
+ 
+ 	/* MTU range: 64 - 9200 */
+ 	netdev->min_mtu = NIC_HW_MIN_FRS;
+-- 
+cgit 
+

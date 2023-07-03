@@ -1,0 +1,48 @@
+From 037d05af382e2915f0a9d028019152b4e2a23ec3 Mon Sep 17 00:00:00 2001
+From: Vinod Koul <vkoul@kernel.org>
+Date: Mon, 13 Feb 2023 10:39:26 +0530
+Subject: phy: qcom: snps-eusb2: Add missing headers
+
+The driver was missing to include couple of headers explictly which
+causes build to fail on other archs
+
+drivers/phy/qualcomm/phy-qcom-snps-eusb2.c: In function 'qcom_snps_eusb2_hsphy_write_mask':
+drivers/phy/qualcomm/phy-qcom-snps-eusb2.c:147:15: error: implicit declaration of function 'readl_relaxed' [-Werror=implicit-function-declaration]
+  147 |         reg = readl_relaxed(base + offset);
+      |               ^~~~~~~~~~~~~
+drivers/phy/qualcomm/phy-qcom-snps-eusb2.c:150:9: error: implicit declaration of function 'writel_relaxed' [-Werror=implicit-function-declaration]
+  150 |         writel_relaxed(reg, base + offset);
+      |         ^~~~~~~~~~~~~~
+drivers/phy/qualcomm/phy-qcom-snps-eusb2.c: In function 'qcom_eusb2_default_parameters':
+drivers/phy/qualcomm/phy-qcom-snps-eusb2.c:161:42: error: implicit declaration of function 'FIELD_PREP' [-Werror=implicit-function-declaration]
+  161 |                                          FIELD_PREP(PHY_CFG_TX_PREEMP_TUNE_MASK, 0));
+      |                                          ^~~~~~~~~~
+
+Fix this by adding bitfield.h and iopoll.h explictly
+
+Fixes: 80090810f5d3 ("phy: qcom: Add QCOM SNPS eUSB2 driver")
+Reported-by: Stephen Rothwell <sfr@canb.auug.org.au>
+Reported-by: kernel test robot <lkp@intel.com>
+Signed-off-by: Vinod Koul <vkoul@kernel.org>
+---
+ drivers/phy/qualcomm/phy-qcom-snps-eusb2.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/drivers/phy/qualcomm/phy-qcom-snps-eusb2.c b/drivers/phy/qualcomm/phy-qcom-snps-eusb2.c
+index 40a421cf3dd96..64e835b7ef538 100644
+--- a/drivers/phy/qualcomm/phy-qcom-snps-eusb2.c
++++ b/drivers/phy/qualcomm/phy-qcom-snps-eusb2.c
+@@ -3,8 +3,10 @@
+  * Copyright (c) 2023, Linaro Limited
+  */
+ 
++#include <linux/bitfield.h>
+ #include <linux/clk.h>
+ #include <linux/delay.h>
++#include <linux/iopoll.h>
+ #include <linux/phy/phy.h>
+ #include <linux/platform_device.h>
+ #include <linux/regulator/consumer.h>
+-- 
+cgit 
+

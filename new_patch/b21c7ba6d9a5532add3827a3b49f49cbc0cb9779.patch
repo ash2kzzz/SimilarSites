@@ -1,0 +1,35 @@
+From b21c7ba6d9a5532add3827a3b49f49cbc0cb9779 Mon Sep 17 00:00:00 2001
+From: Chuck Lever <chuck.lever@oracle.com>
+Date: Fri, 19 May 2023 13:12:50 -0400
+Subject: net/handshake: Squelch allocation warning during Kunit test
+
+The "handshake_req_alloc excessive privsize" kunit test is intended
+to check what happens when the maximum privsize is exceeded. The
+WARN_ON_ONCE_GFP at mm/page_alloc.c:4744 can be disabled safely for
+this test.
+
+Reported-by: Linux Kernel Functional Testing <lkft@linaro.org>
+Fixes: 88232ec1ec5e ("net/handshake: Add Kunit tests for the handshake consumer API")
+Signed-off-by: Chuck Lever <chuck.lever@oracle.com>
+Link: https://lore.kernel.org/r/168451636052.47152.9600443326570457947.stgit@oracle-102.nfsv4bat.org
+Signed-off-by: Jakub Kicinski <kuba@kernel.org>
+---
+ net/handshake/handshake-test.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/net/handshake/handshake-test.c b/net/handshake/handshake-test.c
+index e6adc5dec11a7..6193e46ee6d93 100644
+--- a/net/handshake/handshake-test.c
++++ b/net/handshake/handshake-test.c
+@@ -102,7 +102,7 @@ struct handshake_req_alloc_test_param handshake_req_alloc_params[] = {
+ 	{
+ 		.desc			= "handshake_req_alloc excessive privsize",
+ 		.proto			= &handshake_req_alloc_proto_6,
+-		.gfp			= GFP_KERNEL,
++		.gfp			= GFP_KERNEL | __GFP_NOWARN,
+ 		.expect_success		= false,
+ 	},
+ 	{
+-- 
+cgit 
+

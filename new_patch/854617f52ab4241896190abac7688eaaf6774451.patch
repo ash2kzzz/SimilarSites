@@ -1,0 +1,40 @@
+From 854617f52ab4241896190abac7688eaaf6774451 Mon Sep 17 00:00:00 2001
+From: Siddharth Vadapalli <s-vadapalli@ti.com>
+Date: Wed, 18 Jan 2023 16:51:36 +0530
+Subject: net: ethernet: ti: am65-cpsw: Handle -EPROBE_DEFER for Serdes PHY
+
+In the am65_cpsw_init_serdes_phy() function, the error handling for the
+call to the devm_of_phy_get() function misses the case where the return
+value of devm_of_phy_get() is ERR_PTR(-EPROBE_DEFER). Proceeding without
+handling this case will result in a crash when the "phy" pointer with
+this value is dereferenced by phy_init() in am65_cpsw_enable_phy().
+
+Fix this by adding appropriate error handling code.
+
+Reported-by: Geert Uytterhoeven <geert@linux-m68k.org>
+Fixes: dab2b265dd23 ("net: ethernet: ti: am65-cpsw: Add support for SERDES configuration")
+Suggested-by: Geert Uytterhoeven <geert@linux-m68k.org>
+Signed-off-by: Siddharth Vadapalli <s-vadapalli@ti.com>
+Reviewed-by: Roger Quadros <rogerq@kernel.org>
+Link: https://lore.kernel.org/r/20230118112136.213061-1-s-vadapalli@ti.com
+Signed-off-by: Jakub Kicinski <kuba@kernel.org>
+---
+ drivers/net/ethernet/ti/am65-cpsw-nuss.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/drivers/net/ethernet/ti/am65-cpsw-nuss.c b/drivers/net/ethernet/ti/am65-cpsw-nuss.c
+index 5cac982841845..c696da89962f1 100644
+--- a/drivers/net/ethernet/ti/am65-cpsw-nuss.c
++++ b/drivers/net/ethernet/ti/am65-cpsw-nuss.c
+@@ -1463,6 +1463,8 @@ static int am65_cpsw_init_serdes_phy(struct device *dev, struct device_node *por
+ 	phy = devm_of_phy_get(dev, port_np, name);
+ 	if (PTR_ERR(phy) == -ENODEV)
+ 		return 0;
++	if (IS_ERR(phy))
++		return PTR_ERR(phy);
+ 
+ 	/* Serdes PHY exists. Store it. */
+ 	port->slave.serdes_phy = phy;
+-- 
+cgit 
+

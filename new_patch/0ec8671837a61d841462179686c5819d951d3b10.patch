@@ -1,0 +1,69 @@
+From 0ec8671837a61d841462179686c5819d951d3b10 Mon Sep 17 00:00:00 2001
+From: Jacek Lawrynowicz <jacek.lawrynowicz@linux.intel.com>
+Date: Fri, 31 Mar 2023 13:36:03 +0200
+Subject: accel/ivpu: Fix S3 system suspend when not idle
+
+Wait for VPU to be idle in ivpu_pm_suspend_cb() before powering off
+the device, so jobs are not lost and TDRs are not triggered after
+resume.
+
+Fixes: 852be13f3bd3 ("accel/ivpu: Add PM support")
+Signed-off-by: Stanislaw Gruszka <stanislaw.gruszka@linux.intel.com>
+Reviewed-by: Jeffrey Hugo <quic_jhugo@quicinc.com>
+Signed-off-by: Jacek Lawrynowicz <jacek.lawrynowicz@linux.intel.com>
+Link: https://patchwork.freedesktop.org/patch/msgid/20230331113603.2802515-3-stanislaw.gruszka@linux.intel.com
+---
+ drivers/accel/ivpu/ivpu_pm.c | 26 +++++++++++---------------
+ 1 file changed, 11 insertions(+), 15 deletions(-)
+
+diff --git a/drivers/accel/ivpu/ivpu_pm.c b/drivers/accel/ivpu/ivpu_pm.c
+index 7df72fa8100f9..bde42d6383da6 100644
+--- a/drivers/accel/ivpu/ivpu_pm.c
++++ b/drivers/accel/ivpu/ivpu_pm.c
+@@ -140,32 +140,28 @@ int ivpu_pm_suspend_cb(struct device *dev)
+ {
+ 	struct drm_device *drm = dev_get_drvdata(dev);
+ 	struct ivpu_device *vdev = to_ivpu_device(drm);
+-	int ret;
++	unsigned long timeout;
+ 
+ 	ivpu_dbg(vdev, PM, "Suspend..\n");
+ 
+-	ret = ivpu_suspend(vdev);
+-	if (ret && vdev->pm->suspend_reschedule_counter) {
+-		ivpu_dbg(vdev, PM, "Failed to enter idle, rescheduling suspend, retries left %d\n",
+-			 vdev->pm->suspend_reschedule_counter);
+-		pm_schedule_suspend(dev, vdev->timeout.reschedule_suspend);
+-		vdev->pm->suspend_reschedule_counter--;
+-		return -EBUSY;
+-	} else if (!vdev->pm->suspend_reschedule_counter) {
+-		ivpu_warn(vdev, "Failed to enter idle, force suspend\n");
+-		ivpu_pm_prepare_cold_boot(vdev);
+-	} else {
+-		ivpu_pm_prepare_warm_boot(vdev);
++	timeout = jiffies + msecs_to_jiffies(vdev->timeout.tdr);
++	while (!ivpu_hw_is_idle(vdev)) {
++		cond_resched();
++		if (time_after_eq(jiffies, timeout)) {
++			ivpu_err(vdev, "Failed to enter idle on system suspend\n");
++			return -EBUSY;
++		}
+ 	}
+ 
+-	vdev->pm->suspend_reschedule_counter = PM_RESCHEDULE_LIMIT;
++	ivpu_suspend(vdev);
++	ivpu_pm_prepare_warm_boot(vdev);
+ 
+ 	pci_save_state(to_pci_dev(dev));
+ 	pci_set_power_state(to_pci_dev(dev), PCI_D3hot);
+ 
+ 	ivpu_dbg(vdev, PM, "Suspend done.\n");
+ 
+-	return ret;
++	return 0;
+ }
+ 
+ int ivpu_pm_resume_cb(struct device *dev)
+-- 
+cgit 
+

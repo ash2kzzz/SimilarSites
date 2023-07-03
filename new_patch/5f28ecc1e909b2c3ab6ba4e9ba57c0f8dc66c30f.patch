@@ -1,0 +1,36 @@
+From 5f28ecc1e909b2c3ab6ba4e9ba57c0f8dc66c30f Mon Sep 17 00:00:00 2001
+From: Jon Hunter <jonathanh@nvidia.com>
+Date: Mon, 10 Oct 2022 16:03:11 +0100
+Subject: thermal/drivers/tegra: Fix crash when getting critical temp
+
+Commit 13bea86623be ("thermal/of: Remove of_thermal_get_crit_temp()")
+removed the function of_thermal_get_crit_temp() and this is causing a
+NULL pointer deference crash when attempting to call the 'get_crit_temp'
+function pointer because this function pointer is no longer initialised.
+Fix this by replacing the call to the 'get_crit_temp' function pointer
+with a call to the function thermal_zone_get_crit_temp() instead.
+
+Fixes: 13bea86623be ("thermal/of: Remove of_thermal_get_crit_temp()")
+Signed-off-by: Jon Hunter <jonathanh@nvidia.com>
+Link: https://lore.kernel.org/r/20221010150311.40384-1-jonathanh@nvidia.com
+Signed-off-by: Daniel Lezcano <daniel.lezcano@linaro.org>
+---
+ drivers/thermal/tegra/soctherm.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/thermal/tegra/soctherm.c b/drivers/thermal/tegra/soctherm.c
+index d2e454902689e..4203e74e2f797 100644
+--- a/drivers/thermal/tegra/soctherm.c
++++ b/drivers/thermal/tegra/soctherm.c
+@@ -742,7 +742,7 @@ static int tegra_soctherm_set_hwtrips(struct device *dev,
+ 	/* Get thermtrips. If missing, try to get critical trips. */
+ 	temperature = tsensor_group_thermtrip_get(ts, sg->id);
+ 	if (min_low_temp == temperature)
+-		if (tz->ops->get_crit_temp(tz, &temperature))
++		if (thermal_zone_get_crit_temp(tz, &temperature))
+ 			temperature = max_high_temp;
+ 
+ 	ret = thermtrip_program(dev, sg, temperature);
+-- 
+cgit 
+

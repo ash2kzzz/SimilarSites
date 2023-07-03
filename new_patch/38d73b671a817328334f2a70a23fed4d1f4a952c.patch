@@ -1,0 +1,47 @@
+From 38d73b671a817328334f2a70a23fed4d1f4a952c Mon Sep 17 00:00:00 2001
+From: Sathvika Vasireddy <sv@linux.ibm.com>
+Date: Fri, 17 Feb 2023 10:02:26 +0530
+Subject: powerpc/64: Fix unannotated intra-function call warning
+
+objtool throws the following warning:
+  arch/powerpc/kernel/head_64.o: warning: objtool: .text+0x6128:
+  unannotated intra-function call
+
+Fix the warning by annotating start_initialization_book3s symbol with the
+SYM_FUNC_START_LOCAL and SYM_FUNC_END macros.
+
+Reported-by: Stephen Rothwell <sfr@canb.auug.org.au>
+Signed-off-by: Sathvika Vasireddy <sv@linux.ibm.com>
+Fixes: 58f24eea5278 ("powerpc/64s: Refactor initialisation after prom")
+Suggested-by: Josh Poimboeuf <jpoimboe@kernel.org>
+Tested-by: Stephen Rothwell <sfr@canb.auug.org.au>
+Signed-off-by: Michael Ellerman <mpe@ellerman.id.au>
+Link: https://lore.kernel.org/r/20230217043226.1020041-1-sv@linux.ibm.com
+---
+ arch/powerpc/kernel/head_64.S | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/arch/powerpc/kernel/head_64.S b/arch/powerpc/kernel/head_64.S
+index 3a7266fa8a186..1febb56ebaeb2 100644
+--- a/arch/powerpc/kernel/head_64.S
++++ b/arch/powerpc/kernel/head_64.S
+@@ -472,7 +472,7 @@ SYM_FUNC_START_LOCAL(__mmu_off)
+ 	b	.	/* prevent speculative execution */
+ SYM_FUNC_END(__mmu_off)
+ 
+-start_initialization_book3s:
++SYM_FUNC_START_LOCAL(start_initialization_book3s)
+ 	mflr	r25
+ 
+ 	/* Setup some critical 970 SPRs before switching MMU off */
+@@ -494,6 +494,7 @@ start_initialization_book3s:
+ 
+ 	mtlr	r25
+ 	blr
++SYM_FUNC_END(start_initialization_book3s)
+ #endif
+ 
+ /*
+-- 
+cgit 
+

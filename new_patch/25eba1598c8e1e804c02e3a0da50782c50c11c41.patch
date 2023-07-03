@@ -1,0 +1,50 @@
+From 25eba1598c8e1e804c02e3a0da50782c50c11c41 Mon Sep 17 00:00:00 2001
+From: Cristian Ciocaltea <cristian.ciocaltea@collabora.com>
+Date: Thu, 9 Feb 2023 21:37:35 +0200
+Subject: dt-bindings: Fix multi pattern support in DT_SCHEMA_FILES
+
+DT_SCHEMA_FILES used to allow specifying a space separated list of file
+paths, but the introduction of partial matches support broke this
+feature:
+
+$ make dtbs_check DT_SCHEMA_FILES="path/to/schema1.yaml path/to/schema2.yaml"
+[...]
+  LINT    Documentation/devicetree/bindings
+usage: yamllint [-h] [-] [-c CONFIG_FILE | -d CONFIG_DATA] [--list-files] [...]
+                [-v]
+                [FILE_OR_DIR ...]
+yamllint: error: one of the arguments FILE_OR_DIR - is required
+[...]
+
+Restore the lost functionality by preparing a grep filter that is able
+to handle multiple search patterns.
+
+Additionally, as suggested by Rob, use ':' instead of ' ' as the
+patterns separator char. Hence, the command above becomes:
+
+$ make dtbs_check DT_SCHEMA_FILES="path/to/schema1.yaml:path/to/schema2.yaml"
+
+Fixes: 309d955985ee ("dt-bindings: kbuild: Support partial matches with DT_SCHEMA_FILES")
+Signed-off-by: Cristian Ciocaltea <cristian.ciocaltea@collabora.com>
+Link: https://lore.kernel.org/r/20230209193735.795288-1-cristian.ciocaltea@collabora.com
+Signed-off-by: Rob Herring <robh@kernel.org>
+---
+ Documentation/devicetree/bindings/Makefile | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/Documentation/devicetree/bindings/Makefile b/Documentation/devicetree/bindings/Makefile
+index bf2d8a8ced77f..8b395893bd85b 100644
+--- a/Documentation/devicetree/bindings/Makefile
++++ b/Documentation/devicetree/bindings/Makefile
+@@ -28,7 +28,7 @@ $(obj)/%.example.dts: $(src)/%.yaml check_dtschema_version FORCE
+ find_all_cmd = find $(srctree)/$(src) \( -name '*.yaml' ! \
+ 		-name 'processed-schema*' \)
+ 
+-find_cmd = $(find_all_cmd) | grep -F "$(DT_SCHEMA_FILES)"
++find_cmd = $(find_all_cmd) | grep -F -e "$(subst :," -e ",$(DT_SCHEMA_FILES))"
+ CHK_DT_DOCS := $(shell $(find_cmd))
+ 
+ quiet_cmd_yamllint = LINT    $(src)
+-- 
+cgit 
+

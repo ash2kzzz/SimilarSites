@@ -1,0 +1,55 @@
+From 5657c116783545fb49cd7004994c187128552b12 Mon Sep 17 00:00:00 2001
+From: Waiman Long <longman@redhat.com>
+Date: Sun, 15 Jan 2023 14:31:22 -0500
+Subject: sched/core: Fix NULL pointer access fault in sched_setaffinity() with
+ non-SMP configs
+
+The kernel commit 9a5418bc48ba ("sched/core: Use kfree_rcu() in
+do_set_cpus_allowed()") introduces a bug for kernels built with non-SMP
+configs. Calling sched_setaffinity() on such a uniprocessor kernel will
+cause cpumask_copy() to be called with a NULL pointer leading to general
+protection fault. This is not really a problem in real use cases as
+there aren't that many uniprocessor kernel configs in use and calling
+sched_setaffinity() on such a uniprocessor system doesn't make sense.
+
+Fix this problem by making sure cpumask_copy() will not be called in
+such a case.
+
+Fixes: 9a5418bc48ba ("sched/core: Use kfree_rcu() in do_set_cpus_allowed()")
+Reported-by: kernel test robot <yujie.liu@intel.com>
+Signed-off-by: Waiman Long <longman@redhat.com>
+Signed-off-by: Ingo Molnar <mingo@kernel.org>
+Acked-by: Peter Zijlstra <peterz@infradead.org>
+Link: https://lore.kernel.org/r/20230115193122.563036-1-longman@redhat.com
+---
+ kernel/sched/core.c | 10 ++++++++--
+ 1 file changed, 8 insertions(+), 2 deletions(-)
+
+diff --git a/kernel/sched/core.c b/kernel/sched/core.c
+index bb1ee6d7bddea..e838feb6adc50 100644
+--- a/kernel/sched/core.c
++++ b/kernel/sched/core.c
+@@ -8290,12 +8290,18 @@ long sched_setaffinity(pid_t pid, const struct cpumask *in_mask)
+ 	if (retval)
+ 		goto out_put_task;
+ 
++	/*
++	 * With non-SMP configs, user_cpus_ptr/user_mask isn't used and
++	 * alloc_user_cpus_ptr() returns NULL.
++	 */
+ 	user_mask = alloc_user_cpus_ptr(NUMA_NO_NODE);
+-	if (IS_ENABLED(CONFIG_SMP) && !user_mask) {
++	if (user_mask) {
++		cpumask_copy(user_mask, in_mask);
++	} else if (IS_ENABLED(CONFIG_SMP)) {
+ 		retval = -ENOMEM;
+ 		goto out_put_task;
+ 	}
+-	cpumask_copy(user_mask, in_mask);
++
+ 	ac = (struct affinity_context){
+ 		.new_mask  = in_mask,
+ 		.user_mask = user_mask,
+-- 
+cgit 
+

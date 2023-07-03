@@ -1,0 +1,32 @@
+From 5a674611d116a5fc28c5429beea2b78c6e2933ef Mon Sep 17 00:00:00 2001
+From: Lorenz Bauer <lmb@isovalent.com>
+Date: Thu, 13 Apr 2023 10:47:40 +0100
+Subject: selftests/bpf: Fix use of uninitialized op_name in log tests
+
+One of the test assertions uses an uninitialized op_name, which leads
+to some headscratching if it fails. Use a string constant instead.
+
+Fixes: b1a7a480a112 ("selftests/bpf: Add fixed vs rotating verifier log tests")
+Signed-off-by: Lorenz Bauer <lmb@isovalent.com>
+Signed-off-by: Daniel Borkmann <daniel@iogearbox.net>
+Link: https://lore.kernel.org/bpf/20230413094740.18041-1-lmb@isovalent.com
+---
+ tools/testing/selftests/bpf/prog_tests/verifier_log.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/tools/testing/selftests/bpf/prog_tests/verifier_log.c b/tools/testing/selftests/bpf/prog_tests/verifier_log.c
+index 475092a78deb2..8337c6bc5b95b 100644
+--- a/tools/testing/selftests/bpf/prog_tests/verifier_log.c
++++ b/tools/testing/selftests/bpf/prog_tests/verifier_log.c
+@@ -110,7 +110,7 @@ static void verif_log_subtest(const char *name, bool expect_load_error, int log_
+ 		}
+ 		if (!ASSERT_EQ(strlen(logs.buf), 24, "log_fixed_25"))
+ 			goto cleanup;
+-		if (!ASSERT_STRNEQ(logs.buf, logs.reference, 24, op_name))
++		if (!ASSERT_STRNEQ(logs.buf, logs.reference, 24, "log_fixed_contents_25"))
+ 			goto cleanup;
+ 	}
+ 
+-- 
+cgit 
+

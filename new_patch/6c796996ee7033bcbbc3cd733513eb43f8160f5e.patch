@@ -1,0 +1,61 @@
+From 6c796996ee7033bcbbc3cd733513eb43f8160f5e Mon Sep 17 00:00:00 2001
+From: Thomas Gleixner <tglx@linutronix.de>
+Date: Mon, 16 Jan 2023 19:11:32 +0100
+Subject: x86/pci/xen: Fixup fallout from the PCI/MSI overhaul
+
+David reported that the recent PCI/MSI rework results in MSI descriptor
+leakage under XEN.
+
+This is caused by:
+
+  1) The missing MSI_FLAG_FREE_MSI_DESCS flag in the XEN MSI domain info,
+     which is required now that PCI/MSI delegates descriptor freeing to
+     the core MSI code.
+
+  2) Not disassociating the interrupts on teardown, by setting the
+     msi_desc::irq to 0. This was not required before because the teardown
+     was unconditional and did not check whether a MSI descriptor was still
+     connected to a Linux interrupt.
+
+On further inspection it came to light that the MSI_FLAG_DEV_SYSFS is
+missing in the XEN MSI domain info as well to restore the pre 6.2 status
+quo.
+
+Add the missing MSI flags and disassociate the MSI descriptor from the
+Linux interrupt in the XEN specific teardown function.
+
+Fixes: b2bdda205c0c ("PCI/MSI: Let the MSI core free descriptors")
+Fixes: 2f2940d16823 ("genirq/msi: Remove filter from msi_free_descs_free_range()")
+Fixes: ffd84485e6be ("PCI/MSI: Let the irq code handle sysfs groups")
+Reported-by: David Woodhouse <dwmw@amazon.co.uk>
+Signed-off-by: Thomas Gleixner <tglx@linutronix.de>
+Tested-by: David Woodhouse <dwmw@amazon.co.uk>
+Link: https://lore.kernel.org/r/871qnunycr.ffs@tglx
+---
+ arch/x86/pci/xen.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/arch/x86/pci/xen.c b/arch/x86/pci/xen.c
+index 790550479831f..8babce71915fe 100644
+--- a/arch/x86/pci/xen.c
++++ b/arch/x86/pci/xen.c
+@@ -392,6 +392,7 @@ static void xen_teardown_msi_irqs(struct pci_dev *dev)
+ 	msi_for_each_desc(msidesc, &dev->dev, MSI_DESC_ASSOCIATED) {
+ 		for (i = 0; i < msidesc->nvec_used; i++)
+ 			xen_destroy_irq(msidesc->irq + i);
++		msidesc->irq = 0;
+ 	}
+ }
+ 
+@@ -433,7 +434,7 @@ static struct msi_domain_ops xen_pci_msi_domain_ops = {
+ };
+ 
+ static struct msi_domain_info xen_pci_msi_domain_info = {
+-	.flags			= MSI_FLAG_PCI_MSIX,
++	.flags			= MSI_FLAG_PCI_MSIX | MSI_FLAG_FREE_MSI_DESCS | MSI_FLAG_DEV_SYSFS,
+ 	.ops			= &xen_pci_msi_domain_ops,
+ };
+ 
+-- 
+cgit 
+

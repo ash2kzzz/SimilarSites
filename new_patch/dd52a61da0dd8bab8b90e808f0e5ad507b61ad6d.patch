@@ -1,0 +1,37 @@
+From dd52a61da0dd8bab8b90e808f0e5ad507b61ad6d Mon Sep 17 00:00:00 2001
+From: SeongJae Park <sj@kernel.org>
+Date: Sat, 4 Mar 2023 19:39:49 +0000
+Subject: mm/damon/paddr: fix folio_nr_pages() after folio_put() in
+ damon_pa_mark_accessed_or_deactivate()
+
+damon_pa_mark_accessed_or_deactivate() is accessing a folio via
+folio_nr_pages() after folio_put() for the folio has invoked.  Fix it.
+
+Link: https://lkml.kernel.org/r/20230304193949.296391-3-sj@kernel.org
+Fixes: f70da5ee8fe1 ("mm/damon: convert damon_pa_mark_accessed_or_deactivate() to use folios")
+Signed-off-by: SeongJae Park <sj@kernel.org>
+Reviewed-by: Kefeng Wang <wangkefeng.wang@huawei.com>
+Reviewed-by: Matthew Wilcox (Oracle) <willy@infradead.org>
+Cc: Vishal Moola (Oracle) <vishal.moola@gmail.com>
+Signed-off-by: Andrew Morton <akpm@linux-foundation.org>
+---
+ mm/damon/paddr.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/mm/damon/paddr.c b/mm/damon/paddr.c
+index 49b267b033050..dd9c33fbe8052 100644
+--- a/mm/damon/paddr.c
++++ b/mm/damon/paddr.c
+@@ -280,8 +280,8 @@ static inline unsigned long damon_pa_mark_accessed_or_deactivate(
+ 			folio_mark_accessed(folio);
+ 		else
+ 			folio_deactivate(folio);
+-		folio_put(folio);
+ 		applied += folio_nr_pages(folio);
++		folio_put(folio);
+ 	}
+ 	return applied * PAGE_SIZE;
+ }
+-- 
+cgit 
+

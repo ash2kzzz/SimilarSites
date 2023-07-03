@@ -1,0 +1,40 @@
+From ffa5395a7901e83a68d88207c4592962906641bd Mon Sep 17 00:00:00 2001
+From: Arseniy Krasnov <avkrasnov@sberdevices.ru>
+Date: Fri, 31 Mar 2023 10:56:41 +0300
+Subject: vsock/vmci: convert VMCI error code to -ENOMEM on send
+
+This adds conversion of VMCI specific error code to general -ENOMEM. It
+is needed, because af_vsock.c passes error value returned from transport
+to the user, which does not expect to get VMCI_ERROR_* values.
+
+Fixes: c43170b7e157 ("vsock: return errors other than -ENOMEM to socket")
+Signed-off-by: Arseniy Krasnov <AVKrasnov@sberdevices.ru>
+Reviewed-by: Vishnu Dasa <vdasa@vmware.com>
+Reviewed-by: Stefano Garzarella <sgarzare@redhat.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ net/vmw_vsock/vmci_transport.c | 8 +++++++-
+ 1 file changed, 7 insertions(+), 1 deletion(-)
+
+diff --git a/net/vmw_vsock/vmci_transport.c b/net/vmw_vsock/vmci_transport.c
+index 36eb16a40745d..95cc4d79ba296 100644
+--- a/net/vmw_vsock/vmci_transport.c
++++ b/net/vmw_vsock/vmci_transport.c
+@@ -1842,7 +1842,13 @@ static ssize_t vmci_transport_stream_enqueue(
+ 	struct msghdr *msg,
+ 	size_t len)
+ {
+-	return vmci_qpair_enquev(vmci_trans(vsk)->qpair, msg, len, 0);
++	ssize_t err;
++
++	err = vmci_qpair_enquev(vmci_trans(vsk)->qpair, msg, len, 0);
++	if (err < 0)
++		err = -ENOMEM;
++
++	return err;
+ }
+ 
+ static s64 vmci_transport_stream_has_data(struct vsock_sock *vsk)
+-- 
+cgit 
+

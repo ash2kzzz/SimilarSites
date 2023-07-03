@@ -1,0 +1,54 @@
+From 6f998eb2fd02a7a7a529abb4c7d8bbf44fc3ff13 Mon Sep 17 00:00:00 2001
+From: Krzysztof Kozlowski <krzysztof.kozlowski@linaro.org>
+Date: Mon, 6 Feb 2023 20:33:13 +0100
+Subject: dt-bindings: remoteproc: qcom,sm8550-pas: correct power domains
+
+Correct CDSP and MPSS power domains to match what is used in DTS and the
+Linux driver:
+
+  sm8550-mtp.dtb: remoteproc@32300000: power-domain-names: ['cx', 'mxc', 'nsp'] is too long
+
+Signed-off-by: Krzysztof Kozlowski <krzysztof.kozlowski@linaro.org>
+Acked-by: Rob Herring <robh@kernel.org>
+Acked-by: Neil Armstrong <neil.armstrong@linaro.org>
+Fixes: 084258d60712 ("dt-bindings: remoteproc: qcom: adsp: document sm8550 adsp, cdsp & mpss compatible")
+Signed-off-by: Bjorn Andersson <andersson@kernel.org>
+Link: https://lore.kernel.org/r/20230206193313.30667-1-krzysztof.kozlowski@linaro.org
+---
+ Documentation/devicetree/bindings/remoteproc/qcom,sm8550-pas.yaml | 8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/Documentation/devicetree/bindings/remoteproc/qcom,sm8550-pas.yaml b/Documentation/devicetree/bindings/remoteproc/qcom,sm8550-pas.yaml
+index ae612809e260b..fe216aa531ede 100644
+--- a/Documentation/devicetree/bindings/remoteproc/qcom,sm8550-pas.yaml
++++ b/Documentation/devicetree/bindings/remoteproc/qcom,sm8550-pas.yaml
+@@ -99,22 +99,22 @@ allOf:
+       properties:
+         compatible:
+           enum:
+-            - qcom,sm8550-cdsp-pas
++            - qcom,sm8550-mpss-pas
+     then:
+       properties:
+         power-domains:
+           items:
+             - description: CX power domain
+-            - description: MXC power domain
++            - description: MSS power domain
+         power-domain-names:
+           items:
+             - const: cx
+-            - const: mxc
++            - const: mss
+   - if:
+       properties:
+         compatible:
+           enum:
+-            - qcom,sm8550-mpss-pas
++            - qcom,sm8550-cdsp-pas
+     then:
+       properties:
+         power-domains:
+-- 
+cgit 
+

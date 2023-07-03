@@ -236,3 +236,8 @@ def macro_statement_get_macro(line):
         return macro.group(1)
     return None
 
+def is_debug_statement(line):
+    if line.strip().startswith(r'pr_debug'):
+        return True
+    return False
+

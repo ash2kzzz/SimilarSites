@@ -1,0 +1,41 @@
+From 8f76a4f80fba8096a611b6b60c40a0f4cab3ddfb Mon Sep 17 00:00:00 2001
+From: Lorenzo Bianconi <lorenzo@kernel.org>
+Date: Thu, 9 Mar 2023 13:25:25 +0100
+Subject: tools: ynl: fix render-max for flags definition
+
+Properly manage render-max property for flags definition type
+introducing mask value and setting it to (last_element << 1) - 1
+instead of adding max value set to last_element + 1
+
+Fixes: be5bea1cc0bf ("net: add basic C code generators for Netlink")
+Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
+Signed-off-by: Jakub Kicinski <kuba@kernel.org>
+---
+ tools/net/ynl/ynl-gen-c.py | 11 ++++++++---
+ 1 file changed, 8 insertions(+), 3 deletions(-)
+
+diff --git a/tools/net/ynl/ynl-gen-c.py b/tools/net/ynl/ynl-gen-c.py
+index 1bcc5354d8000..d47376f19de72 100755
+--- a/tools/net/ynl/ynl-gen-c.py
++++ b/tools/net/ynl/ynl-gen-c.py
+@@ -1931,9 +1931,14 @@ def render_uapi(family, cw):
+ 
+             if const.get('render-max', False):
+                 cw.nl()
+-                max_name = c_upper(name_pfx + 'max')
+-                cw.p('__' + max_name + ',')
+-                cw.p(max_name + ' = (__' + max_name + ' - 1)')
++                if const['type'] == 'flags':
++                    max_name = c_upper(name_pfx + 'mask')
++                    max_val = f' = {enum.get_mask()},'
++                    cw.p(max_name + max_val)
++                else:
++                    max_name = c_upper(name_pfx + 'max')
++                    cw.p('__' + max_name + ',')
++                    cw.p(max_name + ' = (__' + max_name + ' - 1)')
+             cw.block_end(line=';')
+             cw.nl()
+         elif const['type'] == 'const':
+-- 
+cgit 
+

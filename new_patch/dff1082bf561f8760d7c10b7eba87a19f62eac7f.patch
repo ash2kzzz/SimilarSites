@@ -1,0 +1,33 @@
+From dff1082bf561f8760d7c10b7eba87a19f62eac7f Mon Sep 17 00:00:00 2001
+From: Dmitry Baryshkov <dmitry.baryshkov@linaro.org>
+Date: Fri, 27 Jan 2023 01:03:13 +0200
+Subject: dt-bindings: mailbox: qcom: add SDX55 compatible
+
+The commit 0d17014e9189 ("dt-bindings: mailbox: Add binding for SDX55
+APCS") added SDX55 compatible string to one of clock-selection
+conditions, but failed to add one to the main schema's compatible list.
+Fix this omission.
+
+Fixes: 0d17014e9189 ("dt-bindings: mailbox: Add binding for SDX55 APCS")
+Reviewed-by: Krzysztof Kozlowski <krzysztof.kozlowski@linaro.org>
+Signed-off-by: Dmitry Baryshkov <dmitry.baryshkov@linaro.org>
+Signed-off-by: Jassi Brar <jaswinder.singh@linaro.org>
+---
+ Documentation/devicetree/bindings/mailbox/qcom,apcs-kpss-global.yaml | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/Documentation/devicetree/bindings/mailbox/qcom,apcs-kpss-global.yaml b/Documentation/devicetree/bindings/mailbox/qcom,apcs-kpss-global.yaml
+index 943f9472ae109..36deddca1524b 100644
+--- a/Documentation/devicetree/bindings/mailbox/qcom,apcs-kpss-global.yaml
++++ b/Documentation/devicetree/bindings/mailbox/qcom,apcs-kpss-global.yaml
+@@ -39,6 +39,7 @@ properties:
+               - qcom,msm8953-apcs-kpss-global
+               - qcom,msm8994-apcs-kpss-global
+               - qcom,qcs404-apcs-apps-global
++              - qcom,sdx55-apcs-gcc
+           - const: syscon
+   reg:
+     maxItems: 1
+-- 
+cgit 
+

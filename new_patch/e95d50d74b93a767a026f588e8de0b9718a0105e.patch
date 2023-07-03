@@ -1,0 +1,44 @@
+From e95d50d74b93a767a026f588e8de0b9718a0105e Mon Sep 17 00:00:00 2001
+From: Yishai Hadas <yishaih@nvidia.com>
+Date: Thu, 5 Jan 2023 13:23:39 +0200
+Subject: lib/scatterlist: Fix to merge contiguous pages into the last SG
+ properly
+
+When sg_alloc_append_table_from_pages() calls to pages_are_mergeable() in
+its 'sgt_append->prv' flow to check whether it can merge contiguous pages
+into the last SG, it passes the page arguments in the wrong order.
+
+The first parameter should be the next candidate page to be merged to
+the last page and not the opposite.
+
+The current code leads to a corrupted SG which resulted in OOPs and
+unexpected errors when non-contiguous pages are merged wrongly.
+
+Fix to pass the page parameters in the right order.
+
+Fixes: 1567b49d1a40 ("lib/scatterlist: add check when merging zone device pages")
+Link: https://lore.kernel.org/r/20230105112339.107969-1-yishaih@nvidia.com
+Signed-off-by: Yishai Hadas <yishaih@nvidia.com>
+Reviewed-by: Jason Gunthorpe <jgg@nvidia.com>
+Reviewed-by: Logan Gunthorpe <logang@deltatee.com>
+Signed-off-by: Jason Gunthorpe <jgg@nvidia.com>
+---
+ lib/scatterlist.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/lib/scatterlist.c b/lib/scatterlist.c
+index a0ad2a7959b5d..f72aa50c6654b 100644
+--- a/lib/scatterlist.c
++++ b/lib/scatterlist.c
+@@ -476,7 +476,7 @@ int sg_alloc_append_table_from_pages(struct sg_append_table *sgt_append,
+ 		/* Merge contiguous pages into the last SG */
+ 		prv_len = sgt_append->prv->length;
+ 		last_pg = sg_page(sgt_append->prv);
+-		while (n_pages && pages_are_mergeable(last_pg, pages[0])) {
++		while (n_pages && pages_are_mergeable(pages[0], last_pg)) {
+ 			if (sgt_append->prv->length + PAGE_SIZE > max_segment)
+ 				break;
+ 			sgt_append->prv->length += PAGE_SIZE;
+-- 
+cgit 
+

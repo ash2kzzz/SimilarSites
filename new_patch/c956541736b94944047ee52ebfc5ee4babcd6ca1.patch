@@ -1,0 +1,39 @@
+From c956541736b94944047ee52ebfc5ee4babcd6ca1 Mon Sep 17 00:00:00 2001
+From: Hector Martin <marcan@marcan.st>
+Date: Wed, 4 Jan 2023 19:21:49 +0900
+Subject: cpufreq: apple-soc: Switch to the lowest frequency on suspend
+
+Without this, the CPUs are left in a random pstate. Since we don't
+support deep idle yet (which powers down the CPUs), this results in
+significantly increased idle power consumption in suspend.
+
+Fixes: 6286bbb40576 ("cpufreq: apple-soc: Add new driver to control Apple SoC CPU P-states")
+Signed-off-by: Hector Martin <marcan@marcan.st>
+Signed-off-by: Viresh Kumar <viresh.kumar@linaro.org>
+---
+ drivers/cpufreq/apple-soc-cpufreq.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/drivers/cpufreq/apple-soc-cpufreq.c b/drivers/cpufreq/apple-soc-cpufreq.c
+index 6f26395184c41..c11d22fd84c37 100644
+--- a/drivers/cpufreq/apple-soc-cpufreq.c
++++ b/drivers/cpufreq/apple-soc-cpufreq.c
+@@ -280,6 +280,7 @@ static int apple_soc_cpufreq_init(struct cpufreq_policy *policy)
+ 	policy->cpuinfo.transition_latency = transition_latency;
+ 	policy->dvfs_possible_from_any_cpu = true;
+ 	policy->fast_switch_possible = true;
++	policy->suspend_freq = freq_table[0].frequency;
+ 
+ 	if (policy_has_boost_freq(policy)) {
+ 		ret = cpufreq_enable_boost_support();
+@@ -328,6 +329,7 @@ static struct cpufreq_driver apple_soc_cpufreq_driver = {
+ 	.fast_switch	= apple_soc_cpufreq_fast_switch,
+ 	.register_em	= cpufreq_register_em_with_opp,
+ 	.attr		= apple_soc_cpufreq_hw_attr,
++	.suspend	= cpufreq_generic_suspend,
+ };
+ 
+ static int __init apple_soc_cpufreq_module_init(void)
+-- 
+cgit 
+

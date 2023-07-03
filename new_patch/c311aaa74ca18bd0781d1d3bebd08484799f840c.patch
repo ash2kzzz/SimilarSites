@@ -1,0 +1,82 @@
+From c311aaa74ca18bd0781d1d3bebd08484799f840c Mon Sep 17 00:00:00 2001
+From: Jakub Kicinski <kuba@kernel.org>
+Date: Tue, 7 Mar 2023 16:39:23 -0800
+Subject: tools: ynl: fix enum-as-flags in the generic CLI
+
+Lorenzo points out that the generic CLI is broken for the netdev
+family. When I added the support for documentation of enums
+(and sparse enums) the client script was not updated.
+It expects the values in enum to be a list of names,
+now it can also be a dict (YAML object).
+
+Reported-by: Lorenzo Bianconi <lorenzo@kernel.org>
+Fixes: e4b48ed460d3 ("tools: ynl: add a completely generic client")
+Signed-off-by: Jakub Kicinski <kuba@kernel.org>
+---
+ tools/net/ynl/lib/nlspec.py | 7 +++++--
+ tools/net/ynl/lib/ynl.py    | 9 ++-------
+ 2 files changed, 7 insertions(+), 9 deletions(-)
+
+diff --git a/tools/net/ynl/lib/nlspec.py b/tools/net/ynl/lib/nlspec.py
+index 7c1cf6c1499e1..a34d088f67432 100644
+--- a/tools/net/ynl/lib/nlspec.py
++++ b/tools/net/ynl/lib/nlspec.py
+@@ -104,8 +104,9 @@ class SpecEnumSet(SpecElement):
+     as declared in the "definitions" section of the spec.
+ 
+     Attributes:
+-        type          enum or flags
+-        entries       entries by name
++        type            enum or flags
++        entries         entries by name
++        entries_by_val  entries by value
+     Methods:
+         get_mask      for flags compute the mask of all defined values
+     """
+@@ -117,9 +118,11 @@ class SpecEnumSet(SpecElement):
+         prev_entry = None
+         value_start = self.yaml.get('value-start', 0)
+         self.entries = dict()
++        self.entries_by_val = dict()
+         for entry in self.yaml['entries']:
+             e = self.new_entry(entry, prev_entry, value_start)
+             self.entries[e.name] = e
++            self.entries_by_val[e.raw_value()] = e
+             prev_entry = e
+ 
+     def new_entry(self, entry, prev_entry, value_start):
+diff --git a/tools/net/ynl/lib/ynl.py b/tools/net/ynl/lib/ynl.py
+index a842adc8e87e3..90764a83c6461 100644
+--- a/tools/net/ynl/lib/ynl.py
++++ b/tools/net/ynl/lib/ynl.py
+@@ -303,11 +303,6 @@ class YnlFamily(SpecFamily):
+         self.sock.setsockopt(Netlink.SOL_NETLINK, Netlink.NETLINK_CAP_ACK, 1)
+         self.sock.setsockopt(Netlink.SOL_NETLINK, Netlink.NETLINK_EXT_ACK, 1)
+ 
+-        self._types = dict()
+-
+-        for elem in self.yaml.get('definitions', []):
+-            self._types[elem['name']] = elem
+-
+         self.async_msg_ids = set()
+         self.async_msg_queue = []
+ 
+@@ -353,13 +348,13 @@ class YnlFamily(SpecFamily):
+ 
+     def _decode_enum(self, rsp, attr_spec):
+         raw = rsp[attr_spec['name']]
+-        enum = self._types[attr_spec['enum']]
++        enum = self.consts[attr_spec['enum']]
+         i = attr_spec.get('value-start', 0)
+         if 'enum-as-flags' in attr_spec and attr_spec['enum-as-flags']:
+             value = set()
+             while raw:
+                 if raw & 1:
+-                    value.add(enum['entries'][i])
++                    value.add(enum.entries_by_val[i].name)
+                 raw >>= 1
+                 i += 1
+         else:
+-- 
+cgit 
+
