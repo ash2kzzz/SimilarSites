@@ -16,3 +16,5 @@ if __name__ == '__main__':
     c.check_rule1()
     c.check_rule2()
     c.check_rule3()
+    print(str(c.patch_info.commit_id) + ' is finished.')
+

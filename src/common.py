@@ -215,13 +215,13 @@ def is_macro_statement(line):
 def assign_statement_get_value(line):
     if is_assign_statement(line):
         expr = constants.EXPR.search(line.strip())
-        return (expr.group(1), expr.group(5))
+        return (expr.group(1), expr.group(3))
     return None
 
 def compare_statement_get_value(line):
     if is_compare_statement(line):
         compare = constants.COMPARE.search(line.strip())
-        return (compare.group(1), compare.group(6))
+        return (compare.group(1), compare.group(8))
     return None
 
 def macro_statement_get_value(line):

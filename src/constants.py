@@ -10,8 +10,9 @@ GOTO_LABLE = re.compile(r'goto (\w+);')
 LOCK_NAME = re.compile(r'(\w+)\(')
 DEFINE_STATEMENT = re.compile(r'(\w+ )+(\w+)\(')
 
-EXPR = re.compile(r'((\w+)\((\w+|\->)+\)|(\w+|\->)+)\s+=\s+((\w+)\((\w+|\->)+\)|(\w+|\->)+);')
-COMPARE = re.compile(r'((\w+)\((\w+|\->)+\)|(\w+|\->)+) (==|!=|>|<|<=|<=) ((\w+)\((\w+|\->)+\)|(\w+|\->)+)')
-FUNC_CALL = re.compile(r'(\w+)\(((\w+|\->)+), ((\w+|\->)+)\)')
+EXPR = re.compile(r'(\w+(\->\w+)*)\s+=\s+((\w+)\((\w+(\->\w+)*)\)|(\w+(\->\w+)*));')
+COMPARE = re.compile(r'((\w+)\((\w+(\->\w+)*)\)|(\w+(\->\w+)*))\s+(==|!=|>|<|<=|<=)\s+((\w+)\((\w+(\->\w+)*)\)|(\w+(\->\w+)*))')
+FUNC_CALL = re.compile(r'(\w+)\((\w+(\->\w+)*), (\w+(\->\w+)*)\)')
 
-VARIABLE = re.compile(r'((\w+|\->)+|\w+\((\w+|\->)+\))')
+VARIABLE = re.compile(r'((\w+)\((\w+(\->\w+)*)\)|(\w+(\->\w+)*))')
+
