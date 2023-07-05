@@ -16,3 +16,6 @@ FUNC_CALL = re.compile(r'(\w+)\((\w+(\->\w+)*), (\w+(\->\w+)*)\)')
 
 VARIABLE = re.compile(r'((\w+)\((\w+(\->\w+)*)\)|(\w+(\->\w+)*))')
 
+IDENTIFIER = re.compile(r'(\w+)')
+DEREF = re.compile(r'((\w+)\->\w+)')
+MACRO = re.compile(r'(\w+)\((\w+|\w+\->\w+)\)')

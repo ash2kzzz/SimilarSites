@@ -6,6 +6,7 @@ import ctx
 import lockers
 
 SEARCH_LINES = 7
+CHECK_LINES = 5
 
 def complete_if_statement(line):
     stack = 1
@@ -23,10 +24,40 @@ def complete_if_statement(line):
 def get_condition_list(if_str):
 
     def cond_strip(line):
-        return line.replace('(', '').replace(')', '').strip(' ')
+        if line.startswith(r'(') and line.endswith(r')'):
+            l = len(line)
+            return cond_strip(line[1:l-1].strip())
+        return line.strip()
     
+    def cal_lp(line):
+        count = 0
+        for char in line:
+            if char == '(':
+                count += 1
+        return count
+    
+    def cal_rp(line):
+        count = 0
+        for char in line:
+            if char == ')':
+                count += 1
+        return count
+    
+    def cond_strip2(line):
+        lp = cal_lp(line)
+        rp = cal_rp(line)
+        if lp == rp:
+            return line
+        if lp > rp:
+            count = lp - rp
+            return line[count:]
+        if lp < rp:
+            count = rp - lp
+            return line[:-count]
+
     all_conditions = complete_if_statement(if_str)[3:]
-    return list(map(cond_strip, re.split('&&|\|\|', all_conditions)))
+    all_conditions = list(map(cond_strip, re.split('&&|\|\|', all_conditions)))
+    return list(map(cond_strip2, all_conditions))
 
 def get_judge_conditions(remove_condition_list, add_condition_list):
     judge_conditions = []
@@ -75,7 +106,7 @@ def capture_function_call(line):
     d = constants.DEFINE_STATEMENT.match(line.strip())
     # remove some FP
     # list_for_each_entry_safe/list_del/list_add_tail
-    if d or m.group(1).startswith(r'list_'):
+    if d or m.group(1).startswith(r'list_') or m.group(1).startswith(r'likely') or m.group(1).startswith(r'unlikely'):
         return None
     return m.group(1)
 
@@ -239,5 +270,26 @@ def macro_statement_get_macro(line):
 def is_debug_statement(line):
     if line.strip().startswith(r'pr_debug'):
         return True
+    return False
+
+def is_relational(old, new):
+    if constants.IDENTIFIER.match(old):
+        pattern = '(\w+)\(' + old + '\)'
+        if re.compile(pattern).match(new):
+            return True
+    if constants.DEREF.match(old):
+        m = constants.DEREF.match(old)
+        all = m.group(1)
+        body = m.group(2)
+        pattern_all = '(\w+)\(' + str(all) + '\)'
+        pattern_body = '(\w+)\(' + str(body) + '\)'
+        if re.compile(pattern_all).match(new) or re.compile(pattern_body).match(new):
+            return True
+    if constants.MACRO.match(old):
+        m = constants.MACRO.match(old)
+        value = m.group(2)
+        pattern = '(\w+)\(' + str(value) + '\)'
+        if re.compile(pattern).match(new):
+            return True
     return False
 

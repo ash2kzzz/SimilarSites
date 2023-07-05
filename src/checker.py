@@ -92,7 +92,6 @@ class SimilarSitesChecker(object):
                                 error_path = str(home) + '/' + str(file)
                                 error_path = error_path[60:]
                                 print('[*] ' + str(error_path) + ':' + str(base) + ' miss condition \"' + condition + '\".')
-                                print(self.commit_id)
     
     def check_rule1(self):
         if not self.commit_id:
@@ -122,7 +121,6 @@ class SimilarSitesChecker(object):
                     error_path = path
                     error_path = error_path[60:]
                     print('[*] ' + str(error_path) + ':' + str(base) + ' miss locks \"' + common.lock_type_to_str(ctx_info.ctx_type) + '\".')
-                    print(self.commit_id)
                     index += 1
                                     
     def check_rule2(self):
@@ -170,11 +168,9 @@ class SimilarSitesChecker(object):
                                 continue
                             else:
                                 print('[*] ' + str(sub_path) + ':' + str(base) + ' Variable \"' + str(variable) + '\" needs to be changed to \"' + str(new_variable) + '\", or add a macro \"' + str(macro) + '\".')
-                                print(self.commit_id)
                                 index += 1
                                 continue
                         print('[*] ' + str(sub_path) + ':' + str(base) + ' Variable \"' + str(variable) + '\" needs to be changed to \"' + str(new_variable) + '\".')
-                        print(self.commit_id)
                         index += 1
         for variable, macro in checked_macro.items():
             for sub_path in path_list:
@@ -192,7 +188,6 @@ class SimilarSitesChecker(object):
                         pattern = macro + '(' + variable
                         if pattern not in line_list[index]:
                             print('[*] ' + str(sub_path) + ':' + str(base) + ' Variable \"' + str(variable) + '\" needs to add a macro \"' + str(macro) + '\".')
-                            print(self.commit_id)
                         index += 1
 
     def check_rule3(self):

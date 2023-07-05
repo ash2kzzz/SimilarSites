@@ -120,28 +120,33 @@ class DoubleLockPatchInfo(PatchInfo):
                 while index < len(hunk):
                     if hunk[index].is_added and common.is_lock_statement(hunk[index].value):
                         lock_type = common.statement_lock_type(hunk[index].value)
+                        check_lines = 0
                         func_list = []
                         index += 1
-                        context_flag = False
+                        base = index
                         if (index >= len(hunk)):
                             break
-                        while index < len(hunk) and not common.is_unlock_statement(hunk[index].value):
-                            if not hunk[index].is_context:
-                                context_flag = True
-                                break
+                        while index < len(hunk) and hunk[index].is_context and check_lines < common.CHECK_LINES and not common.is_unlock_statement(hunk[index].value):
                             if common.capture_function_call(hunk[index].value):
                                 func_list.append(common.capture_function_call(hunk[index].value))
+                            check_lines += 1
                             index += 1
                         if (index >= len(hunk)):
                             break
-                        if context_flag:
+                        if check_lines >= common.CHECK_LINES:
+                            index = base
+                            continue
+                        if not hunk[index].is_context:
                             if hunk[index].is_removed:
                                 index += 1
+                                continue
+                            else:
+                                # hunk[index].is_added is True
+                                if not common.is_unlock_statement(hunk[index].value):
+                                    continue
+                        if common.statement_unlock_type(hunk[index].value) != lock_type or len(func_list) == 0:
+                            index += 1
                             continue
-                        if common.statement_unlock_type(hunk[index].value) != lock_type:
-                            break
-                        if len(func_list) == 0:
-                            break
                         ctx_info = ctx.LockCTXInfo(func_list, lock_type)
                         if not self.already_have_it(ctx_info):
                             self.res.append((file.path, ctx_info))
@@ -187,16 +192,16 @@ class ValueUsePatchInfo(PatchInfo):
                             index += 1
                             if hunk[index].is_added and common.is_assign_statement(hunk[index].value.strip()):
                                 next_left, next_right = common.assign_statement_get_value(hunk[index].value.strip())
+                                index += 1
                                 if next_left != left_value:
                                     continue
                                 self.__add_d(right_value, next_right)
-                                index += 1
                             elif hunk[index].is_added and common.macro_statement_get_value(hunk[index].value.strip()):
                                 next_left, next_right = common.macro_statement_get_value(hunk[index].value.strip())
+                                index += 1
                                 if next_left != left_value:
                                     continue
-                                self.__add_d_macro(next_left, common.macro_statement_get_macro(hunk[index].value.strip()))
-                                index += 1
+                                self.__add_d_macro(next_left, common.macro_statement_get_macro(hunk[index-1].value.strip()))
                             else:
                                 continue
                         elif common.is_compare_statement(hunk[index].value.strip()):
@@ -205,7 +210,7 @@ class ValueUsePatchInfo(PatchInfo):
                             if hunk[index].is_removed and common.is_assign_statement(hunk[index].value.strip()):
                                 next_left, next_right = common.assign_statement_get_value(hunk[index].value.strip())
                                 index += 1
-                                if not hunk[index].is_added or not common.compare_statement_get_value(hunk[index].value.strip()):
+                                if not hunk[index].is_added or not common.is_compare_statement(hunk[index].value.strip()):
                                     continue
                                 left_value_add, right_value_add = common.compare_statement_get_value(hunk[index].value.strip())
                                 self.__add_d(left_value, left_value_add)
@@ -215,19 +220,28 @@ class ValueUsePatchInfo(PatchInfo):
                                     continue
                                 if common.is_assign_statement(hunk[index].value.strip()):
                                     left_value_a, right_value_a = common.assign_statement_get_value(hunk[index].value.strip())
-                                    self.__add_d(left_value, left_value_a)
-                                    self.__add_d(right_value, right_value_a)
                                     index += 1
+                                    if left_value != left_value_a:
+                                        continue
+                                    self.__add_d(right_value, right_value_a)
                                 elif common.is_macro_statement(hunk[index].value.strip()):
                                     left_value_a, right_value_a = common.macro_statement_get_value(hunk[index].value.strip())
                                     self.__add_d_macro(left_value_a, common.macro_statement_get_macro(hunk[index].value.strip()))
                                     index += 1
-                    index += 1
+                                else:
+                                    continue
+                            else:
+                                continue
+                        else:
+                            index += 1
+                    else:
+                        index += 1
 
     def __add_d(self, value, value_add):
         if value_add != value:
             if value not in self.d and not common.is_simple_number(value) and not common.is_simple_bool(value) and common.is_variable(value):
-                self.d[value] = value_add
+                if common.is_relational(value, value_add):
+                    self.d[value] = value_add
                 
     def __add_d_macro(self, value, macro):
         if value not in self.d_macro and not common.is_simple_number(value) and not common.is_simple_bool(value) and common.is_variable(value):
