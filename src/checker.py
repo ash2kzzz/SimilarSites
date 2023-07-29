@@ -200,3 +200,7 @@ class SimilarSitesChecker(object):
             return
         self.__check_rule3_find(changed_d, add_macro_d, self.value_use_path_info.get_all_file_path())
 
+    def check_all(self):
+        self.check_rule1()
+        self.check_rule2()
+        self.check_rule3()

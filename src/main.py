@@ -23,9 +23,7 @@ if __name__ == '__main__':
     c = checker.SimilarSitesChecker(args.path)
     commit = repo.commit(c.patch_info.commit_id)
     if pattern.search(commit.message):
-        c.check_rule1()
-        c.check_rule2()
-        c.check_rule3()
+        c.check_all()
         print(str(c.patch_info.commit_id) + ' is finished.')
     else:
         print(str(c.patch_info.commit_id) + ' is not Fixes Tag patch.')
