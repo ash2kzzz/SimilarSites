@@ -1,11 +1,16 @@
 #! /usr/bin/bash
 
-for file in `ls ../new_patch/`
+#name="ground_truth"
+#name="test"
+#name="next_data"
+folder="../$name\_patch"
+
+for file in `ls $folder`
 do
-    if [[ -d "../new_patch/"$file ]]
+    if [[ -d $folder'/'$file ]]
     then
         continue
     else
-        python3 ../src/main.py -p "../new_patch/"$file >> result.txt
+        python3 ../src/main.py -p $folder'/'$file >> "../result/$name.txt"
     fi
 done

@@ -293,3 +293,12 @@ def is_relational(old, new):
             return True
     return False
 
+def reverse_condition_list(conditions_list):
+    reverse_conditions = []
+    for condition in conditions_list:
+        if condition.startswith(r'!'):
+            reverse_conditions.append(condition[1:])
+        else:
+            reverse_conditions.append('!'+condition)
+    return reverse_conditions
+

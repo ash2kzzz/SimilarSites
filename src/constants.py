@@ -2,6 +2,8 @@
 
 import re
 
+pattern = re.compile(r'Fixes:[ ]?(commit )?([0-9a-fA-F]{12,})')
+
 COMMIT_ID = re.compile(r'From ([\w]{40})')
 PATH_COMMIT_ID = re.compile(r'(/\w+)+/([\w]{40}).patch')
 

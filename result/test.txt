@@ -1,0 +1,3 @@
+[*] drivers/char/tpm/tpm-chip.c:660 miss condition "!tpm_amd_is_rng_defective(chip)".
+[*] drivers/char/tpm/tpm-chip.c:685 miss condition "!tpm_amd_is_rng_defective(chip)".
+f1324bbc4011ed8aef3f4552210fc429bcd616da is finished.

@@ -11,6 +11,12 @@ import copy
 # import linecache
 import urllib.request
 import subprocess
+import getpass
+import constants
+from git import Repo
+
+linux = '/home/' + getpass.getuser() + "/repo/linux"
+repo = Repo(linux)
 
 class SimilarSitesChecker(object):
     def __init__(self, patch_file):
@@ -20,10 +26,14 @@ class SimilarSitesChecker(object):
         self.value_use_path_info = None
         self.commit_id = self.patch_info.commit_id
         self.patch_path = self.patch_info.path
-        self.__get_source_code()
+        if self.__fix_check():
+            self.__get_source_code()
 
     def __del__(self):
         self.__release_source_code()
+
+    def __fix_check(self):
+        return constants.pattern.search(repo.commit(self.commit_id).message)
 
     def __get_source_code(self):
         if not self.commit_id or os.path.exists('/tmp/'+str(self.commit_id)):
@@ -85,8 +95,8 @@ class SimilarSitesChecker(object):
                                 continue
                             index += 1
                         else:
-                            # unknown
-                            continue
+                            if len(judge_conditions) <= 1:
+                                continue
                         for condition in change_conditions:
                             if condition not in check_conditions:
                                 error_path = str(home) + '/' + str(file)
@@ -201,6 +211,8 @@ class SimilarSitesChecker(object):
         self.__check_rule3_find(changed_d, add_macro_d, self.value_use_path_info.get_all_file_path())
 
     def check_all(self):
-        self.check_rule1()
-        self.check_rule2()
-        self.check_rule3()
+        if self.__fix_check():
+            self.check_rule1()
+            self.check_rule2()
+            self.check_rule3()
+        
