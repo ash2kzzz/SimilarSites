@@ -1,0 +1,122 @@
+From e71769ae52609ea0044a9901709042e5634c2306 Mon Sep 17 00:00:00 2001
+From: Naoya Horiguchi <n-horiguchi@ah.jp.nec.com>
+Date: Fri, 20 Apr 2018 14:55:45 -0700
+Subject: mm: enable thp migration for shmem thp
+
+My testing for the latest kernel supporting thp migration showed an
+infinite loop in offlining the memory block that is filled with shmem
+thps.  We can get out of the loop with a signal, but kernel should return
+with failure in this case.
+
+What happens in the loop is that scan_movable_pages() repeats returning
+the same pfn without any progress.  That's because page migration always
+fails for shmem thps.
+
+In memory offline code, memory blocks containing unmovable pages should be
+prevented from being offline targets by has_unmovable_pages() inside
+start_isolate_page_range().  So it's possible to change migratability for
+non-anonymous thps to avoid the issue, but it introduces more complex and
+thp-specific handling in migration code, so it might not good.
+
+So this patch is suggesting to fix the issue by enabling thp migration for
+shmem thp.  Both of anon/shmem thp are migratable so we don't need
+precheck about the type of thps.
+
+Link: http://lkml.kernel.org/r/20180406030706.GA2434@hori1.linux.bs1.fc.nec.co.jp
+Fixes: commit 72b39cfc4d75 ("mm, memory_hotplug: do not fail offlining too early")
+Signed-off-by: Naoya Horiguchi <n-horiguchi@ah.jp.nec.com>
+Acked-by: Kirill A. Shutemov <kirill.shutemov@linux.intel.com>
+Cc: Zi Yan <zi.yan@sent.com>
+Cc: Vlastimil Babka <vbabka@suse.cz>
+Cc: Michal Hocko <mhocko@kernel.org>
+Signed-off-by: Andrew Morton <akpm@linux-foundation.org>
+Signed-off-by: Linus Torvalds <torvalds@linux-foundation.org>
+---
+ mm/huge_memory.c |  5 ++++-
+ mm/migrate.c     | 19 ++++++++++++++++---
+ mm/rmap.c        |  3 ---
+ 3 files changed, 20 insertions(+), 7 deletions(-)
+
+diff --git a/mm/huge_memory.c b/mm/huge_memory.c
+index 14ed6ee5e02fc..a3a1815f8e118 100644
+--- a/mm/huge_memory.c
++++ b/mm/huge_memory.c
+@@ -2925,7 +2925,10 @@ void remove_migration_pmd(struct page_vma_mapped_walk *pvmw, struct page *new)
+ 		pmde = maybe_pmd_mkwrite(pmde, vma);
+ 
+ 	flush_cache_range(vma, mmun_start, mmun_start + HPAGE_PMD_SIZE);
+-	page_add_anon_rmap(new, vma, mmun_start, true);
++	if (PageAnon(new))
++		page_add_anon_rmap(new, vma, mmun_start, true);
++	else
++		page_add_file_rmap(new, true);
+ 	set_pmd_at(mm, mmun_start, pvmw->pmd, pmde);
+ 	if (vma->vm_flags & VM_LOCKED)
+ 		mlock_vma_page(new);
+diff --git a/mm/migrate.c b/mm/migrate.c
+index 70ef794cccae9..568433023831a 100644
+--- a/mm/migrate.c
++++ b/mm/migrate.c
+@@ -472,7 +472,7 @@ int migrate_page_move_mapping(struct address_space *mapping,
+ 	pslot = radix_tree_lookup_slot(&mapping->i_pages,
+  					page_index(page));
+ 
+-	expected_count += 1 + page_has_private(page);
++	expected_count += hpage_nr_pages(page) + page_has_private(page);
+ 	if (page_count(page) != expected_count ||
+ 		radix_tree_deref_slot_protected(pslot,
+ 					&mapping->i_pages.xa_lock) != page) {
+@@ -505,7 +505,7 @@ int migrate_page_move_mapping(struct address_space *mapping,
+ 	 */
+ 	newpage->index = page->index;
+ 	newpage->mapping = page->mapping;
+-	get_page(newpage);	/* add cache reference */
++	page_ref_add(newpage, hpage_nr_pages(page)); /* add cache reference */
+ 	if (PageSwapBacked(page)) {
+ 		__SetPageSwapBacked(newpage);
+ 		if (PageSwapCache(page)) {
+@@ -524,13 +524,26 @@ int migrate_page_move_mapping(struct address_space *mapping,
+ 	}
+ 
+ 	radix_tree_replace_slot(&mapping->i_pages, pslot, newpage);
++	if (PageTransHuge(page)) {
++		int i;
++		int index = page_index(page);
++
++		for (i = 0; i < HPAGE_PMD_NR; i++) {
++			pslot = radix_tree_lookup_slot(&mapping->i_pages,
++						       index + i);
++			radix_tree_replace_slot(&mapping->i_pages, pslot,
++						newpage + i);
++		}
++	} else {
++		radix_tree_replace_slot(&mapping->i_pages, pslot, newpage);
++	}
+ 
+ 	/*
+ 	 * Drop cache reference from old page by unfreezing
+ 	 * to one less reference.
+ 	 * We know this isn't the last reference.
+ 	 */
+-	page_ref_unfreeze(page, expected_count - 1);
++	page_ref_unfreeze(page, expected_count - hpage_nr_pages(page));
+ 
+ 	xa_unlock(&mapping->i_pages);
+ 	/* Leave irq disabled to prevent preemption while updating stats */
+diff --git a/mm/rmap.c b/mm/rmap.c
+index f0dd4e4565bc6..8d5337fed37b8 100644
+--- a/mm/rmap.c
++++ b/mm/rmap.c
+@@ -1374,9 +1374,6 @@ static bool try_to_unmap_one(struct page *page, struct vm_area_struct *vma,
+ 		if (!pvmw.pte && (flags & TTU_MIGRATION)) {
+ 			VM_BUG_ON_PAGE(PageHuge(page) || !PageTransCompound(page), page);
+ 
+-			if (!PageAnon(page))
+-				continue;
+-
+ 			set_pmd_migration_entry(&pvmw, page);
+ 			continue;
+ 		}
+-- 
+cgit 
+

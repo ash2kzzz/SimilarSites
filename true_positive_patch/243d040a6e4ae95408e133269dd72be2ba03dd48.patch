@@ -1,0 +1,48 @@
+From 243d040a6e4ae95408e133269dd72be2ba03dd48 Mon Sep 17 00:00:00 2001
+From: Necip Fazil Yildiran <fazilyildiran@gmail.com>
+Date: Tue, 15 Sep 2020 12:30:34 +0300
+Subject: staging: rtl8192e: fix kconfig dependency warning for
+ RTLLIB_CRYPTO_TKIP
+
+When RTLLIB_CRYPTO_TKIP is enabled and CRYPTO is disabled, it results in
+the following Kbuild warning:
+
+WARNING: unmet direct dependencies detected for CRYPTO_ARC4
+  Depends on [n]: CRYPTO [=n]
+  Selected by [m]:
+  - RTLLIB_CRYPTO_TKIP [=m] && STAGING [=y] && RTLLIB [=m]
+
+WARNING: unmet direct dependencies detected for CRYPTO_MICHAEL_MIC
+  Depends on [n]: CRYPTO [=n]
+  Selected by [m]:
+  - RTLLIB_CRYPTO_TKIP [=m] && STAGING [=y] && RTLLIB [=m]
+
+The reason is that RTLLIB_CRYPTO_TKIP selects CRYPTO_ARC4 and
+CRYPTO_MICHAEL_MIC without depending on or selecting CRYPTO while both
+CRYPTO_ARC4 and CRYPTO_MICHAEL_MIC are subordinate to CRYPTO.
+
+Honor the kconfig menu hierarchy to remove kconfig dependency warnings.
+
+Fixes: e0e3daddad36 ("staging: r8192e: Fix possible error in configuration")
+Signed-off-by: Necip Fazil Yildiran <fazilyildiran@gmail.com>
+Link: https://lore.kernel.org/r/20200915093033.20130-1-fazilyildiran@gmail.com
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+---
+ drivers/staging/rtl8192e/Kconfig | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/drivers/staging/rtl8192e/Kconfig b/drivers/staging/rtl8192e/Kconfig
+index 4f45a006f9018..01bb5fe8bd6f1 100644
+--- a/drivers/staging/rtl8192e/Kconfig
++++ b/drivers/staging/rtl8192e/Kconfig
+@@ -26,6 +26,7 @@ config RTLLIB_CRYPTO_CCMP
+ config RTLLIB_CRYPTO_TKIP
+ 	tristate "Support for rtllib TKIP crypto"
+ 	depends on RTLLIB
++	select CRYPTO
+ 	select CRYPTO_ARC4
+ 	select CRYPTO_MICHAEL_MIC
+ 	default y
+-- 
+cgit 
+

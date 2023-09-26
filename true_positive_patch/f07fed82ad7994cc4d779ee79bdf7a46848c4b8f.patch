@@ -1,0 +1,70 @@
+From f07fed82ad7994cc4d779ee79bdf7a46848c4b8f Mon Sep 17 00:00:00 2001
+From: WANG Cong <xiyou.wangcong@gmail.com>
+Date: Sat, 13 Aug 2016 22:34:56 -0700
+Subject: net_sched: remove the leftover cleanup_a()
+
+After refactoring tc_action into tcf_common, we no
+longer need to cleanup temporary "actions" in list,
+they are permanently stored in the hashtable.
+
+Fixes: a85a970af265 ("net_sched: move tc_action into tcf_common")
+Reported-by: Jamal Hadi Salim <jhs@mojatatu.com>
+Cc: Jamal Hadi Salim <jhs@mojatatu.com>
+Signed-off-by: Cong Wang <xiyou.wangcong@gmail.com>
+Acked-by: Jamal Hadi Salim <jhs@mojatatu.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ net/sched/act_api.c | 22 +++-------------------
+ 1 file changed, 3 insertions(+), 19 deletions(-)
+
+diff --git a/net/sched/act_api.c b/net/sched/act_api.c
+index e4a5f2607ffa2..cce6986d5bc29 100644
+--- a/net/sched/act_api.c
++++ b/net/sched/act_api.c
+@@ -754,16 +754,6 @@ err_out:
+ 	return ERR_PTR(err);
+ }
+ 
+-static void cleanup_a(struct list_head *actions)
+-{
+-	struct tc_action *a, *tmp;
+-
+-	list_for_each_entry_safe(a, tmp, actions, list) {
+-		list_del(&a->list);
+-		kfree(a);
+-	}
+-}
+-
+ static int tca_action_flush(struct net *net, struct nlattr *nla,
+ 			    struct nlmsghdr *n, u32 portid)
+ {
+@@ -905,7 +895,7 @@ tca_action_gd(struct net *net, struct nlattr *nla, struct nlmsghdr *n,
+ 		return ret;
+ 	}
+ err:
+-	cleanup_a(&actions);
++	tcf_action_destroy(&actions, 0);
+ 	return ret;
+ }
+ 
+@@ -942,15 +932,9 @@ tcf_action_add(struct net *net, struct nlattr *nla, struct nlmsghdr *n,
+ 
+ 	ret = tcf_action_init(net, nla, NULL, NULL, ovr, 0, &actions);
+ 	if (ret)
+-		goto done;
++		return ret;
+ 
+-	/* dump then free all the actions after update; inserted policy
+-	 * stays intact
+-	 */
+-	ret = tcf_add_notify(net, n, &actions, portid);
+-	cleanup_a(&actions);
+-done:
+-	return ret;
++	return tcf_add_notify(net, n, &actions, portid);
+ }
+ 
+ static int tc_ctl_action(struct sk_buff *skb, struct nlmsghdr *n)
+-- 
+cgit 
+

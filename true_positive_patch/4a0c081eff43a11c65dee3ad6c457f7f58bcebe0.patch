@@ -1,0 +1,152 @@
+From 4a0c081eff43a11c65dee3ad6c457f7f58bcebe0 Mon Sep 17 00:00:00 2001
+From: Florian Fainelli <f.fainelli@gmail.com>
+Date: Mon, 22 Sep 2014 11:54:43 -0700
+Subject: net: bcmgenet: call bcmgenet_dma_teardown in bcmgenet_fini_dma
+
+We should not be manipulaging the DMA_CTRL registers directly by writing
+0 to them to disable DMA. This is an operation that needs to be timed to
+make sure the DMA engines have been properly stopped since their state
+machine stops on a packet boundary, not immediately.
+
+Make sure that tha bcmgenet_fini_dma() calls bcmgenet_dma_teardown() to
+ensure a proper DMA engine state. As a result, we need to reorder the
+function bodies to resolve the use dependency.
+
+Fixes: 1c1008c793fa ("net: bcmgenet: add main driver file")
+Signed-off-by: Florian Fainelli <f.fainelli@gmail.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ drivers/net/ethernet/broadcom/genet/bcmgenet.c | 105 ++++++++++++-------------
+ 1 file changed, 52 insertions(+), 53 deletions(-)
+
+diff --git a/drivers/net/ethernet/broadcom/genet/bcmgenet.c b/drivers/net/ethernet/broadcom/genet/bcmgenet.c
+index 11a96437862d7..5cc9cae21ed50 100644
+--- a/drivers/net/ethernet/broadcom/genet/bcmgenet.c
++++ b/drivers/net/ethernet/broadcom/genet/bcmgenet.c
+@@ -1744,13 +1744,63 @@ static void bcmgenet_init_multiq(struct net_device *dev)
+ 	bcmgenet_tdma_writel(priv, reg, DMA_CTRL);
+ }
+ 
++static int bcmgenet_dma_teardown(struct bcmgenet_priv *priv)
++{
++	int ret = 0;
++	int timeout = 0;
++	u32 reg;
++
++	/* Disable TDMA to stop add more frames in TX DMA */
++	reg = bcmgenet_tdma_readl(priv, DMA_CTRL);
++	reg &= ~DMA_EN;
++	bcmgenet_tdma_writel(priv, reg, DMA_CTRL);
++
++	/* Check TDMA status register to confirm TDMA is disabled */
++	while (timeout++ < DMA_TIMEOUT_VAL) {
++		reg = bcmgenet_tdma_readl(priv, DMA_STATUS);
++		if (reg & DMA_DISABLED)
++			break;
++
++		udelay(1);
++	}
++
++	if (timeout == DMA_TIMEOUT_VAL) {
++		netdev_warn(priv->dev, "Timed out while disabling TX DMA\n");
++		ret = -ETIMEDOUT;
++	}
++
++	/* Wait 10ms for packet drain in both tx and rx dma */
++	usleep_range(10000, 20000);
++
++	/* Disable RDMA */
++	reg = bcmgenet_rdma_readl(priv, DMA_CTRL);
++	reg &= ~DMA_EN;
++	bcmgenet_rdma_writel(priv, reg, DMA_CTRL);
++
++	timeout = 0;
++	/* Check RDMA status register to confirm RDMA is disabled */
++	while (timeout++ < DMA_TIMEOUT_VAL) {
++		reg = bcmgenet_rdma_readl(priv, DMA_STATUS);
++		if (reg & DMA_DISABLED)
++			break;
++
++		udelay(1);
++	}
++
++	if (timeout == DMA_TIMEOUT_VAL) {
++		netdev_warn(priv->dev, "Timed out while disabling RX DMA\n");
++		ret = -ETIMEDOUT;
++	}
++
++	return ret;
++}
++
+ static void bcmgenet_fini_dma(struct bcmgenet_priv *priv)
+ {
+ 	int i;
+ 
+ 	/* disable DMA */
+-	bcmgenet_rdma_writel(priv, 0, DMA_CTRL);
+-	bcmgenet_tdma_writel(priv, 0, DMA_CTRL);
++	bcmgenet_dma_teardown(priv);
+ 
+ 	for (i = 0; i < priv->num_tx_bds; i++) {
+ 		if (priv->tx_cbs[i].skb != NULL) {
+@@ -2109,57 +2159,6 @@ err_clk_disable:
+ 	return ret;
+ }
+ 
+-static int bcmgenet_dma_teardown(struct bcmgenet_priv *priv)
+-{
+-	int ret = 0;
+-	int timeout = 0;
+-	u32 reg;
+-
+-	/* Disable TDMA to stop add more frames in TX DMA */
+-	reg = bcmgenet_tdma_readl(priv, DMA_CTRL);
+-	reg &= ~DMA_EN;
+-	bcmgenet_tdma_writel(priv, reg, DMA_CTRL);
+-
+-	/* Check TDMA status register to confirm TDMA is disabled */
+-	while (timeout++ < DMA_TIMEOUT_VAL) {
+-		reg = bcmgenet_tdma_readl(priv, DMA_STATUS);
+-		if (reg & DMA_DISABLED)
+-			break;
+-
+-		udelay(1);
+-	}
+-
+-	if (timeout == DMA_TIMEOUT_VAL) {
+-		netdev_warn(priv->dev, "Timed out while disabling TX DMA\n");
+-		ret = -ETIMEDOUT;
+-	}
+-
+-	/* Wait 10ms for packet drain in both tx and rx dma */
+-	usleep_range(10000, 20000);
+-
+-	/* Disable RDMA */
+-	reg = bcmgenet_rdma_readl(priv, DMA_CTRL);
+-	reg &= ~DMA_EN;
+-	bcmgenet_rdma_writel(priv, reg, DMA_CTRL);
+-
+-	timeout = 0;
+-	/* Check RDMA status register to confirm RDMA is disabled */
+-	while (timeout++ < DMA_TIMEOUT_VAL) {
+-		reg = bcmgenet_rdma_readl(priv, DMA_STATUS);
+-		if (reg & DMA_DISABLED)
+-			break;
+-
+-		udelay(1);
+-	}
+-
+-	if (timeout == DMA_TIMEOUT_VAL) {
+-		netdev_warn(priv->dev, "Timed out while disabling RX DMA\n");
+-		ret = -ETIMEDOUT;
+-	}
+-
+-	return ret;
+-}
+-
+ static void bcmgenet_netif_stop(struct net_device *dev)
+ {
+ 	struct bcmgenet_priv *priv = netdev_priv(dev);
+-- 
+cgit 
+

@@ -1,0 +1,70 @@
+From 9739ab7eda459f0669ec9807e0d9be5020bab88c Mon Sep 17 00:00:00 2001
+From: Christoph Hellwig <hch@lst.de>
+Date: Thu, 13 Jun 2019 10:24:46 +0200
+Subject: powerpc: enable a 30-bit ZONE_DMA for 32-bit pmac
+
+With the strict dma mask checking introduced with the switch to
+the generic DMA direct code common wifi chips on 32-bit powerbooks
+stopped working.  Add a 30-bit ZONE_DMA to the 32-bit pmac builds
+to allow them to reliably allocate dma coherent memory.
+
+Fixes: 65a21b71f948 ("powerpc/dma: remove dma_nommu_dma_supported")
+Reported-by: Aaro Koskinen <aaro.koskinen@iki.fi>
+Signed-off-by: Christoph Hellwig <hch@lst.de>
+Tested-by: Larry Finger <Larry.Finger@lwfinger.net>
+Acked-by: Larry Finger <Larry.Finger@lwfinger.net>
+Tested-by: Aaro Koskinen <aaro.koskinen@iki.fi>
+Signed-off-by: Michael Ellerman <mpe@ellerman.id.au>
+---
+ arch/powerpc/include/asm/page.h         | 7 +++++++
+ arch/powerpc/mm/mem.c                   | 3 ++-
+ arch/powerpc/platforms/powermac/Kconfig | 1 +
+ 3 files changed, 10 insertions(+), 1 deletion(-)
+
+diff --git a/arch/powerpc/include/asm/page.h b/arch/powerpc/include/asm/page.h
+index dbc8c0679480c..3d013e4696e9d 100644
+--- a/arch/powerpc/include/asm/page.h
++++ b/arch/powerpc/include/asm/page.h
+@@ -323,6 +323,13 @@ struct vm_area_struct;
+ #endif /* __ASSEMBLY__ */
+ #include <asm/slice.h>
+ 
++/*
++ * Allow 30-bit DMA for very limited Broadcom wifi chips on many powerbooks.
++ */
++#ifdef CONFIG_PPC32
++#define ARCH_ZONE_DMA_BITS 30
++#else
+ #define ARCH_ZONE_DMA_BITS 31
++#endif
+ 
+ #endif /* _ASM_POWERPC_PAGE_H */
+diff --git a/arch/powerpc/mm/mem.c b/arch/powerpc/mm/mem.c
+index e885fe2aafcc7..40bd4153ab093 100644
+--- a/arch/powerpc/mm/mem.c
++++ b/arch/powerpc/mm/mem.c
+@@ -253,7 +253,8 @@ void __init paging_init(void)
+ 	       (long int)((top_of_ram - total_ram) >> 20));
+ 
+ #ifdef CONFIG_ZONE_DMA
+-	max_zone_pfns[ZONE_DMA]	= min(max_low_pfn, 0x7fffffffUL >> PAGE_SHIFT);
++	max_zone_pfns[ZONE_DMA]	= min(max_low_pfn,
++			((1UL << ARCH_ZONE_DMA_BITS) - 1) >> PAGE_SHIFT);
+ #endif
+ 	max_zone_pfns[ZONE_NORMAL] = max_low_pfn;
+ #ifdef CONFIG_HIGHMEM
+diff --git a/arch/powerpc/platforms/powermac/Kconfig b/arch/powerpc/platforms/powermac/Kconfig
+index f834a19ed772b..c02d8c503b294 100644
+--- a/arch/powerpc/platforms/powermac/Kconfig
++++ b/arch/powerpc/platforms/powermac/Kconfig
+@@ -7,6 +7,7 @@ config PPC_PMAC
+ 	select PPC_INDIRECT_PCI if PPC32
+ 	select PPC_MPC106 if PPC32
+ 	select PPC_NATIVE
++	select ZONE_DMA if PPC32
+ 	default y
+ 
+ config PPC_PMAC64
+-- 
+cgit 
+

@@ -1,0 +1,55 @@
+From 16ec3d4fbb967bd0e1c8d9dce9ef70e915a86615 Mon Sep 17 00:00:00 2001
+From: Joe Stringer <joe@ovn.org>
+Date: Wed, 11 May 2016 10:29:26 -0700
+Subject: openvswitch: Fix cached ct with helper.
+
+When using conntrack helpers from OVS, a common configuration is to
+perform a lookup without specifying a helper, then go through a
+firewalling policy, only to decide to attach a helper afterwards.
+
+In this case, the initial lookup will cause a ct entry to be attached to
+the skb, then the later commit with helper should attach the helper and
+confirm the connection. However, the helper attachment has been missing.
+If the user has enabled automatic helper attachment, then this issue
+will be masked as it will be applied in init_conntrack(). It is also
+masked if the action is executed from ovs_packet_cmd_execute() as that
+will construct a fresh skb.
+
+This patch fixes the issue by making an explicit call to try to assign
+the helper if there is a discrepancy between the action's helper and the
+current skb->nfct.
+
+Fixes: cae3a2627520 ("openvswitch: Allow attaching helpers to ct action")
+Signed-off-by: Joe Stringer <joe@ovn.org>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ net/openvswitch/conntrack.c | 13 +++++++++++++
+ 1 file changed, 13 insertions(+)
+
+diff --git a/net/openvswitch/conntrack.c b/net/openvswitch/conntrack.c
+index b5fea1101faaa..10c84d8828816 100644
+--- a/net/openvswitch/conntrack.c
++++ b/net/openvswitch/conntrack.c
+@@ -776,6 +776,19 @@ static int __ovs_ct_lookup(struct net *net, struct sw_flow_key *key,
+ 			return -EINVAL;
+ 		}
+ 
++		/* Userspace may decide to perform a ct lookup without a helper
++		 * specified followed by a (recirculate and) commit with one.
++		 * Therefore, for unconfirmed connections which we will commit,
++		 * we need to attach the helper here.
++		 */
++		if (!nf_ct_is_confirmed(ct) && info->commit &&
++		    info->helper && !nfct_help(ct)) {
++			int err = __nf_ct_try_assign_helper(ct, info->ct,
++							    GFP_ATOMIC);
++			if (err)
++				return err;
++		}
++
+ 		/* Call the helper only if:
+ 		 * - nf_conntrack_in() was executed above ("!cached") for a
+ 		 *   confirmed connection, or
+-- 
+cgit 
+

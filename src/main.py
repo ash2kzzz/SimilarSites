@@ -13,6 +13,6 @@ if __name__ == '__main__':
         raise Exception('no input')
 
     c = checker.SimilarSitesChecker(args.path)
-    c.check_rule1()
+    c.check_all()
     print(str(c.commit_id) + ' is finished.')
 

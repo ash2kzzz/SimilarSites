@@ -1,0 +1,138 @@
+From a2d375eda771a6a4866f3717a8ed81b63acb1dbd Mon Sep 17 00:00:00 2001
+From: Jim Cromie <jim.cromie@gmail.com>
+Date: Mon, 31 Aug 2020 12:22:09 -0600
+Subject: dyndbg: refine export, rename to dynamic_debug_exec_queries()
+
+commit 4c0d77828d4f ("dyndbg: export ddebug_exec_queries") had a few
+problems:
+ - broken non DYNAMIC_DEBUG_CORE configs, sparse warning
+ - the exported function modifies query string, breaks on RO strings.
+ - func name follows internal convention, shouldn't be exposed as is.
+
+1st is fixed in header with ifdefd function prototype or stub defn.
+Also remove an obsolete HAVE-symbol ifdef-comment, and add others.
+
+Fix others by wrapping existing internal function with a new one,
+named in accordance with module-prefix naming convention, before
+export hits v5.9.0.  In new function, copy query string to a local
+buffer, so users can pass hard-coded/RO queries, and internal function
+can be used unchanged.
+
+Fixes: 4c0d77828d4f ("dyndbg: export ddebug_exec_queries")
+Signed-off-by: Jim Cromie <jim.cromie@gmail.com>
+Link: https://lore.kernel.org/r/20200831182210.850852-3-jim.cromie@gmail.com
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+---
+ include/linux/dynamic_debug.h | 20 ++++++++++++++++----
+ lib/dynamic_debug.c           | 27 +++++++++++++++++++++++++--
+ 2 files changed, 41 insertions(+), 6 deletions(-)
+
+diff --git a/include/linux/dynamic_debug.h b/include/linux/dynamic_debug.h
+index aa9ff9e1c0b32..8aa0c7c2608cb 100644
+--- a/include/linux/dynamic_debug.h
++++ b/include/linux/dynamic_debug.h
+@@ -49,6 +49,10 @@ struct _ddebug {
+ 
+ 
+ #if defined(CONFIG_DYNAMIC_DEBUG_CORE)
++
++/* exported for module authors to exercise >control */
++int dynamic_debug_exec_queries(const char *query, const char *modname);
++
+ int ddebug_add_module(struct _ddebug *tab, unsigned int n,
+ 				const char *modname);
+ extern int ddebug_remove_module(const char *mod_name);
+@@ -105,7 +109,7 @@ void __dynamic_ibdev_dbg(struct _ddebug *descriptor,
+ 	static_branch_unlikely(&descriptor.key.dd_key_false)
+ #endif
+ 
+-#else /* !HAVE_JUMP_LABEL */
++#else /* !CONFIG_JUMP_LABEL */
+ 
+ #define _DPRINTK_KEY_INIT
+ 
+@@ -117,7 +121,7 @@ void __dynamic_ibdev_dbg(struct _ddebug *descriptor,
+ 	unlikely(descriptor.flags & _DPRINTK_FLAGS_PRINT)
+ #endif
+ 
+-#endif
++#endif /* CONFIG_JUMP_LABEL */
+ 
+ #define __dynamic_func_call(id, fmt, func, ...) do {	\
+ 	DEFINE_DYNAMIC_DEBUG_METADATA(id, fmt);		\
+@@ -172,10 +176,11 @@ void __dynamic_ibdev_dbg(struct _ddebug *descriptor,
+ 				   KERN_DEBUG, prefix_str, prefix_type,	\
+ 				   rowsize, groupsize, buf, len, ascii)
+ 
+-#else
++#else /* !CONFIG_DYNAMIC_DEBUG_CORE */
+ 
+ #include <linux/string.h>
+ #include <linux/errno.h>
++#include <linux/printk.h>
+ 
+ static inline int ddebug_add_module(struct _ddebug *tab, unsigned int n,
+ 				    const char *modname)
+@@ -210,6 +215,13 @@ static inline int ddebug_dyndbg_module_param_cb(char *param, char *val,
+ 		print_hex_dump(KERN_DEBUG, prefix_str, prefix_type,	\
+ 				rowsize, groupsize, buf, len, ascii);	\
+ 	} while (0)
+-#endif
++
++static inline int dynamic_debug_exec_queries(const char *query, const char *modname)
++{
++	pr_warn("kernel not built with CONFIG_DYNAMIC_DEBUG_CORE\n");
++	return 0;
++}
++
++#endif /* !CONFIG_DYNAMIC_DEBUG_CORE */
+ 
+ #endif
+diff --git a/lib/dynamic_debug.c b/lib/dynamic_debug.c
+index 01b7d0210412c..08e4b057514c9 100644
+--- a/lib/dynamic_debug.c
++++ b/lib/dynamic_debug.c
+@@ -525,7 +525,7 @@ static int ddebug_exec_query(char *query_string, const char *modname)
+    last error or number of matching callsites.  Module name is either
+    in param (for boot arg) or perhaps in query string.
+ */
+-int ddebug_exec_queries(char *query, const char *modname)
++static int ddebug_exec_queries(char *query, const char *modname)
+ {
+ 	char *split;
+ 	int i, errs = 0, exitcode = 0, rc, nfound = 0;
+@@ -557,7 +557,30 @@ int ddebug_exec_queries(char *query, const char *modname)
+ 		return exitcode;
+ 	return nfound;
+ }
+-EXPORT_SYMBOL_GPL(ddebug_exec_queries);
++
++/**
++ * dynamic_debug_exec_queries - select and change dynamic-debug prints
++ * @query: query-string described in admin-guide/dynamic-debug-howto
++ * @modname: string containing module name, usually &module.mod_name
++ *
++ * This uses the >/proc/dynamic_debug/control reader, allowing module
++ * authors to modify their dynamic-debug callsites. The modname is
++ * canonically struct module.mod_name, but can also be null or a
++ * module-wildcard, for example: "drm*".
++ */
++int dynamic_debug_exec_queries(const char *query, const char *modname)
++{
++	int rc;
++	char *qry = kstrndup(query, PAGE_SIZE, GFP_KERNEL);
++
++	if (!query)
++		return -ENOMEM;
++
++	rc = ddebug_exec_queries(qry, modname);
++	kfree(qry);
++	return rc;
++}
++EXPORT_SYMBOL_GPL(dynamic_debug_exec_queries);
+ 
+ #define PREFIX_SIZE 64
+ 
+-- 
+cgit 
+

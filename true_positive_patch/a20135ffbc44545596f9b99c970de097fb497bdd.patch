@@ -1,0 +1,99 @@
+From a20135ffbc44545596f9b99c970de097fb497bdd Mon Sep 17 00:00:00 2001
+From: Tejun Heo <tj@kernel.org>
+Date: Wed, 1 Jul 2015 20:53:37 -0400
+Subject: writeback: don't drain bdi_writeback_congested on bdi destruction
+
+52ebea749aae ("writeback: make backing_dev_info host cgroup-specific
+bdi_writebacks") made bdi (backing_dev_info) host per-cgroup wb's
+(bdi_writeback's).  As the congested state needs to be per-wb and
+referenced from blkcg side and multiple wbs, the patch made all
+non-root cong's (bdi_writeback_congested's) reference counted and
+indexed on bdi.
+
+When a bdi is destroyed, cgwb_bdi_destroy() tries to drain all
+non-root cong's; however, this can hang indefinitely because wb's can
+also be referenced from blkcg_gq's which are destroyed after bdi
+destruction is complete.
+
+This patch fixes the bug by updating bdi destruction to not wait for
+cong's to drain.  A cong is unlinked from bdi->cgwb_congested_tree on
+bdi destuction regardless of its reference count as the bdi may go
+away any point after destruction.  wb_congested_put() checks whether
+the cong is already unlinked on release.
+
+Signed-off-by: Tejun Heo <tj@kernel.org>
+Reported-by: Jon Christopherson <jon@jons.org>
+Link: https://bugzilla.kernel.org/show_bug.cgi?id=100681
+Fixes: 52ebea749aae ("writeback: make backing_dev_info host cgroup-specific bdi_writebacks")
+Tested-by: Jon Christopherson <jon@jons.org>
+Signed-off-by: Jens Axboe <axboe@fb.com>
+---
+ mm/backing-dev.c | 22 ++++++++++++++++------
+ 1 file changed, 16 insertions(+), 6 deletions(-)
+
+diff --git a/mm/backing-dev.c b/mm/backing-dev.c
+index 51cc461e7256c..dac5bf59309d0 100644
+--- a/mm/backing-dev.c
++++ b/mm/backing-dev.c
+@@ -425,7 +425,6 @@ retry:
+ 		new_congested = NULL;
+ 		rb_link_node(&congested->rb_node, parent, node);
+ 		rb_insert_color(&congested->rb_node, &bdi->cgwb_congested_tree);
+-		atomic_inc(&bdi->usage_cnt);
+ 		goto found;
+ 	}
+ 
+@@ -456,7 +455,6 @@ found:
+  */
+ void wb_congested_put(struct bdi_writeback_congested *congested)
+ {
+-	struct backing_dev_info *bdi = congested->bdi;
+ 	unsigned long flags;
+ 
+ 	local_irq_save(flags);
+@@ -465,12 +463,15 @@ void wb_congested_put(struct bdi_writeback_congested *congested)
+ 		return;
+ 	}
+ 
+-	rb_erase(&congested->rb_node, &congested->bdi->cgwb_congested_tree);
++	/* bdi might already have been destroyed leaving @congested unlinked */
++	if (congested->bdi) {
++		rb_erase(&congested->rb_node,
++			 &congested->bdi->cgwb_congested_tree);
++		congested->bdi = NULL;
++	}
++
+ 	spin_unlock_irqrestore(&cgwb_lock, flags);
+ 	kfree(congested);
+-
+-	if (atomic_dec_and_test(&bdi->usage_cnt))
+-		wake_up_all(&cgwb_release_wait);
+ }
+ 
+ static void cgwb_release_workfn(struct work_struct *work)
+@@ -675,13 +676,22 @@ static int cgwb_bdi_init(struct backing_dev_info *bdi)
+ static void cgwb_bdi_destroy(struct backing_dev_info *bdi)
+ {
+ 	struct radix_tree_iter iter;
++	struct bdi_writeback_congested *congested, *congested_n;
+ 	void **slot;
+ 
+ 	WARN_ON(test_bit(WB_registered, &bdi->wb.state));
+ 
+ 	spin_lock_irq(&cgwb_lock);
++
+ 	radix_tree_for_each_slot(slot, &bdi->cgwb_tree, &iter, 0)
+ 		cgwb_kill(*slot);
++
++	rbtree_postorder_for_each_entry_safe(congested, congested_n,
++					&bdi->cgwb_congested_tree, rb_node) {
++		rb_erase(&congested->rb_node, &bdi->cgwb_congested_tree);
++		congested->bdi = NULL;	/* mark @congested unlinked */
++	}
++
+ 	spin_unlock_irq(&cgwb_lock);
+ 
+ 	/*
+-- 
+cgit 
+

@@ -1,0 +1,54 @@
+From 4c2357f57dd5a3ecb4ce09f6a6cb394a1a8873b2 Mon Sep 17 00:00:00 2001
+From: Douglas Anderson <dianders@chromium.org>
+Date: Thu, 12 Oct 2017 13:11:15 -0700
+Subject: mmc: dw_mmc: Fix the CTO timeout calculation
+
+In the commit 03de19212ea3 ("mmc: dw_mmc: introduce timer for broken
+command transfer over scheme") we tried to calculate the expected
+hardware command timeout value.  Unfortunately that calculation isn't
+quite correct in all cases.  It used "bus_hz" but, as far as I can
+tell, it's supposed to use the card clock.  Let's account for the div
+value, which is documented as 2x the value stored in the register, or
+1 if the register is 0.
+
+NOTE: It's not expected that this will actually fix anything important
+since the 10 ms margin added by the function will pretty much dwarf
+any calculations.  The card clock should be 100 kHz at minimum and:
+  1000 ms/s * (255 * 2) / 100000 Hz.
+Gives us 5.1 ms.
+
+...so really the point of this patch is just to make the code more
+"correct" in case anyone ever tries to remove the 10 ms buffer.
+
+Fixes: 03de19212ea3 ("mmc: dw_mmc: introduce timer for broken command transfer over scheme")
+Tested-by: Emil Renner Berthing <kernel@esmil.dk>
+Reviewed-by: Shawn Lin <shawn.lin@rock-chips.com>
+Signed-off-by: Douglas Anderson <dianders@chromium.org>
+Signed-off-by: Ulf Hansson <ulf.hansson@linaro.org>
+---
+ drivers/mmc/host/dw_mmc.c | 6 +++++-
+ 1 file changed, 5 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/mmc/host/dw_mmc.c b/drivers/mmc/host/dw_mmc.c
+index f5b2bb4b4d981..16516c528a884 100644
+--- a/drivers/mmc/host/dw_mmc.c
++++ b/drivers/mmc/host/dw_mmc.c
+@@ -401,10 +401,14 @@ static u32 dw_mci_prep_stop_abort(struct dw_mci *host, struct mmc_command *cmd)
+ static inline void dw_mci_set_cto(struct dw_mci *host)
+ {
+ 	unsigned int cto_clks;
++	unsigned int cto_div;
+ 	unsigned int cto_ms;
+ 
+ 	cto_clks = mci_readl(host, TMOUT) & 0xff;
+-	cto_ms = DIV_ROUND_UP(cto_clks, host->bus_hz / 1000);
++	cto_div = (mci_readl(host, CLKDIV) & 0xff) * 2;
++	if (cto_div == 0)
++		cto_div = 1;
++	cto_ms = DIV_ROUND_UP(MSEC_PER_SEC * cto_clks * cto_div, host->bus_hz);
+ 
+ 	/* add a bit spare time */
+ 	cto_ms += 10;
+-- 
+cgit 
+

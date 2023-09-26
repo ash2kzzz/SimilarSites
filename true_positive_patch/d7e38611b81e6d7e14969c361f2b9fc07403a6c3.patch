@@ -1,0 +1,62 @@
+From d7e38611b81e6d7e14969c361f2b9fc07403a6c3 Mon Sep 17 00:00:00 2001
+From: David Ahern <dsahern@gmail.com>
+Date: Wed, 24 Oct 2018 12:58:59 -0700
+Subject: net/ipv4: Put target net when address dump fails due to bad
+ attributes
+
+If tgt_net is set based on IFA_TARGET_NETNSID attribute in the dump
+request, make sure all error paths call put_net.
+
+Fixes: 5fcd266a9f64 ("net/ipv4: Add support for dumping addresses for a specific device")
+Fixes: c33078e3dfb1 ("net/ipv4: Update inet_dump_ifaddr for strict data checking")
+Reported-by: Li RongQing <lirongqing@baidu.com>
+Signed-off-by: David Ahern <dsahern@gmail.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ net/ipv4/devinet.c | 13 ++++++++-----
+ 1 file changed, 8 insertions(+), 5 deletions(-)
+
+diff --git a/net/ipv4/devinet.c b/net/ipv4/devinet.c
+index 63d5b58fbfdbd..9250b309c742d 100644
+--- a/net/ipv4/devinet.c
++++ b/net/ipv4/devinet.c
+@@ -1761,7 +1761,7 @@ static int inet_dump_ifaddr(struct sk_buff *skb, struct netlink_callback *cb)
+ 	struct net_device *dev;
+ 	struct in_device *in_dev;
+ 	struct hlist_head *head;
+-	int err;
++	int err = 0;
+ 
+ 	s_h = cb->args[0];
+ 	s_idx = idx = cb->args[1];
+@@ -1771,12 +1771,15 @@ static int inet_dump_ifaddr(struct sk_buff *skb, struct netlink_callback *cb)
+ 		err = inet_valid_dump_ifaddr_req(nlh, &fillargs, &tgt_net,
+ 						 skb->sk, cb);
+ 		if (err < 0)
+-			return err;
++			goto put_tgt_net;
+ 
++		err = 0;
+ 		if (fillargs.ifindex) {
+ 			dev = __dev_get_by_index(tgt_net, fillargs.ifindex);
+-			if (!dev)
+-				return -ENODEV;
++			if (!dev) {
++				err = -ENODEV;
++				goto put_tgt_net;
++			}
+ 
+ 			in_dev = __in_dev_get_rtnl(dev);
+ 			if (in_dev) {
+@@ -1821,7 +1824,7 @@ put_tgt_net:
+ 	if (fillargs.netnsid >= 0)
+ 		put_net(tgt_net);
+ 
+-	return skb->len;
++	return err < 0 ? err : skb->len;
+ }
+ 
+ static void rtmsg_ifa(int event, struct in_ifaddr *ifa, struct nlmsghdr *nlh,
+-- 
+cgit 
+

@@ -1,0 +1,92 @@
+From fb420d5d91c1274d5966917725e71f27ed092a85 Mon Sep 17 00:00:00 2001
+From: Eric Dumazet <edumazet@google.com>
+Date: Fri, 28 Sep 2018 10:28:44 -0700
+Subject: tcp/fq: move back to CLOCK_MONOTONIC
+
+In the recent TCP/EDT patch series, I switched TCP and sch_fq
+clocks from MONOTONIC to TAI, in order to meet the choice done
+earlier for sch_etf packet scheduler.
+
+But sure enough, this broke some setups were the TAI clock
+jumps forward (by almost 50 year...), as reported
+by Leonard Crestez.
+
+If we want to converge later, we'll probably need to add
+an skb field to differentiate the clock bases, or a socket option.
+
+In the meantime, an UDP application will need to use CLOCK_MONOTONIC
+base for its SCM_TXTIME timestamps if using fq packet scheduler.
+
+Fixes: 72b0094f9182 ("tcp: switch tcp_clock_ns() to CLOCK_TAI base")
+Fixes: 142537e41923 ("net_sched: sch_fq: switch to CLOCK_TAI")
+Fixes: fd2bca2aa789 ("tcp: switch internal pacing timer to CLOCK_TAI")
+Signed-off-by: Eric Dumazet <edumazet@google.com>
+Reported-by: Leonard Crestez <leonard.crestez@nxp.com>
+Tested-by: Leonard Crestez <leonard.crestez@nxp.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ include/net/tcp.h    | 2 +-
+ net/ipv4/tcp_timer.c | 2 +-
+ net/sched/sch_fq.c   | 6 +++---
+ 3 files changed, 5 insertions(+), 5 deletions(-)
+
+diff --git a/include/net/tcp.h b/include/net/tcp.h
+index ff15d8e0d5257..0d2929223c703 100644
+--- a/include/net/tcp.h
++++ b/include/net/tcp.h
+@@ -732,7 +732,7 @@ void tcp_send_window_probe(struct sock *sk);
+ 
+ static inline u64 tcp_clock_ns(void)
+ {
+-	return ktime_get_tai_ns();
++	return ktime_get_ns();
+ }
+ 
+ static inline u64 tcp_clock_us(void)
+diff --git a/net/ipv4/tcp_timer.c b/net/ipv4/tcp_timer.c
+index 4f661e178da84..61023d50cd604 100644
+--- a/net/ipv4/tcp_timer.c
++++ b/net/ipv4/tcp_timer.c
+@@ -758,7 +758,7 @@ void tcp_init_xmit_timers(struct sock *sk)
+ {
+ 	inet_csk_init_xmit_timers(sk, &tcp_write_timer, &tcp_delack_timer,
+ 				  &tcp_keepalive_timer);
+-	hrtimer_init(&tcp_sk(sk)->pacing_timer, CLOCK_TAI,
++	hrtimer_init(&tcp_sk(sk)->pacing_timer, CLOCK_MONOTONIC,
+ 		     HRTIMER_MODE_ABS_PINNED_SOFT);
+ 	tcp_sk(sk)->pacing_timer.function = tcp_pace_kick;
+ 
+diff --git a/net/sched/sch_fq.c b/net/sched/sch_fq.c
+index 628a2cdcfc6f2..338222a6c664b 100644
+--- a/net/sched/sch_fq.c
++++ b/net/sched/sch_fq.c
+@@ -412,7 +412,7 @@ static void fq_check_throttled(struct fq_sched_data *q, u64 now)
+ static struct sk_buff *fq_dequeue(struct Qdisc *sch)
+ {
+ 	struct fq_sched_data *q = qdisc_priv(sch);
+-	u64 now = ktime_get_tai_ns();
++	u64 now = ktime_get_ns();
+ 	struct fq_flow_head *head;
+ 	struct sk_buff *skb;
+ 	struct fq_flow *f;
+@@ -776,7 +776,7 @@ static int fq_init(struct Qdisc *sch, struct nlattr *opt,
+ 	q->fq_trees_log		= ilog2(1024);
+ 	q->orphan_mask		= 1024 - 1;
+ 	q->low_rate_threshold	= 550000 / 8;
+-	qdisc_watchdog_init_clockid(&q->watchdog, sch, CLOCK_TAI);
++	qdisc_watchdog_init_clockid(&q->watchdog, sch, CLOCK_MONOTONIC);
+ 
+ 	if (opt)
+ 		err = fq_change(sch, opt, extack);
+@@ -831,7 +831,7 @@ static int fq_dump_stats(struct Qdisc *sch, struct gnet_dump *d)
+ 	st.flows_plimit		  = q->stat_flows_plimit;
+ 	st.pkts_too_long	  = q->stat_pkts_too_long;
+ 	st.allocation_errors	  = q->stat_allocation_errors;
+-	st.time_next_delayed_flow = q->time_next_delayed_flow - ktime_get_tai_ns();
++	st.time_next_delayed_flow = q->time_next_delayed_flow - ktime_get_ns();
+ 	st.flows		  = q->flows;
+ 	st.inactive_flows	  = q->inactive_flows;
+ 	st.throttled_flows	  = q->throttled_flows;
+-- 
+cgit 
+

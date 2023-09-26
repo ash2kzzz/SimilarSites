@@ -1,0 +1,135 @@
+From fddf9055a60dfcc97bda5ef03c8fa4108ed555c5 Mon Sep 17 00:00:00 2001
+From: Peter Zijlstra <peterz@infradead.org>
+Date: Thu, 20 Aug 2020 09:13:30 +0200
+Subject: lockdep: Use raw_cpu_*() for per-cpu variables
+
+Sven reported that commit a21ee6055c30 ("lockdep: Change
+hardirq{s_enabled,_context} to per-cpu variables") caused trouble on
+s390 because their this_cpu_*() primitives disable preemption which
+then lands back tracing.
+
+On the one hand, per-cpu ops should use preempt_*able_notrace() and
+raw_local_irq_*(), on the other hand, we can trivialy use raw_cpu_*()
+ops for this.
+
+Fixes: a21ee6055c30 ("lockdep: Change hardirq{s_enabled,_context} to per-cpu variables")
+Reported-by: Sven Schnelle <svens@linux.ibm.com>
+Reviewed-by: Steven Rostedt (VMware) <rostedt@goodmis.org>
+Reviewed-by: Thomas Gleixner <tglx@linutronix.de>
+Acked-by: Rafael J. Wysocki <rafael.j.wysocki@intel.com>
+Tested-by: Marco Elver <elver@google.com>
+Signed-off-by: Peter Zijlstra (Intel) <peterz@infradead.org>
+Link: https://lkml.kernel.org/r/20200821085348.192346882@infradead.org
+---
+ include/linux/irqflags.h |  6 +++---
+ include/linux/lockdep.h  | 18 +++++++++++++-----
+ kernel/locking/lockdep.c |  4 ++--
+ 3 files changed, 18 insertions(+), 10 deletions(-)
+
+diff --git a/include/linux/irqflags.h b/include/linux/irqflags.h
+index bd5c55755447c..d7e50a215ea98 100644
+--- a/include/linux/irqflags.h
++++ b/include/linux/irqflags.h
+@@ -53,13 +53,13 @@ DECLARE_PER_CPU(int, hardirq_context);
+   extern void trace_hardirqs_off_finish(void);
+   extern void trace_hardirqs_on(void);
+   extern void trace_hardirqs_off(void);
+-# define lockdep_hardirq_context()	(this_cpu_read(hardirq_context))
++# define lockdep_hardirq_context()	(raw_cpu_read(hardirq_context))
+ # define lockdep_softirq_context(p)	((p)->softirq_context)
+ # define lockdep_hardirqs_enabled()	(this_cpu_read(hardirqs_enabled))
+ # define lockdep_softirqs_enabled(p)	((p)->softirqs_enabled)
+ # define lockdep_hardirq_enter()			\
+ do {							\
+-	if (this_cpu_inc_return(hardirq_context) == 1)	\
++	if (__this_cpu_inc_return(hardirq_context) == 1)\
+ 		current->hardirq_threaded = 0;		\
+ } while (0)
+ # define lockdep_hardirq_threaded()		\
+@@ -68,7 +68,7 @@ do {						\
+ } while (0)
+ # define lockdep_hardirq_exit()			\
+ do {						\
+-	this_cpu_dec(hardirq_context);		\
++	__this_cpu_dec(hardirq_context);	\
+ } while (0)
+ # define lockdep_softirq_enter()		\
+ do {						\
+diff --git a/include/linux/lockdep.h b/include/linux/lockdep.h
+index 62a382d1845bd..6a584b3e5c74f 100644
+--- a/include/linux/lockdep.h
++++ b/include/linux/lockdep.h
+@@ -535,19 +535,27 @@ do {									\
+ DECLARE_PER_CPU(int, hardirqs_enabled);
+ DECLARE_PER_CPU(int, hardirq_context);
+ 
++/*
++ * The below lockdep_assert_*() macros use raw_cpu_read() to access the above
++ * per-cpu variables. This is required because this_cpu_read() will potentially
++ * call into preempt/irq-disable and that obviously isn't right. This is also
++ * correct because when IRQs are enabled, it doesn't matter if we accidentally
++ * read the value from our previous CPU.
++ */
++
+ #define lockdep_assert_irqs_enabled()					\
+ do {									\
+-	WARN_ON_ONCE(debug_locks && !this_cpu_read(hardirqs_enabled));	\
++	WARN_ON_ONCE(debug_locks && !raw_cpu_read(hardirqs_enabled));	\
+ } while (0)
+ 
+ #define lockdep_assert_irqs_disabled()					\
+ do {									\
+-	WARN_ON_ONCE(debug_locks && this_cpu_read(hardirqs_enabled));	\
++	WARN_ON_ONCE(debug_locks && raw_cpu_read(hardirqs_enabled));	\
+ } while (0)
+ 
+ #define lockdep_assert_in_irq()						\
+ do {									\
+-	WARN_ON_ONCE(debug_locks && !this_cpu_read(hardirq_context));	\
++	WARN_ON_ONCE(debug_locks && !raw_cpu_read(hardirq_context));	\
+ } while (0)
+ 
+ #define lockdep_assert_preemption_enabled()				\
+@@ -555,7 +563,7 @@ do {									\
+ 	WARN_ON_ONCE(IS_ENABLED(CONFIG_PREEMPT_COUNT)	&&		\
+ 		     debug_locks			&&		\
+ 		     (preempt_count() != 0		||		\
+-		      !this_cpu_read(hardirqs_enabled)));		\
++		      !raw_cpu_read(hardirqs_enabled)));		\
+ } while (0)
+ 
+ #define lockdep_assert_preemption_disabled()				\
+@@ -563,7 +571,7 @@ do {									\
+ 	WARN_ON_ONCE(IS_ENABLED(CONFIG_PREEMPT_COUNT)	&&		\
+ 		     debug_locks			&&		\
+ 		     (preempt_count() == 0		&&		\
+-		      this_cpu_read(hardirqs_enabled)));		\
++		      raw_cpu_read(hardirqs_enabled)));			\
+ } while (0)
+ 
+ #else
+diff --git a/kernel/locking/lockdep.c b/kernel/locking/lockdep.c
+index 2fad21d345b0e..c872e95e6e4d1 100644
+--- a/kernel/locking/lockdep.c
++++ b/kernel/locking/lockdep.c
+@@ -3756,7 +3756,7 @@ void noinstr lockdep_hardirqs_on(unsigned long ip)
+ 
+ skip_checks:
+ 	/* we'll do an OFF -> ON transition: */
+-	this_cpu_write(hardirqs_enabled, 1);
++	__this_cpu_write(hardirqs_enabled, 1);
+ 	trace->hardirq_enable_ip = ip;
+ 	trace->hardirq_enable_event = ++trace->irq_events;
+ 	debug_atomic_inc(hardirqs_on_events);
+@@ -3795,7 +3795,7 @@ void noinstr lockdep_hardirqs_off(unsigned long ip)
+ 		/*
+ 		 * We have done an ON -> OFF transition:
+ 		 */
+-		this_cpu_write(hardirqs_enabled, 0);
++		__this_cpu_write(hardirqs_enabled, 0);
+ 		trace->hardirq_disable_ip = ip;
+ 		trace->hardirq_disable_event = ++trace->irq_events;
+ 		debug_atomic_inc(hardirqs_off_events);
+-- 
+cgit 
+

@@ -1,0 +1,137 @@
+From f8aab60422c371425365d386dfd51e0c6c5b1041 Mon Sep 17 00:00:00 2001
+From: Andrey Grodzovsky <andrey.grodzovsky@amd.com>
+Date: Tue, 8 Dec 2020 15:16:15 -0500
+Subject: drm/amdgpu: Initialise drm_gem_object_funcs for imported BOs
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+For BOs imported from outside of amdgpu, setting of amdgpu_gem_object_funcs
+was missing in amdgpu_dma_buf_create_obj. Fix by refactoring BO creation
+and amdgpu_gem_object_funcs setting into single function called
+from both code paths.
+
+Fixes: d693def4fd1c ("drm: Remove obsolete GEM and PRIME callbacks from struct drm_driver")
+
+v2: Use use amdgpu_gem_object_create() directly
+v3: fix warning
+
+Reviewed-by: Christian König <christian.koenig@amd.com>
+Signed-off-by: Andrey Grodzovsky <andrey.grodzovsky@amd.com>
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_dma_buf.c |  8 ++++--
+ drivers/gpu/drm/amd/amdgpu/amdgpu_gem.c     | 41 ++++++++++++++++-------------
+ 2 files changed, 29 insertions(+), 20 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_dma_buf.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_dma_buf.c
+index 5b465ab774d14..cdef422de29c0 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_dma_buf.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_dma_buf.c
+@@ -460,6 +460,7 @@ amdgpu_dma_buf_create_obj(struct drm_device *dev, struct dma_buf *dma_buf)
+ 	struct amdgpu_device *adev = drm_to_adev(dev);
+ 	struct amdgpu_bo *bo;
+ 	struct amdgpu_bo_param bp;
++	struct drm_gem_object *gobj;
+ 	int ret;
+ 
+ 	memset(&bp, 0, sizeof(bp));
+@@ -470,17 +471,20 @@ amdgpu_dma_buf_create_obj(struct drm_device *dev, struct dma_buf *dma_buf)
+ 	bp.type = ttm_bo_type_sg;
+ 	bp.resv = resv;
+ 	dma_resv_lock(resv, NULL);
+-	ret = amdgpu_bo_create(adev, &bp, &bo);
++	ret = amdgpu_gem_object_create(adev, dma_buf->size, PAGE_SIZE,
++			AMDGPU_GEM_DOMAIN_CPU,
++			0, ttm_bo_type_sg, resv, &gobj);
+ 	if (ret)
+ 		goto error;
+ 
++	bo = gem_to_amdgpu_bo(gobj);
+ 	bo->allowed_domains = AMDGPU_GEM_DOMAIN_GTT;
+ 	bo->preferred_domains = AMDGPU_GEM_DOMAIN_GTT;
+ 	if (dma_buf->ops != &amdgpu_dmabuf_ops)
+ 		bo->prime_shared_count = 1;
+ 
+ 	dma_resv_unlock(resv);
+-	return &bo->tbo.base;
++	return gobj;
+ 
+ error:
+ 	dma_resv_unlock(resv);
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_gem.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_gem.c
+index df94db1995328..cc12ac636aef2 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_gem.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_gem.c
+@@ -69,26 +69,12 @@ int amdgpu_gem_object_create(struct amdgpu_device *adev, unsigned long size,
+ 	bp.type = type;
+ 	bp.resv = resv;
+ 	bp.preferred_domain = initial_domain;
+-retry:
+ 	bp.flags = flags;
+ 	bp.domain = initial_domain;
+ 	r = amdgpu_bo_create(adev, &bp, &bo);
+-	if (r) {
+-		if (r != -ERESTARTSYS) {
+-			if (flags & AMDGPU_GEM_CREATE_CPU_ACCESS_REQUIRED) {
+-				flags &= ~AMDGPU_GEM_CREATE_CPU_ACCESS_REQUIRED;
+-				goto retry;
+-			}
+-
+-			if (initial_domain == AMDGPU_GEM_DOMAIN_VRAM) {
+-				initial_domain |= AMDGPU_GEM_DOMAIN_GTT;
+-				goto retry;
+-			}
+-			DRM_DEBUG("Failed to allocate GEM object (%ld, %d, %u, %d)\n",
+-				  size, initial_domain, alignment, r);
+-		}
++	if (r)
+ 		return r;
+-	}
++
+ 	*obj = &bo->tbo.base;
+ 	(*obj)->funcs = &amdgpu_gem_object_funcs;
+ 
+@@ -238,7 +224,7 @@ int amdgpu_gem_create_ioctl(struct drm_device *dev, void *data,
+ 	uint64_t size = args->in.bo_size;
+ 	struct dma_resv *resv = NULL;
+ 	struct drm_gem_object *gobj;
+-	uint32_t handle;
++	uint32_t handle, initial_domain;
+ 	int r;
+ 
+ 	/* reject invalid gem flags */
+@@ -282,9 +268,28 @@ int amdgpu_gem_create_ioctl(struct drm_device *dev, void *data,
+ 		resv = vm->root.base.bo->tbo.base.resv;
+ 	}
+ 
++retry:
++	initial_domain = (u32)(0xffffffff & args->in.domains);
+ 	r = amdgpu_gem_object_create(adev, size, args->in.alignment,
+-				     (u32)(0xffffffff & args->in.domains),
++				     initial_domain,
+ 				     flags, ttm_bo_type_device, resv, &gobj);
++	if (r) {
++		if (r != -ERESTARTSYS) {
++			if (flags & AMDGPU_GEM_CREATE_CPU_ACCESS_REQUIRED) {
++				flags &= ~AMDGPU_GEM_CREATE_CPU_ACCESS_REQUIRED;
++				goto retry;
++			}
++
++			if (initial_domain == AMDGPU_GEM_DOMAIN_VRAM) {
++				initial_domain |= AMDGPU_GEM_DOMAIN_GTT;
++				goto retry;
++			}
++			DRM_DEBUG("Failed to allocate GEM object (%llu, %d, %llu, %d)\n",
++				  size, initial_domain, args->in.alignment, r);
++		}
++		return r;
++	}
++
+ 	if (flags & AMDGPU_GEM_CREATE_VM_ALWAYS_VALID) {
+ 		if (!r) {
+ 			struct amdgpu_bo *abo = gem_to_amdgpu_bo(gobj);
+-- 
+cgit 
+

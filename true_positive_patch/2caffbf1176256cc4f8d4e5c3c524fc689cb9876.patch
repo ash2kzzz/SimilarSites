@@ -1,0 +1,639 @@
+From 2caffbf1176256cc4f8d4e5c3c524fc689cb9876 Mon Sep 17 00:00:00 2001
+From: Chris Wilson <chris@chris-wilson.co.uk>
+Date: Fri, 8 Feb 2019 15:37:03 +0000
+Subject: drm/i915: Revoke mmaps and prevent access to fence registers across
+ reset
+
+Previously, we were able to rely on the recursive properties of
+struct_mutex to allow us to serialise revoking mmaps and reacquiring the
+FENCE registers with them being clobbered over a global device reset.
+I then proceeded to throw out the baby with the bath water in order to
+pursue a struct_mutex-less reset.
+
+Perusing LWN for alternative strategies, the dilemma on how to serialise
+access to a global resource on one side was answered by
+https://lwn.net/Articles/202847/ -- Sleepable RCU:
+
+    1  int readside(void) {
+    2      int idx;
+    3      rcu_read_lock();
+    4	   if (nomoresrcu) {
+    5          rcu_read_unlock();
+    6	       return -EINVAL;
+    7      }
+    8	   idx = srcu_read_lock(&ss);
+    9	   rcu_read_unlock();
+    10	   /* SRCU read-side critical section. */
+    11	   srcu_read_unlock(&ss, idx);
+    12	   return 0;
+    13 }
+    14
+    15 void cleanup(void)
+    16 {
+    17     nomoresrcu = 1;
+    18     synchronize_rcu();
+    19     synchronize_srcu(&ss);
+    20     cleanup_srcu_struct(&ss);
+    21 }
+
+No more worrying about stop_machine, just an uber-complex mutex,
+optimised for reads, with the overhead pushed to the rare reset path.
+
+However, we do run the risk of a deadlock as we allocate underneath the
+SRCU read lock, and the allocation may require a GPU reset, causing a
+dependency cycle via the in-flight requests. We resolve that by declaring
+the driver wedged and cancelling all in-flight rendering.
+
+v2: Use expedited rcu barriers to match our earlier timing
+characteristics.
+v3: Try to annotate locking contexts for sparse
+v4: Reduce selftest lock duration to avoid a reset deadlock with fences
+v5: s/srcu/reset_backoff_srcu/
+v6: Remove more stale comments
+
+Testcase: igt/gem_mmap_gtt/hang
+Fixes: eb8d0f5af4ec ("drm/i915: Remove GPU reset dependence on struct_mutex")
+Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+Cc: Mika Kuoppala <mika.kuoppala@intel.com>
+Reviewed-by: Mika Kuoppala <mika.kuoppala@linux.intel.com>
+Link: https://patchwork.freedesktop.org/patch/msgid/20190208153708.20023-2-chris@chris-wilson.co.uk
+---
+ drivers/gpu/drm/i915/i915_debugfs.c              |  12 +--
+ drivers/gpu/drm/i915/i915_drv.h                  |  18 ++--
+ drivers/gpu/drm/i915/i915_gem.c                  |  56 +++---------
+ drivers/gpu/drm/i915/i915_gem_fence_reg.c        |  36 ++------
+ drivers/gpu/drm/i915/i915_gpu_error.h            |  39 ++------
+ drivers/gpu/drm/i915/i915_reset.c                | 110 ++++++++++++++---------
+ drivers/gpu/drm/i915/i915_reset.h                |   4 +
+ drivers/gpu/drm/i915/intel_drv.h                 |   3 -
+ drivers/gpu/drm/i915/selftests/intel_hangcheck.c |   5 +-
+ drivers/gpu/drm/i915/selftests/mock_gem_device.c |   1 +
+ 10 files changed, 117 insertions(+), 167 deletions(-)
+
+diff --git a/drivers/gpu/drm/i915/i915_debugfs.c b/drivers/gpu/drm/i915/i915_debugfs.c
+index 53ec81a4e5f1c..98a793d047ec7 100644
+--- a/drivers/gpu/drm/i915/i915_debugfs.c
++++ b/drivers/gpu/drm/i915/i915_debugfs.c
+@@ -1280,14 +1280,11 @@ static int i915_hangcheck_info(struct seq_file *m, void *unused)
+ 	intel_wakeref_t wakeref;
+ 	enum intel_engine_id id;
+ 
++	seq_printf(m, "Reset flags: %lx\n", dev_priv->gpu_error.flags);
+ 	if (test_bit(I915_WEDGED, &dev_priv->gpu_error.flags))
+-		seq_puts(m, "Wedged\n");
++		seq_puts(m, "\tWedged\n");
+ 	if (test_bit(I915_RESET_BACKOFF, &dev_priv->gpu_error.flags))
+-		seq_puts(m, "Reset in progress: struct_mutex backoff\n");
+-	if (waitqueue_active(&dev_priv->gpu_error.wait_queue))
+-		seq_puts(m, "Waiter holding struct mutex\n");
+-	if (waitqueue_active(&dev_priv->gpu_error.reset_queue))
+-		seq_puts(m, "struct_mutex blocked for reset\n");
++		seq_puts(m, "\tDevice (global) reset in progress\n");
+ 
+ 	if (!i915_modparams.enable_hangcheck) {
+ 		seq_puts(m, "Hangcheck disabled\n");
+@@ -3872,9 +3869,6 @@ i915_wedged_set(void *data, u64 val)
+ 	 * while it is writing to 'i915_wedged'
+ 	 */
+ 
+-	if (i915_reset_backoff(&i915->gpu_error))
+-		return -EAGAIN;
+-
+ 	i915_handle_error(i915, val, I915_ERROR_CAPTURE,
+ 			  "Manually set wedged engine mask = %llx", val);
+ 	return 0;
+diff --git a/drivers/gpu/drm/i915/i915_drv.h b/drivers/gpu/drm/i915/i915_drv.h
+index 4a423753a71c7..380b994fe5dc4 100644
+--- a/drivers/gpu/drm/i915/i915_drv.h
++++ b/drivers/gpu/drm/i915/i915_drv.h
+@@ -3001,7 +3001,12 @@ i915_gem_obj_finish_shmem_access(struct drm_i915_gem_object *obj)
+ 	i915_gem_object_unpin_pages(obj);
+ }
+ 
+-int __must_check i915_mutex_lock_interruptible(struct drm_device *dev);
++static inline int __must_check
++i915_mutex_lock_interruptible(struct drm_device *dev)
++{
++	return mutex_lock_interruptible(&dev->struct_mutex);
++}
++
+ int i915_gem_dumb_create(struct drm_file *file_priv,
+ 			 struct drm_device *dev,
+ 			 struct drm_mode_create_dumb *args);
+@@ -3018,21 +3023,11 @@ int __must_check i915_gem_set_global_seqno(struct drm_device *dev, u32 seqno);
+ struct i915_request *
+ i915_gem_find_active_request(struct intel_engine_cs *engine);
+ 
+-static inline bool i915_reset_backoff(struct i915_gpu_error *error)
+-{
+-	return unlikely(test_bit(I915_RESET_BACKOFF, &error->flags));
+-}
+-
+ static inline bool i915_terminally_wedged(struct i915_gpu_error *error)
+ {
+ 	return unlikely(test_bit(I915_WEDGED, &error->flags));
+ }
+ 
+-static inline bool i915_reset_backoff_or_wedged(struct i915_gpu_error *error)
+-{
+-	return i915_reset_backoff(error) | i915_terminally_wedged(error);
+-}
+-
+ static inline u32 i915_reset_count(struct i915_gpu_error *error)
+ {
+ 	return READ_ONCE(error->reset_count);
+@@ -3105,7 +3100,6 @@ struct drm_i915_fence_reg *
+ i915_reserve_fence(struct drm_i915_private *dev_priv);
+ void i915_unreserve_fence(struct drm_i915_fence_reg *fence);
+ 
+-void i915_gem_revoke_fences(struct drm_i915_private *dev_priv);
+ void i915_gem_restore_fences(struct drm_i915_private *dev_priv);
+ 
+ void i915_gem_detect_bit_6_swizzle(struct drm_i915_private *dev_priv);
+diff --git a/drivers/gpu/drm/i915/i915_gem.c b/drivers/gpu/drm/i915/i915_gem.c
+index 1d94bb61a779b..8f53576b771a0 100644
+--- a/drivers/gpu/drm/i915/i915_gem.c
++++ b/drivers/gpu/drm/i915/i915_gem.c
+@@ -98,47 +98,6 @@ static void i915_gem_info_remove_obj(struct drm_i915_private *dev_priv,
+ 	spin_unlock(&dev_priv->mm.object_stat_lock);
+ }
+ 
+-static int
+-i915_gem_wait_for_error(struct i915_gpu_error *error)
+-{
+-	int ret;
+-
+-	might_sleep();
+-
+-	/*
+-	 * Only wait 10 seconds for the gpu reset to complete to avoid hanging
+-	 * userspace. If it takes that long something really bad is going on and
+-	 * we should simply try to bail out and fail as gracefully as possible.
+-	 */
+-	ret = wait_event_interruptible_timeout(error->reset_queue,
+-					       !i915_reset_backoff(error),
+-					       I915_RESET_TIMEOUT);
+-	if (ret == 0) {
+-		DRM_ERROR("Timed out waiting for the gpu reset to complete\n");
+-		return -EIO;
+-	} else if (ret < 0) {
+-		return ret;
+-	} else {
+-		return 0;
+-	}
+-}
+-
+-int i915_mutex_lock_interruptible(struct drm_device *dev)
+-{
+-	struct drm_i915_private *dev_priv = to_i915(dev);
+-	int ret;
+-
+-	ret = i915_gem_wait_for_error(&dev_priv->gpu_error);
+-	if (ret)
+-		return ret;
+-
+-	ret = mutex_lock_interruptible(&dev->struct_mutex);
+-	if (ret)
+-		return ret;
+-
+-	return 0;
+-}
+-
+ static u32 __i915_gem_park(struct drm_i915_private *i915)
+ {
+ 	intel_wakeref_t wakeref;
+@@ -1885,6 +1844,7 @@ vm_fault_t i915_gem_fault(struct vm_fault *vmf)
+ 	intel_wakeref_t wakeref;
+ 	struct i915_vma *vma;
+ 	pgoff_t page_offset;
++	int srcu;
+ 	int ret;
+ 
+ 	/* Sanity check that we allow writing into this object */
+@@ -1924,7 +1884,6 @@ vm_fault_t i915_gem_fault(struct vm_fault *vmf)
+ 		goto err_unlock;
+ 	}
+ 
+-
+ 	/* Now pin it into the GTT as needed */
+ 	vma = i915_gem_object_ggtt_pin(obj, NULL, 0, 0,
+ 				       PIN_MAPPABLE |
+@@ -1962,9 +1921,15 @@ vm_fault_t i915_gem_fault(struct vm_fault *vmf)
+ 	if (ret)
+ 		goto err_unpin;
+ 
++	srcu = i915_reset_trylock(dev_priv);
++	if (srcu < 0) {
++		ret = srcu;
++		goto err_unpin;
++	}
++
+ 	ret = i915_vma_pin_fence(vma);
+ 	if (ret)
+-		goto err_unpin;
++		goto err_reset;
+ 
+ 	/* Finally, remap it using the new GTT offset */
+ 	ret = remap_io_mapping(area,
+@@ -1985,6 +1950,8 @@ vm_fault_t i915_gem_fault(struct vm_fault *vmf)
+ 
+ err_fence:
+ 	i915_vma_unpin_fence(vma);
++err_reset:
++	i915_reset_unlock(dev_priv, srcu);
+ err_unpin:
+ 	__i915_vma_unpin(vma);
+ err_unlock:
+@@ -5342,6 +5309,7 @@ int i915_gem_init_early(struct drm_i915_private *dev_priv)
+ 	init_waitqueue_head(&dev_priv->gpu_error.wait_queue);
+ 	init_waitqueue_head(&dev_priv->gpu_error.reset_queue);
+ 	mutex_init(&dev_priv->gpu_error.wedge_mutex);
++	init_srcu_struct(&dev_priv->gpu_error.reset_backoff_srcu);
+ 
+ 	atomic_set(&dev_priv->mm.bsd_engine_dispatch_index, 0);
+ 
+@@ -5374,6 +5342,8 @@ void i915_gem_cleanup_early(struct drm_i915_private *dev_priv)
+ 	GEM_BUG_ON(atomic_read(&dev_priv->mm.free_count));
+ 	WARN_ON(dev_priv->mm.object_count);
+ 
++	cleanup_srcu_struct(&dev_priv->gpu_error.reset_backoff_srcu);
++
+ 	kmem_cache_destroy(dev_priv->priorities);
+ 	kmem_cache_destroy(dev_priv->dependencies);
+ 	kmem_cache_destroy(dev_priv->requests);
+diff --git a/drivers/gpu/drm/i915/i915_gem_fence_reg.c b/drivers/gpu/drm/i915/i915_gem_fence_reg.c
+index be89bd95ab7cf..1ec1417cf8b40 100644
+--- a/drivers/gpu/drm/i915/i915_gem_fence_reg.c
++++ b/drivers/gpu/drm/i915/i915_gem_fence_reg.c
+@@ -270,6 +270,10 @@ static int fence_update(struct drm_i915_fence_reg *fence,
+ 		return 0;
+ 	}
+ 
++	ret = i915_reset_trylock(fence->i915);
++	if (ret < 0)
++		goto out_rpm;
++
+ 	fence_write(fence, vma);
+ 	fence->vma = vma;
+ 
+@@ -278,8 +282,12 @@ static int fence_update(struct drm_i915_fence_reg *fence,
+ 		list_move_tail(&fence->link, &fence->i915->mm.fence_list);
+ 	}
+ 
++	i915_reset_unlock(fence->i915, ret);
++	ret = 0;
++
++out_rpm:
+ 	intel_runtime_pm_put(fence->i915, wakeref);
+-	return 0;
++	return ret;
+ }
+ 
+ /**
+@@ -442,32 +450,6 @@ void i915_unreserve_fence(struct drm_i915_fence_reg *fence)
+ 	list_add(&fence->link, &fence->i915->mm.fence_list);
+ }
+ 
+-/**
+- * i915_gem_revoke_fences - revoke fence state
+- * @dev_priv: i915 device private
+- *
+- * Removes all GTT mmappings via the fence registers. This forces any user
+- * of the fence to reacquire that fence before continuing with their access.
+- * One use is during GPU reset where the fence register is lost and we need to
+- * revoke concurrent userspace access via GTT mmaps until the hardware has been
+- * reset and the fence registers have been restored.
+- */
+-void i915_gem_revoke_fences(struct drm_i915_private *dev_priv)
+-{
+-	int i;
+-
+-	lockdep_assert_held(&dev_priv->drm.struct_mutex);
+-
+-	for (i = 0; i < dev_priv->num_fence_regs; i++) {
+-		struct drm_i915_fence_reg *fence = &dev_priv->fence_regs[i];
+-
+-		GEM_BUG_ON(fence->vma && fence->vma->fence != fence);
+-
+-		if (fence->vma)
+-			i915_vma_revoke_mmap(fence->vma);
+-	}
+-}
+-
+ /**
+  * i915_gem_restore_fences - restore fence state
+  * @dev_priv: i915 device private
+diff --git a/drivers/gpu/drm/i915/i915_gpu_error.h b/drivers/gpu/drm/i915/i915_gpu_error.h
+index 53b1f22dd3656..afa3adb28f02d 100644
+--- a/drivers/gpu/drm/i915/i915_gpu_error.h
++++ b/drivers/gpu/drm/i915/i915_gpu_error.h
+@@ -204,39 +204,13 @@ struct i915_gpu_error {
+ 
+ 	atomic_t pending_fb_pin;
+ 
+-	/**
+-	 * State variable controlling the reset flow and count
+-	 *
+-	 * This is a counter which gets incremented when reset is triggered,
+-	 *
+-	 * Before the reset commences, the I915_RESET_BACKOFF bit is set
+-	 * meaning that any waiters holding onto the struct_mutex should
+-	 * relinquish the lock immediately in order for the reset to start.
+-	 *
+-	 * If reset is not completed successfully, the I915_WEDGE bit is
+-	 * set meaning that hardware is terminally sour and there is no
+-	 * recovery. All waiters on the reset_queue will be woken when
+-	 * that happens.
+-	 *
+-	 * This counter is used by the wait_seqno code to notice that reset
+-	 * event happened and it needs to restart the entire ioctl (since most
+-	 * likely the seqno it waited for won't ever signal anytime soon).
+-	 *
+-	 * This is important for lock-free wait paths, where no contended lock
+-	 * naturally enforces the correct ordering between the bail-out of the
+-	 * waiter and the gpu reset work code.
+-	 */
+-	unsigned long reset_count;
+-
+ 	/**
+ 	 * flags: Control various stages of the GPU reset
+ 	 *
+-	 * #I915_RESET_BACKOFF - When we start a reset, we want to stop any
+-	 * other users acquiring the struct_mutex. To do this we set the
+-	 * #I915_RESET_BACKOFF bit in the error flags when we detect a reset
+-	 * and then check for that bit before acquiring the struct_mutex (in
+-	 * i915_mutex_lock_interruptible()?). I915_RESET_BACKOFF serves a
+-	 * secondary role in preventing two concurrent global reset attempts.
++	 * #I915_RESET_BACKOFF - When we start a global reset, we need to
++	 * serialise with any other users attempting to do the same, and
++	 * any global resources that may be clobber by the reset (such as
++	 * FENCE registers).
+ 	 *
+ 	 * #I915_RESET_ENGINE[num_engines] - Since the driver doesn't need to
+ 	 * acquire the struct_mutex to reset an engine, we need an explicit
+@@ -255,6 +229,9 @@ struct i915_gpu_error {
+ #define I915_RESET_ENGINE	2
+ #define I915_WEDGED		(BITS_PER_LONG - 1)
+ 
++	/** Number of times the device has been reset (global) */
++	u32 reset_count;
++
+ 	/** Number of times an engine has been reset */
+ 	u32 reset_engine_count[I915_NUM_ENGINES];
+ 
+@@ -272,6 +249,8 @@ struct i915_gpu_error {
+ 	 */
+ 	wait_queue_head_t reset_queue;
+ 
++	struct srcu_struct reset_backoff_srcu;
++
+ 	struct i915_gpu_restart *restart;
+ };
+ 
+diff --git a/drivers/gpu/drm/i915/i915_reset.c b/drivers/gpu/drm/i915/i915_reset.c
+index 0e0ddf2e68152..c67d6c2a09a28 100644
+--- a/drivers/gpu/drm/i915/i915_reset.c
++++ b/drivers/gpu/drm/i915/i915_reset.c
+@@ -639,6 +639,32 @@ static void reset_prepare_engine(struct intel_engine_cs *engine)
+ 	engine->reset.prepare(engine);
+ }
+ 
++static void revoke_mmaps(struct drm_i915_private *i915)
++{
++	int i;
++
++	for (i = 0; i < i915->num_fence_regs; i++) {
++		struct drm_vma_offset_node *node;
++		struct i915_vma *vma;
++		u64 vma_offset;
++
++		vma = READ_ONCE(i915->fence_regs[i].vma);
++		if (!vma)
++			continue;
++
++		if (!i915_vma_has_userfault(vma))
++			continue;
++
++		GEM_BUG_ON(vma->fence != &i915->fence_regs[i]);
++		node = &vma->obj->base.vma_node;
++		vma_offset = vma->ggtt_view.partial.offset << PAGE_SHIFT;
++		unmap_mapping_range(i915->drm.anon_inode->i_mapping,
++				    drm_vma_node_offset_addr(node) + vma_offset,
++				    vma->size,
++				    1);
++	}
++}
++
+ static void reset_prepare(struct drm_i915_private *i915)
+ {
+ 	struct intel_engine_cs *engine;
+@@ -648,6 +674,7 @@ static void reset_prepare(struct drm_i915_private *i915)
+ 		reset_prepare_engine(engine);
+ 
+ 	intel_uc_sanitize(i915);
++	revoke_mmaps(i915);
+ }
+ 
+ static int gt_reset(struct drm_i915_private *i915, unsigned int stalled_mask)
+@@ -911,50 +938,22 @@ unlock:
+ 	return ret;
+ }
+ 
+-struct __i915_reset {
+-	struct drm_i915_private *i915;
+-	unsigned int stalled_mask;
+-};
+-
+-static int __i915_reset__BKL(void *data)
+-{
+-	struct __i915_reset *arg = data;
+-	int err;
+-
+-	err = intel_gpu_reset(arg->i915, ALL_ENGINES);
+-	if (err)
+-		return err;
+-
+-	return gt_reset(arg->i915, arg->stalled_mask);
+-}
+-
+-#if RESET_UNDER_STOP_MACHINE
+-/*
+- * XXX An alternative to using stop_machine would be to park only the
+- * processes that have a GGTT mmap. By remote parking the threads (SIGSTOP)
+- * we should be able to prevent their memmory accesses via the lost fence
+- * registers over the course of the reset without the potential recursive
+- * of mutexes between the pagefault handler and reset.
+- *
+- * See igt/gem_mmap_gtt/hang
+- */
+-#define __do_reset(fn, arg) stop_machine(fn, arg, NULL)
+-#else
+-#define __do_reset(fn, arg) fn(arg)
+-#endif
+-
+ static int do_reset(struct drm_i915_private *i915, unsigned int stalled_mask)
+ {
+-	struct __i915_reset arg = { i915, stalled_mask };
+ 	int err, i;
+ 
+-	err = __do_reset(__i915_reset__BKL, &arg);
++	/* Flush everyone currently using a resource about to be clobbered */
++	synchronize_srcu(&i915->gpu_error.reset_backoff_srcu);
++
++	err = intel_gpu_reset(i915, ALL_ENGINES);
+ 	for (i = 0; err && i < RESET_MAX_RETRIES; i++) {
+-		msleep(100);
+-		err = __do_reset(__i915_reset__BKL, &arg);
++		msleep(10 * (i + 1));
++		err = intel_gpu_reset(i915, ALL_ENGINES);
+ 	}
++	if (err)
++		return err;
+ 
+-	return err;
++	return gt_reset(i915, stalled_mask);
+ }
+ 
+ /**
+@@ -966,8 +965,6 @@ static int do_reset(struct drm_i915_private *i915, unsigned int stalled_mask)
+  * Reset the chip.  Useful if a hang is detected. Marks the device as wedged
+  * on failure.
+  *
+- * Caller must hold the struct_mutex.
+- *
+  * Procedure is fairly simple:
+  *   - reset the chip using the reset reg
+  *   - re-init context state
+@@ -1274,9 +1271,12 @@ void i915_handle_error(struct drm_i915_private *i915,
+ 		wait_event(i915->gpu_error.reset_queue,
+ 			   !test_bit(I915_RESET_BACKOFF,
+ 				     &i915->gpu_error.flags));
+-		goto out;
++		goto out; /* piggy-back on the other reset */
+ 	}
+ 
++	/* Make sure i915_reset_trylock() sees the I915_RESET_BACKOFF */
++	synchronize_rcu_expedited();
++
+ 	/* Prevent any other reset-engine attempt. */
+ 	for_each_engine(engine, i915, tmp) {
+ 		while (test_and_set_bit(I915_RESET_ENGINE + engine->id,
+@@ -1300,6 +1300,36 @@ out:
+ 	intel_runtime_pm_put(i915, wakeref);
+ }
+ 
++int i915_reset_trylock(struct drm_i915_private *i915)
++{
++	struct i915_gpu_error *error = &i915->gpu_error;
++	int srcu;
++
++	rcu_read_lock();
++	while (test_bit(I915_RESET_BACKOFF, &error->flags)) {
++		rcu_read_unlock();
++
++		if (wait_event_interruptible(error->reset_queue,
++					     !test_bit(I915_RESET_BACKOFF,
++						       &error->flags)))
++			return -EINTR;
++
++		rcu_read_lock();
++	}
++	srcu = srcu_read_lock(&error->reset_backoff_srcu);
++	rcu_read_unlock();
++
++	return srcu;
++}
++
++void i915_reset_unlock(struct drm_i915_private *i915, int tag)
++__releases(&i915->gpu_error.reset_backoff_srcu)
++{
++	struct i915_gpu_error *error = &i915->gpu_error;
++
++	srcu_read_unlock(&error->reset_backoff_srcu, tag);
++}
++
+ bool i915_reset_flush(struct drm_i915_private *i915)
+ {
+ 	int err;
+diff --git a/drivers/gpu/drm/i915/i915_reset.h b/drivers/gpu/drm/i915/i915_reset.h
+index f2d347f319dfa..893c5d1c2eb81 100644
+--- a/drivers/gpu/drm/i915/i915_reset.h
++++ b/drivers/gpu/drm/i915/i915_reset.h
+@@ -9,6 +9,7 @@
+ 
+ #include <linux/compiler.h>
+ #include <linux/types.h>
++#include <linux/srcu.h>
+ 
+ struct drm_i915_private;
+ struct intel_engine_cs;
+@@ -32,6 +33,9 @@ int i915_reset_engine(struct intel_engine_cs *engine,
+ void i915_reset_request(struct i915_request *rq, bool guilty);
+ bool i915_reset_flush(struct drm_i915_private *i915);
+ 
++int __must_check i915_reset_trylock(struct drm_i915_private *i915);
++void i915_reset_unlock(struct drm_i915_private *i915, int tag);
++
+ bool intel_has_gpu_reset(struct drm_i915_private *i915);
+ bool intel_has_reset_engine(struct drm_i915_private *i915);
+ 
+diff --git a/drivers/gpu/drm/i915/intel_drv.h b/drivers/gpu/drm/i915/intel_drv.h
+index 5b749186fec23..96fb830391dd3 100644
+--- a/drivers/gpu/drm/i915/intel_drv.h
++++ b/drivers/gpu/drm/i915/intel_drv.h
+@@ -995,9 +995,6 @@ struct intel_crtc {
+ 
+ 	struct intel_crtc_state *config;
+ 
+-	/* global reset count when the last flip was submitted */
+-	unsigned int reset_count;
+-
+ 	/* Access to these should be protected by dev_priv->irq_lock. */
+ 	bool cpu_fifo_underrun_disabled;
+ 	bool pch_fifo_underrun_disabled;
+diff --git a/drivers/gpu/drm/i915/selftests/intel_hangcheck.c b/drivers/gpu/drm/i915/selftests/intel_hangcheck.c
+index 7b6f3bea9ef8c..4886fac126289 100644
+--- a/drivers/gpu/drm/i915/selftests/intel_hangcheck.c
++++ b/drivers/gpu/drm/i915/selftests/intel_hangcheck.c
+@@ -1039,8 +1039,6 @@ static int __igt_reset_evict_vma(struct drm_i915_private *i915,
+ 
+ 	/* Check that we can recover an unbind stuck on a hanging request */
+ 
+-	igt_global_reset_lock(i915);
+-
+ 	mutex_lock(&i915->drm.struct_mutex);
+ 	err = hang_init(&h, i915);
+ 	if (err)
+@@ -1138,7 +1136,9 @@ static int __igt_reset_evict_vma(struct drm_i915_private *i915,
+ 	}
+ 
+ out_reset:
++	igt_global_reset_lock(i915);
+ 	fake_hangcheck(rq->i915, intel_engine_flag(rq->engine));
++	igt_global_reset_unlock(i915);
+ 
+ 	if (tsk) {
+ 		struct igt_wedge_me w;
+@@ -1159,7 +1159,6 @@ fini:
+ 	hang_fini(&h);
+ unlock:
+ 	mutex_unlock(&i915->drm.struct_mutex);
+-	igt_global_reset_unlock(i915);
+ 
+ 	if (i915_terminally_wedged(&i915->gpu_error))
+ 		return -EIO;
+diff --git a/drivers/gpu/drm/i915/selftests/mock_gem_device.c b/drivers/gpu/drm/i915/selftests/mock_gem_device.c
+index 14ae46fda49f1..fc516a2970f4b 100644
+--- a/drivers/gpu/drm/i915/selftests/mock_gem_device.c
++++ b/drivers/gpu/drm/i915/selftests/mock_gem_device.c
+@@ -189,6 +189,7 @@ struct drm_i915_private *mock_gem_device(void)
+ 
+ 	init_waitqueue_head(&i915->gpu_error.wait_queue);
+ 	init_waitqueue_head(&i915->gpu_error.reset_queue);
++	init_srcu_struct(&i915->gpu_error.reset_backoff_srcu);
+ 	mutex_init(&i915->gpu_error.wedge_mutex);
+ 
+ 	i915->wq = alloc_ordered_workqueue("mock", 0);
+-- 
+cgit 
+

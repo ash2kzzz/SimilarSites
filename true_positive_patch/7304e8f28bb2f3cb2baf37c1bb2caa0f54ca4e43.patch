@@ -1,0 +1,32 @@
+From 7304e8f28bb2f3cb2baf37c1bb2caa0f54ca4e43 Mon Sep 17 00:00:00 2001
+From: Shaohua Li <shli@fb.com>
+Date: Thu, 8 Jun 2017 11:27:14 -0700
+Subject: iommu/vt-d: Correctly disable Intel IOMMU force on
+
+I made a mistake in commit bfd20f1. We should skip the force on with the
+option enabled instead of vice versa. Not sure why this passed our
+performance test, sorry.
+
+Fixes: bfd20f1cc850 ('x86, iommu/vt-d: Add an option to disable Intel IOMMU force on')
+Signed-off-by: Shaohua Li <shli@fb.com>
+Signed-off-by: Joerg Roedel <jroedel@suse.de>
+---
+ arch/x86/kernel/tboot.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/arch/x86/kernel/tboot.c b/arch/x86/kernel/tboot.c
+index 4b17240599093..a4eb27918cebf 100644
+--- a/arch/x86/kernel/tboot.c
++++ b/arch/x86/kernel/tboot.c
+@@ -514,7 +514,7 @@ int tboot_force_iommu(void)
+ 	if (!tboot_enabled())
+ 		return 0;
+ 
+-	if (!intel_iommu_tboot_noforce)
++	if (intel_iommu_tboot_noforce)
+ 		return 1;
+ 
+ 	if (no_iommu || swiotlb || dmar_disabled)
+-- 
+cgit 
+

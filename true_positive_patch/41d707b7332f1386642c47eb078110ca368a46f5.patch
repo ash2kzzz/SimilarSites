@@ -1,0 +1,79 @@
+From 41d707b7332f1386642c47eb078110ca368a46f5 Mon Sep 17 00:00:00 2001
+From: Brian Vazquez <brianvv@google.com>
+Date: Wed, 29 Jul 2020 11:10:18 -0700
+Subject: fib: fix fib_rules_ops indirect calls wrappers
+
+This patch fixes:
+commit b9aaec8f0be5 ("fib: use indirect call wrappers in the most common
+fib_rules_ops") which didn't consider the case when
+CONFIG_IPV6_MULTIPLE_TABLES is not set.
+
+Reported-by: Stephen Rothwell <sfr@canb.auug.org.au>
+Fixes: b9aaec8f0be5 ("fib: use indirect call wrappers in the most common fib_rules_ops")
+Signed-off-by: Brian Vazquez <brianvv@google.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ net/core/fib_rules.c | 33 ++++++++++++++++++++-------------
+ 1 file changed, 20 insertions(+), 13 deletions(-)
+
+diff --git a/net/core/fib_rules.c b/net/core/fib_rules.c
+index e7a8f87b0bb2b..fce645f6b9b10 100644
+--- a/net/core/fib_rules.c
++++ b/net/core/fib_rules.c
+@@ -16,6 +16,13 @@
+ #include <net/ip_tunnels.h>
+ #include <linux/indirect_call_wrapper.h>
+ 
++#ifdef CONFIG_IPV6_MULTIPLE_TABLES
++#define INDIRECT_CALL_MT(f, f2, f1, ...) \
++	INDIRECT_CALL_INET(f, f2, f1, __VA_ARGS__)
++#else
++#define INDIRECT_CALL_MT(f, f2, f1, ...) INDIRECT_CALL_1(f, f1, __VA_ARGS__)
++#endif
++
+ static const struct fib_kuid_range fib_kuid_range_unset = {
+ 	KUIDT_INIT(0),
+ 	KUIDT_INIT(~0),
+@@ -268,10 +275,10 @@ static int fib_rule_match(struct fib_rule *rule, struct fib_rules_ops *ops,
+ 	    uid_gt(fl->flowi_uid, rule->uid_range.end))
+ 		goto out;
+ 
+-	ret = INDIRECT_CALL_INET(ops->match,
+-				 fib6_rule_match,
+-				 fib4_rule_match,
+-				 rule, fl, flags);
++	ret = INDIRECT_CALL_MT(ops->match,
++			       fib6_rule_match,
++			       fib4_rule_match,
++			       rule, fl, flags);
+ out:
+ 	return (rule->flags & FIB_RULE_INVERT) ? !ret : ret;
+ }
+@@ -302,15 +309,15 @@ jumped:
+ 		} else if (rule->action == FR_ACT_NOP)
+ 			continue;
+ 		else
+-			err = INDIRECT_CALL_INET(ops->action,
+-						 fib6_rule_action,
+-						 fib4_rule_action,
+-						 rule, fl, flags, arg);
+-
+-		if (!err && ops->suppress && INDIRECT_CALL_INET(ops->suppress,
+-								fib6_rule_suppress,
+-								fib4_rule_suppress,
+-								rule, arg))
++			err = INDIRECT_CALL_MT(ops->action,
++					       fib6_rule_action,
++					       fib4_rule_action,
++					       rule, fl, flags, arg);
++
++		if (!err && ops->suppress && INDIRECT_CALL_MT(ops->suppress,
++							      fib6_rule_suppress,
++							      fib4_rule_suppress,
++							      rule, arg))
+ 			continue;
+ 
+ 		if (err != -EAGAIN) {
+-- 
+cgit 
+

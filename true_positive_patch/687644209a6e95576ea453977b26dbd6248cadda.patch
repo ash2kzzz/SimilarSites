@@ -1,0 +1,83 @@
+From 687644209a6e95576ea453977b26dbd6248cadda Mon Sep 17 00:00:00 2001
+From: Will Deacon <will.deacon@arm.com>
+Date: Mon, 12 Jun 2017 14:43:25 +0100
+Subject: arm64: ftrace: fix building without CONFIG_MODULES
+
+When CONFIG_MODULES is disabled, we cannot dereference a module pointer:
+
+arch/arm64/kernel/ftrace.c: In function 'ftrace_make_call':
+arch/arm64/kernel/ftrace.c:107:36: error: dereferencing pointer to incomplete type 'struct module'
+   trampoline = (unsigned long *)mod->arch.ftrace_trampoline;
+
+Also, the within_module() function is not defined:
+
+arch/arm64/kernel/ftrace.c: In function 'ftrace_make_nop':
+arch/arm64/kernel/ftrace.c:171:8: error: implicit declaration of function 'within_module'; did you mean 'init_module'? [-Werror=implicit-function-declaration]
+
+This addresses both by adding replacing the IS_ENABLED(CONFIG_ARM64_MODULE_PLTS)
+checks with #ifdef versions.
+
+Fixes: e71a4e1bebaf ("arm64: ftrace: add support for far branches to dynamic ftrace")
+Reported-by: Arnd Bergmann <arnd@arndb.de>
+Acked-by: Ard Biesheuvel <ard.biesheuvel@linaro.org>
+Signed-off-by: Will Deacon <will.deacon@arm.com>
+---
+ arch/arm64/kernel/ftrace.c | 16 ++++++++++------
+ 1 file changed, 10 insertions(+), 6 deletions(-)
+
+diff --git a/arch/arm64/kernel/ftrace.c b/arch/arm64/kernel/ftrace.c
+index 8a42be0693c99..401aa27808a47 100644
+--- a/arch/arm64/kernel/ftrace.c
++++ b/arch/arm64/kernel/ftrace.c
+@@ -71,11 +71,12 @@ int ftrace_update_ftrace_func(ftrace_func_t func)
+ int ftrace_make_call(struct dyn_ftrace *rec, unsigned long addr)
+ {
+ 	unsigned long pc = rec->ip;
+-	long offset = (long)pc - (long)addr;
+ 	u32 old, new;
+ 
+-	if (IS_ENABLED(CONFIG_ARM64_MODULE_PLTS) &&
+-	    (offset < -SZ_128M || offset >= SZ_128M)) {
++#ifdef CONFIG_ARM64_MODULE_PLTS
++	long offset = (long)pc - (long)addr;
++
++	if (offset < -SZ_128M || offset >= SZ_128M) {
+ 		unsigned long *trampoline;
+ 		struct module *mod;
+ 
+@@ -121,6 +122,7 @@ int ftrace_make_call(struct dyn_ftrace *rec, unsigned long addr)
+ 		}
+ 		addr = (unsigned long)&trampoline[1];
+ 	}
++#endif /* CONFIG_ARM64_MODULE_PLTS */
+ 
+ 	old = aarch64_insn_gen_nop();
+ 	new = aarch64_insn_gen_branch_imm(pc, addr, AARCH64_INSN_BRANCH_LINK);
+@@ -135,12 +137,13 @@ int ftrace_make_nop(struct module *mod, struct dyn_ftrace *rec,
+ 		    unsigned long addr)
+ {
+ 	unsigned long pc = rec->ip;
+-	long offset = (long)pc - (long)addr;
+ 	bool validate = true;
+ 	u32 old = 0, new;
+ 
+-	if (IS_ENABLED(CONFIG_ARM64_MODULE_PLTS) &&
+-	    (offset < -SZ_128M || offset >= SZ_128M)) {
++#ifdef CONFIG_ARM64_MODULE_PLTS
++	long offset = (long)pc - (long)addr;
++
++	if (offset < -SZ_128M || offset >= SZ_128M) {
+ 		u32 replaced;
+ 
+ 		/*
+@@ -177,6 +180,7 @@ int ftrace_make_nop(struct module *mod, struct dyn_ftrace *rec,
+ 		old = aarch64_insn_gen_branch_imm(pc, addr,
+ 						  AARCH64_INSN_BRANCH_LINK);
+ 	}
++#endif /* CONFIG_ARM64_MODULE_PLTS */
+ 
+ 	new = aarch64_insn_gen_nop();
+ 
+-- 
+cgit 
+

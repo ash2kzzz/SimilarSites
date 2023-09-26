@@ -1,0 +1,67 @@
+From 5e9dcb6188a40e604e66dc30fab30c2be89aa1cc Mon Sep 17 00:00:00 2001
+From: Joel Stanley <joel@jms.id.au>
+Date: Wed, 10 Oct 2018 09:58:02 +1030
+Subject: powerpc/boot: Expose Kconfig symbols to wrapper
+
+Currently the wrapper is built without including anything in
+$(src)/include/, which means there are no CONFIG_ symbols defined.
+This means the platform specific serial drivers were never enabled.
+
+We now copy the definitions into the boot directory, so any C file can
+now include autoconf.h to depend on configuration options.
+
+Fixes: 866bfc75f40e ("powerpc: conditionally compile platform-specific serial drivers")
+Signed-off-by: Joel Stanley <joel@jms.id.au>
+[mpe: Fix to use $(objtree) to find autoconf.h]
+Signed-off-by: Michael Ellerman <mpe@ellerman.id.au>
+---
+ arch/powerpc/boot/.gitignore | 1 +
+ arch/powerpc/boot/Makefile   | 7 ++++++-
+ arch/powerpc/boot/serial.c   | 1 +
+ 3 files changed, 8 insertions(+), 1 deletion(-)
+
+diff --git a/arch/powerpc/boot/.gitignore b/arch/powerpc/boot/.gitignore
+index f92d0530ceb11..32034a0cc5541 100644
+--- a/arch/powerpc/boot/.gitignore
++++ b/arch/powerpc/boot/.gitignore
+@@ -44,4 +44,5 @@ fdt_sw.c
+ fdt_wip.c
+ libfdt.h
+ libfdt_internal.h
++autoconf.h
+ 
+diff --git a/arch/powerpc/boot/Makefile b/arch/powerpc/boot/Makefile
+index 0fb96c26136f6..5d5ab6ee48e09 100644
+--- a/arch/powerpc/boot/Makefile
++++ b/arch/powerpc/boot/Makefile
+@@ -197,9 +197,14 @@ $(obj)/empty.c:
+ $(obj)/zImage.coff.lds $(obj)/zImage.ps3.lds : $(obj)/%: $(srctree)/$(src)/%.S
+ 	$(Q)cp $< $@
+ 
++$(obj)/serial.c: $(obj)/autoconf.h
++
++$(obj)/autoconf.h: $(obj)/%: $(objtree)/include/generated/%
++	$(Q)cp $< $@
++
+ clean-files := $(zlib-) $(zlibheader-) $(zliblinuxheader-) \
+ 		$(zlib-decomp-) $(libfdt) $(libfdtheader) \
+-		empty.c zImage.coff.lds zImage.ps3.lds zImage.lds
++		autoconf.h empty.c zImage.coff.lds zImage.ps3.lds zImage.lds
+ 
+ quiet_cmd_bootcc = BOOTCC  $@
+       cmd_bootcc = $(BOOTCC) -Wp,-MD,$(depfile) $(BOOTCFLAGS) -c -o $@ $<
+diff --git a/arch/powerpc/boot/serial.c b/arch/powerpc/boot/serial.c
+index 48e3743faedfd..f045f8494bf91 100644
+--- a/arch/powerpc/boot/serial.c
++++ b/arch/powerpc/boot/serial.c
+@@ -18,6 +18,7 @@
+ #include "stdio.h"
+ #include "io.h"
+ #include "ops.h"
++#include "autoconf.h"
+ 
+ static int serial_open(void)
+ {
+-- 
+cgit 
+

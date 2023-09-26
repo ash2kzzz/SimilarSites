@@ -1,0 +1,54 @@
+From a870a02cc963de35452bbed932560ed69725c4f2 Mon Sep 17 00:00:00 2001
+From: Arnd Bergmann <arnd@arndb.de>
+Date: Tue, 13 Mar 2018 21:58:39 +0100
+Subject: pktgen: use dynamic allocation for debug print buffer
+
+After the removal of the VLA, we get a harmless warning about a large
+stack frame:
+
+net/core/pktgen.c: In function 'pktgen_if_write':
+net/core/pktgen.c:1710:1: error: the frame size of 1076 bytes is larger than 1024 bytes [-Werror=frame-larger-than=]
+
+The function was previously shown to be safe despite hitting
+the 1024 bye warning level. To get rid of the annoyging warning,
+while keeping it readable, this changes it to use strndup_user().
+
+Obviously this is not a fast path, so the kmalloc() overhead
+can be disregarded.
+
+Fixes: 35951393bbff ("pktgen: Remove VLA usage")
+Signed-off-by: Arnd Bergmann <arnd@arndb.de>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ net/core/pktgen.c | 15 ++++++++-------
+ 1 file changed, 8 insertions(+), 7 deletions(-)
+
+diff --git a/net/core/pktgen.c b/net/core/pktgen.c
+index e2d6ae3b290b9..fd65761e1fed2 100644
+--- a/net/core/pktgen.c
++++ b/net/core/pktgen.c
+@@ -906,13 +906,14 @@ static ssize_t pktgen_if_write(struct file *file,
+ 	i += len;
+ 
+ 	if (debug) {
+-		size_t copy = min_t(size_t, count, 1023);
+-		char tb[1024];
+-		if (copy_from_user(tb, user_buffer, copy))
+-			return -EFAULT;
+-		tb[copy] = 0;
+-		pr_debug("%s,%lu  buffer -:%s:-\n",
+-			 name, (unsigned long)count, tb);
++		size_t copy = min_t(size_t, count + 1, 1024);
++		char *tp = strndup_user(user_buffer, copy);
++
++		if (IS_ERR(tp))
++			return PTR_ERR(tp);
++
++		pr_debug("%s,%zu  buffer -:%s:-\n", name, count, tp);
++		kfree(buf);
+ 	}
+ 
+ 	if (!strcmp(name, "min_pkt_size")) {
+-- 
+cgit 
+

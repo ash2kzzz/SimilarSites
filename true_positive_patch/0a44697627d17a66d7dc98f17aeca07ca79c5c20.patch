@@ -1,0 +1,61 @@
+From 0a44697627d17a66d7dc98f17aeca07ca79c5c20 Mon Sep 17 00:00:00 2001
+From: Jerome Brunet <jbrunet@baylibre.com>
+Date: Mon, 2 Oct 2017 14:27:43 +0200
+Subject: mmc: meson-gx: include tx phase in the tuning process
+
+It has been reported that some platforms (odroid-c2) may require
+a different tx phase setting to operate at high speed (hs200 and hs400)
+
+To improve the situation, this patch includes tx phase in the tuning
+process.
+
+Fixes: d341ca88eead ("mmc: meson-gx: rework tuning function")
+Reported-by: Heiner Kallweit <hkallweit1@gmail.com>
+Signed-off-by: Jerome Brunet <jbrunet@baylibre.com>
+Reviewed-by: Kevin Hilman <khilman@baylibre.com>
+Signed-off-by: Ulf Hansson <ulf.hansson@linaro.org>
+---
+ drivers/mmc/host/meson-gx-mmc.c | 19 ++++++++++++++++++-
+ 1 file changed, 18 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/mmc/host/meson-gx-mmc.c b/drivers/mmc/host/meson-gx-mmc.c
+index 08a55c2e96e1b..85745ef179e22 100644
+--- a/drivers/mmc/host/meson-gx-mmc.c
++++ b/drivers/mmc/host/meson-gx-mmc.c
+@@ -716,6 +716,22 @@ static int meson_mmc_clk_phase_tuning(struct mmc_host *mmc, u32 opcode,
+ static int meson_mmc_execute_tuning(struct mmc_host *mmc, u32 opcode)
+ {
+ 	struct meson_host *host = mmc_priv(mmc);
++	int ret;
++
++	/*
++	 * If this is the initial tuning, try to get a sane Rx starting
++	 * phase before doing the actual tuning.
++	 */
++	if (!mmc->doing_retune) {
++		ret = meson_mmc_clk_phase_tuning(mmc, opcode, host->rx_clk);
++
++		if (ret)
++			return ret;
++	}
++
++	ret = meson_mmc_clk_phase_tuning(mmc, opcode, host->tx_clk);
++	if (ret)
++		return ret;
+ 
+ 	return meson_mmc_clk_phase_tuning(mmc, opcode, host->rx_clk);
+ }
+@@ -746,8 +762,9 @@ static void meson_mmc_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
+ 		if (!IS_ERR(mmc->supply.vmmc))
+ 			mmc_regulator_set_ocr(mmc, mmc->supply.vmmc, ios->vdd);
+ 
+-		/* Reset rx phase */
++		/* Reset phases */
+ 		clk_set_phase(host->rx_clk, 0);
++		clk_set_phase(host->tx_clk, 270);
+ 
+ 		break;
+ 
+-- 
+cgit 
+

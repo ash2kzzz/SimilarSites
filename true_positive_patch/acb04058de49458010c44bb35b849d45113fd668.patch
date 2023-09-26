@@ -1,0 +1,285 @@
+From acb04058de49458010c44bb35b849d45113fd668 Mon Sep 17 00:00:00 2001
+From: Peter Zijlstra <peterz@infradead.org>
+Date: Thu, 19 Jan 2017 14:36:33 +0100
+Subject: sched/clock: Fix hotplug crash
+
+Mike reported that he could trigger the WARN_ON_ONCE() in
+set_sched_clock_stable() using hotplug.
+
+This exposed a fundamental problem with the interface, we should never
+mark the TSC stable if we ever find it to be unstable. Therefore
+set_sched_clock_stable() is a broken interface.
+
+The reason it existed is that not having it is a pain, it means all
+relevant architecture code needs to call clear_sched_clock_stable()
+where appropriate.
+
+Of the three architectures that select HAVE_UNSTABLE_SCHED_CLOCK ia64
+and parisc are trivial in that they never called
+set_sched_clock_stable(), so add an unconditional call to
+clear_sched_clock_stable() to them.
+
+For x86 the story is a lot more involved, and what this patch tries to
+do is ensure we preserve the status quo. So even is Cyrix or Transmeta
+have usable TSC they never called set_sched_clock_stable() so they now
+get an explicit mark unstable.
+
+Reported-by: Mike Galbraith <efault@gmx.de>
+Signed-off-by: Peter Zijlstra (Intel) <peterz@infradead.org>
+Cc: Borislav Petkov <bp@alien8.de>
+Cc: Linus Torvalds <torvalds@linux-foundation.org>
+Cc: Peter Zijlstra <peterz@infradead.org>
+Cc: Thomas Gleixner <tglx@linutronix.de>
+Fixes: 9881b024b7d7 ("sched/clock: Delay switching sched_clock to stable")
+Link: http://lkml.kernel.org/r/20170119133633.GB6536@twins.programming.kicks-ass.net
+Signed-off-by: Ingo Molnar <mingo@kernel.org>
+---
+ arch/ia64/kernel/setup.c        |  2 ++
+ arch/parisc/kernel/setup.c      |  2 ++
+ arch/x86/kernel/cpu/amd.c       |  6 ++++--
+ arch/x86/kernel/cpu/centaur.c   |  6 ++++--
+ arch/x86/kernel/cpu/common.c    |  3 +++
+ arch/x86/kernel/cpu/cyrix.c     |  2 ++
+ arch/x86/kernel/cpu/intel.c     |  6 ++++--
+ arch/x86/kernel/cpu/transmeta.c |  3 +++
+ arch/x86/kernel/kvmclock.c      |  2 +-
+ include/linux/sched.h           |  1 -
+ kernel/sched/clock.c            | 29 ++++++++---------------------
+ 11 files changed, 33 insertions(+), 29 deletions(-)
+
+diff --git a/arch/ia64/kernel/setup.c b/arch/ia64/kernel/setup.c
+index 7ec7acc844c2e..c483ece3eb84c 100644
+--- a/arch/ia64/kernel/setup.c
++++ b/arch/ia64/kernel/setup.c
+@@ -619,6 +619,8 @@ setup_arch (char **cmdline_p)
+ 	check_sal_cache_flush();
+ #endif
+ 	paging_init();
++
++	clear_sched_clock_stable();
+ }
+ 
+ /*
+diff --git a/arch/parisc/kernel/setup.c b/arch/parisc/kernel/setup.c
+index 2e66a887788e8..068ed3607bac0 100644
+--- a/arch/parisc/kernel/setup.c
++++ b/arch/parisc/kernel/setup.c
+@@ -36,6 +36,7 @@
+ #undef PCI_DEBUG
+ #include <linux/proc_fs.h>
+ #include <linux/export.h>
++#include <linux/sched.h>
+ 
+ #include <asm/processor.h>
+ #include <asm/sections.h>
+@@ -176,6 +177,7 @@ void __init setup_arch(char **cmdline_p)
+ 	conswitchp = &dummy_con;	/* we use do_take_over_console() later ! */
+ #endif
+ 
++	clear_sched_clock_stable();
+ }
+ 
+ /*
+diff --git a/arch/x86/kernel/cpu/amd.c b/arch/x86/kernel/cpu/amd.c
+index 71cae73a50761..1bb253a6ee4d5 100644
+--- a/arch/x86/kernel/cpu/amd.c
++++ b/arch/x86/kernel/cpu/amd.c
+@@ -548,8 +548,10 @@ static void early_init_amd(struct cpuinfo_x86 *c)
+ 	if (c->x86_power & (1 << 8)) {
+ 		set_cpu_cap(c, X86_FEATURE_CONSTANT_TSC);
+ 		set_cpu_cap(c, X86_FEATURE_NONSTOP_TSC);
+-		if (!check_tsc_unstable())
+-			set_sched_clock_stable();
++		if (check_tsc_unstable())
++			clear_sched_clock_stable();
++	} else {
++		clear_sched_clock_stable();
+ 	}
+ 
+ 	/* Bit 12 of 8000_0007 edx is accumulated power mechanism. */
+diff --git a/arch/x86/kernel/cpu/centaur.c b/arch/x86/kernel/cpu/centaur.c
+index 1661d8ec92805..2c234a6d94c44 100644
+--- a/arch/x86/kernel/cpu/centaur.c
++++ b/arch/x86/kernel/cpu/centaur.c
+@@ -1,5 +1,5 @@
+-#include <linux/bitops.h>
+-#include <linux/kernel.h>
++
++#include <linux/sched.h>
+ 
+ #include <asm/cpufeature.h>
+ #include <asm/e820.h>
+@@ -104,6 +104,8 @@ static void early_init_centaur(struct cpuinfo_x86 *c)
+ #ifdef CONFIG_X86_64
+ 	set_cpu_cap(c, X86_FEATURE_SYSENTER32);
+ #endif
++
++	clear_sched_clock_stable();
+ }
+ 
+ static void init_centaur(struct cpuinfo_x86 *c)
+diff --git a/arch/x86/kernel/cpu/common.c b/arch/x86/kernel/cpu/common.c
+index dc1697ca5191c..3457186275a0a 100644
+--- a/arch/x86/kernel/cpu/common.c
++++ b/arch/x86/kernel/cpu/common.c
+@@ -83,6 +83,7 @@ static void default_init(struct cpuinfo_x86 *c)
+ 			strcpy(c->x86_model_id, "386");
+ 	}
+ #endif
++	clear_sched_clock_stable();
+ }
+ 
+ static const struct cpu_dev default_cpu = {
+@@ -1055,6 +1056,8 @@ static void identify_cpu(struct cpuinfo_x86 *c)
+ 	 */
+ 	if (this_cpu->c_init)
+ 		this_cpu->c_init(c);
++	else
++		clear_sched_clock_stable();
+ 
+ 	/* Disable the PN if appropriate */
+ 	squash_the_stupid_serial_number(c);
+diff --git a/arch/x86/kernel/cpu/cyrix.c b/arch/x86/kernel/cpu/cyrix.c
+index bd9dcd6b712d0..47416f959a48e 100644
+--- a/arch/x86/kernel/cpu/cyrix.c
++++ b/arch/x86/kernel/cpu/cyrix.c
+@@ -9,6 +9,7 @@
+ #include <asm/pci-direct.h>
+ #include <asm/tsc.h>
+ #include <asm/cpufeature.h>
++#include <linux/sched.h>
+ 
+ #include "cpu.h"
+ 
+@@ -183,6 +184,7 @@ static void early_init_cyrix(struct cpuinfo_x86 *c)
+ 		set_cpu_cap(c, X86_FEATURE_CYRIX_ARR);
+ 		break;
+ 	}
++	clear_sched_clock_stable();
+ }
+ 
+ static void init_cyrix(struct cpuinfo_x86 *c)
+diff --git a/arch/x86/kernel/cpu/intel.c b/arch/x86/kernel/cpu/intel.c
+index fcd484d2bb034..26eaff4907b2f 100644
+--- a/arch/x86/kernel/cpu/intel.c
++++ b/arch/x86/kernel/cpu/intel.c
+@@ -124,8 +124,10 @@ static void early_init_intel(struct cpuinfo_x86 *c)
+ 	if (c->x86_power & (1 << 8)) {
+ 		set_cpu_cap(c, X86_FEATURE_CONSTANT_TSC);
+ 		set_cpu_cap(c, X86_FEATURE_NONSTOP_TSC);
+-		if (!check_tsc_unstable())
+-			set_sched_clock_stable();
++		if (check_tsc_unstable())
++			clear_sched_clock_stable();
++	} else {
++		clear_sched_clock_stable();
+ 	}
+ 
+ 	/* Penwell and Cloverview have the TSC which doesn't sleep on S3 */
+diff --git a/arch/x86/kernel/cpu/transmeta.c b/arch/x86/kernel/cpu/transmeta.c
+index 34178564be2a7..c1ea5b9998393 100644
+--- a/arch/x86/kernel/cpu/transmeta.c
++++ b/arch/x86/kernel/cpu/transmeta.c
+@@ -1,4 +1,5 @@
+ #include <linux/kernel.h>
++#include <linux/sched.h>
+ #include <linux/mm.h>
+ #include <asm/cpufeature.h>
+ #include <asm/msr.h>
+@@ -14,6 +15,8 @@ static void early_init_transmeta(struct cpuinfo_x86 *c)
+ 		if (xlvl >= 0x80860001)
+ 			c->x86_capability[CPUID_8086_0001_EDX] = cpuid_edx(0x80860001);
+ 	}
++
++	clear_sched_clock_stable();
+ }
+ 
+ static void init_transmeta(struct cpuinfo_x86 *c)
+diff --git a/arch/x86/kernel/kvmclock.c b/arch/x86/kernel/kvmclock.c
+index 2a5cafdf8808e..542710b99f52c 100644
+--- a/arch/x86/kernel/kvmclock.c
++++ b/arch/x86/kernel/kvmclock.c
+@@ -107,12 +107,12 @@ static inline void kvm_sched_clock_init(bool stable)
+ {
+ 	if (!stable) {
+ 		pv_time_ops.sched_clock = kvm_clock_read;
++		clear_sched_clock_stable();
+ 		return;
+ 	}
+ 
+ 	kvm_sched_clock_offset = kvm_clock_read();
+ 	pv_time_ops.sched_clock = kvm_sched_clock_read;
+-	set_sched_clock_stable();
+ 
+ 	printk(KERN_INFO "kvm-clock: using sched offset of %llu cycles\n",
+ 			kvm_sched_clock_offset);
+diff --git a/include/linux/sched.h b/include/linux/sched.h
+index a8daed914eef4..69e6852fede1a 100644
+--- a/include/linux/sched.h
++++ b/include/linux/sched.h
+@@ -2547,7 +2547,6 @@ extern void sched_clock_init_late(void);
+  * is reliable after all:
+  */
+ extern int sched_clock_stable(void);
+-extern void set_sched_clock_stable(void);
+ extern void clear_sched_clock_stable(void);
+ 
+ extern void sched_clock_tick(void);
+diff --git a/kernel/sched/clock.c b/kernel/sched/clock.c
+index 7713b2b53f61e..ad64efe41722b 100644
+--- a/kernel/sched/clock.c
++++ b/kernel/sched/clock.c
+@@ -83,8 +83,15 @@ void sched_clock_init(void)
+ }
+ 
+ #ifdef CONFIG_HAVE_UNSTABLE_SCHED_CLOCK
++/*
++ * We must start with !__sched_clock_stable because the unstable -> stable
++ * transition is accurate, while the stable -> unstable transition is not.
++ *
++ * Similarly we start with __sched_clock_stable_early, thereby assuming we
++ * will become stable, such that there's only a single 1 -> 0 transition.
++ */
+ static DEFINE_STATIC_KEY_FALSE(__sched_clock_stable);
+-static int __sched_clock_stable_early;
++static int __sched_clock_stable_early = 1;
+ 
+ /*
+  * We want: ktime_get_ns() + gtod_offset == sched_clock() + raw_offset
+@@ -132,24 +139,6 @@ static void __set_sched_clock_stable(void)
+ 	tick_dep_clear(TICK_DEP_BIT_CLOCK_UNSTABLE);
+ }
+ 
+-void set_sched_clock_stable(void)
+-{
+-	__sched_clock_stable_early = 1;
+-
+-	smp_mb(); /* matches sched_clock_init_late() */
+-
+-	/*
+-	 * This really should only be called early (before
+-	 * sched_clock_init_late()) when guestimating our sched_clock() is
+-	 * solid.
+-	 *
+-	 * After that we test stability and we can negate our guess using
+-	 * clear_sched_clock_stable, possibly from a watchdog.
+-	 */
+-	if (WARN_ON_ONCE(sched_clock_running == 2))
+-		__set_sched_clock_stable();
+-}
+-
+ static void __clear_sched_clock_stable(struct work_struct *work)
+ {
+ 	struct sched_clock_data *scd = this_scd();
+@@ -199,8 +188,6 @@ void sched_clock_init_late(void)
+ 
+ 	if (__sched_clock_stable_early)
+ 		__set_sched_clock_stable();
+-	else
+-		__clear_sched_clock_stable(NULL);
+ }
+ 
+ /*
+-- 
+cgit 
+

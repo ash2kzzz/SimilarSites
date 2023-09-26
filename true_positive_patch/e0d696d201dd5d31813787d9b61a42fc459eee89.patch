@@ -1,0 +1,85 @@
+From e0d696d201dd5d31813787d9b61a42fc459eee89 Mon Sep 17 00:00:00 2001
+From: Jason Gunthorpe <jgg@nvidia.com>
+Date: Thu, 15 Oct 2020 20:42:18 -0300
+Subject: RDMA/rxe: Move the definitions for rxe_av.network_type to uAPI
+
+RXE was wrongly using an internal kernel enum as part of its uAPI, split
+this out into a dedicated uAPI enum just for RXE. It only uses the IPv4
+and IPv6 values.
+
+This was exposed by changing the internal kernel enum definition which
+broke RXE.
+
+Fixes: 1c15b4f2a42f ("RDMA/core: Modify enum ib_gid_type and enum rdma_network_type")
+Signed-off-by: Jason Gunthorpe <jgg@nvidia.com>
+---
+ drivers/infiniband/sw/rxe/rxe_net.c | 8 ++++----
+ include/uapi/rdma/rdma_user_rxe.h   | 6 ++++++
+ 2 files changed, 10 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/infiniband/sw/rxe/rxe_net.c b/drivers/infiniband/sw/rxe/rxe_net.c
+index 31b93e7e1e2f4..575e1a4ec8212 100644
+--- a/drivers/infiniband/sw/rxe/rxe_net.c
++++ b/drivers/infiniband/sw/rxe/rxe_net.c
+@@ -133,14 +133,14 @@ static struct dst_entry *rxe_find_route(struct net_device *ndev,
+ 		if (dst)
+ 			dst_release(dst);
+ 
+-		if (av->network_type == RDMA_NETWORK_IPV4) {
++		if (av->network_type == RXE_NETWORK_TYPE_IPV4) {
+ 			struct in_addr *saddr;
+ 			struct in_addr *daddr;
+ 
+ 			saddr = &av->sgid_addr._sockaddr_in.sin_addr;
+ 			daddr = &av->dgid_addr._sockaddr_in.sin_addr;
+ 			dst = rxe_find_route4(ndev, saddr, daddr);
+-		} else if (av->network_type == RDMA_NETWORK_IPV6) {
++		} else if (av->network_type == RXE_NETWORK_TYPE_IPV6) {
+ 			struct in6_addr *saddr6;
+ 			struct in6_addr *daddr6;
+ 
+@@ -442,7 +442,7 @@ struct sk_buff *rxe_init_packet(struct rxe_dev *rxe, struct rxe_av *av,
+ 	if (IS_ERR(attr))
+ 		return NULL;
+ 
+-	if (av->network_type == RDMA_NETWORK_IPV4)
++	if (av->network_type == RXE_NETWORK_TYPE_IPV6)
+ 		hdr_len = ETH_HLEN + sizeof(struct udphdr) +
+ 			sizeof(struct iphdr);
+ 	else
+@@ -469,7 +469,7 @@ struct sk_buff *rxe_init_packet(struct rxe_dev *rxe, struct rxe_av *av,
+ 	skb->dev	= ndev;
+ 	rcu_read_unlock();
+ 
+-	if (av->network_type == RDMA_NETWORK_IPV4)
++	if (av->network_type == RXE_NETWORK_TYPE_IPV4)
+ 		skb->protocol = htons(ETH_P_IP);
+ 	else
+ 		skb->protocol = htons(ETH_P_IPV6);
+diff --git a/include/uapi/rdma/rdma_user_rxe.h b/include/uapi/rdma/rdma_user_rxe.h
+index d8f2e0e46daba..e591d8c1f3cf1 100644
+--- a/include/uapi/rdma/rdma_user_rxe.h
++++ b/include/uapi/rdma/rdma_user_rxe.h
+@@ -39,6 +39,11 @@
+ #include <linux/in.h>
+ #include <linux/in6.h>
+ 
++enum {
++	RXE_NETWORK_TYPE_IPV4 = 1,
++	RXE_NETWORK_TYPE_IPV6 = 2,
++};
++
+ union rxe_gid {
+ 	__u8	raw[16];
+ 	struct {
+@@ -57,6 +62,7 @@ struct rxe_global_route {
+ 
+ struct rxe_av {
+ 	__u8			port_num;
++	/* From RXE_NETWORK_TYPE_* */
+ 	__u8			network_type;
+ 	__u8			dmac[6];
+ 	struct rxe_global_route	grh;
+-- 
+cgit 
+

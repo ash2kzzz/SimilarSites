@@ -1,0 +1,95 @@
+From fdd41ec21e150113e8fe169783db9b2030f5491b Mon Sep 17 00:00:00 2001
+From: Parav Pandit <parav@mellanox.com>
+Date: Tue, 12 Feb 2019 14:23:58 -0600
+Subject: devlink: Return right error code in case of errors for region read
+
+devlink_nl_cmd_region_read_dumpit() misses to return right error code on
+most error conditions.
+Return the right error code on such errors.
+
+Fixes: 4e54795a27f5 ("devlink: Add support for region snapshot read command")
+Signed-off-by: Parav Pandit <parav@mellanox.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ net/core/devlink.c | 26 +++++++++++++++++++-------
+ 1 file changed, 19 insertions(+), 7 deletions(-)
+
+diff --git a/net/core/devlink.c b/net/core/devlink.c
+index 283c3ed9f25ed..312084f76a0ac 100644
+--- a/net/core/devlink.c
++++ b/net/core/devlink.c
+@@ -3646,26 +3646,34 @@ static int devlink_nl_cmd_region_read_dumpit(struct sk_buff *skb,
+ 		goto out_free;
+ 
+ 	devlink = devlink_get_from_attrs(sock_net(cb->skb->sk), attrs);
+-	if (IS_ERR(devlink))
++	if (IS_ERR(devlink)) {
++		err = PTR_ERR(devlink);
+ 		goto out_free;
++	}
+ 
+ 	mutex_lock(&devlink_mutex);
+ 	mutex_lock(&devlink->lock);
+ 
+ 	if (!attrs[DEVLINK_ATTR_REGION_NAME] ||
+-	    !attrs[DEVLINK_ATTR_REGION_SNAPSHOT_ID])
++	    !attrs[DEVLINK_ATTR_REGION_SNAPSHOT_ID]) {
++		err = -EINVAL;
+ 		goto out_unlock;
++	}
+ 
+ 	region_name = nla_data(attrs[DEVLINK_ATTR_REGION_NAME]);
+ 	region = devlink_region_get_by_name(devlink, region_name);
+-	if (!region)
++	if (!region) {
++		err = -EINVAL;
+ 		goto out_unlock;
++	}
+ 
+ 	hdr = genlmsg_put(skb, NETLINK_CB(cb->skb).portid, cb->nlh->nlmsg_seq,
+ 			  &devlink_nl_family, NLM_F_ACK | NLM_F_MULTI,
+ 			  DEVLINK_CMD_REGION_READ);
+-	if (!hdr)
++	if (!hdr) {
++		err = -EMSGSIZE;
+ 		goto out_unlock;
++	}
+ 
+ 	err = devlink_nl_put_handle(skb, devlink);
+ 	if (err)
+@@ -3676,8 +3684,10 @@ static int devlink_nl_cmd_region_read_dumpit(struct sk_buff *skb,
+ 		goto nla_put_failure;
+ 
+ 	chunks_attr = nla_nest_start(skb, DEVLINK_ATTR_REGION_CHUNKS);
+-	if (!chunks_attr)
++	if (!chunks_attr) {
++		err = -EMSGSIZE;
+ 		goto nla_put_failure;
++	}
+ 
+ 	if (attrs[DEVLINK_ATTR_REGION_CHUNK_ADDR] &&
+ 	    attrs[DEVLINK_ATTR_REGION_CHUNK_LEN]) {
+@@ -3700,8 +3710,10 @@ static int devlink_nl_cmd_region_read_dumpit(struct sk_buff *skb,
+ 		goto nla_put_failure;
+ 
+ 	/* Check if there was any progress done to prevent infinite loop */
+-	if (ret_offset == start_offset)
++	if (ret_offset == start_offset) {
++		err = -EINVAL;
+ 		goto nla_put_failure;
++	}
+ 
+ 	*((u64 *)&cb->args[0]) = ret_offset;
+ 
+@@ -3720,7 +3732,7 @@ out_unlock:
+ 	mutex_unlock(&devlink_mutex);
+ out_free:
+ 	kfree(attrs);
+-	return 0;
++	return err;
+ }
+ 
+ struct devlink_info_req {
+-- 
+cgit 
+

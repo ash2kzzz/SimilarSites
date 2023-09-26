@@ -1,0 +1,47 @@
+From 11789039da536fea96c98a40c2b441decf2e7323 Mon Sep 17 00:00:00 2001
+From: Stefano Brivio <sbrivio@redhat.com>
+Date: Tue, 18 Dec 2018 00:13:17 +0100
+Subject: fou: Prevent unbounded recursion in GUE error handler
+
+Handling exceptions for direct UDP encapsulation in GUE (that is,
+UDP-in-UDP) leads to unbounded recursion in the GUE exception handler,
+syzbot reported.
+
+While draft-ietf-intarea-gue-06 doesn't explicitly forbid direct
+encapsulation of UDP in GUE, it probably doesn't make sense to set up GUE
+this way, and it's currently not even possible to configure this.
+
+Skip exception handling if the GUE proto/ctype field is set to the UDP
+protocol number. Should we need to handle exceptions for UDP-in-GUE one
+day, we might need to either explicitly set a bound for recursion, or
+implement a special iterative handling for these cases.
+
+Reported-and-tested-by: syzbot+43f6755d1c2e62743468@syzkaller.appspotmail.com
+Fixes: b8a51b38e4d4 ("fou, fou6: ICMP error handlers for FoU and GUE")
+Signed-off-by: Stefano Brivio <sbrivio@redhat.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ net/ipv4/fou.c | 7 +++++++
+ 1 file changed, 7 insertions(+)
+
+diff --git a/net/ipv4/fou.c b/net/ipv4/fou.c
+index 0d0ad19ecb8700..0c9f171fb085e1 100644
+--- a/net/ipv4/fou.c
++++ b/net/ipv4/fou.c
+@@ -1061,6 +1061,13 @@ static int gue_err(struct sk_buff *skb, u32 info)
+ 	if (validate_gue_flags(guehdr, optlen))
+ 		return -EINVAL;
+ 
++	/* Handling exceptions for direct UDP encapsulation in GUE would lead to
++	 * recursion. Besides, this kind of encapsulation can't even be
++	 * configured currently. Discard this.
++	 */
++	if (guehdr->proto_ctype == IPPROTO_UDP)
++		return -EOPNOTSUPP;
++
+ 	skb_set_transport_header(skb, -(int)sizeof(struct icmphdr));
+ 	ret = gue_err_proto_handler(guehdr->proto_ctype, skb, info);
+ 
+-- 
+cgit 
+

@@ -1,0 +1,176 @@
+From 5c672ab3f0ee0f78f7acad183f34db0f8781a200 Mon Sep 17 00:00:00 2001
+From: Miklos Szeredi <mszeredi@redhat.com>
+Date: Thu, 30 Jun 2016 13:10:49 +0200
+Subject: fuse: serialize dirops by default
+
+Negotiate with userspace filesystems whether they support parallel readdir
+and lookup.  Disable parallelism by default for fear of breaking fuse
+filesystems.
+
+Signed-off-by: Miklos Szeredi <mszeredi@redhat.com>
+Fixes: 9902af79c01a ("parallel lookups: actual switch to rwsem")
+Fixes: d9b3dbdcfd62 ("fuse: switch to ->iterate_shared()")
+---
+ fs/fuse/dir.c             |  4 ++++
+ fs/fuse/fuse_i.h          |  9 +++++++++
+ fs/fuse/inode.c           | 19 ++++++++++++++++++-
+ include/uapi/linux/fuse.h |  7 ++++++-
+ 4 files changed, 37 insertions(+), 2 deletions(-)
+
+diff --git a/fs/fuse/dir.c b/fs/fuse/dir.c
+index ccd4971cc6c1a..264f07c7754e2 100644
+--- a/fs/fuse/dir.c
++++ b/fs/fuse/dir.c
+@@ -341,8 +341,10 @@ static struct dentry *fuse_lookup(struct inode *dir, struct dentry *entry,
+ 	struct dentry *newent;
+ 	bool outarg_valid = true;
+ 
++	fuse_lock_inode(dir);
+ 	err = fuse_lookup_name(dir->i_sb, get_node_id(dir), &entry->d_name,
+ 			       &outarg, &inode);
++	fuse_unlock_inode(dir);
+ 	if (err == -ENOENT) {
+ 		outarg_valid = false;
+ 		err = 0;
+@@ -1341,7 +1343,9 @@ static int fuse_readdir(struct file *file, struct dir_context *ctx)
+ 		fuse_read_fill(req, file, ctx->pos, PAGE_SIZE,
+ 			       FUSE_READDIR);
+ 	}
++	fuse_lock_inode(inode);
+ 	fuse_request_send(fc, req);
++	fuse_unlock_inode(inode);
+ 	nbytes = req->out.args[0].size;
+ 	err = req->out.h.error;
+ 	fuse_put_request(fc, req);
+diff --git a/fs/fuse/fuse_i.h b/fs/fuse/fuse_i.h
+index eddbe02c40289..929c383432b03 100644
+--- a/fs/fuse/fuse_i.h
++++ b/fs/fuse/fuse_i.h
+@@ -110,6 +110,9 @@ struct fuse_inode {
+ 
+ 	/** Miscellaneous bits describing inode state */
+ 	unsigned long state;
++
++	/** Lock for serializing lookup and readdir for back compatibility*/
++	struct mutex mutex;
+ };
+ 
+ /** FUSE inode state bits */
+@@ -540,6 +543,9 @@ struct fuse_conn {
+ 	/** write-back cache policy (default is write-through) */
+ 	unsigned writeback_cache:1;
+ 
++	/** allow parallel lookups and readdir (default is serialized) */
++	unsigned parallel_dirops:1;
++
+ 	/*
+ 	 * The following bitfields are only for optimization purposes
+ 	 * and hence races in setting them will not cause malfunction
+@@ -956,4 +962,7 @@ int fuse_do_setattr(struct inode *inode, struct iattr *attr,
+ 
+ void fuse_set_initialized(struct fuse_conn *fc);
+ 
++void fuse_unlock_inode(struct inode *inode);
++void fuse_lock_inode(struct inode *inode);
++
+ #endif /* _FS_FUSE_I_H */
+diff --git a/fs/fuse/inode.c b/fs/fuse/inode.c
+index 1ce67668a8e17..9961d8432ce33 100644
+--- a/fs/fuse/inode.c
++++ b/fs/fuse/inode.c
+@@ -97,6 +97,7 @@ static struct inode *fuse_alloc_inode(struct super_block *sb)
+ 	INIT_LIST_HEAD(&fi->queued_writes);
+ 	INIT_LIST_HEAD(&fi->writepages);
+ 	init_waitqueue_head(&fi->page_waitq);
++	mutex_init(&fi->mutex);
+ 	fi->forget = fuse_alloc_forget();
+ 	if (!fi->forget) {
+ 		kmem_cache_free(fuse_inode_cachep, inode);
+@@ -117,6 +118,7 @@ static void fuse_destroy_inode(struct inode *inode)
+ 	struct fuse_inode *fi = get_fuse_inode(inode);
+ 	BUG_ON(!list_empty(&fi->write_files));
+ 	BUG_ON(!list_empty(&fi->queued_writes));
++	mutex_destroy(&fi->mutex);
+ 	kfree(fi->forget);
+ 	call_rcu(&inode->i_rcu, fuse_i_callback);
+ }
+@@ -351,6 +353,18 @@ int fuse_reverse_inval_inode(struct super_block *sb, u64 nodeid,
+ 	return 0;
+ }
+ 
++void fuse_lock_inode(struct inode *inode)
++{
++	if (!get_fuse_conn(inode)->parallel_dirops)
++		mutex_lock(&get_fuse_inode(inode)->mutex);
++}
++
++void fuse_unlock_inode(struct inode *inode)
++{
++	if (!get_fuse_conn(inode)->parallel_dirops)
++		mutex_unlock(&get_fuse_inode(inode)->mutex);
++}
++
+ static void fuse_umount_begin(struct super_block *sb)
+ {
+ 	fuse_abort_conn(get_fuse_conn_super(sb));
+@@ -898,6 +912,8 @@ static void process_init_reply(struct fuse_conn *fc, struct fuse_req *req)
+ 				fc->async_dio = 1;
+ 			if (arg->flags & FUSE_WRITEBACK_CACHE)
+ 				fc->writeback_cache = 1;
++			if (arg->flags & FUSE_PARALLEL_DIROPS)
++				fc->parallel_dirops = 1;
+ 			if (arg->time_gran && arg->time_gran <= 1000000000)
+ 				fc->sb->s_time_gran = arg->time_gran;
+ 		} else {
+@@ -928,7 +944,8 @@ static void fuse_send_init(struct fuse_conn *fc, struct fuse_req *req)
+ 		FUSE_SPLICE_WRITE | FUSE_SPLICE_MOVE | FUSE_SPLICE_READ |
+ 		FUSE_FLOCK_LOCKS | FUSE_IOCTL_DIR | FUSE_AUTO_INVAL_DATA |
+ 		FUSE_DO_READDIRPLUS | FUSE_READDIRPLUS_AUTO | FUSE_ASYNC_DIO |
+-		FUSE_WRITEBACK_CACHE | FUSE_NO_OPEN_SUPPORT;
++		FUSE_WRITEBACK_CACHE | FUSE_NO_OPEN_SUPPORT |
++		FUSE_PARALLEL_DIROPS;
+ 	req->in.h.opcode = FUSE_INIT;
+ 	req->in.numargs = 1;
+ 	req->in.args[0].size = sizeof(*arg);
+diff --git a/include/uapi/linux/fuse.h b/include/uapi/linux/fuse.h
+index 5974fae54e12c..27e17363263ab 100644
+--- a/include/uapi/linux/fuse.h
++++ b/include/uapi/linux/fuse.h
+@@ -105,6 +105,9 @@
+  *
+  *  7.24
+  *  - add FUSE_LSEEK for SEEK_HOLE and SEEK_DATA support
++ *
++ *  7.25
++ *  - add FUSE_PARALLEL_DIROPS
+  */
+ 
+ #ifndef _LINUX_FUSE_H
+@@ -140,7 +143,7 @@
+ #define FUSE_KERNEL_VERSION 7
+ 
+ /** Minor version number of this interface */
+-#define FUSE_KERNEL_MINOR_VERSION 24
++#define FUSE_KERNEL_MINOR_VERSION 25
+ 
+ /** The node ID of the root inode */
+ #define FUSE_ROOT_ID 1
+@@ -234,6 +237,7 @@ struct fuse_file_lock {
+  * FUSE_ASYNC_DIO: asynchronous direct I/O submission
+  * FUSE_WRITEBACK_CACHE: use writeback cache for buffered writes
+  * FUSE_NO_OPEN_SUPPORT: kernel supports zero-message opens
++ * FUSE_PARALLEL_DIROPS: allow parallel lookups and readdir
+  */
+ #define FUSE_ASYNC_READ		(1 << 0)
+ #define FUSE_POSIX_LOCKS	(1 << 1)
+@@ -253,6 +257,7 @@ struct fuse_file_lock {
+ #define FUSE_ASYNC_DIO		(1 << 15)
+ #define FUSE_WRITEBACK_CACHE	(1 << 16)
+ #define FUSE_NO_OPEN_SUPPORT	(1 << 17)
++#define FUSE_PARALLEL_DIROPS    (1 << 18)
+ 
+ /**
+  * CUSE INIT request/reply flags
+-- 
+cgit 
+

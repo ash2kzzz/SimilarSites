@@ -1,0 +1,39 @@
+From a8d570de0cc6acd6dc994515f163ccbc5e54ab60 Mon Sep 17 00:00:00 2001
+From: Mao Wenan <maowenan@huawei.com>
+Date: Thu, 19 Sep 2019 14:38:19 +0800
+Subject: net: dsa: sja1105: Add dependency for NET_DSA_SJA1105_TAS
+
+If CONFIG_NET_DSA_SJA1105_TAS=y and CONFIG_NET_SCH_TAPRIO=n,
+below error can be found:
+drivers/net/dsa/sja1105/sja1105_tas.o: In function `sja1105_setup_tc_taprio':
+sja1105_tas.c:(.text+0x318): undefined reference to `taprio_offload_free'
+sja1105_tas.c:(.text+0x590): undefined reference to `taprio_offload_get'
+drivers/net/dsa/sja1105/sja1105_tas.o: In function `sja1105_tas_teardown':
+sja1105_tas.c:(.text+0x610): undefined reference to `taprio_offload_free'
+make: *** [vmlinux] Error 1
+
+sja1105_tas needs tc-taprio, so this patch add the dependency for it.
+
+Fixes: 317ab5b86c8e ("net: dsa: sja1105: Configure the Time-Aware Scheduler via tc-taprio offload")
+Signed-off-by: Mao Wenan <maowenan@huawei.com>
+Reviewed-by: Vladimir Oltean <olteanv@gmail.com>
+Signed-off-by: Jakub Kicinski <jakub.kicinski@netronome.com>
+---
+ drivers/net/dsa/sja1105/Kconfig | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/drivers/net/dsa/sja1105/Kconfig b/drivers/net/dsa/sja1105/Kconfig
+index 55424f39cb0df..f40b248f0b23a 100644
+--- a/drivers/net/dsa/sja1105/Kconfig
++++ b/drivers/net/dsa/sja1105/Kconfig
+@@ -27,6 +27,7 @@ config NET_DSA_SJA1105_PTP
+ config NET_DSA_SJA1105_TAS
+ 	bool "Support for the Time-Aware Scheduler on NXP SJA1105"
+ 	depends on NET_DSA_SJA1105
++	depends on NET_SCH_TAPRIO
+ 	help
+ 	  This enables support for the TTEthernet-based egress scheduling
+ 	  engine in the SJA1105 DSA driver, which is controlled using a
+-- 
+cgit 
+

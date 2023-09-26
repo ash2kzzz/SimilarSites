@@ -1,0 +1,192 @@
+From 4731210c09f5977300f439b6c56ba220c65b2348 Mon Sep 17 00:00:00 2001
+From: Saravana Kannan <saravanak@google.com>
+Date: Fri, 22 Jan 2021 11:35:59 -0800
+Subject: gpiolib: Bind gpio_device to a driver to enable fw_devlink=on by
+ default
+
+There are multiple instances of GPIO device tree nodes of the form:
+
+foo {
+	compatible = "acme,foo";
+	...
+
+	gpio0: gpio0@xxxxxxxx {
+		compatible = "acme,bar";
+		...
+		gpio-controller;
+	};
+
+	gpio1: gpio1@xxxxxxxx {
+		compatible = "acme,bar";
+		...
+		gpio-controller;
+	};
+
+	...
+}
+
+bazz {
+	my-gpios = <&gpio0 ...>;
+}
+
+Case 1: The driver for "foo" populates struct device for these gpio*
+nodes and then probes them using a driver that binds with "acme,bar".
+This driver for "acme,bar" then registers the gpio* nodes with gpiolib.
+This lines up with how DT nodes with the "compatible" property are
+typically converted to struct devices and then registered with driver
+core to probe them. This also allows the gpio* devices to hook into all
+the driver core capabilities like runtime PM, probe deferral,
+suspend/resume ordering, device links, etc.
+
+Case 2: The driver for "foo" doesn't populate struct devices for these
+gpio* nodes before registering them with gpiolib. Instead it just loops
+through its child nodes and directly registers the gpio* nodes with
+gpiolib.
+
+Drivers that follow case 2 cause problems with fw_devlink=on. This is
+because fw_devlink will prevent bazz from probing until there's a struct
+device that has gpio0 as its fwnode (because bazz lists gpio0 as a GPIO
+supplier). Once the struct device is available, fw_devlink will create a
+device link with gpio0 device as the supplier and bazz device as the
+consumer. After this point, since the gpio0 device will never bind to a
+driver, the device link will prevent bazz device from ever probing.
+
+Finding and refactoring all the instances of drivers that follow case 2
+will cause a lot of code churn and it is not something that can be done
+in one shot. In some instances it might not even be possible to refactor
+them cleanly. Examples of such instances are [1] [2].
+
+This patch works around this problem and avoids all the code churn by
+simply setting the fwnode of the gpio_device and creating a stub driver
+to bind to the gpio_device. This allows all the consumers to continue
+probing when the driver follows case 2.
+
+[1] - https://lore.kernel.org/lkml/20201014191235.7f71fcb4@xhacker.debian/
+[2] - https://lore.kernel.org/lkml/e28e1f38d87c12a3c714a6573beba6e1@kernel.org/
+
+Fixes: e590474768f1 ("driver core: Set fw_devlink=on by default")
+Cc: Marc Zyngier <maz@kernel.org>
+Cc: Jisheng Zhang <Jisheng.Zhang@synaptics.com>
+Cc: Kever Yang <kever.yang@rock-chips.com>
+Reviewed-by: Linus Walleij <linus.walleij@linaro.org>
+Acked-by: Bartosz Golaszewski <bgolaszewski@baylibre.com>
+Signed-off-by: Saravana Kannan <saravanak@google.com>
+Link: https://lore.kernel.org/r/20210122193600.1415639-1-saravanak@google.com
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+---
+ drivers/gpio/gpiolib-of.c | 11 +++++++++++
+ drivers/gpio/gpiolib-of.h |  5 +++++
+ drivers/gpio/gpiolib.c    | 38 +++++++++++++++++++++++++++++++-------
+ 3 files changed, 47 insertions(+), 7 deletions(-)
+
+diff --git a/drivers/gpio/gpiolib-of.c b/drivers/gpio/gpiolib-of.c
+index b4a71119a4b07..baf0153b7bca3 100644
+--- a/drivers/gpio/gpiolib-of.c
++++ b/drivers/gpio/gpiolib-of.c
+@@ -1039,3 +1039,14 @@ void of_gpiochip_remove(struct gpio_chip *chip)
+ {
+ 	of_node_put(chip->of_node);
+ }
++
++void of_gpio_dev_init(struct gpio_chip *gc, struct gpio_device *gdev)
++{
++	/* If the gpiochip has an assigned OF node this takes precedence */
++	if (gc->of_node)
++		gdev->dev.of_node = gc->of_node;
++	else
++		gc->of_node = gdev->dev.of_node;
++	if (gdev->dev.of_node)
++		gdev->dev.fwnode = of_fwnode_handle(gdev->dev.of_node);
++}
+diff --git a/drivers/gpio/gpiolib-of.h b/drivers/gpio/gpiolib-of.h
+index ed26664f15378..8af2bc899aab2 100644
+--- a/drivers/gpio/gpiolib-of.h
++++ b/drivers/gpio/gpiolib-of.h
+@@ -15,6 +15,7 @@ int of_gpiochip_add(struct gpio_chip *gc);
+ void of_gpiochip_remove(struct gpio_chip *gc);
+ int of_gpio_get_count(struct device *dev, const char *con_id);
+ bool of_gpio_need_valid_mask(const struct gpio_chip *gc);
++void of_gpio_dev_init(struct gpio_chip *gc, struct gpio_device *gdev);
+ #else
+ static inline struct gpio_desc *of_find_gpio(struct device *dev,
+ 					     const char *con_id,
+@@ -33,6 +34,10 @@ static inline bool of_gpio_need_valid_mask(const struct gpio_chip *gc)
+ {
+ 	return false;
+ }
++static inline void of_gpio_dev_init(struct gpio_chip *gc,
++				    struct gpio_device *gdev)
++{
++}
+ #endif /* CONFIG_OF_GPIO */
+ 
+ extern struct notifier_block gpio_of_notifier;
+diff --git a/drivers/gpio/gpiolib.c b/drivers/gpio/gpiolib.c
+index b78a634cca240..8e0564c50840f 100644
+--- a/drivers/gpio/gpiolib.c
++++ b/drivers/gpio/gpiolib.c
+@@ -590,13 +590,7 @@ int gpiochip_add_data_with_key(struct gpio_chip *gc, void *data,
+ 		gdev->dev.of_node = gc->parent->of_node;
+ 	}
+ 
+-#ifdef CONFIG_OF_GPIO
+-	/* If the gpiochip has an assigned OF node this takes precedence */
+-	if (gc->of_node)
+-		gdev->dev.of_node = gc->of_node;
+-	else
+-		gc->of_node = gdev->dev.of_node;
+-#endif
++	of_gpio_dev_init(gc, gdev);
+ 
+ 	gdev->id = ida_alloc(&gpio_ida, GFP_KERNEL);
+ 	if (gdev->id < 0) {
+@@ -4205,6 +4199,29 @@ void gpiod_put_array(struct gpio_descs *descs)
+ }
+ EXPORT_SYMBOL_GPL(gpiod_put_array);
+ 
++static int gpio_stub_drv_probe(struct device *dev)
++{
++	/*
++	 * The DT node of some GPIO chips have a "compatible" property, but
++	 * never have a struct device added and probed by a driver to register
++	 * the GPIO chip with gpiolib. In such cases, fw_devlink=on will cause
++	 * the consumers of the GPIO chip to get probe deferred forever because
++	 * they will be waiting for a device associated with the GPIO chip
++	 * firmware node to get added and bound to a driver.
++	 *
++	 * To allow these consumers to probe, we associate the struct
++	 * gpio_device of the GPIO chip with the firmware node and then simply
++	 * bind it to this stub driver.
++	 */
++	return 0;
++}
++
++static struct device_driver gpio_stub_drv = {
++	.name = "gpio_stub_drv",
++	.bus = &gpio_bus_type,
++	.probe = gpio_stub_drv_probe,
++};
++
+ static int __init gpiolib_dev_init(void)
+ {
+ 	int ret;
+@@ -4216,9 +4233,16 @@ static int __init gpiolib_dev_init(void)
+ 		return ret;
+ 	}
+ 
++	if (driver_register(&gpio_stub_drv) < 0) {
++		pr_err("gpiolib: could not register GPIO stub driver\n");
++		bus_unregister(&gpio_bus_type);
++		return ret;
++	}
++
+ 	ret = alloc_chrdev_region(&gpio_devt, 0, GPIO_DEV_MAX, GPIOCHIP_NAME);
+ 	if (ret < 0) {
+ 		pr_err("gpiolib: failed to allocate char dev region\n");
++		driver_unregister(&gpio_stub_drv);
+ 		bus_unregister(&gpio_bus_type);
+ 		return ret;
+ 	}
+-- 
+cgit 
+

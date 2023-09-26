@@ -46,7 +46,7 @@ class SimilarSitesChecker(object):
         tarf.close()
         os.remove('/tmp/'+str(self.commit_id)+'/linux-'+str(self.commit_id)+'.tar.gz')
         os.rename('/tmp/'+str(self.commit_id)+'/linux-'+str(self.commit_id), '/tmp/'+str(self.commit_id)+'/linux_patched')
-        shutil.copytree('/tmp/'+str(self.commit_id)+'/linux_patched', '/tmp/'+str(self.commit_id)+'/linux_unpatched')
+        shutil.copytree('/tmp/'+str(self.commit_id)+'/linux_patched', '/tmp/'+str(self.commit_id)+'/linux_unpatched', symlinks=True)
         current_path = os.getcwd()
         os.chdir('/tmp/'+str(self.commit_id)+'/linux_unpatched')
         subprocess.Popen('patch -REp1'+' < '+str(self.patch_path), shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=-1)

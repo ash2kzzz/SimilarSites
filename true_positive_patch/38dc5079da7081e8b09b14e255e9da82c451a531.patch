@@ -1,0 +1,42 @@
+From 38dc5079da7081e8b09b14e255e9da82c451a531 Mon Sep 17 00:00:00 2001
+From: Jens Axboe <axboe@kernel.dk>
+Date: Mon, 26 Oct 2020 18:03:18 -0600
+Subject: Fix compat regression in process_vm_rw()
+
+The removal of compat_process_vm_{readv,writev} didn't change
+process_vm_rw(), which always assumes it's not doing a compat syscall.
+
+Instead of passing in 'false' unconditionally for 'compat', make it
+conditional on in_compat_syscall().
+
+[ Both Al and Christoph point out that trying to access a 64-bit process
+  from a 32-bit one cannot work anyway, and is likely better prohibited,
+  but that's a separate issue    - Linus ]
+
+Fixes: c3973b401ef2 ("mm: remove compat_process_vm_{readv,writev}")
+Reported-and-tested-by: Kyle Huey <me@kylehuey.com>
+Signed-off-by: Jens Axboe <axboe@kernel.dk>
+Acked-by: Al Viro <viro@zeniv.linux.org.uk>
+Reviewed-by: Christoph Hellwig <hch@lst.de>
+Signed-off-by: Linus Torvalds <torvalds@linux-foundation.org>
+---
+ mm/process_vm_access.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/mm/process_vm_access.c b/mm/process_vm_access.c
+index fd12da80b6f27..05676722d9cd6 100644
+--- a/mm/process_vm_access.c
++++ b/mm/process_vm_access.c
+@@ -273,7 +273,8 @@ static ssize_t process_vm_rw(pid_t pid,
+ 		return rc;
+ 	if (!iov_iter_count(&iter))
+ 		goto free_iov_l;
+-	iov_r = iovec_from_user(rvec, riovcnt, UIO_FASTIOV, iovstack_r, false);
++	iov_r = iovec_from_user(rvec, riovcnt, UIO_FASTIOV, iovstack_r,
++				in_compat_syscall());
+ 	if (IS_ERR(iov_r)) {
+ 		rc = PTR_ERR(iov_r);
+ 		goto free_iov_l;
+-- 
+cgit 
+

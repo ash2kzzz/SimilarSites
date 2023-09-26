@@ -1,0 +1,52 @@
+From 6d6e500391875cc372336c88e9a8af377be19c36 Mon Sep 17 00:00:00 2001
+From: Eric Anholt <eric@anholt.net>
+Date: Tue, 28 Mar 2017 13:13:43 -0700
+Subject: drm/vc4: Allocate the right amount of space for boot-time CRTC state.
+
+Without this, the first modeset would dereference past the allocation
+when trying to free the mm node.
+
+Signed-off-by: Eric Anholt <eric@anholt.net>
+Tested-by: Stefan Wahren <stefan.wahren@i2se.com>
+Link: http://patchwork.freedesktop.org/patch/msgid/20170328201343.4884-1-eric@anholt.net
+Fixes: d8dbf44f13b9 ("drm/vc4: Make the CRTCs cooperate on allocating display lists.")
+Cc: <stable@vger.kernel.org> # v4.6+
+Reviewed-by: Daniel Vetter <daniel.vetter@ffwll.ch>
+---
+ drivers/gpu/drm/vc4/vc4_crtc.c | 13 ++++++++++++-
+ 1 file changed, 12 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/vc4/vc4_crtc.c b/drivers/gpu/drm/vc4/vc4_crtc.c
+index 0c06844af4455..9fcf05ca492b0 100644
+--- a/drivers/gpu/drm/vc4/vc4_crtc.c
++++ b/drivers/gpu/drm/vc4/vc4_crtc.c
+@@ -846,6 +846,17 @@ static void vc4_crtc_destroy_state(struct drm_crtc *crtc,
+ 	drm_atomic_helper_crtc_destroy_state(crtc, state);
+ }
+ 
++static void
++vc4_crtc_reset(struct drm_crtc *crtc)
++{
++	if (crtc->state)
++		__drm_atomic_helper_crtc_destroy_state(crtc->state);
++
++	crtc->state = kzalloc(sizeof(struct vc4_crtc_state), GFP_KERNEL);
++	if (crtc->state)
++		crtc->state->crtc = crtc;
++}
++
+ static const struct drm_crtc_funcs vc4_crtc_funcs = {
+ 	.set_config = drm_atomic_helper_set_config,
+ 	.destroy = vc4_crtc_destroy,
+@@ -853,7 +864,7 @@ static const struct drm_crtc_funcs vc4_crtc_funcs = {
+ 	.set_property = NULL,
+ 	.cursor_set = NULL, /* handled by drm_mode_cursor_universal */
+ 	.cursor_move = NULL, /* handled by drm_mode_cursor_universal */
+-	.reset = drm_atomic_helper_crtc_reset,
++	.reset = vc4_crtc_reset,
+ 	.atomic_duplicate_state = vc4_crtc_duplicate_state,
+ 	.atomic_destroy_state = vc4_crtc_destroy_state,
+ 	.gamma_set = vc4_crtc_gamma_set,
+-- 
+cgit 
+

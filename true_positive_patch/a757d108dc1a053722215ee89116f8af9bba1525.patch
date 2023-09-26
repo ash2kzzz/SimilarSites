@@ -1,0 +1,33 @@
+From a757d108dc1a053722215ee89116f8af9bba1525 Mon Sep 17 00:00:00 2001
+From: Hadar Hen Zion <hadarh@mellanox.com>
+Date: Tue, 10 Jan 2017 22:33:35 +0200
+Subject: net/mlx5e: Fix kbuild warnings for uninitialized parameters
+
+kbuild warn about parameters that may be used uninitialized, fix it.
+
+Fixes: a54e20b4fcae ('net/mlx5e: Add basic TC tunnel set action for SRIOV offloads')
+Signed-off-by: Hadar Hen Zion <hadarh@mellanox.com>
+Signed-off-by: Saeed Mahameed <saeedm@mellanox.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ drivers/net/ethernet/mellanox/mlx5/core/en_tc.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/net/ethernet/mellanox/mlx5/core/en_tc.c b/drivers/net/ethernet/mellanox/mlx5/core/en_tc.c
+index a35fa1eb06946..5dbc81de34ee8 100644
+--- a/drivers/net/ethernet/mellanox/mlx5/core/en_tc.c
++++ b/drivers/net/ethernet/mellanox/mlx5/core/en_tc.c
+@@ -737,8 +737,8 @@ static int mlx5e_create_encap_header_ipv4(struct mlx5e_priv *priv,
+ 	struct flowi4 fl4 = {};
+ 	char *encap_header;
+ 	int encap_size;
+-	__be32 saddr;
+-	int ttl;
++	__be32 saddr = 0;
++	int ttl = 0;
+ 	int err;
+ 
+ 	encap_header = kzalloc(max_encap_size, GFP_KERNEL);
+-- 
+cgit 
+

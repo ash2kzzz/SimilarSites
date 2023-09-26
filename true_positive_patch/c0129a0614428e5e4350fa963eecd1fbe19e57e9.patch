@@ -1,0 +1,66 @@
+From c0129a0614428e5e4350fa963eecd1fbe19e57e9 Mon Sep 17 00:00:00 2001
+From: Cong Wang <xiyou.wangcong@gmail.com>
+Date: Mon, 11 Jun 2018 14:07:14 -0700
+Subject: smc: convert to ->poll_mask
+
+smc->clcsock is an internal TCP socket, after TCP socket
+converts to ->poll_mask, ->poll doesn't exist any more.
+So just convert smc socket to ->poll_mask too.
+
+Fixes: 2c7d3dacebd4 ("net/tcp: convert to ->poll_mask")
+Reported-by: syzbot+f5066e369b2d5fff630f@syzkaller.appspotmail.com
+Cc: Christoph Hellwig <hch@lst.de>
+Cc: Ursula Braun <ubraun@linux.ibm.com>
+Signed-off-by: Cong Wang <xiyou.wangcong@gmail.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ net/smc/af_smc.c | 12 +++---------
+ 1 file changed, 3 insertions(+), 9 deletions(-)
+
+diff --git a/net/smc/af_smc.c b/net/smc/af_smc.c
+index 973b4471b532b..da7f02edcd374 100644
+--- a/net/smc/af_smc.c
++++ b/net/smc/af_smc.c
+@@ -1273,8 +1273,7 @@ static __poll_t smc_accept_poll(struct sock *parent)
+ 	return mask;
+ }
+ 
+-static __poll_t smc_poll(struct file *file, struct socket *sock,
+-			     poll_table *wait)
++static __poll_t smc_poll_mask(struct socket *sock, __poll_t events)
+ {
+ 	struct sock *sk = sock->sk;
+ 	__poll_t mask = 0;
+@@ -1290,7 +1289,7 @@ static __poll_t smc_poll(struct file *file, struct socket *sock,
+ 	if ((sk->sk_state == SMC_INIT) || smc->use_fallback) {
+ 		/* delegate to CLC child sock */
+ 		release_sock(sk);
+-		mask = smc->clcsock->ops->poll(file, smc->clcsock, wait);
++		mask = smc->clcsock->ops->poll_mask(smc->clcsock, events);
+ 		lock_sock(sk);
+ 		sk->sk_err = smc->clcsock->sk->sk_err;
+ 		if (sk->sk_err) {
+@@ -1308,11 +1307,6 @@ static __poll_t smc_poll(struct file *file, struct socket *sock,
+ 			}
+ 		}
+ 	} else {
+-		if (sk->sk_state != SMC_CLOSED) {
+-			release_sock(sk);
+-			sock_poll_wait(file, sk_sleep(sk), wait);
+-			lock_sock(sk);
+-		}
+ 		if (sk->sk_err)
+ 			mask |= EPOLLERR;
+ 		if ((sk->sk_shutdown == SHUTDOWN_MASK) ||
+@@ -1625,7 +1619,7 @@ static const struct proto_ops smc_sock_ops = {
+ 	.socketpair	= sock_no_socketpair,
+ 	.accept		= smc_accept,
+ 	.getname	= smc_getname,
+-	.poll		= smc_poll,
++	.poll_mask	= smc_poll_mask,
+ 	.ioctl		= smc_ioctl,
+ 	.listen		= smc_listen,
+ 	.shutdown	= smc_shutdown,
+-- 
+cgit 
+

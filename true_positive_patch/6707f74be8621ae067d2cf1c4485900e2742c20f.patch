@@ -1,0 +1,78 @@
+From 6707f74be8621ae067d2cf1c4485900e2742c20f Mon Sep 17 00:00:00 2001
+From: Tonghao Zhang <xiangxia.m.yue@gmail.com>
+Date: Mon, 28 Jan 2019 15:28:05 -0800
+Subject: net/mlx5e: Update hw flows when encap source mac changed
+
+When we offload tc filters to hardware, hardware flows can
+be updated when mac of encap destination ip is changed.
+But we ignore one case, that the mac of local encap ip can
+be changed too, so we should also update them.
+
+To fix it, add route_dev in mlx5e_encap_entry struct to save
+the local encap netdevice, and when mac changed, kernel will
+flush all the neighbour on the netdevice and send NETEVENT_NEIGH_UPDATE
+event. The mlx5 driver will delete the flows and add them when neighbour
+available again.
+
+Fixes: 232c001398ae ("net/mlx5e: Add support to neighbour update flow")
+Cc: Hadar Hen Zion <hadarh@mellanox.com>
+Signed-off-by: Tonghao Zhang <xiangxia.m.yue@gmail.com>
+Reviewed-by: Or Gerlitz <ogerlitz@mellanox.com>
+Acked-by: Saeed Mahameed <saeedm@mellanox.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ drivers/net/ethernet/mellanox/mlx5/core/en/tc_tun.c | 2 ++
+ drivers/net/ethernet/mellanox/mlx5/core/en_rep.c    | 4 ++++
+ drivers/net/ethernet/mellanox/mlx5/core/en_rep.h    | 1 +
+ 3 files changed, 7 insertions(+)
+
+diff --git a/drivers/net/ethernet/mellanox/mlx5/core/en/tc_tun.c b/drivers/net/ethernet/mellanox/mlx5/core/en/tc_tun.c
+index a3750af074a40..f3c7ab6faea50 100644
+--- a/drivers/net/ethernet/mellanox/mlx5/core/en/tc_tun.c
++++ b/drivers/net/ethernet/mellanox/mlx5/core/en/tc_tun.c
+@@ -256,6 +256,7 @@ int mlx5e_tc_tun_create_header_ipv4(struct mlx5e_priv *priv,
+ 	e->m_neigh.family = n->ops->family;
+ 	memcpy(&e->m_neigh.dst_ip, n->primary_key, n->tbl->key_len);
+ 	e->out_dev = out_dev;
++	e->route_dev = route_dev;
+ 
+ 	/* It's important to add the neigh to the hash table before checking
+ 	 * the neigh validity state. So if we'll get a notification, in case the
+@@ -369,6 +370,7 @@ int mlx5e_tc_tun_create_header_ipv6(struct mlx5e_priv *priv,
+ 	e->m_neigh.family = n->ops->family;
+ 	memcpy(&e->m_neigh.dst_ip, n->primary_key, n->tbl->key_len);
+ 	e->out_dev = out_dev;
++	e->route_dev = route_dev;
+ 
+ 	/* It's importent to add the neigh to the hash table before checking
+ 	 * the neigh validity state. So if we'll get a notification, in case the
+diff --git a/drivers/net/ethernet/mellanox/mlx5/core/en_rep.c b/drivers/net/ethernet/mellanox/mlx5/core/en_rep.c
+index f2573c2d2b5c2..ef9e472daffb0 100644
+--- a/drivers/net/ethernet/mellanox/mlx5/core/en_rep.c
++++ b/drivers/net/ethernet/mellanox/mlx5/core/en_rep.c
+@@ -596,6 +596,10 @@ static void mlx5e_rep_update_flows(struct mlx5e_priv *priv,
+ 	if (neigh_connected && !(e->flags & MLX5_ENCAP_ENTRY_VALID)) {
+ 		ether_addr_copy(e->h_dest, ha);
+ 		ether_addr_copy(eth->h_dest, ha);
++		/* Update the encap source mac, in case that we delete
++		 * the flows when encap source mac changed.
++		 */
++		ether_addr_copy(eth->h_source, e->route_dev->dev_addr);
+ 
+ 		mlx5e_tc_encap_flows_add(priv, e);
+ 	}
+diff --git a/drivers/net/ethernet/mellanox/mlx5/core/en_rep.h b/drivers/net/ethernet/mellanox/mlx5/core/en_rep.h
+index edd722824697f..36eafc877e6bf 100644
+--- a/drivers/net/ethernet/mellanox/mlx5/core/en_rep.h
++++ b/drivers/net/ethernet/mellanox/mlx5/core/en_rep.h
+@@ -148,6 +148,7 @@ struct mlx5e_encap_entry {
+ 	unsigned char h_dest[ETH_ALEN];	/* destination eth addr	*/
+ 
+ 	struct net_device *out_dev;
++	struct net_device *route_dev;
+ 	int tunnel_type;
+ 	int tunnel_hlen;
+ 	int reformat_type;
+-- 
+cgit 
+

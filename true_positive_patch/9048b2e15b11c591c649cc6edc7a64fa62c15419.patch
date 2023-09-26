@@ -1,0 +1,62 @@
+From 9048b2e15b11c591c649cc6edc7a64fa62c15419 Mon Sep 17 00:00:00 2001
+From: Sakari Ailus <sakari.ailus@linux.intel.com>
+Date: Thu, 10 Jan 2019 07:43:19 -0500
+Subject: media: v4l: ioctl: Validate num_planes before using it
+
+The for loop to reset the memory of the plane reserved fields runs over
+num_planes provided by the user without validating it. Ensure num_planes
+is no more than VIDEO_MAX_PLANES before the loop.
+
+Fixes: 4e1e0eb0e074 ("media: v4l2-ioctl: Zero v4l2_plane_pix_format reserved fields")
+
+Signed-off-by: Sakari Ailus <sakari.ailus@linux.intel.com>
+Reviewed-by: Thierry Reding <treding@nvidia.com>
+Signed-off-by: Hans Verkuil <hverkuil-cisco@xs4all.nl>
+Signed-off-by: Mauro Carvalho Chehab <mchehab+samsung@kernel.org>
+---
+ drivers/media/v4l2-core/v4l2-ioctl.c | 8 ++++++++
+ 1 file changed, 8 insertions(+)
+
+diff --git a/drivers/media/v4l2-core/v4l2-ioctl.c b/drivers/media/v4l2-core/v4l2-ioctl.c
+index ca85c3a9a7b9a..44bc7c4f1c115 100644
+--- a/drivers/media/v4l2-core/v4l2-ioctl.c
++++ b/drivers/media/v4l2-core/v4l2-ioctl.c
+@@ -1551,6 +1551,8 @@ static int v4l_s_fmt(const struct v4l2_ioctl_ops *ops,
+ 		if (unlikely(!ops->vidioc_s_fmt_vid_cap_mplane))
+ 			break;
+ 		CLEAR_AFTER_FIELD(p, fmt.pix_mp.xfer_func);
++		if (p->fmt.pix_mp.num_planes > VIDEO_MAX_PLANES)
++			break;
+ 		for (i = 0; i < p->fmt.pix_mp.num_planes; i++)
+ 			CLEAR_AFTER_FIELD(&p->fmt.pix_mp.plane_fmt[i],
+ 					  bytesperline);
+@@ -1582,6 +1584,8 @@ static int v4l_s_fmt(const struct v4l2_ioctl_ops *ops,
+ 		if (unlikely(!ops->vidioc_s_fmt_vid_out_mplane))
+ 			break;
+ 		CLEAR_AFTER_FIELD(p, fmt.pix_mp.xfer_func);
++		if (p->fmt.pix_mp.num_planes > VIDEO_MAX_PLANES)
++			break;
+ 		for (i = 0; i < p->fmt.pix_mp.num_planes; i++)
+ 			CLEAR_AFTER_FIELD(&p->fmt.pix_mp.plane_fmt[i],
+ 					  bytesperline);
+@@ -1650,6 +1654,8 @@ static int v4l_try_fmt(const struct v4l2_ioctl_ops *ops,
+ 		if (unlikely(!ops->vidioc_try_fmt_vid_cap_mplane))
+ 			break;
+ 		CLEAR_AFTER_FIELD(p, fmt.pix_mp.xfer_func);
++		if (p->fmt.pix_mp.num_planes > VIDEO_MAX_PLANES)
++			break;
+ 		for (i = 0; i < p->fmt.pix_mp.num_planes; i++)
+ 			CLEAR_AFTER_FIELD(&p->fmt.pix_mp.plane_fmt[i],
+ 					  bytesperline);
+@@ -1681,6 +1687,8 @@ static int v4l_try_fmt(const struct v4l2_ioctl_ops *ops,
+ 		if (unlikely(!ops->vidioc_try_fmt_vid_out_mplane))
+ 			break;
+ 		CLEAR_AFTER_FIELD(p, fmt.pix_mp.xfer_func);
++		if (p->fmt.pix_mp.num_planes > VIDEO_MAX_PLANES)
++			break;
+ 		for (i = 0; i < p->fmt.pix_mp.num_planes; i++)
+ 			CLEAR_AFTER_FIELD(&p->fmt.pix_mp.plane_fmt[i],
+ 					  bytesperline);
+-- 
+cgit 
+

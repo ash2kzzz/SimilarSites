@@ -1,0 +1,69 @@
+From 7ed88aa2efa5422f9d93fd99f2a01c56e28a7409 Mon Sep 17 00:00:00 2001
+From: Russell King <rmk+kernel@arm.linux.org.uk>
+Date: Sat, 2 Jan 2016 10:01:34 +0000
+Subject: clk: fix clk-gpio.c with optional clock= DT property
+
+When the clock DT property is not given, of_clk_get_parent_count()
+returns -ENOENT, which then tries to allocate -2 x 4 bytes of memory,
+which of course fails, causing the whole driver to fail to create
+the clock.
+
+This causes the SolidRun platforms to fail probing the SDHCI1 interface
+which is connected to the WiFi.
+
+Fix this by detecting errno codes, skipping the allocation, and fixing
+of_clk_gpio_gate_delayed_register_get() to handle a NULL parent_names
+array.
+
+Fixes: 80eeb1f0f757 ("clk: add gpio controlled clock multiplexer")
+Signed-off-by: Russell King <rmk+kernel@arm.linux.org.uk>
+Signed-off-by: Michael Turquette <mturquette@baylibre.com>
+---
+ drivers/clk/clk-gpio.c | 22 +++++++++++++---------
+ 1 file changed, 13 insertions(+), 9 deletions(-)
+
+diff --git a/drivers/clk/clk-gpio.c b/drivers/clk/clk-gpio.c
+index 1767b9e3ca938..19fed65587e82 100644
+--- a/drivers/clk/clk-gpio.c
++++ b/drivers/clk/clk-gpio.c
+@@ -264,8 +264,8 @@ static struct clk *of_clk_gpio_gate_delayed_register_get(const char *name,
+ 		const char * const *parent_names, u8 num_parents,
+ 		unsigned gpio, bool active_low)
+ {
+-	return clk_register_gpio_gate(NULL, name, parent_names[0],
+-			gpio, active_low, 0);
++	return clk_register_gpio_gate(NULL, name, parent_names ?
++			parent_names[0] : NULL, gpio, active_low, 0);
+ }
+ 
+ static struct clk *of_clk_gpio_mux_delayed_register_get(const char *name,
+@@ -295,15 +295,19 @@ static void __init of_gpio_clk_setup(struct device_node *node,
+ 	if (!data)
+ 		return;
+ 
+-	parent_names = kcalloc(num_parents, sizeof(char *), GFP_KERNEL);
+-	if (!parent_names) {
+-		kfree(data);
+-		return;
++	if (num_parents) {
++		parent_names = kcalloc(num_parents, sizeof(char *), GFP_KERNEL);
++		if (!parent_names) {
++			kfree(data);
++			return;
++		}
++
++		for (i = 0; i < num_parents; i++)
++			parent_names[i] = of_clk_get_parent_name(node, i);
++	} else {
++		parent_names = NULL;
+ 	}
+ 
+-	for (i = 0; i < num_parents; i++)
+-		parent_names[i] = of_clk_get_parent_name(node, i);
+-
+ 	data->num_parents = num_parents;
+ 	data->parent_names = parent_names;
+ 	data->node = node;
+-- 
+cgit 
+

@@ -1,0 +1,42 @@
+From ba7d7e2677c0953b251c36588b15f5f442e59c84 Mon Sep 17 00:00:00 2001
+From: Anders Roxell <anders.roxell@linaro.org>
+Date: Thu, 26 Jul 2018 00:20:08 +0200
+Subject: net/rds/Kconfig: RDS should depend on IPV6
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Build error, implicit declaration of function __inet6_ehashfn shows up
+When RDS is enabled but not IPV6.
+net/rds/connection.c: In function ‘rds_conn_bucket’:
+net/rds/connection.c:67:9: error: implicit declaration of function ‘__inet6_ehashfn’; did you mean ‘__inet_ehashfn’? [-Werror=implicit-function-declaration]
+  hash = __inet6_ehashfn(lhash, 0, fhash, 0, rds_hash_secret);
+         ^~~~~~~~~~~~~~~
+         __inet_ehashfn
+
+Current code adds IPV6 as a depends on in config RDS.
+
+Fixes: eee2fa6ab322 ("rds: Changing IP address internal representation to struct in6_addr")
+Signed-off-by: Anders Roxell <anders.roxell@linaro.org>
+Acked-by: Santosh Shilimkar <santosh.shilimkar@oracle.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ net/rds/Kconfig | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/net/rds/Kconfig b/net/rds/Kconfig
+index 41f75563b54b1..607128f10bcda 100644
+--- a/net/rds/Kconfig
++++ b/net/rds/Kconfig
+@@ -1,7 +1,7 @@
+ 
+ config RDS
+ 	tristate "The RDS Protocol"
+-	depends on INET
++	depends on INET && CONFIG_IPV6
+ 	---help---
+ 	  The RDS (Reliable Datagram Sockets) protocol provides reliable,
+ 	  sequenced delivery of datagrams over Infiniband or TCP.
+-- 
+cgit 
+

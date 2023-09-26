@@ -1,0 +1,63 @@
+From 7a8c7f5c30f90cb6f843e473acbd3a4b58c476b6 Mon Sep 17 00:00:00 2001
+From: Florian Fainelli <f.fainelli@gmail.com>
+Date: Thu, 6 Sep 2018 11:42:45 -0700
+Subject: net: dsa: b53: Fix build with B53_SRAB enabled and not B53_SERDES
+
+In case B53_SRAB is enabled, but not B53_SERDES, we can get the
+following linking error:
+
+ERROR: "b53_serdes_init" [drivers/net/dsa/b53/b53_srab.ko] undefined!
+
+We also need to ifdef the body of b53_srab_serdes_map_lane() since it
+would not be used when B53_SERDES is disabled and that would produce a
+warning.
+
+Fixes: 0e01491de646 ("net: dsa: b53: Add SerDes support")
+Reported-by: kbuild test robot <lkp@intel.com>
+Signed-off-by: Florian Fainelli <f.fainelli@gmail.com>
+Reviewed-by: Andrew Lunn <andrew@lunn.ch>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ drivers/net/dsa/b53/b53_serdes.h | 7 +++++++
+ drivers/net/dsa/b53/b53_srab.c   | 2 ++
+ 2 files changed, 9 insertions(+)
+
+diff --git a/drivers/net/dsa/b53/b53_serdes.h b/drivers/net/dsa/b53/b53_serdes.h
+index e0674aa0167ff..eed7c93570916 100644
+--- a/drivers/net/dsa/b53/b53_serdes.h
++++ b/drivers/net/dsa/b53/b53_serdes.h
+@@ -118,4 +118,11 @@ void b53_serdes_link_set(struct b53_device *dev, int port, unsigned int mode,
+ void b53_serdes_phylink_validate(struct b53_device *dev, int port,
+ 				unsigned long *supported,
+ 				struct phylink_link_state *state);
++#if IS_ENABLED(CONFIG_B53_SERDES)
+ int b53_serdes_init(struct b53_device *dev, int port);
++#else
++static inline int b53_serdes_init(struct b53_device *dev, int port)
++{
++	return -ENODEV;
++}
++#endif
+diff --git a/drivers/net/dsa/b53/b53_srab.c b/drivers/net/dsa/b53/b53_srab.c
+index 149788697fd6d..b0ed81876bae9 100644
+--- a/drivers/net/dsa/b53/b53_srab.c
++++ b/drivers/net/dsa/b53/b53_srab.c
+@@ -390,6 +390,7 @@ static irqreturn_t b53_srab_port_isr(int irq, void *dev_id)
+ 	return IRQ_WAKE_THREAD;
+ }
+ 
++#if IS_ENABLED(CONFIG_B53_SERDES)
+ static u8 b53_srab_serdes_map_lane(struct b53_device *dev, int port)
+ {
+ 	struct b53_srab_priv *priv = dev->priv;
+@@ -407,6 +408,7 @@ static u8 b53_srab_serdes_map_lane(struct b53_device *dev, int port)
+ 		return B53_INVALID_LANE;
+ 	}
+ }
++#endif
+ 
+ static int b53_srab_irq_enable(struct b53_device *dev, int port)
+ {
+-- 
+cgit 
+

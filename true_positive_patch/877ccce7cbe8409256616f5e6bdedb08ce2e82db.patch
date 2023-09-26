@@ -1,0 +1,179 @@
+From 877ccce7cbe8409256616f5e6bdedb08ce2e82db Mon Sep 17 00:00:00 2001
+From: Ondrej Mosnacek <omosnace@redhat.com>
+Date: Fri, 3 Aug 2018 13:37:50 +0200
+Subject: crypto: x86/aegis,morus - Fix and simplify CPUID checks
+
+It turns out I had misunderstood how the x86_match_cpu() function works.
+It evaluates a logical OR of the matching conditions, not logical AND.
+This caused the CPU feature checks for AEGIS to pass even if only SSE2
+(but not AES-NI) was supported (or vice versa), leading to potential
+crashes if something tried to use the registered algs.
+
+This patch switches the checks to a simpler method that is used e.g. in
+the Camellia x86 code.
+
+The patch also removes the MODULE_DEVICE_TABLE declarations which
+actually seem to cause the modules to be auto-loaded at boot, which is
+not desired. The crypto API on-demand module loading is sufficient.
+
+Fixes: 1d373d4e8e15 ("crypto: x86 - Add optimized AEGIS implementations")
+Fixes: 6ecc9d9ff91f ("crypto: x86 - Add optimized MORUS implementations")
+Signed-off-by: Ondrej Mosnacek <omosnace@redhat.com>
+Tested-by: Milan Broz <gmazyland@gmail.com>
+Signed-off-by: Herbert Xu <herbert@gondor.apana.org.au>
+---
+ arch/x86/crypto/aegis128-aesni-glue.c  | 12 ++++--------
+ arch/x86/crypto/aegis128l-aesni-glue.c | 12 ++++--------
+ arch/x86/crypto/aegis256-aesni-glue.c  | 12 ++++--------
+ arch/x86/crypto/morus1280-avx2-glue.c  | 10 +++-------
+ arch/x86/crypto/morus1280-sse2-glue.c  | 10 +++-------
+ arch/x86/crypto/morus640-sse2-glue.c   | 10 +++-------
+ 6 files changed, 21 insertions(+), 45 deletions(-)
+
+diff --git a/arch/x86/crypto/aegis128-aesni-glue.c b/arch/x86/crypto/aegis128-aesni-glue.c
+index 5de7c0d46edfc..acd11b3bf639e 100644
+--- a/arch/x86/crypto/aegis128-aesni-glue.c
++++ b/arch/x86/crypto/aegis128-aesni-glue.c
+@@ -375,16 +375,12 @@ static struct aead_alg crypto_aegis128_aesni_alg[] = {
+ 	}
+ };
+ 
+-static const struct x86_cpu_id aesni_cpu_id[] = {
+-	X86_FEATURE_MATCH(X86_FEATURE_AES),
+-	X86_FEATURE_MATCH(X86_FEATURE_XMM2),
+-	{}
+-};
+-MODULE_DEVICE_TABLE(x86cpu, aesni_cpu_id);
+-
+ static int __init crypto_aegis128_aesni_module_init(void)
+ {
+-	if (!x86_match_cpu(aesni_cpu_id))
++	if (!boot_cpu_has(X86_FEATURE_XMM2) ||
++	    !boot_cpu_has(X86_FEATURE_AES) ||
++	    !boot_cpu_has(X86_FEATURE_OSXSAVE) ||
++	    !cpu_has_xfeatures(XFEATURE_MASK_SSE, NULL))
+ 		return -ENODEV;
+ 
+ 	return crypto_register_aeads(crypto_aegis128_aesni_alg,
+diff --git a/arch/x86/crypto/aegis128l-aesni-glue.c b/arch/x86/crypto/aegis128l-aesni-glue.c
+index 876e4866e6338..2071c3d1ae075 100644
+--- a/arch/x86/crypto/aegis128l-aesni-glue.c
++++ b/arch/x86/crypto/aegis128l-aesni-glue.c
+@@ -375,16 +375,12 @@ static struct aead_alg crypto_aegis128l_aesni_alg[] = {
+ 	}
+ };
+ 
+-static const struct x86_cpu_id aesni_cpu_id[] = {
+-	X86_FEATURE_MATCH(X86_FEATURE_AES),
+-	X86_FEATURE_MATCH(X86_FEATURE_XMM2),
+-	{}
+-};
+-MODULE_DEVICE_TABLE(x86cpu, aesni_cpu_id);
+-
+ static int __init crypto_aegis128l_aesni_module_init(void)
+ {
+-	if (!x86_match_cpu(aesni_cpu_id))
++	if (!boot_cpu_has(X86_FEATURE_XMM2) ||
++	    !boot_cpu_has(X86_FEATURE_AES) ||
++	    !boot_cpu_has(X86_FEATURE_OSXSAVE) ||
++	    !cpu_has_xfeatures(XFEATURE_MASK_SSE, NULL))
+ 		return -ENODEV;
+ 
+ 	return crypto_register_aeads(crypto_aegis128l_aesni_alg,
+diff --git a/arch/x86/crypto/aegis256-aesni-glue.c b/arch/x86/crypto/aegis256-aesni-glue.c
+index 2b5dd3af8f4dc..b5f2a8fd5a713 100644
+--- a/arch/x86/crypto/aegis256-aesni-glue.c
++++ b/arch/x86/crypto/aegis256-aesni-glue.c
+@@ -375,16 +375,12 @@ static struct aead_alg crypto_aegis256_aesni_alg[] = {
+ 	}
+ };
+ 
+-static const struct x86_cpu_id aesni_cpu_id[] = {
+-	X86_FEATURE_MATCH(X86_FEATURE_AES),
+-	X86_FEATURE_MATCH(X86_FEATURE_XMM2),
+-	{}
+-};
+-MODULE_DEVICE_TABLE(x86cpu, aesni_cpu_id);
+-
+ static int __init crypto_aegis256_aesni_module_init(void)
+ {
+-	if (!x86_match_cpu(aesni_cpu_id))
++	if (!boot_cpu_has(X86_FEATURE_XMM2) ||
++	    !boot_cpu_has(X86_FEATURE_AES) ||
++	    !boot_cpu_has(X86_FEATURE_OSXSAVE) ||
++	    !cpu_has_xfeatures(XFEATURE_MASK_SSE, NULL))
+ 		return -ENODEV;
+ 
+ 	return crypto_register_aeads(crypto_aegis256_aesni_alg,
+diff --git a/arch/x86/crypto/morus1280-avx2-glue.c b/arch/x86/crypto/morus1280-avx2-glue.c
+index f111f36d26dce..6634907d6ccdf 100644
+--- a/arch/x86/crypto/morus1280-avx2-glue.c
++++ b/arch/x86/crypto/morus1280-avx2-glue.c
+@@ -37,15 +37,11 @@ asmlinkage void crypto_morus1280_avx2_final(void *state, void *tag_xor,
+ 
+ MORUS1280_DECLARE_ALGS(avx2, "morus1280-avx2", 400);
+ 
+-static const struct x86_cpu_id avx2_cpu_id[] = {
+-    X86_FEATURE_MATCH(X86_FEATURE_AVX2),
+-    {}
+-};
+-MODULE_DEVICE_TABLE(x86cpu, avx2_cpu_id);
+-
+ static int __init crypto_morus1280_avx2_module_init(void)
+ {
+-	if (!x86_match_cpu(avx2_cpu_id))
++	if (!boot_cpu_has(X86_FEATURE_AVX2) ||
++	    !boot_cpu_has(X86_FEATURE_OSXSAVE) ||
++	    !cpu_has_xfeatures(XFEATURE_MASK_SSE | XFEATURE_MASK_YMM, NULL))
+ 		return -ENODEV;
+ 
+ 	return crypto_register_aeads(crypto_morus1280_avx2_algs,
+diff --git a/arch/x86/crypto/morus1280-sse2-glue.c b/arch/x86/crypto/morus1280-sse2-glue.c
+index 839270aa713ca..95cf857d2cbb1 100644
+--- a/arch/x86/crypto/morus1280-sse2-glue.c
++++ b/arch/x86/crypto/morus1280-sse2-glue.c
+@@ -37,15 +37,11 @@ asmlinkage void crypto_morus1280_sse2_final(void *state, void *tag_xor,
+ 
+ MORUS1280_DECLARE_ALGS(sse2, "morus1280-sse2", 350);
+ 
+-static const struct x86_cpu_id sse2_cpu_id[] = {
+-    X86_FEATURE_MATCH(X86_FEATURE_XMM2),
+-    {}
+-};
+-MODULE_DEVICE_TABLE(x86cpu, sse2_cpu_id);
+-
+ static int __init crypto_morus1280_sse2_module_init(void)
+ {
+-	if (!x86_match_cpu(sse2_cpu_id))
++	if (!boot_cpu_has(X86_FEATURE_XMM2) ||
++	    !boot_cpu_has(X86_FEATURE_OSXSAVE) ||
++	    !cpu_has_xfeatures(XFEATURE_MASK_SSE, NULL))
+ 		return -ENODEV;
+ 
+ 	return crypto_register_aeads(crypto_morus1280_sse2_algs,
+diff --git a/arch/x86/crypto/morus640-sse2-glue.c b/arch/x86/crypto/morus640-sse2-glue.c
+index 26b47e2db8d21..615fb7bc9a323 100644
+--- a/arch/x86/crypto/morus640-sse2-glue.c
++++ b/arch/x86/crypto/morus640-sse2-glue.c
+@@ -37,15 +37,11 @@ asmlinkage void crypto_morus640_sse2_final(void *state, void *tag_xor,
+ 
+ MORUS640_DECLARE_ALGS(sse2, "morus640-sse2", 400);
+ 
+-static const struct x86_cpu_id sse2_cpu_id[] = {
+-    X86_FEATURE_MATCH(X86_FEATURE_XMM2),
+-    {}
+-};
+-MODULE_DEVICE_TABLE(x86cpu, sse2_cpu_id);
+-
+ static int __init crypto_morus640_sse2_module_init(void)
+ {
+-	if (!x86_match_cpu(sse2_cpu_id))
++	if (!boot_cpu_has(X86_FEATURE_XMM2) ||
++	    !boot_cpu_has(X86_FEATURE_OSXSAVE) ||
++	    !cpu_has_xfeatures(XFEATURE_MASK_SSE, NULL))
+ 		return -ENODEV;
+ 
+ 	return crypto_register_aeads(crypto_morus640_sse2_algs,
+-- 
+cgit 
+

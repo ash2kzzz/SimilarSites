@@ -1,0 +1,53 @@
+From 382f8be04551d60c3e0c4103ce2941c3f335279e Mon Sep 17 00:00:00 2001
+From: Neil Armstrong <narmstrong@baylibre.com>
+Date: Mon, 4 Feb 2019 10:49:37 +0100
+Subject: soc: amlogic: canvas: Fix meson_canvas_get when probe failed
+
+When probe fails, a platforn_device is still associated to the node,
+but dev_get_drvdata() returns NULL.
+
+Handle this case by returning a consistent error.
+
+Fixes: d4983983d987 ("soc: amlogic: add meson-canvas driver")
+Signed-off-by: Neil Armstrong <narmstrong@baylibre.com>
+Reviewed-by: Maxime Jourdan <mjourdan@baylibre.com>
+[khilman: fixed minor typo in comment ]
+Signed-off-by: Kevin Hilman <khilman@baylibre.com>
+---
+ drivers/soc/amlogic/meson-canvas.c | 13 ++++++++++++-
+ 1 file changed, 12 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/soc/amlogic/meson-canvas.c b/drivers/soc/amlogic/meson-canvas.c
+index 87a6c6e235912..be95a37c3fece 100644
+--- a/drivers/soc/amlogic/meson-canvas.c
++++ b/drivers/soc/amlogic/meson-canvas.c
+@@ -51,6 +51,7 @@ struct meson_canvas *meson_canvas_get(struct device *dev)
+ {
+ 	struct device_node *canvas_node;
+ 	struct platform_device *canvas_pdev;
++	struct meson_canvas *canvas;
+ 
+ 	canvas_node = of_parse_phandle(dev->of_node, "amlogic,canvas", 0);
+ 	if (!canvas_node)
+@@ -63,7 +64,17 @@ struct meson_canvas *meson_canvas_get(struct device *dev)
+ 	}
+ 
+ 	of_node_put(canvas_node);
+-	return dev_get_drvdata(&canvas_pdev->dev);
++
++	/*
++	 * If priv is NULL, it's probably because the canvas hasn't
++	 * properly initialized. Bail out with -EINVAL because, in the
++	 * current state, this driver probe cannot return -EPROBE_DEFER
++	 */
++	canvas = dev_get_drvdata(&canvas_pdev->dev);
++	if (!canvas)
++		return ERR_PTR(-EINVAL);
++
++	return canvas;
+ }
+ EXPORT_SYMBOL_GPL(meson_canvas_get);
+ 
+-- 
+cgit 
+

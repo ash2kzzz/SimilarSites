@@ -1,0 +1,110 @@
+From a7bed27af194aa3f67915688039d93188ed95e2a Mon Sep 17 00:00:00 2001
+From: Kees Cook <keescook@chromium.org>
+Date: Fri, 17 Nov 2017 15:27:24 -0800
+Subject: bug: fix "cut here" location for __WARN_TAINT architectures
+
+Prior to v4.11, x86 used warn_slowpath_fmt() for handling WARN()s.
+After WARN() was moved to using UD0 on x86, the warning text started
+appearing _before_ the "cut here" line.  This appears to have been a
+long-standing bug on architectures that used __WARN_TAINT, but it didn't
+get fixed.
+
+v4.11 and earlier on x86:
+
+  ------------[ cut here ]------------
+  WARNING: CPU: 0 PID: 2956 at drivers/misc/lkdtm_bugs.c:65 lkdtm_WARNING+0x21/0x30
+  This is a warning message
+  Modules linked in:
+
+v4.12 and later on x86:
+
+  This is a warning message
+  ------------[ cut here ]------------
+  WARNING: CPU: 1 PID: 2982 at drivers/misc/lkdtm_bugs.c:68 lkdtm_WARNING+0x15/0x20
+  Modules linked in:
+
+With this fix:
+
+  ------------[ cut here ]------------
+  This is a warning message
+  WARNING: CPU: 3 PID: 3009 at drivers/misc/lkdtm_bugs.c:67 lkdtm_WARNING+0x15/0x20
+
+Since the __FILE__ reporting happens as part of the UD0 handler, it
+isn't trivial to move the message to after the WARNING line, but at
+least we can fix the position of the "cut here" line so all the various
+logging tools will start including the actual runtime warning message
+again, when they follow the instruction and "cut here".
+
+Link: http://lkml.kernel.org/r/1510100869-73751-4-git-send-email-keescook@chromium.org
+Fixes: 9a93848fe787 ("x86/debug: Implement __WARN() using UD0")
+Signed-off-by: Kees Cook <keescook@chromium.org>
+Cc: Peter Zijlstra (Intel) <peterz@infradead.org>
+Cc: Josh Poimboeuf <jpoimboe@redhat.com>
+Cc: Fengguang Wu <fengguang.wu@intel.com>
+Cc: Arnd Bergmann <arnd@arndb.de>
+Cc: Ingo Molnar <mingo@kernel.org>
+Signed-off-by: Andrew Morton <akpm@linux-foundation.org>
+Signed-off-by: Linus Torvalds <torvalds@linux-foundation.org>
+---
+ include/asm-generic/bug.h |  5 +++--
+ kernel/panic.c            | 16 +++++++++++++++-
+ 2 files changed, 18 insertions(+), 3 deletions(-)
+
+diff --git a/include/asm-generic/bug.h b/include/asm-generic/bug.h
+index 1283473f234e1..963b755d19b03 100644
+--- a/include/asm-generic/bug.h
++++ b/include/asm-generic/bug.h
+@@ -92,10 +92,11 @@ extern void warn_slowpath_null(const char *file, const int line);
+ #define __WARN_printf_taint(taint, arg...)				\
+ 	warn_slowpath_fmt_taint(__FILE__, __LINE__, taint, arg)
+ #else
++extern __printf(1, 2) void __warn_printk(const char *fmt, ...);
+ #define __WARN()		__WARN_TAINT(TAINT_WARN)
+-#define __WARN_printf(arg...)	do { printk(arg); __WARN(); } while (0)
++#define __WARN_printf(arg...)	do { __warn_printk(arg); __WARN(); } while (0)
+ #define __WARN_printf_taint(taint, arg...)				\
+-	do { printk(arg); __WARN_TAINT(taint); } while (0)
++	do { __warn_printk(arg); __WARN_TAINT(taint); } while (0)
+ #endif
+ 
+ /* used internally by panic.c */
+diff --git a/kernel/panic.c b/kernel/panic.c
+index 89df5fa2f798f..3242b64b1956d 100644
+--- a/kernel/panic.c
++++ b/kernel/panic.c
+@@ -520,7 +520,8 @@ void __warn(const char *file, int line, void *caller, unsigned taint,
+ {
+ 	disable_trace_on_warning();
+ 
+-	pr_warn(CUT_HERE);
++	if (args)
++		pr_warn(CUT_HERE);
+ 
+ 	if (file)
+ 		pr_warn("WARNING: CPU: %d PID: %d at %s:%d %pS\n",
+@@ -584,9 +585,22 @@ EXPORT_SYMBOL(warn_slowpath_fmt_taint);
+ 
+ void warn_slowpath_null(const char *file, int line)
+ {
++	pr_warn(CUT_HERE);
+ 	__warn(file, line, __builtin_return_address(0), TAINT_WARN, NULL, NULL);
+ }
+ EXPORT_SYMBOL(warn_slowpath_null);
++#else
++void __warn_printk(const char *fmt, ...)
++{
++	va_list args;
++
++	pr_warn(CUT_HERE);
++
++	va_start(args, fmt);
++	vprintk(fmt, args);
++	va_end(args);
++}
++EXPORT_SYMBOL(__warn_printk);
+ #endif
+ 
+ #ifdef CONFIG_BUG
+-- 
+cgit 
+

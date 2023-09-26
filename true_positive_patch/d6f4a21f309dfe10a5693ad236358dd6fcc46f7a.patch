@@ -1,0 +1,181 @@
+From d6f4a21f309dfe10a5693ad236358dd6fcc46f7a Mon Sep 17 00:00:00 2001
+From: Jason Gunthorpe <jgg@mellanox.com>
+Date: Fri, 11 Jan 2019 08:21:44 +0200
+Subject: RDMA/uverbs: Mark ioctl responses with UVERBS_ATTR_F_VALID_OUTPUT
+
+When the ioctl interface for the write commands was introduced it did
+not mark the core response with UVERBS_ATTR_F_VALID_OUTPUT. This causes
+rdma-core in userspace to not mark the buffers as written for valgrind.
+
+Along the same lines it turns out we have always missed marking the driver
+data. Fixing both of these makes valgrind work properly with rdma-core and
+ioctl.
+
+Fixes: 4785860e04bc ("RDMA/uverbs: Implement an ioctl that can call write and write_ex handlers")
+Signed-off-by: Jason Gunthorpe <jgg@mellanox.com>
+Reviewed-by: Artemy Kovalyov <artemyko@mellanox.com>
+Signed-off-by: Leon Romanovsky <leonro@mellanox.com>
+---
+ drivers/infiniband/core/rdma_core.h    |  2 ++
+ drivers/infiniband/core/uverbs_cmd.c   |  7 ++++
+ drivers/infiniband/core/uverbs_ioctl.c | 62 +++++++++++++++++++++++++++-------
+ drivers/infiniband/core/uverbs_main.c  |  1 +
+ 4 files changed, 59 insertions(+), 13 deletions(-)
+
+diff --git a/drivers/infiniband/core/rdma_core.h b/drivers/infiniband/core/rdma_core.h
+index be6b8e1257d07..69f8db66925ea 100644
+--- a/drivers/infiniband/core/rdma_core.h
++++ b/drivers/infiniband/core/rdma_core.h
+@@ -106,6 +106,8 @@ int uverbs_finalize_object(struct ib_uobject *uobj,
+ 			   enum uverbs_obj_access access,
+ 			   bool commit);
+ 
++int uverbs_output_written(const struct uverbs_attr_bundle *bundle, size_t idx);
++
+ void setup_ufile_idr_uobject(struct ib_uverbs_file *ufile);
+ void release_ufile_idr_uobject(struct ib_uverbs_file *ufile);
+ 
+diff --git a/drivers/infiniband/core/uverbs_cmd.c b/drivers/infiniband/core/uverbs_cmd.c
+index 1b82cb74276c8..3317300ab0362 100644
+--- a/drivers/infiniband/core/uverbs_cmd.c
++++ b/drivers/infiniband/core/uverbs_cmd.c
+@@ -60,6 +60,10 @@ static int uverbs_response(struct uverbs_attr_bundle *attrs, const void *resp,
+ {
+ 	int ret;
+ 
++	if (uverbs_attr_is_valid(attrs, UVERBS_ATTR_CORE_OUT))
++		return uverbs_copy_to_struct_or_zero(
++			attrs, UVERBS_ATTR_CORE_OUT, resp, resp_len);
++
+ 	if (copy_to_user(attrs->ucore.outbuf, resp,
+ 			 min(attrs->ucore.outlen, resp_len)))
+ 		return -EFAULT;
+@@ -1181,6 +1185,9 @@ static int ib_uverbs_poll_cq(struct uverbs_attr_bundle *attrs)
+ 		goto out_put;
+ 	}
+ 
++	if (uverbs_attr_is_valid(attrs, UVERBS_ATTR_CORE_OUT))
++		ret = uverbs_output_written(attrs, UVERBS_ATTR_CORE_OUT);
++
+ 	ret = 0;
+ 
+ out_put:
+diff --git a/drivers/infiniband/core/uverbs_ioctl.c b/drivers/infiniband/core/uverbs_ioctl.c
+index 8c81ff6980527..0ca04d2240157 100644
+--- a/drivers/infiniband/core/uverbs_ioctl.c
++++ b/drivers/infiniband/core/uverbs_ioctl.c
+@@ -144,6 +144,21 @@ static bool uverbs_is_attr_cleared(const struct ib_uverbs_attr *uattr,
+ 			   0, uattr->len - len);
+ }
+ 
++static int uverbs_set_output(const struct uverbs_attr_bundle *bundle,
++			     const struct uverbs_attr *attr)
++{
++	struct bundle_priv *pbundle =
++		container_of(bundle, struct bundle_priv, bundle);
++	u16 flags;
++
++	flags = pbundle->uattrs[attr->ptr_attr.uattr_idx].flags |
++		UVERBS_ATTR_F_VALID_OUTPUT;
++	if (put_user(flags,
++		     &pbundle->user_attrs[attr->ptr_attr.uattr_idx].flags))
++		return -EFAULT;
++	return 0;
++}
++
+ static int uverbs_process_idrs_array(struct bundle_priv *pbundle,
+ 				     const struct uverbs_api_attr *attr_uapi,
+ 				     struct uverbs_objs_arr_attr *attr,
+@@ -455,6 +470,19 @@ static int ib_uverbs_run_method(struct bundle_priv *pbundle,
+ 		ret = handler(&pbundle->bundle);
+ 	}
+ 
++	/*
++	 * Until the drivers are revised to use the bundle directly we have to
++	 * assume that the driver wrote to its UHW_OUT and flag userspace
++	 * appropriately.
++	 */
++	if (!ret && pbundle->method_elm->has_udata) {
++		const struct uverbs_attr *attr =
++			uverbs_attr_get(&pbundle->bundle, UVERBS_ATTR_UHW_OUT);
++
++		if (!IS_ERR(attr))
++			ret = uverbs_set_output(&pbundle->bundle, attr);
++	}
++
+ 	/*
+ 	 * EPROTONOSUPPORT is ONLY to be returned if the ioctl framework can
+ 	 * not invoke the method because the request is not supported.  No
+@@ -706,10 +734,7 @@ void uverbs_fill_udata(struct uverbs_attr_bundle *bundle,
+ int uverbs_copy_to(const struct uverbs_attr_bundle *bundle, size_t idx,
+ 		   const void *from, size_t size)
+ {
+-	struct bundle_priv *pbundle =
+-		container_of(bundle, struct bundle_priv, bundle);
+ 	const struct uverbs_attr *attr = uverbs_attr_get(bundle, idx);
+-	u16 flags;
+ 	size_t min_size;
+ 
+ 	if (IS_ERR(attr))
+@@ -719,16 +744,25 @@ int uverbs_copy_to(const struct uverbs_attr_bundle *bundle, size_t idx,
+ 	if (copy_to_user(u64_to_user_ptr(attr->ptr_attr.data), from, min_size))
+ 		return -EFAULT;
+ 
+-	flags = pbundle->uattrs[attr->ptr_attr.uattr_idx].flags |
+-		UVERBS_ATTR_F_VALID_OUTPUT;
+-	if (put_user(flags,
+-		     &pbundle->user_attrs[attr->ptr_attr.uattr_idx].flags))
+-		return -EFAULT;
+-
+-	return 0;
++	return uverbs_set_output(bundle, attr);
+ }
+ EXPORT_SYMBOL(uverbs_copy_to);
+ 
++
++/*
++ * This is only used if the caller has directly used copy_to_use to write the
++ * data.  It signals to user space that the buffer is filled in.
++ */
++int uverbs_output_written(const struct uverbs_attr_bundle *bundle, size_t idx)
++{
++	const struct uverbs_attr *attr = uverbs_attr_get(bundle, idx);
++
++	if (IS_ERR(attr))
++		return PTR_ERR(attr);
++
++	return uverbs_set_output(bundle, attr);
++}
++
+ int _uverbs_get_const(s64 *to, const struct uverbs_attr_bundle *attrs_bundle,
+ 		      size_t idx, s64 lower_bound, u64 upper_bound,
+ 		      s64  *def_val)
+@@ -757,8 +791,10 @@ int uverbs_copy_to_struct_or_zero(const struct uverbs_attr_bundle *bundle,
+ {
+ 	const struct uverbs_attr *attr = uverbs_attr_get(bundle, idx);
+ 
+-	if (clear_user(u64_to_user_ptr(attr->ptr_attr.data),
+-		       attr->ptr_attr.len))
+-		return -EFAULT;
++	if (size < attr->ptr_attr.len) {
++		if (clear_user(u64_to_user_ptr(attr->ptr_attr.data) + size,
++			       attr->ptr_attr.len - size))
++			return -EFAULT;
++	}
+ 	return uverbs_copy_to(bundle, idx, from, size);
+ }
+diff --git a/drivers/infiniband/core/uverbs_main.c b/drivers/infiniband/core/uverbs_main.c
+index fb0007aa0c27e..2890a77339e1f 100644
+--- a/drivers/infiniband/core/uverbs_main.c
++++ b/drivers/infiniband/core/uverbs_main.c
+@@ -690,6 +690,7 @@ static ssize_t ib_uverbs_write(struct file *filp, const char __user *buf,
+ 
+ 	buf += sizeof(hdr);
+ 
++	memset(bundle.attr_present, 0, sizeof(bundle.attr_present));
+ 	bundle.ufile = file;
+ 	if (!method_elm->is_ex) {
+ 		size_t in_len = hdr.in_words * 4 - sizeof(hdr);
+-- 
+cgit 
+

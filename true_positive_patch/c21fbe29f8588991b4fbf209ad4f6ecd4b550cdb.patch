@@ -1,0 +1,40 @@
+From c21fbe29f8588991b4fbf209ad4f6ecd4b550cdb Mon Sep 17 00:00:00 2001
+From: Andrew Lunn <andrew@lunn.ch>
+Date: Sun, 28 May 2017 17:25:14 +0200
+Subject: net: dsa: mv88e6xxx: Add missing static to stub functions
+
+Stub functions in header files need to be static, or we can have
+multiple definitions errors.
+
+Reported-by: kbuild test robot <fengguang.wu@intel.com>
+Fixes: 6335e9f2446b ("net: dsa: mv88e6xxx: mv88e6390X SERDES support")
+Signed-off-by: Andrew Lunn <andrew@lunn.ch>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ drivers/net/dsa/mv88e6xxx/global2.h | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/net/dsa/mv88e6xxx/global2.h b/drivers/net/dsa/mv88e6xxx/global2.h
+index 96046bb12ca17..d8d3c5abb2a1f 100644
+--- a/drivers/net/dsa/mv88e6xxx/global2.h
++++ b/drivers/net/dsa/mv88e6xxx/global2.h
+@@ -114,13 +114,13 @@ static inline int mv88e6xxx_g2_set_eeprom16(struct mv88e6xxx_chip *chip,
+ 	return -EOPNOTSUPP;
+ }
+ 
+-int mv88e6xxx_g2_pvt_write(struct mv88e6xxx_chip *chip, int src_dev,
+-			   int src_port, u16 data)
++static int mv88e6xxx_g2_pvt_write(struct mv88e6xxx_chip *chip, int src_dev,
++				  int src_port, u16 data)
+ {
+ 	return -EOPNOTSUPP;
+ }
+ 
+-int mv88e6xxx_g2_misc_4_bit_port(struct mv88e6xxx_chip *chip)
++static int mv88e6xxx_g2_misc_4_bit_port(struct mv88e6xxx_chip *chip)
+ {
+ 	return -EOPNOTSUPP;
+ }
+-- 
+cgit 
+

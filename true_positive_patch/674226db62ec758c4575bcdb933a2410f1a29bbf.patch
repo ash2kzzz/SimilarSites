@@ -1,0 +1,33 @@
+From 674226db62ec758c4575bcdb933a2410f1a29bbf Mon Sep 17 00:00:00 2001
+From: Geert Uytterhoeven <geert+renesas@glider.be>
+Date: Tue, 10 Nov 2020 15:51:20 +0100
+Subject: ASoC: fsl: SND_SOC_FSL_AUD2HTX should depend on ARCH_MXC
+
+The Freescale/NXP AUDIO TO HDMI TX module is only present on NXP i.MX 8
+Series SoCs.  Hence add a dependency on ARCH_MXC, to prevent asking the
+user about this driver when configuring a kernel without i.MX 8 platform
+support.
+
+Fixes: 8a24c834c053ef1b ("ASoC: fsl_aud2htx: Add aud2htx module driver")
+Signed-off-by: Geert Uytterhoeven <geert+renesas@glider.be>
+Link: https://lore.kernel.org/r/20201110145120.3280658-1-geert+renesas@glider.be
+Signed-off-by: Mark Brown <broonie@kernel.org>
+---
+ sound/soc/fsl/Kconfig | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/sound/soc/fsl/Kconfig b/sound/soc/fsl/Kconfig
+index a299f61e529e6..06a2d225d6444 100644
+--- a/sound/soc/fsl/Kconfig
++++ b/sound/soc/fsl/Kconfig
+@@ -107,6 +107,7 @@ config SND_SOC_FSL_XCVR
+ 
+ config SND_SOC_FSL_AUD2HTX
+ 	tristate "AUDIO TO HDMI TX module support"
++	depends on CONFIG_ARCH_MXC || COMPILE_TEST
+ 	help
+ 	  Say Y if you want to add AUDIO TO HDMI TX support for NXP.
+ 
+-- 
+cgit 
+

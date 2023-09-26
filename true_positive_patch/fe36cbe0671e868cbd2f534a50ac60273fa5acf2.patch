@@ -1,0 +1,96 @@
+From fe36cbe0671e868cbd2f534a50ac60273fa5acf2 Mon Sep 17 00:00:00 2001
+From: "Michael S. Tsirkin" <mst@redhat.com>
+Date: Wed, 29 Mar 2017 19:09:14 +0300
+Subject: virtio_net: clear MTU when out of range
+
+virtio attempts to clear the MTU feature bit if the value is out of the
+supported range, but this has no real effect since FEATURES_OK has
+already been set.
+
+Fix this up by checking the MTU in the new validate callback.
+
+Fixes: 14de9d114a82 ("virtio-net: Add initial MTU advice feature")
+Signed-off-by: Michael S. Tsirkin <mst@redhat.com>
+---
+ drivers/net/virtio_net.c | 41 ++++++++++++++++++++++++++++++-----------
+ 1 file changed, 30 insertions(+), 11 deletions(-)
+
+diff --git a/drivers/net/virtio_net.c b/drivers/net/virtio_net.c
+index 006f1a6031029..f36584616e7d6 100644
+--- a/drivers/net/virtio_net.c
++++ b/drivers/net/virtio_net.c
+@@ -2230,14 +2230,8 @@ static bool virtnet_validate_features(struct virtio_device *vdev)
+ #define MIN_MTU ETH_MIN_MTU
+ #define MAX_MTU ETH_MAX_MTU
+ 
+-static int virtnet_probe(struct virtio_device *vdev)
++static int virtnet_validate(struct virtio_device *vdev)
+ {
+-	int i, err;
+-	struct net_device *dev;
+-	struct virtnet_info *vi;
+-	u16 max_queue_pairs;
+-	int mtu;
+-
+ 	if (!vdev->config->get) {
+ 		dev_err(&vdev->dev, "%s failure: config access disabled\n",
+ 			__func__);
+@@ -2247,6 +2241,25 @@ static int virtnet_probe(struct virtio_device *vdev)
+ 	if (!virtnet_validate_features(vdev))
+ 		return -EINVAL;
+ 
++	if (virtio_has_feature(vdev, VIRTIO_NET_F_MTU)) {
++		int mtu = virtio_cread16(vdev,
++					 offsetof(struct virtio_net_config,
++						  mtu));
++		if (mtu < MIN_MTU)
++			__virtio_clear_bit(vdev, VIRTIO_NET_F_MTU);
++	}
++
++	return 0;
++}
++
++static int virtnet_probe(struct virtio_device *vdev)
++{
++	int i, err;
++	struct net_device *dev;
++	struct virtnet_info *vi;
++	u16 max_queue_pairs;
++	int mtu;
++
+ 	/* Find if host supports multiqueue virtio_net device */
+ 	err = virtio_cread_feature(vdev, VIRTIO_NET_F_MQ,
+ 				   struct virtio_net_config,
+@@ -2362,12 +2375,17 @@ static int virtnet_probe(struct virtio_device *vdev)
+ 				     offsetof(struct virtio_net_config,
+ 					      mtu));
+ 		if (mtu < dev->min_mtu) {
+-			__virtio_clear_bit(vdev, VIRTIO_NET_F_MTU);
+-		} else {
+-			dev->mtu = mtu;
+-			dev->max_mtu = mtu;
++			/* Should never trigger: MTU was previously validated
++			 * in virtnet_validate.
++			 */
++			dev_err(&vdev->dev, "device MTU appears to have changed "
++				"it is now %d < %d", mtu, dev->min_mtu);
++			goto free_stats;
+ 		}
+ 
++		dev->mtu = mtu;
++		dev->max_mtu = mtu;
++
+ 		/* TODO: size buffers correctly in this case. */
+ 		if (dev->mtu > ETH_DATA_LEN)
+ 			vi->big_packets = true;
+@@ -2548,6 +2566,7 @@ static struct virtio_driver virtio_net_driver = {
+ 	.driver.name =	KBUILD_MODNAME,
+ 	.driver.owner =	THIS_MODULE,
+ 	.id_table =	id_table,
++	.validate =	virtnet_validate,
+ 	.probe =	virtnet_probe,
+ 	.remove =	virtnet_remove,
+ 	.config_changed = virtnet_config_changed,
+-- 
+cgit 
+

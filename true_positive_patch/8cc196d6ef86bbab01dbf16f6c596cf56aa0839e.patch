@@ -1,0 +1,77 @@
+From 8cc196d6ef86bbab01dbf16f6c596cf56aa0839e Mon Sep 17 00:00:00 2001
+From: David Ahern <dsahern@gmail.com>
+Date: Mon, 10 Dec 2018 13:54:07 -0800
+Subject: neighbor: gc_list changes should be protected by table lock
+
+Adding and removing neighbor entries to / from the gc_list need to be
+done while holding the table lock; a couple of places were missed in the
+original patch.
+
+Move the list_add_tail in neigh_alloc to ___neigh_create where the lock
+is already obtained. Since neighbor entries should rarely be moved
+to/from PERMANENT state, add lock/unlock around the gc_list changes in
+neigh_change_state rather than extending the lock hold around all
+neighbor updates.
+
+Fixes: 58956317c8de ("neighbor: Improve garbage collection")
+Reported-by: Andrei Vagin <avagin@gmail.com>
+Reported-by: syzbot+6cc2fd1d3bdd2e007363@syzkaller.appspotmail.com
+Reported-by: syzbot+35e87b87c00f386b041f@syzkaller.appspotmail.com
+Reported-by: syzbot+b354d1fb59091ea73c37@syzkaller.appspotmail.com
+Reported-by: syzbot+3ddead5619658537909b@syzkaller.appspotmail.com
+Reported-by: syzbot+424d47d5c456ce8b2bbe@syzkaller.appspotmail.com
+Reported-by: syzbot+e4d42eb35f6a27b0a628@syzkaller.appspotmail.com
+Signed-off-by: David Ahern <dsahern@gmail.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ net/core/neighbour.c | 15 ++++++++++-----
+ 1 file changed, 10 insertions(+), 5 deletions(-)
+
+diff --git a/net/core/neighbour.c b/net/core/neighbour.c
+index c3b58712e98b9..03fdc5ae66b07 100644
+--- a/net/core/neighbour.c
++++ b/net/core/neighbour.c
+@@ -138,11 +138,17 @@ static void neigh_change_state(struct neighbour *n, u8 new)
+ 	 * add to the gc list if new state is not permanent
+ 	 */
+ 	if (new_is_perm && on_gc_list) {
++		write_lock_bh(&n->tbl->lock);
+ 		list_del_init(&n->gc_list);
++		write_unlock_bh(&n->tbl->lock);
++
+ 		atomic_dec(&n->tbl->gc_entries);
+ 	} else if (!new_is_perm && !on_gc_list) {
+ 		/* add entries to the tail; cleaning removes from the front */
++		write_lock_bh(&n->tbl->lock);
+ 		list_add_tail(&n->gc_list, &n->tbl->gc_list);
++		write_unlock_bh(&n->tbl->lock);
++
+ 		atomic_inc(&n->tbl->gc_entries);
+ 	}
+ }
+@@ -390,11 +396,7 @@ do_alloc:
+ 	n->tbl		  = tbl;
+ 	refcount_set(&n->refcnt, 1);
+ 	n->dead		  = 1;
+-
+-	if (!permanent)
+-		list_add_tail(&n->gc_list, &n->tbl->gc_list);
+-	else
+-		INIT_LIST_HEAD(&n->gc_list);
++	INIT_LIST_HEAD(&n->gc_list);
+ 
+ 	atomic_inc(&tbl->entries);
+ out:
+@@ -616,6 +618,9 @@ static struct neighbour *___neigh_create(struct neigh_table *tbl,
+ 	}
+ 
+ 	n->dead = 0;
++	if (!permanent)
++		list_add_tail(&n->gc_list, &n->tbl->gc_list);
++
+ 	if (want_ref)
+ 		neigh_hold(n);
+ 	rcu_assign_pointer(n->next,
+-- 
+cgit 
+

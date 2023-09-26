@@ -1,0 +1,147 @@
+From 29429f3300a378f7c29583b4c2c2ef29e2190a69 Mon Sep 17 00:00:00 2001
+From: Daniel Jurgens <danielj@mellanox.com>
+Date: Thu, 30 Jun 2016 17:34:44 +0300
+Subject: net/mlx5e: Timeout if SQ doesn't flush during close
+
+Avoid an infinite loop by timing out waiting for the SQ to flush. Also
+clean up the TX descriptors if that happens.
+
+Fixes: f62b8bb8f2d3 ('net/mlx5: Extend mlx5_core to support ConnectX-4 Ethernet functionality')
+Signed-off-by: Daniel Jurgens <danielj@mellanox.com>
+Signed-off-by: Saeed Mahameed <saeedm@mellanox.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ drivers/net/ethernet/mellanox/mlx5/core/en.h      |  2 ++
+ drivers/net/ethernet/mellanox/mlx5/core/en_main.c | 25 +++++++++++++++---
+ drivers/net/ethernet/mellanox/mlx5/core/en_tx.c   | 32 +++++++++++++++++++++++
+ 3 files changed, 56 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/net/ethernet/mellanox/mlx5/core/en.h b/drivers/net/ethernet/mellanox/mlx5/core/en.h
+index baa991a23475f..c22d8c8a627eb 100644
+--- a/drivers/net/ethernet/mellanox/mlx5/core/en.h
++++ b/drivers/net/ethernet/mellanox/mlx5/core/en.h
+@@ -305,6 +305,7 @@ struct mlx5e_sq_dma {
+ enum {
+ 	MLX5E_SQ_STATE_WAKE_TXQ_ENABLE,
+ 	MLX5E_SQ_STATE_BF_ENABLE,
++	MLX5E_SQ_STATE_TX_TIMEOUT,
+ };
+ 
+ struct mlx5e_ico_wqe_info {
+@@ -589,6 +590,7 @@ void mlx5e_cq_error_event(struct mlx5_core_cq *mcq, enum mlx5_event event);
+ int mlx5e_napi_poll(struct napi_struct *napi, int budget);
+ bool mlx5e_poll_tx_cq(struct mlx5e_cq *cq, int napi_budget);
+ int mlx5e_poll_rx_cq(struct mlx5e_cq *cq, int budget);
++void mlx5e_free_tx_descs(struct mlx5e_sq *sq);
+ 
+ void mlx5e_handle_rx_cqe(struct mlx5e_rq *rq, struct mlx5_cqe64 *cqe);
+ void mlx5e_handle_rx_cqe_mpwrq(struct mlx5e_rq *rq, struct mlx5_cqe64 *cqe);
+diff --git a/drivers/net/ethernet/mellanox/mlx5/core/en_main.c b/drivers/net/ethernet/mellanox/mlx5/core/en_main.c
+index cb6defd71fc12..b94c84b4a7c99 100644
+--- a/drivers/net/ethernet/mellanox/mlx5/core/en_main.c
++++ b/drivers/net/ethernet/mellanox/mlx5/core/en_main.c
+@@ -39,6 +39,13 @@
+ #include "eswitch.h"
+ #include "vxlan.h"
+ 
++enum {
++	MLX5_EN_QP_FLUSH_TIMEOUT_MS	= 5000,
++	MLX5_EN_QP_FLUSH_MSLEEP_QUANT	= 20,
++	MLX5_EN_QP_FLUSH_MAX_ITER	= MLX5_EN_QP_FLUSH_TIMEOUT_MS /
++					  MLX5_EN_QP_FLUSH_MSLEEP_QUANT,
++};
++
+ struct mlx5e_rq_param {
+ 	u32                        rqc[MLX5_ST_SZ_DW(rqc)];
+ 	struct mlx5_wq_param       wq;
+@@ -782,6 +789,9 @@ static inline void netif_tx_disable_queue(struct netdev_queue *txq)
+ 
+ static void mlx5e_close_sq(struct mlx5e_sq *sq)
+ {
++	int tout = 0;
++	int err;
++
+ 	if (sq->txq) {
+ 		clear_bit(MLX5E_SQ_STATE_WAKE_TXQ_ENABLE, &sq->state);
+ 		/* prevent netif_tx_wake_queue */
+@@ -792,15 +802,24 @@ static void mlx5e_close_sq(struct mlx5e_sq *sq)
+ 		if (mlx5e_sq_has_room_for(sq, 1))
+ 			mlx5e_send_nop(sq, true);
+ 
+-		mlx5e_modify_sq(sq, MLX5_SQC_STATE_RDY, MLX5_SQC_STATE_ERR);
++		err = mlx5e_modify_sq(sq, MLX5_SQC_STATE_RDY,
++				      MLX5_SQC_STATE_ERR);
++		if (err)
++			set_bit(MLX5E_SQ_STATE_TX_TIMEOUT, &sq->state);
+ 	}
+ 
+-	while (sq->cc != sq->pc) /* wait till sq is empty */
+-		msleep(20);
++	/* wait till sq is empty, unless a TX timeout occurred on this SQ */
++	while (sq->cc != sq->pc &&
++	       !test_bit(MLX5E_SQ_STATE_TX_TIMEOUT, &sq->state)) {
++		msleep(MLX5_EN_QP_FLUSH_MSLEEP_QUANT);
++		if (tout++ > MLX5_EN_QP_FLUSH_MAX_ITER)
++			set_bit(MLX5E_SQ_STATE_TX_TIMEOUT, &sq->state);
++	}
+ 
+ 	/* avoid destroying sq before mlx5e_poll_tx_cq() is done with it */
+ 	napi_synchronize(&sq->channel->napi);
+ 
++	mlx5e_free_tx_descs(sq);
+ 	mlx5e_disable_sq(sq);
+ 	mlx5e_destroy_sq(sq);
+ }
+diff --git a/drivers/net/ethernet/mellanox/mlx5/core/en_tx.c b/drivers/net/ethernet/mellanox/mlx5/core/en_tx.c
+index 5a750b9cd006f..65e3bce8acbbd 100644
+--- a/drivers/net/ethernet/mellanox/mlx5/core/en_tx.c
++++ b/drivers/net/ethernet/mellanox/mlx5/core/en_tx.c
+@@ -341,6 +341,35 @@ netdev_tx_t mlx5e_xmit(struct sk_buff *skb, struct net_device *dev)
+ 	return mlx5e_sq_xmit(sq, skb);
+ }
+ 
++void mlx5e_free_tx_descs(struct mlx5e_sq *sq)
++{
++	struct mlx5e_tx_wqe_info *wi;
++	struct sk_buff *skb;
++	u16 ci;
++	int i;
++
++	while (sq->cc != sq->pc) {
++		ci = sq->cc & sq->wq.sz_m1;
++		skb = sq->skb[ci];
++		wi = &sq->wqe_info[ci];
++
++		if (!skb) { /* nop */
++			sq->cc++;
++			continue;
++		}
++
++		for (i = 0; i < wi->num_dma; i++) {
++			struct mlx5e_sq_dma *dma =
++				mlx5e_dma_get(sq, sq->dma_fifo_cc++);
++
++			mlx5e_tx_dma_unmap(sq->pdev, dma);
++		}
++
++		dev_kfree_skb_any(skb);
++		sq->cc += wi->num_wqebbs;
++	}
++}
++
+ bool mlx5e_poll_tx_cq(struct mlx5e_cq *cq, int napi_budget)
+ {
+ 	struct mlx5e_sq *sq;
+@@ -352,6 +381,9 @@ bool mlx5e_poll_tx_cq(struct mlx5e_cq *cq, int napi_budget)
+ 
+ 	sq = container_of(cq, struct mlx5e_sq, cq);
+ 
++	if (unlikely(test_bit(MLX5E_SQ_STATE_TX_TIMEOUT, &sq->state)))
++		return false;
++
+ 	npkts = 0;
+ 	nbytes = 0;
+ 
+-- 
+cgit 
+

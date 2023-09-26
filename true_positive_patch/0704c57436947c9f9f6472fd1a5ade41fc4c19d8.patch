@@ -1,0 +1,35 @@
+From 0704c57436947c9f9f6472fd1a5ade41fc4c19d8 Mon Sep 17 00:00:00 2001
+From: Pankaj Sharma <pankj.sharma@samsung.com>
+Date: Tue, 19 Nov 2019 15:50:38 +0530
+Subject: can: m_can_platform: remove unnecessary m_can_class_resume() call
+
+The function m_can_runtime_resume() is getting recursively called from
+m_can_class_resume(). This results in a lock up.
+
+We need not call m_can_class_resume() during m_can_runtime_resume().
+
+Fixes: f524f829b75a ("can: m_can: Create a m_can platform framework")
+Signed-off-by: Pankaj Sharma <pankj.sharma@samsung.com>
+Signed-off-by: Sriram Dash <sriram.dash@samsung.com>
+Acked-by: Dan Murphy <dmurphy@ti.com>
+Signed-off-by: Marc Kleine-Budde <mkl@pengutronix.de>
+---
+ drivers/net/can/m_can/m_can_platform.c | 2 --
+ 1 file changed, 2 deletions(-)
+
+diff --git a/drivers/net/can/m_can/m_can_platform.c b/drivers/net/can/m_can/m_can_platform.c
+index 2eaa3543d233f..38ea5e600fb84 100644
+--- a/drivers/net/can/m_can/m_can_platform.c
++++ b/drivers/net/can/m_can/m_can_platform.c
+@@ -166,8 +166,6 @@ static int __maybe_unused m_can_runtime_resume(struct device *dev)
+ 	if (err)
+ 		clk_disable_unprepare(mcan_class->hclk);
+ 
+-	m_can_class_resume(dev);
+-
+ 	return err;
+ }
+ 
+-- 
+cgit 
+

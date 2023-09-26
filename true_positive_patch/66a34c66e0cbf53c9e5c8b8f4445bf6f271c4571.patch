@@ -1,0 +1,136 @@
+From 66a34c66e0cbf53c9e5c8b8f4445bf6f271c4571 Mon Sep 17 00:00:00 2001
+From: Lorenzo Bianconi <lorenzo.bianconi@redhat.com>
+Date: Fri, 12 Oct 2018 12:16:23 +0200
+Subject: mt76x0: phy: add phy/vco temperature compensation
+
+Introduce phy/vco temperature calibration.
+Moreover fix configuration of register 67 on bank0
+during temperature reading and use mt76_poll utility routine
+to poll core34 register.
+Furthermore temperature compensation needs to be disabled
+if the device supports tssi compensation.
+This issue has never been hit since temperature reading is not
+actually used by usb code.
+
+Fixes: 10de7a8b4ab9 ("mt76x0: phy files")
+Signed-off-by: Lorenzo Bianconi <lorenzo.bianconi@redhat.com>
+Signed-off-by: Felix Fietkau <nbd@nbd.name>
+---
+ drivers/net/wireless/mediatek/mt76/mt76x0/phy.c | 48 ++++++++++++-------------
+ drivers/net/wireless/mediatek/mt76/mt76x02.h    |  3 +-
+ 2 files changed, 25 insertions(+), 26 deletions(-)
+
+diff --git a/drivers/net/wireless/mediatek/mt76/mt76x0/phy.c b/drivers/net/wireless/mediatek/mt76/mt76x0/phy.c
+index fddfdb1e17560..7d29fd16342ac 100644
+--- a/drivers/net/wireless/mediatek/mt76/mt76x0/phy.c
++++ b/drivers/net/wireless/mediatek/mt76/mt76x0/phy.c
+@@ -14,6 +14,9 @@
+  * GNU General Public License for more details.
+  */
+ 
++#include <linux/kernel.h>
++#include <linux/etherdevice.h>
++
+ #include "mt76x0.h"
+ #include "mcu.h"
+ #include "eeprom.h"
+@@ -23,8 +26,6 @@
+ #include "initvals_phy.h"
+ #include "../mt76x02_phy.h"
+ 
+-#include <linux/etherdevice.h>
+-
+ static int
+ mt76x0_rf_csr_wr(struct mt76x02_dev *dev, u32 offset, u8 value)
+ {
+@@ -782,45 +783,41 @@ void mt76x0_agc_restore(struct mt76x02_dev *dev)
+ static void mt76x0_temp_sensor(struct mt76x02_dev *dev)
+ {
+ 	u8 rf_b7_73, rf_b0_66, rf_b0_67;
+-	int cycle, temp;
+-	u32 val;
+-	s32 sval;
++	s8 val;
+ 
+ 	rf_b7_73 = rf_rr(dev, MT_RF(7, 73));
+ 	rf_b0_66 = rf_rr(dev, MT_RF(0, 66));
+-	rf_b0_67 = rf_rr(dev, MT_RF(0, 73));
++	rf_b0_67 = rf_rr(dev, MT_RF(0, 67));
+ 
+ 	rf_wr(dev, MT_RF(7, 73), 0x02);
+ 	rf_wr(dev, MT_RF(0, 66), 0x23);
+-	rf_wr(dev, MT_RF(0, 73), 0x01);
++	rf_wr(dev, MT_RF(0, 67), 0x01);
+ 
+ 	mt76_wr(dev, MT_BBP(CORE, 34), 0x00080055);
+ 
+-	for (cycle = 0; cycle < 2000; cycle++) {
+-		val = mt76_rr(dev, MT_BBP(CORE, 34));
+-		if (!(val & 0x10))
+-			break;
+-		udelay(3);
+-	}
+-
+-	if (cycle >= 2000) {
+-		val &= 0x10;
+-		mt76_wr(dev, MT_BBP(CORE, 34), val);
++	if (!mt76_poll(dev, MT_BBP(CORE, 34), BIT(4), 0, 2000)) {
++		mt76_clear(dev, MT_BBP(CORE, 34), BIT(4));
+ 		goto done;
+ 	}
+ 
+-	sval = mt76_rr(dev, MT_BBP(CORE, 35)) & 0xff;
+-	if (!(sval & 0x80))
+-		sval &= 0x7f; /* Positive */
+-	else
+-		sval |= 0xffffff00; /* Negative */
++	val = mt76_rr(dev, MT_BBP(CORE, 35));
++	val = (35 * (val - dev->cal.rx.temp_offset)) / 10 + 25;
+ 
+-	temp = (35 * (sval - dev->cal.rx.temp_offset)) / 10 + 25;
++	if (abs(val - dev->cal.temp_vco) > 20) {
++		mt76x02_mcu_calibrate(dev, MCU_CAL_VCO,
++				      dev->mt76.chandef.chan->hw_value,
++				      false);
++		dev->cal.temp_vco = val;
++	}
++	if (abs(val - dev->cal.temp) > 30) {
++		mt76x0_phy_calibrate(dev, false);
++		dev->cal.temp = val;
++	}
+ 
+ done:
+ 	rf_wr(dev, MT_RF(7, 73), rf_b7_73);
+ 	rf_wr(dev, MT_RF(0, 66), rf_b0_66);
+-	rf_wr(dev, MT_RF(0, 73), rf_b0_67);
++	rf_wr(dev, MT_RF(0, 67), rf_b0_67);
+ }
+ 
+ static void mt76x0_dynamic_vga_tuning(struct mt76x02_dev *dev)
+@@ -848,7 +845,8 @@ static void mt76x0_phy_calibration_work(struct work_struct *work)
+ 					       cal_work.work);
+ 
+ 	mt76x0_dynamic_vga_tuning(dev);
+-	mt76x0_temp_sensor(dev);
++	if (!mt76x0_tssi_enabled(dev))
++		mt76x0_temp_sensor(dev);
+ 
+ 	ieee80211_queue_delayed_work(dev->mt76.hw, &dev->cal_work,
+ 				     MT_CALIBRATE_INTERVAL);
+diff --git a/drivers/net/wireless/mediatek/mt76/mt76x02.h b/drivers/net/wireless/mediatek/mt76/mt76x02.h
+index fe731529144c1..f375fdcbd2bfd 100644
+--- a/drivers/net/wireless/mediatek/mt76/mt76x02.h
++++ b/drivers/net/wireless/mediatek/mt76/mt76x02.h
+@@ -55,7 +55,8 @@ struct mt76x02_calibration {
+ 	s8 agc_gain_adjust;
+ 	s8 low_gain;
+ 
+-	u8 temp;
++	s8 temp_vco;
++	s8 temp;
+ 
+ 	bool init_cal_done;
+ 	bool tssi_cal_done;
+-- 
+cgit 
+

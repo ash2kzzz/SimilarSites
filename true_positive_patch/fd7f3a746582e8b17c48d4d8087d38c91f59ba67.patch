@@ -1,0 +1,40 @@
+From fd7f3a746582e8b17c48d4d8087d38c91f59ba67 Mon Sep 17 00:00:00 2001
+From: Karsten Graul <kgraul@linux.ibm.com>
+Date: Sat, 18 Jul 2020 15:06:17 +0200
+Subject: net/smc: remove freed buffer from list
+
+Two buffers are allocated for each SMC connection. Each buffer is
+added to a buffer list after creation. When the second buffer
+allocation fails, the first buffer is freed but not deleted from
+the list. This might result in crashes when another connection picks
+up the freed buffer later and starts to work with it.
+
+Reviewed-by: Ursula Braun <ubraun@linux.ibm.com>
+Fixes: 6511aad3f039 ("net/smc: change smc_buf_free function parameters")
+Signed-off-by: Karsten Graul <kgraul@linux.ibm.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ net/smc/smc_core.c | 6 +++++-
+ 1 file changed, 5 insertions(+), 1 deletion(-)
+
+diff --git a/net/smc/smc_core.c b/net/smc/smc_core.c
+index 42ba227f3e97b..ca3dc6af73af0 100644
+--- a/net/smc/smc_core.c
++++ b/net/smc/smc_core.c
+@@ -1772,8 +1772,12 @@ int smc_buf_create(struct smc_sock *smc, bool is_smcd)
+ 		return rc;
+ 	/* create rmb */
+ 	rc = __smc_buf_create(smc, is_smcd, true);
+-	if (rc)
++	if (rc) {
++		mutex_lock(&smc->conn.lgr->sndbufs_lock);
++		list_del(&smc->conn.sndbuf_desc->list);
++		mutex_unlock(&smc->conn.lgr->sndbufs_lock);
+ 		smc_buf_free(smc->conn.lgr, false, smc->conn.sndbuf_desc);
++	}
+ 	return rc;
+ }
+ 
+-- 
+cgit 
+

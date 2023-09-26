@@ -1,0 +1,42 @@
+From e891ce1dd2a54c41a3b70d822cd832735c03b892 Mon Sep 17 00:00:00 2001
+From: Petr Machata <petrm@mellanox.com>
+Date: Tue, 11 Jun 2019 10:19:45 +0300
+Subject: mlxsw: spectrum_buffers: Reduce pool size on Spectrum-2
+
+Due to an issue on Spectrum-2, in front-panel ports split four ways, 2 out
+of 32 port buffers cannot be used. To work around this, the next FW release
+will mark them as unused, and will report correspondingly lower total
+shared buffer size. mlxsw will pick up the new value through a query to
+cap_total_buffer_size resource. However the initial size for shared buffer
+pool 0 is hard-coded and therefore needs to be updated.
+
+Thus reduce the pool size by 2.7 MiB (which corresponds to 2/32 of the
+total size of 42 MiB), and round down to the whole number of cells.
+
+Fixes: fe099bf682ab ("mlxsw: spectrum_buffers: Add Spectrum-2 shared buffer configuration")
+Signed-off-by: Petr Machata <petrm@mellanox.com>
+Acked-by: Jiri Pirko <jiri@mellanox.com>
+Signed-off-by: Ido Schimmel <idosch@mellanox.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ drivers/net/ethernet/mellanox/mlxsw/spectrum_buffers.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/net/ethernet/mellanox/mlxsw/spectrum_buffers.c b/drivers/net/ethernet/mellanox/mlxsw/spectrum_buffers.c
+index 8512dd49e4201..1537f70bc26d0 100644
+--- a/drivers/net/ethernet/mellanox/mlxsw/spectrum_buffers.c
++++ b/drivers/net/ethernet/mellanox/mlxsw/spectrum_buffers.c
+@@ -437,8 +437,8 @@ static const struct mlxsw_sp_sb_pr mlxsw_sp1_sb_prs[] = {
+ 			   MLXSW_SP1_SB_PR_CPU_SIZE, true, false),
+ };
+ 
+-#define MLXSW_SP2_SB_PR_INGRESS_SIZE	40960000
+-#define MLXSW_SP2_SB_PR_EGRESS_SIZE	40960000
++#define MLXSW_SP2_SB_PR_INGRESS_SIZE	38128752
++#define MLXSW_SP2_SB_PR_EGRESS_SIZE	38128752
+ #define MLXSW_SP2_SB_PR_CPU_SIZE	(256 * 1000)
+ 
+ /* Order according to mlxsw_sp2_sb_pool_dess */
+-- 
+cgit 
+

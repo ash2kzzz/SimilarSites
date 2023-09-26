@@ -1,0 +1,68 @@
+From f1533cce60d1f84378c1dd925f9ef1038fa93507 Mon Sep 17 00:00:00 2001
+From: Marcelo Ricardo Leitner <marcelo.leitner@gmail.com>
+Date: Thu, 7 Jul 2016 09:39:29 -0300
+Subject: sctp: fix panic when sending auth chunks
+
+When we introduced GSO support, if using auth the auth chunk was being
+left queued on the packet even after the final segment was generated.
+Later on sctp_transmit_packet it calls sctp_packet_reset, which zeroed
+the packet len while not accounting for this left-over. This caused more
+space to be used the next packet due to the chunk still being queued,
+but space which wasn't allocated as its size wasn't accounted.
+
+The fix is to only queue it back when we know that we are going to
+generate another segment.
+
+Fixes: 90017accff61 ("sctp: Add GSO support")
+Signed-off-by: Marcelo Ricardo Leitner <marcelo.leitner@gmail.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ net/sctp/output.c | 18 +++++++++++++++---
+ 1 file changed, 15 insertions(+), 3 deletions(-)
+
+diff --git a/net/sctp/output.c b/net/sctp/output.c
+index 1541a91d6d9de..2e9223bb1b3a4 100644
+--- a/net/sctp/output.c
++++ b/net/sctp/output.c
+@@ -582,9 +582,7 @@ int sctp_packet_transmit(struct sctp_packet *packet, gfp_t gfp)
+ 			 */
+ 			pkt_size -= WORD_ROUND(chunk->skb->len);
+ 
+-			if (chunk == packet->auth && !list_empty(&packet->chunk_list))
+-				list_add(&chunk->list, &packet->chunk_list);
+-			else if (!sctp_chunk_is_data(chunk))
++			if (!sctp_chunk_is_data(chunk) && chunk != packet->auth)
+ 				sctp_chunk_free(chunk);
+ 
+ 			if (!pkt_size)
+@@ -605,6 +603,18 @@ int sctp_packet_transmit(struct sctp_packet *packet, gfp_t gfp)
+ 						 (struct sctp_auth_chunk *)auth,
+ 						 gfp);
+ 
++		if (packet->auth) {
++			if (!list_empty(&packet->chunk_list)) {
++				/* We will generate more packets, so re-queue
++				 * auth chunk.
++				 */
++				list_add(&chunk->list, &packet->chunk_list);
++			} else {
++				sctp_chunk_free(packet->auth);
++				packet->auth = NULL;
++			}
++		}
++
+ 		if (!gso)
+ 			break;
+ 
+@@ -735,6 +745,8 @@ err:
+ 	}
+ 	goto out;
+ nomem:
++	if (packet->auth && list_empty(&packet->auth->list))
++		sctp_chunk_free(packet->auth);
+ 	err = -ENOMEM;
+ 	goto err;
+ }
+-- 
+cgit 
+

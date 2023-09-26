@@ -1,0 +1,304 @@
+From 311fc65c9fb9c966bca8e6f3ff8132ce57344ab9 Mon Sep 17 00:00:00 2001
+From: "Eric W. Biederman" <ebiederm@xmission.com>
+Date: Thu, 24 Aug 2017 15:13:29 -0500
+Subject: pty: Repair TIOCGPTPEER
+
+The implementation of TIOCGPTPEER has two issues.
+
+When /dev/ptmx (as opposed to /dev/pts/ptmx) is opened the wrong
+vfsmount is passed to dentry_open.  Which results in the kernel displaying
+the wrong pathname for the peer.
+
+The second is simply by caching the vfsmount and dentry of the peer it leaves
+them open, in a way they were not previously Which because of the inreased
+reference counts can cause unnecessary behaviour differences resulting in
+regressions.
+
+To fix these move the ioctl into tty_io.c at a generic level allowing
+the ioctl to have access to the struct file on which the ioctl is
+being called.  This allows the path of the slave to be derived when
+opening the slave through TIOCGPTPEER instead of requiring the path to
+the slave be cached.  Thus removing the need for caching the path.
+
+A new function devpts_ptmx_path is factored out of devpts_acquire and
+used to implement a function devpts_mntget.   The new function devpts_mntget
+takes a filp to perform the lookup on and fsi so that it can confirm
+that the superblock that is found by devpts_ptmx_path is the proper superblock.
+
+v2: Lots of fixes to make the code actually work
+v3: Suggestions by Linus
+    - Removed the unnecessary initialization of filp in ptm_open_peer
+    - Simplified devpts_ptmx_path as gotos are no longer required
+
+[ This is the fix for the issue that was reverted in commit
+  143c97cc6529, but this time without breaking 'pbuilder' due to
+  increased reference counts   - Linus ]
+
+Fixes: 54ebbfb16034 ("tty: add TIOCGPTPEER ioctl")
+Reported-by: Christian Brauner <christian.brauner@canonical.com>
+Reported-and-tested-by: Stefan Lippers-Hollmann <s.l-h@gmx.de>
+Signed-off-by: "Eric W. Biederman" <ebiederm@xmission.com>
+Signed-off-by: Linus Torvalds <torvalds@linux-foundation.org>
+---
+ drivers/tty/pty.c         | 64 ++++++++++++++++++++--------------------------
+ drivers/tty/tty_io.c      |  3 +++
+ fs/devpts/inode.c         | 65 +++++++++++++++++++++++++++++++++++------------
+ include/linux/devpts_fs.h | 10 ++++++++
+ 4 files changed, 89 insertions(+), 53 deletions(-)
+
+diff --git a/drivers/tty/pty.c b/drivers/tty/pty.c
+index 284749fb0f6b9..a6d5164c33a9c 100644
+--- a/drivers/tty/pty.c
++++ b/drivers/tty/pty.c
+@@ -69,13 +69,8 @@ static void pty_close(struct tty_struct *tty, struct file *filp)
+ #ifdef CONFIG_UNIX98_PTYS
+ 		if (tty->driver == ptm_driver) {
+ 			mutex_lock(&devpts_mutex);
+-			if (tty->link->driver_data) {
+-				struct path *path = tty->link->driver_data;
+-
+-				devpts_pty_kill(path->dentry);
+-				path_put(path);
+-				kfree(path);
+-			}
++			if (tty->link->driver_data)
++				devpts_pty_kill(tty->link->driver_data);
+ 			mutex_unlock(&devpts_mutex);
+ 		}
+ #endif
+@@ -607,25 +602,24 @@ static inline void legacy_pty_init(void) { }
+ static struct cdev ptmx_cdev;
+ 
+ /**
+- *	pty_open_peer - open the peer of a pty
+- *	@tty: the peer of the pty being opened
++ *	ptm_open_peer - open the peer of a pty
++ *	@master: the open struct file of the ptmx device node
++ *	@tty: the master of the pty being opened
++ *	@flags: the flags for open
+  *
+- *	Open the cached dentry in tty->link, providing a safe way for userspace
+- *	to get the slave end of a pty (where they have the master fd and cannot
+- *	access or trust the mount namespace /dev/pts was mounted inside).
++ *	Provide a race free way for userspace to open the slave end of a pty
++ *	(where they have the master fd and cannot access or trust the mount
++ *	namespace /dev/pts was mounted inside).
+  */
+-static struct file *pty_open_peer(struct tty_struct *tty, int flags)
+-{
+-	if (tty->driver->subtype != PTY_TYPE_MASTER)
+-		return ERR_PTR(-EIO);
+-	return dentry_open(tty->link->driver_data, flags, current_cred());
+-}
+-
+-static int pty_get_peer(struct tty_struct *tty, int flags)
++int ptm_open_peer(struct file *master, struct tty_struct *tty, int flags)
+ {
+ 	int fd = -1;
+-	struct file *filp = NULL;
++	struct file *filp;
+ 	int retval = -EINVAL;
++	struct path path;
++
++	if (tty->driver != ptm_driver)
++		return -EIO;
+ 
+ 	fd = get_unused_fd_flags(0);
+ 	if (fd < 0) {
+@@ -633,7 +627,16 @@ static int pty_get_peer(struct tty_struct *tty, int flags)
+ 		goto err;
+ 	}
+ 
+-	filp = pty_open_peer(tty, flags);
++	/* Compute the slave's path */
++	path.mnt = devpts_mntget(master, tty->driver_data);
++	if (IS_ERR(path.mnt)) {
++		retval = PTR_ERR(path.mnt);
++		goto err_put;
++	}
++	path.dentry = tty->link->driver_data;
++
++	filp = dentry_open(&path, flags, current_cred());
++	mntput(path.mnt);
+ 	if (IS_ERR(filp)) {
+ 		retval = PTR_ERR(filp);
+ 		goto err_put;
+@@ -662,8 +665,6 @@ static int pty_unix98_ioctl(struct tty_struct *tty,
+ 		return pty_get_pktmode(tty, (int __user *)arg);
+ 	case TIOCGPTN: /* Get PT Number */
+ 		return put_user(tty->index, (unsigned int __user *)arg);
+-	case TIOCGPTPEER: /* Open the other end */
+-		return pty_get_peer(tty, (int) arg);
+ 	case TIOCSIG:    /* Send signal to other side of pty */
+ 		return pty_signal(tty, (int) arg);
+ 	}
+@@ -791,7 +792,6 @@ static int ptmx_open(struct inode *inode, struct file *filp)
+ {
+ 	struct pts_fs_info *fsi;
+ 	struct tty_struct *tty;
+-	struct path *pts_path;
+ 	struct dentry *dentry;
+ 	int retval;
+ 	int index;
+@@ -845,26 +845,16 @@ static int ptmx_open(struct inode *inode, struct file *filp)
+ 		retval = PTR_ERR(dentry);
+ 		goto err_release;
+ 	}
+-	/* We need to cache a fake path for TIOCGPTPEER. */
+-	pts_path = kmalloc(sizeof(struct path), GFP_KERNEL);
+-	if (!pts_path)
+-		goto err_release;
+-	pts_path->mnt = filp->f_path.mnt;
+-	pts_path->dentry = dentry;
+-	path_get(pts_path);
+-	tty->link->driver_data = pts_path;
++	tty->link->driver_data = dentry;
+ 
+ 	retval = ptm_driver->ops->open(tty, filp);
+ 	if (retval)
+-		goto err_path_put;
++		goto err_release;
+ 
+ 	tty_debug_hangup(tty, "opening (count=%d)\n", tty->count);
+ 
+ 	tty_unlock(tty);
+ 	return 0;
+-err_path_put:
+-	path_put(pts_path);
+-	kfree(pts_path);
+ err_release:
+ 	tty_unlock(tty);
+ 	// This will also put-ref the fsi
+diff --git a/drivers/tty/tty_io.c b/drivers/tty/tty_io.c
+index 974b13d244010..10c4038c0e8df 100644
+--- a/drivers/tty/tty_io.c
++++ b/drivers/tty/tty_io.c
+@@ -2518,6 +2518,9 @@ long tty_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
+ 	case TIOCSSERIAL:
+ 		tty_warn_deprecated_flags(p);
+ 		break;
++	case TIOCGPTPEER:
++		/* Special because the struct file is needed */
++		return ptm_open_peer(file, tty, (int)arg);
+ 	default:
+ 		retval = tty_jobctrl_ioctl(tty, real_tty, file, cmd, arg);
+ 		if (retval != -ENOIOCTLCMD)
+diff --git a/fs/devpts/inode.c b/fs/devpts/inode.c
+index 108df2e3602c2..7eae33ffa3fcc 100644
+--- a/fs/devpts/inode.c
++++ b/fs/devpts/inode.c
+@@ -133,6 +133,50 @@ static inline struct pts_fs_info *DEVPTS_SB(struct super_block *sb)
+ 	return sb->s_fs_info;
+ }
+ 
++static int devpts_ptmx_path(struct path *path)
++{
++	struct super_block *sb;
++	int err;
++
++	/* Has the devpts filesystem already been found? */
++	if (path->mnt->mnt_sb->s_magic == DEVPTS_SUPER_MAGIC)
++		return 0;
++
++	/* Is a devpts filesystem at "pts" in the same directory? */
++	err = path_pts(path);
++	if (err)
++		return err;
++
++	/* Is the path the root of a devpts filesystem? */
++	sb = path->mnt->mnt_sb;
++	if ((sb->s_magic != DEVPTS_SUPER_MAGIC) ||
++	    (path->mnt->mnt_root != sb->s_root))
++		return -ENODEV;
++
++	return 0;
++}
++
++struct vfsmount *devpts_mntget(struct file *filp, struct pts_fs_info *fsi)
++{
++	struct path path;
++	int err;
++
++	path = filp->f_path;
++	path_get(&path);
++
++	err = devpts_ptmx_path(&path);
++	dput(path.dentry);
++	if (err) {
++		mntput(path.mnt);
++		path.mnt = ERR_PTR(err);
++	}
++	if (DEVPTS_SB(path.mnt->mnt_sb) != fsi) {
++		mntput(path.mnt);
++		path.mnt = ERR_PTR(-ENODEV);
++	}
++	return path.mnt;
++}
++
+ struct pts_fs_info *devpts_acquire(struct file *filp)
+ {
+ 	struct pts_fs_info *result;
+@@ -143,27 +187,16 @@ struct pts_fs_info *devpts_acquire(struct file *filp)
+ 	path = filp->f_path;
+ 	path_get(&path);
+ 
+-	/* Has the devpts filesystem already been found? */
+-	sb = path.mnt->mnt_sb;
+-	if (sb->s_magic != DEVPTS_SUPER_MAGIC) {
+-		/* Is a devpts filesystem at "pts" in the same directory? */
+-		err = path_pts(&path);
+-		if (err) {
+-			result = ERR_PTR(err);
+-			goto out;
+-		}
+-
+-		/* Is the path the root of a devpts filesystem? */
+-		result = ERR_PTR(-ENODEV);
+-		sb = path.mnt->mnt_sb;
+-		if ((sb->s_magic != DEVPTS_SUPER_MAGIC) ||
+-		    (path.mnt->mnt_root != sb->s_root))
+-			goto out;
++	err = devpts_ptmx_path(&path);
++	if (err) {
++		result = ERR_PTR(err);
++		goto out;
+ 	}
+ 
+ 	/*
+ 	 * pty code needs to hold extra references in case of last /dev/tty close
+ 	 */
++	sb = path.mnt->mnt_sb;
+ 	atomic_inc(&sb->s_active);
+ 	result = DEVPTS_SB(sb);
+ 
+diff --git a/include/linux/devpts_fs.h b/include/linux/devpts_fs.h
+index 277ab9af9ac29..100cb43437630 100644
+--- a/include/linux/devpts_fs.h
++++ b/include/linux/devpts_fs.h
+@@ -19,6 +19,7 @@
+ 
+ struct pts_fs_info;
+ 
++struct vfsmount *devpts_mntget(struct file *, struct pts_fs_info *);
+ struct pts_fs_info *devpts_acquire(struct file *);
+ void devpts_release(struct pts_fs_info *);
+ 
+@@ -32,6 +33,15 @@ void *devpts_get_priv(struct dentry *);
+ /* unlink */
+ void devpts_pty_kill(struct dentry *);
+ 
++/* in pty.c */
++int ptm_open_peer(struct file *master, struct tty_struct *tty, int flags);
++
++#else
++static inline int
++ptm_open_peer(struct file *master, struct tty_struct *tty, int flags)
++{
++	return -EIO;
++}
+ #endif
+ 
+ 
+-- 
+cgit 
+

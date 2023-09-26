@@ -1,0 +1,57 @@
+From d0e13a1488ad30dc3c2c9347b931cb10f892e3a4 Mon Sep 17 00:00:00 2001
+From: Willem de Bruijn <willemb@google.com>
+Date: Mon, 24 Sep 2018 16:49:57 -0400
+Subject: flow_dissector: lookup netns by skb->sk if skb->dev is NULL
+
+BPF flow dissectors are configured per network namespace.
+__skb_flow_dissect looks up the netns through dev_net(skb->dev).
+
+In some dissector paths skb->dev is NULL, such as for Unix sockets.
+In these cases fall back to looking up the netns by socket.
+
+Analyzing the codepaths leading to __skb_flow_dissect I did not find
+a case where both skb->dev and skb->sk are NULL. Warn and fall back to
+standard flow dissector if one is found.
+
+Fixes: d58e468b1112 ("flow_dissector: implements flow dissector BPF hook")
+Reported-by: Eric Dumazet <edumazet@google.com>
+Signed-off-by: Willem de Bruijn <willemb@google.com>
+Acked-by: Song Liu <songliubraving@fb.com>
+Signed-off-by: Daniel Borkmann <daniel@iogearbox.net>
+---
+ net/core/flow_dissector.c | 12 +++++++++---
+ 1 file changed, 9 insertions(+), 3 deletions(-)
+
+diff --git a/net/core/flow_dissector.c b/net/core/flow_dissector.c
+index 5c5dd74b5b3b03..738c7562e1e070 100644
+--- a/net/core/flow_dissector.c
++++ b/net/core/flow_dissector.c
+@@ -714,7 +714,7 @@ bool __skb_flow_dissect(const struct sk_buff *skb,
+ 	struct flow_dissector_key_vlan *key_vlan;
+ 	enum flow_dissect_ret fdret;
+ 	enum flow_dissector_key_id dissector_vlan = FLOW_DISSECTOR_KEY_MAX;
+-	struct bpf_prog *attached;
++	struct bpf_prog *attached = NULL;
+ 	int num_hdrs = 0;
+ 	u8 ip_proto = 0;
+ 	bool ret;
+@@ -755,8 +755,14 @@ bool __skb_flow_dissect(const struct sk_buff *skb,
+ 					      target_container);
+ 
+ 	rcu_read_lock();
+-	attached = skb ? rcu_dereference(dev_net(skb->dev)->flow_dissector_prog)
+-		       : NULL;
++	if (skb) {
++		if (skb->dev)
++			attached = rcu_dereference(dev_net(skb->dev)->flow_dissector_prog);
++		else if (skb->sk)
++			attached = rcu_dereference(sock_net(skb->sk)->flow_dissector_prog);
++		else
++			WARN_ON_ONCE(1);
++	}
+ 	if (attached) {
+ 		/* Note that even though the const qualifier is discarded
+ 		 * throughout the execution of the BPF program, all changes(the
+-- 
+cgit 
+

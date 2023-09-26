@@ -1,0 +1,98 @@
+From 9d76931180557270796f9631e2c79b9c7bb3c9fb Mon Sep 17 00:00:00 2001
+From: Eran Ben Elisha <eranbe@mellanox.com>
+Date: Tue, 21 Jun 2016 14:20:03 +0300
+Subject: net/mlx4_en: Avoid unregister_netdev at shutdown flow
+
+This allows a clean shutdown, even if some netdev clients do not
+release their reference from this netdev. It is enough to release
+the HW resources only as the kernel is shutting down.
+
+Fixes: 2ba5fbd62b25 ('net/mlx4_core: Handle AER flow properly')
+Signed-off-by: Eran Ben Elisha <eranbe@mellanox.com>
+Signed-off-by: Tariq Toukan <tariqt@mellanox.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ drivers/net/ethernet/mellanox/mlx4/en_netdev.c | 17 +++++++++++++++--
+ drivers/net/ethernet/mellanox/mlx4/main.c      |  5 ++++-
+ include/linux/mlx4/device.h                    |  1 +
+ 3 files changed, 20 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/net/ethernet/mellanox/mlx4/en_netdev.c b/drivers/net/ethernet/mellanox/mlx4/en_netdev.c
+index 43f505e2d2919..0c0dfd6cdca64 100644
+--- a/drivers/net/ethernet/mellanox/mlx4/en_netdev.c
++++ b/drivers/net/ethernet/mellanox/mlx4/en_netdev.c
+@@ -2036,11 +2036,20 @@ err:
+ 	return -ENOMEM;
+ }
+ 
++static void mlx4_en_shutdown(struct net_device *dev)
++{
++	rtnl_lock();
++	netif_device_detach(dev);
++	mlx4_en_close(dev);
++	rtnl_unlock();
++}
+ 
+ void mlx4_en_destroy_netdev(struct net_device *dev)
+ {
+ 	struct mlx4_en_priv *priv = netdev_priv(dev);
+ 	struct mlx4_en_dev *mdev = priv->mdev;
++	bool shutdown = mdev->dev->persist->interface_state &
++					    MLX4_INTERFACE_STATE_SHUTDOWN;
+ 
+ 	en_dbg(DRV, priv, "Destroying netdev on port:%d\n", priv->port);
+ 
+@@ -2048,7 +2057,10 @@ void mlx4_en_destroy_netdev(struct net_device *dev)
+ 	if (priv->registered) {
+ 		devlink_port_type_clear(mlx4_get_devlink_port(mdev->dev,
+ 							      priv->port));
+-		unregister_netdev(dev);
++		if (shutdown)
++			mlx4_en_shutdown(dev);
++		else
++			unregister_netdev(dev);
+ 	}
+ 
+ 	if (priv->allocated)
+@@ -2073,7 +2085,8 @@ void mlx4_en_destroy_netdev(struct net_device *dev)
+ 	kfree(priv->tx_ring);
+ 	kfree(priv->tx_cq);
+ 
+-	free_netdev(dev);
++	if (!shutdown)
++		free_netdev(dev);
+ }
+ 
+ static int mlx4_en_change_mtu(struct net_device *dev, int new_mtu)
+diff --git a/drivers/net/ethernet/mellanox/mlx4/main.c b/drivers/net/ethernet/mellanox/mlx4/main.c
+index 372ebfa880f50..546fab0ecc3bb 100644
+--- a/drivers/net/ethernet/mellanox/mlx4/main.c
++++ b/drivers/net/ethernet/mellanox/mlx4/main.c
+@@ -4135,8 +4135,11 @@ static void mlx4_shutdown(struct pci_dev *pdev)
+ 
+ 	mlx4_info(persist->dev, "mlx4_shutdown was called\n");
+ 	mutex_lock(&persist->interface_state_mutex);
+-	if (persist->interface_state & MLX4_INTERFACE_STATE_UP)
++	if (persist->interface_state & MLX4_INTERFACE_STATE_UP) {
++		/* Notify mlx4 clients that the kernel is being shut down */
++		persist->interface_state |= MLX4_INTERFACE_STATE_SHUTDOWN;
+ 		mlx4_unload_one(pdev);
++	}
+ 	mutex_unlock(&persist->interface_state_mutex);
+ }
+ 
+diff --git a/include/linux/mlx4/device.h b/include/linux/mlx4/device.h
+index 80dec87a94f84..d46a0e7f144df 100644
+--- a/include/linux/mlx4/device.h
++++ b/include/linux/mlx4/device.h
+@@ -466,6 +466,7 @@ enum {
+ enum {
+ 	MLX4_INTERFACE_STATE_UP		= 1 << 0,
+ 	MLX4_INTERFACE_STATE_DELETION	= 1 << 1,
++	MLX4_INTERFACE_STATE_SHUTDOWN	= 1 << 2,
+ };
+ 
+ #define MSTR_SM_CHANGE_MASK (MLX4_EQ_PORT_INFO_MSTR_SM_SL_CHANGE_MASK | \
+-- 
+cgit 
+

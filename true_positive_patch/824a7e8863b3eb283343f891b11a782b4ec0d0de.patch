@@ -1,0 +1,33 @@
+From 824a7e8863b3eb283343f891b11a782b4ec0d0de Mon Sep 17 00:00:00 2001
+From: WANG Cong <xiyou.wangcong@gmail.com>
+Date: Sat, 13 Aug 2016 22:34:57 -0700
+Subject: net_sched: remove an unnecessary list_del()
+
+This list_del() for tc action is not needed actually,
+because we only use this list to chain bulk operations,
+therefore should not be carried for latter operations.
+
+Fixes: ec0595cc4495 ("net_sched: get rid of struct tcf_common")
+Cc: Jamal Hadi Salim <jhs@mojatatu.com>
+Signed-off-by: Cong Wang <xiyou.wangcong@gmail.com>
+Acked-by: Jamal Hadi Salim <jhs@mojatatu.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ net/sched/act_api.c | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/net/sched/act_api.c b/net/sched/act_api.c
+index cce6986d5bc29..b4c7be38b6320 100644
+--- a/net/sched/act_api.c
++++ b/net/sched/act_api.c
+@@ -64,7 +64,6 @@ int __tcf_hash_release(struct tc_action *p, bool bind, bool strict)
+ 		if (p->tcfa_bindcnt <= 0 && p->tcfa_refcnt <= 0) {
+ 			if (p->ops->cleanup)
+ 				p->ops->cleanup(p, bind);
+-			list_del(&p->list);
+ 			tcf_hash_destroy(p->hinfo, p);
+ 			ret = ACT_P_DELETED;
+ 		}
+-- 
+cgit 
+

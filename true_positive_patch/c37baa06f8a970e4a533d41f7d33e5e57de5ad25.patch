@@ -1,0 +1,40 @@
+From c37baa06f8a970e4a533d41f7d33e5e57de5ad25 Mon Sep 17 00:00:00 2001
+From: "Andrew F. Davis" <afd@ti.com>
+Date: Wed, 22 Jan 2020 12:20:17 -0500
+Subject: ARM: OMAP2+: Fix undefined reference to omap_secure_init
+
+omap_secure_init() is now called from all OMAP2+ platforms during their
+init_early() call. This function is in omap-secure.o so include that
+in the build for these platforms.
+
+Fixes: db711893eac8 ("ARM: OMAP2+: Add omap_secure_init callback hook for secure initialization")
+Reported-by: Dan Murphy <dmurphy@ti.com>
+Signed-off-by: Andrew F. Davis <afd@ti.com>
+Tested-by: Dan Murphy <dmurphy@ti.com>
+Signed-off-by: Tony Lindgren <tony@atomide.com>
+---
+ arch/arm/mach-omap2/Makefile | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/arch/arm/mach-omap2/Makefile b/arch/arm/mach-omap2/Makefile
+index f07cfda851569..e1135b9d67c65 100644
+--- a/arch/arm/mach-omap2/Makefile
++++ b/arch/arm/mach-omap2/Makefile
+@@ -16,11 +16,11 @@ hwmod-common				= omap_hwmod.o omap_hwmod_reset.o \
+ clock-common				= clock.o
+ secure-common				= omap-smc.o omap-secure.o
+ 
+-obj-$(CONFIG_ARCH_OMAP2) += $(omap-2-3-common) $(hwmod-common)
++obj-$(CONFIG_ARCH_OMAP2) += $(omap-2-3-common) $(hwmod-common) $(secure-common)
+ obj-$(CONFIG_ARCH_OMAP3) += $(omap-2-3-common) $(hwmod-common) $(secure-common)
+ obj-$(CONFIG_ARCH_OMAP4) += $(hwmod-common) $(secure-common)
+-obj-$(CONFIG_SOC_AM33XX) += $(hwmod-common)
+-obj-$(CONFIG_SOC_OMAP5)	 += $(hwmod-common) $(secure-common)
++obj-$(CONFIG_SOC_AM33XX) += $(hwmod-common) $(secure-common)
++obj-$(CONFIG_SOC_OMAP5)  += $(hwmod-common) $(secure-common)
+ obj-$(CONFIG_SOC_AM43XX) += $(hwmod-common) $(secure-common)
+ obj-$(CONFIG_SOC_DRA7XX) += $(hwmod-common) $(secure-common)
+ 
+-- 
+cgit 
+

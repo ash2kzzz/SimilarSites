@@ -1,0 +1,105 @@
+From 905e300e1043f5ff513840d342df5c985b3dc08c Mon Sep 17 00:00:00 2001
+From: Arnd Bergmann <arnd@arndb.de>
+Date: Mon, 29 Sep 2014 14:54:34 +0200
+Subject: USB: host: st: fix ehci/ohci driver selection
+
+The newly added sti ehci and ohci drivers come with a single
+Kconfig entry that does not depend on either of the base drivers,
+which leads to a link error when they are disabled:
+
+drivers/built-in.o: In function `ohci_platform_init':
+:(.init.text+0x14788): undefined reference to `ohci_init_driver'
+
+To fix that, this patch introduces two separate Kconfig options
+with proper dependencies, which avoids the problem and is also
+more consistent with the other glue drivers.
+
+Signed-off-by: Arnd Bergmann <arnd@arndb.de>
+Fixes: d115837259ada ("usb: host: ohci-st: Add OHCI driver support for ST STB devices")
+Cc: Peter Griffin <peter.griffin@linaro.org>
+Acked-by: Alan Stern <stern@rowland.harvard.edu>
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+---
+ drivers/usb/host/Kconfig  | 26 ++++++++++++++++++--------
+ drivers/usb/host/Makefile |  3 ++-
+ 2 files changed, 20 insertions(+), 9 deletions(-)
+
+diff --git a/drivers/usb/host/Kconfig b/drivers/usb/host/Kconfig
+index b943545f862cb..002ba1d5bcf56 100644
+--- a/drivers/usb/host/Kconfig
++++ b/drivers/usb/host/Kconfig
+@@ -174,6 +174,15 @@ config USB_EHCI_HCD_SPEAR
+           Enables support for the on-chip EHCI controller on
+           ST SPEAr chips.
+ 
++config USB_EHCI_HCD_STI
++	tristate "Support for ST STiHxxx on-chip EHCI USB controller"
++	depends on ARCH_STI && OF
++	select GENERIC_PHY
++	select USB_EHCI_HCD_PLATFORM
++	help
++	  Enable support for the on-chip EHCI controller found on
++	  STMicroelectronics consumer electronics SoC's.
++
+ config USB_EHCI_HCD_AT91
+         tristate  "Support for Atmel on-chip EHCI USB controller"
+         depends on USB_EHCI_HCD && ARCH_AT91
+@@ -402,6 +411,15 @@ config USB_OHCI_HCD_SPEAR
+           Enables support for the on-chip OHCI controller on
+           ST SPEAr chips.
+ 
++config USB_OHCI_HCD_STI
++	tristate "Support for ST STiHxxx on-chip OHCI USB controller"
++	depends on ARCH_STI && OF
++	select GENERIC_PHY
++	select USB_OHCI_HCD_PLATFORM
++	help
++	  Enable support for the on-chip OHCI controller found on
++	  STMicroelectronics consumer electronics SoC's.
++
+ config USB_OHCI_HCD_S3C2410
+         tristate "OHCI support for Samsung S3C24xx/S3C64xx SoC series"
+         depends on USB_OHCI_HCD && (ARCH_S3C24XX || ARCH_S3C64XX)
+@@ -761,14 +779,6 @@ config USB_HCD_SSB
+ 
+ 	  If unsure, say N.
+ 
+-config USB_HCD_ST
+-	tristate "ST USB driver for ST SoC Series"
+-	depends on ARCH_STI && OF
+-	select GENERIC_PHY
+-	help
+-	  Enable support for the on-chip OHCI & EHCI controller found on
+-	  STMicroelectronics consumer electronics SoC's.
+-
+ config USB_HCD_TEST_MODE
+ 	bool "HCD test mode support"
+ 	---help---
+diff --git a/drivers/usb/host/Makefile b/drivers/usb/host/Makefile
+index ae2db0b879938..0336bb2c0e6f6 100644
+--- a/drivers/usb/host/Makefile
++++ b/drivers/usb/host/Makefile
+@@ -38,6 +38,7 @@ obj-$(CONFIG_USB_EHCI_MXC)	+= ehci-mxc.o
+ obj-$(CONFIG_USB_EHCI_HCD_OMAP)	+= ehci-omap.o
+ obj-$(CONFIG_USB_EHCI_HCD_ORION)	+= ehci-orion.o
+ obj-$(CONFIG_USB_EHCI_HCD_SPEAR)	+= ehci-spear.o
++obj-$(CONFIG_USB_EHCI_HCD_ST)	+= ehci-st.o
+ obj-$(CONFIG_USB_EHCI_EXYNOS)	+= ehci-exynos.o
+ obj-$(CONFIG_USB_EHCI_HCD_AT91) += ehci-atmel.o
+ obj-$(CONFIG_USB_EHCI_MSM)	+= ehci-msm.o
+@@ -55,6 +56,7 @@ obj-$(CONFIG_USB_OHCI_EXYNOS)	+= ohci-exynos.o
+ obj-$(CONFIG_USB_OHCI_HCD_OMAP1)	+= ohci-omap.o
+ obj-$(CONFIG_USB_OHCI_HCD_OMAP3)	+= ohci-omap3.o
+ obj-$(CONFIG_USB_OHCI_HCD_SPEAR)	+= ohci-spear.o
++obj-$(CONFIG_USB_OHCI_HCD_STI)	+= ohci-st.o
+ obj-$(CONFIG_USB_OHCI_HCD_AT91)	+= ohci-at91.o
+ obj-$(CONFIG_USB_OHCI_HCD_S3C2410)	+= ohci-s3c2410.o
+ obj-$(CONFIG_USB_OHCI_HCD_LPC32XX)	+= ohci-nxp.o
+@@ -77,4 +79,3 @@ obj-$(CONFIG_USB_HCD_SSB)	+= ssb-hcd.o
+ obj-$(CONFIG_USB_FUSBH200_HCD)	+= fusbh200-hcd.o
+ obj-$(CONFIG_USB_FOTG210_HCD)	+= fotg210-hcd.o
+ obj-$(CONFIG_USB_MAX3421_HCD)	+= max3421-hcd.o
+-obj-$(CONFIG_USB_HCD_ST)	+= ehci-st.o ohci-st.o
+-- 
+cgit 
+

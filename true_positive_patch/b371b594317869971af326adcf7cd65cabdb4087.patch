@@ -1,0 +1,356 @@
+From b371b594317869971af326adcf7cd65cabdb4087 Mon Sep 17 00:00:00 2001
+From: Peter Zijlstra <peterz@infradead.org>
+Date: Thu, 21 May 2015 10:57:13 +0200
+Subject: perf/x86: Fix event/group validation
+
+Commit 43b4578071c0 ("perf/x86: Reduce stack usage of
+x86_schedule_events()") violated the rule that 'fake' scheduling; as
+used for event/group validation; should not change the event state.
+
+This went mostly un-noticed because repeated calls of
+x86_pmu::get_event_constraints() would give the same result. And
+x86_pmu::put_event_constraints() would mostly not do anything.
+
+Commit e979121b1b15 ("perf/x86/intel: Implement cross-HT corruption
+bug workaround") made the situation much worse by actually setting the
+event->hw.constraint value to NULL, so when validation and actual
+scheduling interact we get NULL ptr derefs.
+
+Fix it by removing the constraint pointer from the event and move it
+back to an array, this time in cpuc instead of on the stack.
+
+validate_group()
+  x86_schedule_events()
+    event->hw.constraint = c; # store
+
+      <context switch>
+        perf_task_event_sched_in()
+          ...
+            x86_schedule_events();
+              event->hw.constraint = c2; # store
+
+              ...
+
+              put_event_constraints(event); # assume failure to schedule
+                intel_put_event_constraints()
+                  event->hw.constraint = NULL;
+
+      <context switch end>
+
+    c = event->hw.constraint; # read -> NULL
+
+    if (!test_bit(hwc->idx, c->idxmsk)) # <- *BOOM* NULL deref
+
+This in particular is possible when the event in question is a
+cpu-wide event and group-leader, where the validate_group() tries to
+add an event to the group.
+
+Reported-by: Vince Weaver <vincent.weaver@maine.edu>
+Signed-off-by: Peter Zijlstra (Intel) <peterz@infradead.org>
+Cc: Andrew Hunter <ahh@google.com>
+Cc: Linus Torvalds <torvalds@linux-foundation.org>
+Cc: Maria Dimakopoulou <maria.n.dimakopoulou@gmail.com>
+Cc: Peter Zijlstra <peterz@infradead.org>
+Cc: Thomas Gleixner <tglx@linutronix.de>
+Fixes: 43b4578071c0 ("perf/x86: Reduce stack usage of x86_schedule_events()")
+Fixes: e979121b1b15 ("perf/x86/intel: Implement cross-HT corruption bug workaround")
+Signed-off-by: Ingo Molnar <mingo@kernel.org>
+---
+ arch/x86/kernel/cpu/perf_event.c              | 33 +++++++++++++++------------
+ arch/x86/kernel/cpu/perf_event.h              |  9 ++++----
+ arch/x86/kernel/cpu/perf_event_intel.c        | 15 ++++--------
+ arch/x86/kernel/cpu/perf_event_intel_ds.c     |  4 ++--
+ arch/x86/kernel/cpu/perf_event_intel_uncore.c |  7 +++---
+ arch/x86/kernel/cpu/perf_event_intel_uncore.h |  1 +
+ include/linux/perf_event.h                    |  4 ----
+ 7 files changed, 33 insertions(+), 40 deletions(-)
+
+diff --git a/arch/x86/kernel/cpu/perf_event.c b/arch/x86/kernel/cpu/perf_event.c
+index 87848ebe2bb79..1664eeea65e03 100644
+--- a/arch/x86/kernel/cpu/perf_event.c
++++ b/arch/x86/kernel/cpu/perf_event.c
+@@ -620,7 +620,7 @@ struct sched_state {
+ struct perf_sched {
+ 	int			max_weight;
+ 	int			max_events;
+-	struct perf_event	**events;
++	struct event_constraint	**constraints;
+ 	struct sched_state	state;
+ 	int			saved_states;
+ 	struct sched_state	saved[SCHED_STATES_MAX];
+@@ -629,7 +629,7 @@ struct perf_sched {
+ /*
+  * Initialize interator that runs through all events and counters.
+  */
+-static void perf_sched_init(struct perf_sched *sched, struct perf_event **events,
++static void perf_sched_init(struct perf_sched *sched, struct event_constraint **constraints,
+ 			    int num, int wmin, int wmax)
+ {
+ 	int idx;
+@@ -637,10 +637,10 @@ static void perf_sched_init(struct perf_sched *sched, struct perf_event **events
+ 	memset(sched, 0, sizeof(*sched));
+ 	sched->max_events	= num;
+ 	sched->max_weight	= wmax;
+-	sched->events		= events;
++	sched->constraints	= constraints;
+ 
+ 	for (idx = 0; idx < num; idx++) {
+-		if (events[idx]->hw.constraint->weight == wmin)
++		if (constraints[idx]->weight == wmin)
+ 			break;
+ 	}
+ 
+@@ -687,7 +687,7 @@ static bool __perf_sched_find_counter(struct perf_sched *sched)
+ 	if (sched->state.event >= sched->max_events)
+ 		return false;
+ 
+-	c = sched->events[sched->state.event]->hw.constraint;
++	c = sched->constraints[sched->state.event];
+ 	/* Prefer fixed purpose counters */
+ 	if (c->idxmsk64 & (~0ULL << INTEL_PMC_IDX_FIXED)) {
+ 		idx = INTEL_PMC_IDX_FIXED;
+@@ -745,7 +745,7 @@ static bool perf_sched_next_event(struct perf_sched *sched)
+ 			if (sched->state.weight > sched->max_weight)
+ 				return false;
+ 		}
+-		c = sched->events[sched->state.event]->hw.constraint;
++		c = sched->constraints[sched->state.event];
+ 	} while (c->weight != sched->state.weight);
+ 
+ 	sched->state.counter = 0;	/* start with first counter */
+@@ -756,12 +756,12 @@ static bool perf_sched_next_event(struct perf_sched *sched)
+ /*
+  * Assign a counter for each event.
+  */
+-int perf_assign_events(struct perf_event **events, int n,
++int perf_assign_events(struct event_constraint **constraints, int n,
+ 			int wmin, int wmax, int *assign)
+ {
+ 	struct perf_sched sched;
+ 
+-	perf_sched_init(&sched, events, n, wmin, wmax);
++	perf_sched_init(&sched, constraints, n, wmin, wmax);
+ 
+ 	do {
+ 		if (!perf_sched_find_counter(&sched))
+@@ -788,9 +788,9 @@ int x86_schedule_events(struct cpu_hw_events *cpuc, int n, int *assign)
+ 		x86_pmu.start_scheduling(cpuc);
+ 
+ 	for (i = 0, wmin = X86_PMC_IDX_MAX, wmax = 0; i < n; i++) {
+-		hwc = &cpuc->event_list[i]->hw;
++		cpuc->event_constraint[i] = NULL;
+ 		c = x86_pmu.get_event_constraints(cpuc, i, cpuc->event_list[i]);
+-		hwc->constraint = c;
++		cpuc->event_constraint[i] = c;
+ 
+ 		wmin = min(wmin, c->weight);
+ 		wmax = max(wmax, c->weight);
+@@ -801,7 +801,7 @@ int x86_schedule_events(struct cpu_hw_events *cpuc, int n, int *assign)
+ 	 */
+ 	for (i = 0; i < n; i++) {
+ 		hwc = &cpuc->event_list[i]->hw;
+-		c = hwc->constraint;
++		c = cpuc->event_constraint[i];
+ 
+ 		/* never assigned */
+ 		if (hwc->idx == -1)
+@@ -821,9 +821,10 @@ int x86_schedule_events(struct cpu_hw_events *cpuc, int n, int *assign)
+ 	}
+ 
+ 	/* slow path */
+-	if (i != n)
+-		unsched = perf_assign_events(cpuc->event_list, n, wmin,
++	if (i != n) {
++		unsched = perf_assign_events(cpuc->event_constraint, n, wmin,
+ 					     wmax, assign);
++	}
+ 
+ 	/*
+ 	 * In case of success (unsched = 0), mark events as committed,
+@@ -840,7 +841,7 @@ int x86_schedule_events(struct cpu_hw_events *cpuc, int n, int *assign)
+ 			e = cpuc->event_list[i];
+ 			e->hw.flags |= PERF_X86_EVENT_COMMITTED;
+ 			if (x86_pmu.commit_scheduling)
+-				x86_pmu.commit_scheduling(cpuc, e, assign[i]);
++				x86_pmu.commit_scheduling(cpuc, i, assign[i]);
+ 		}
+ 	}
+ 
+@@ -1292,8 +1293,10 @@ static void x86_pmu_del(struct perf_event *event, int flags)
+ 		x86_pmu.put_event_constraints(cpuc, event);
+ 
+ 	/* Delete the array entry. */
+-	while (++i < cpuc->n_events)
++	while (++i < cpuc->n_events) {
+ 		cpuc->event_list[i-1] = cpuc->event_list[i];
++		cpuc->event_constraint[i-1] = cpuc->event_constraint[i];
++	}
+ 	--cpuc->n_events;
+ 
+ 	perf_event_update_userpage(event);
+diff --git a/arch/x86/kernel/cpu/perf_event.h b/arch/x86/kernel/cpu/perf_event.h
+index 6ac5cb7a9e148..fdfaab7c5e551 100644
+--- a/arch/x86/kernel/cpu/perf_event.h
++++ b/arch/x86/kernel/cpu/perf_event.h
+@@ -172,7 +172,10 @@ struct cpu_hw_events {
+ 					     added in the current transaction */
+ 	int			assign[X86_PMC_IDX_MAX]; /* event to counter assignment */
+ 	u64			tags[X86_PMC_IDX_MAX];
++
+ 	struct perf_event	*event_list[X86_PMC_IDX_MAX]; /* in enabled order */
++	struct event_constraint	*event_constraint[X86_PMC_IDX_MAX];
++
+ 
+ 	unsigned int		group_flag;
+ 	int			is_fake;
+@@ -519,9 +522,7 @@ struct x86_pmu {
+ 	void		(*put_event_constraints)(struct cpu_hw_events *cpuc,
+ 						 struct perf_event *event);
+ 
+-	void		(*commit_scheduling)(struct cpu_hw_events *cpuc,
+-					     struct perf_event *event,
+-					     int cntr);
++	void		(*commit_scheduling)(struct cpu_hw_events *cpuc, int idx, int cntr);
+ 
+ 	void		(*start_scheduling)(struct cpu_hw_events *cpuc);
+ 
+@@ -717,7 +718,7 @@ static inline void __x86_pmu_enable_event(struct hw_perf_event *hwc,
+ 
+ void x86_pmu_enable_all(int added);
+ 
+-int perf_assign_events(struct perf_event **events, int n,
++int perf_assign_events(struct event_constraint **constraints, int n,
+ 			int wmin, int wmax, int *assign);
+ int x86_schedule_events(struct cpu_hw_events *cpuc, int n, int *assign);
+ 
+diff --git a/arch/x86/kernel/cpu/perf_event_intel.c b/arch/x86/kernel/cpu/perf_event_intel.c
+index 3998131d1a683..7a58fb5df15ce 100644
+--- a/arch/x86/kernel/cpu/perf_event_intel.c
++++ b/arch/x86/kernel/cpu/perf_event_intel.c
+@@ -2106,7 +2106,7 @@ static struct event_constraint *
+ intel_get_event_constraints(struct cpu_hw_events *cpuc, int idx,
+ 			    struct perf_event *event)
+ {
+-	struct event_constraint *c1 = event->hw.constraint;
++	struct event_constraint *c1 = cpuc->event_constraint[idx];
+ 	struct event_constraint *c2;
+ 
+ 	/*
+@@ -2188,8 +2188,6 @@ intel_put_shared_regs_event_constraints(struct cpu_hw_events *cpuc,
+ static void intel_put_event_constraints(struct cpu_hw_events *cpuc,
+ 					struct perf_event *event)
+ {
+-	struct event_constraint *c = event->hw.constraint;
+-
+ 	intel_put_shared_regs_event_constraints(cpuc, event);
+ 
+ 	/*
+@@ -2197,19 +2195,14 @@ static void intel_put_event_constraints(struct cpu_hw_events *cpuc,
+ 	 * all events are subject to and must call the
+ 	 * put_excl_constraints() routine
+ 	 */
+-	if (c && cpuc->excl_cntrs)
++	if (cpuc->excl_cntrs)
+ 		intel_put_excl_constraints(cpuc, event);
+-
+-	/* cleanup dynamic constraint */
+-	if (c && (c->flags & PERF_X86_EVENT_DYNAMIC))
+-		event->hw.constraint = NULL;
+ }
+ 
+-static void intel_commit_scheduling(struct cpu_hw_events *cpuc,
+-				    struct perf_event *event, int cntr)
++static void intel_commit_scheduling(struct cpu_hw_events *cpuc, int idx, int cntr)
+ {
+ 	struct intel_excl_cntrs *excl_cntrs = cpuc->excl_cntrs;
+-	struct event_constraint *c = event->hw.constraint;
++	struct event_constraint *c = cpuc->event_constraint[idx];
+ 	struct intel_excl_states *xlo, *xl;
+ 	int tid = cpuc->excl_thread_id;
+ 	int o_tid = 1 - tid;
+diff --git a/arch/x86/kernel/cpu/perf_event_intel_ds.c b/arch/x86/kernel/cpu/perf_event_intel_ds.c
+index 813f75d71175e..7f73b3553e2ee 100644
+--- a/arch/x86/kernel/cpu/perf_event_intel_ds.c
++++ b/arch/x86/kernel/cpu/perf_event_intel_ds.c
+@@ -706,9 +706,9 @@ void intel_pmu_pebs_disable(struct perf_event *event)
+ 
+ 	cpuc->pebs_enabled &= ~(1ULL << hwc->idx);
+ 
+-	if (event->hw.constraint->flags & PERF_X86_EVENT_PEBS_LDLAT)
++	if (event->hw.flags & PERF_X86_EVENT_PEBS_LDLAT)
+ 		cpuc->pebs_enabled &= ~(1ULL << (hwc->idx + 32));
+-	else if (event->hw.constraint->flags & PERF_X86_EVENT_PEBS_ST)
++	else if (event->hw.flags & PERF_X86_EVENT_PEBS_ST)
+ 		cpuc->pebs_enabled &= ~(1ULL << 63);
+ 
+ 	if (cpuc->enabled)
+diff --git a/arch/x86/kernel/cpu/perf_event_intel_uncore.c b/arch/x86/kernel/cpu/perf_event_intel_uncore.c
+index c635b8b49e931..ec2ba578d2869 100644
+--- a/arch/x86/kernel/cpu/perf_event_intel_uncore.c
++++ b/arch/x86/kernel/cpu/perf_event_intel_uncore.c
+@@ -365,9 +365,8 @@ static int uncore_assign_events(struct intel_uncore_box *box, int assign[], int
+ 	bitmap_zero(used_mask, UNCORE_PMC_IDX_MAX);
+ 
+ 	for (i = 0, wmin = UNCORE_PMC_IDX_MAX, wmax = 0; i < n; i++) {
+-		hwc = &box->event_list[i]->hw;
+ 		c = uncore_get_event_constraint(box, box->event_list[i]);
+-		hwc->constraint = c;
++		box->event_constraint[i] = c;
+ 		wmin = min(wmin, c->weight);
+ 		wmax = max(wmax, c->weight);
+ 	}
+@@ -375,7 +374,7 @@ static int uncore_assign_events(struct intel_uncore_box *box, int assign[], int
+ 	/* fastpath, try to reuse previous register */
+ 	for (i = 0; i < n; i++) {
+ 		hwc = &box->event_list[i]->hw;
+-		c = hwc->constraint;
++		c = box->event_constraint[i];
+ 
+ 		/* never assigned */
+ 		if (hwc->idx == -1)
+@@ -395,7 +394,7 @@ static int uncore_assign_events(struct intel_uncore_box *box, int assign[], int
+ 	}
+ 	/* slow path */
+ 	if (i != n)
+-		ret = perf_assign_events(box->event_list, n,
++		ret = perf_assign_events(box->event_constraint, n,
+ 					 wmin, wmax, assign);
+ 
+ 	if (!assign || ret) {
+diff --git a/arch/x86/kernel/cpu/perf_event_intel_uncore.h b/arch/x86/kernel/cpu/perf_event_intel_uncore.h
+index 6c8c1e7e69d85..f789ec9a0133f 100644
+--- a/arch/x86/kernel/cpu/perf_event_intel_uncore.h
++++ b/arch/x86/kernel/cpu/perf_event_intel_uncore.h
+@@ -97,6 +97,7 @@ struct intel_uncore_box {
+ 	atomic_t refcnt;
+ 	struct perf_event *events[UNCORE_PMC_IDX_MAX];
+ 	struct perf_event *event_list[UNCORE_PMC_IDX_MAX];
++	struct event_constraint *event_constraint[UNCORE_PMC_IDX_MAX];
+ 	unsigned long active_mask[BITS_TO_LONGS(UNCORE_PMC_IDX_MAX)];
+ 	u64 tags[UNCORE_PMC_IDX_MAX];
+ 	struct pci_dev *pci_dev;
+diff --git a/include/linux/perf_event.h b/include/linux/perf_event.h
+index 61992cf2e9771..d8a82a89f35ab 100644
+--- a/include/linux/perf_event.h
++++ b/include/linux/perf_event.h
+@@ -92,8 +92,6 @@ struct hw_perf_event_extra {
+ 	int		idx;	/* index in shared_regs->regs[] */
+ };
+ 
+-struct event_constraint;
+-
+ /**
+  * struct hw_perf_event - performance event hardware details:
+  */
+@@ -112,8 +110,6 @@ struct hw_perf_event {
+ 
+ 			struct hw_perf_event_extra extra_reg;
+ 			struct hw_perf_event_extra branch_reg;
+-
+-			struct event_constraint *constraint;
+ 		};
+ 		struct { /* software */
+ 			struct hrtimer	hrtimer;
+-- 
+cgit 
+

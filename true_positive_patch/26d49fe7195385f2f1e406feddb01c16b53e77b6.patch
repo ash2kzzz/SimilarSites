@@ -1,0 +1,32 @@
+From 26d49fe7195385f2f1e406feddb01c16b53e77b6 Mon Sep 17 00:00:00 2001
+From: Robert Jarzmik <robert.jarzmik@free.fr>
+Date: Thu, 5 Nov 2015 20:46:53 +0100
+Subject: mmc: pxamci: fix read-only gpio detection polarity
+
+The commit converting pxamci to slot-gpio API inverted the logic of the
+read-only gpio. Fix it by inverting the logic again.
+
+Fixes: fd546ee6a7dc ("mmc: pxamci: fix card detect with slot-gpio API")
+Signed-off-by: Robert Jarzmik <robert.jarzmik@free.fr>
+Cc: stable@vger.kernel.org
+Signed-off-by: Ulf Hansson <ulf.hansson@linaro.org>
+---
+ drivers/mmc/host/pxamci.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/mmc/host/pxamci.c b/drivers/mmc/host/pxamci.c
+index 8cadd74e8407b..ce08896b9d696 100644
+--- a/drivers/mmc/host/pxamci.c
++++ b/drivers/mmc/host/pxamci.c
+@@ -805,7 +805,7 @@ static int pxamci_probe(struct platform_device *pdev)
+ 		goto out;
+ 	} else {
+ 		mmc->caps |= host->pdata->gpio_card_ro_invert ?
+-			MMC_CAP2_RO_ACTIVE_HIGH : 0;
++			0 : MMC_CAP2_RO_ACTIVE_HIGH;
+ 	}
+ 
+ 	if (gpio_is_valid(gpio_cd))
+-- 
+cgit 
+

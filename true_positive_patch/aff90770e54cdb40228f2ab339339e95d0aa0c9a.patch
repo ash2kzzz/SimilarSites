@@ -1,0 +1,49 @@
+From aff90770e54cdb40228f2ab339339e95d0aa0c9a Mon Sep 17 00:00:00 2001
+From: Eli Cohen <elic@nvidia.com>
+Date: Wed, 7 Oct 2020 09:40:11 +0300
+Subject: vdpa/mlx5: Fix dependency on MLX5_CORE
+
+Remove propmt for selecting MLX5_VDPA by the user and modify
+MLX5_VDPA_NET to select MLX5_VDPA. Also modify MLX5_VDPA_NET to depend
+on mlx5_core.
+
+This fixes an issue where configuration sets 'y' for MLX5_VDPA_NET while
+MLX5_CORE is compiled as a module causing link errors.
+
+Reported-by: kernel test robot <lkp@intel.com>
+Fixes: 1a86b377aa21 ("vdpa/mlx5: Add VDPA driver for supported mlx5 device")s
+Signed-off-by: Eli Cohen <elic@nvidia.com>
+Link: https://lore.kernel.org/r/20201007064011.GA50074@mtl-vdi-166.wap.labs.mlnx
+Signed-off-by: Michael S. Tsirkin <mst@redhat.com>
+---
+ drivers/vdpa/Kconfig | 7 +++----
+ 1 file changed, 3 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/vdpa/Kconfig b/drivers/vdpa/Kconfig
+index 4271c408103e3..d7d32b6561021 100644
+--- a/drivers/vdpa/Kconfig
++++ b/drivers/vdpa/Kconfig
+@@ -30,9 +30,7 @@ config IFCVF
+ 	  be called ifcvf.
+ 
+ config MLX5_VDPA
+-	bool "MLX5 VDPA support library for ConnectX devices"
+-	depends on MLX5_CORE
+-	default n
++	bool
+ 	help
+ 	  Support library for Mellanox VDPA drivers. Provides code that is
+ 	  common for all types of VDPA drivers. The following drivers are planned:
+@@ -40,7 +38,8 @@ config MLX5_VDPA
+ 
+ config MLX5_VDPA_NET
+ 	tristate "vDPA driver for ConnectX devices"
+-	depends on MLX5_VDPA
++	select MLX5_VDPA
++	depends on MLX5_CORE
+ 	default n
+ 	help
+ 	  VDPA network driver for ConnectX6 and newer. Provides offloading
+-- 
+cgit 
+

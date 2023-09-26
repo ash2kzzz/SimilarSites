@@ -1,0 +1,42 @@
+From fb23403536eabe81ee90d32cb3051030b871d988 Mon Sep 17 00:00:00 2001
+From: Xin Long <lucien.xin@gmail.com>
+Date: Mon, 12 Feb 2018 18:31:24 +0800
+Subject: sctp: remove the useless check in sctp_renege_events
+
+Remove the 'if (chunk)' check in sctp_renege_events for idata process,
+as all renege commands are generated in sctp_eat_data and it can't be
+NULL.
+
+The same thing we already did for common data in sctp_ulpq_renege.
+
+Fixes: 94014e8d871a ("sctp: implement renege_events for sctp_stream_interleave")
+Signed-off-by: Xin Long <lucien.xin@gmail.com>
+Acked-by: Marcelo Ricardo Leitner <marcelo.leitner@gmail.com>
+Acked-by: Neil Horman <nhorman@tuxdriver.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ net/sctp/stream_interleave.c | 8 ++------
+ 1 file changed, 2 insertions(+), 6 deletions(-)
+
+diff --git a/net/sctp/stream_interleave.c b/net/sctp/stream_interleave.c
+index 8c7cf8f08711f..86c26ec429796 100644
+--- a/net/sctp/stream_interleave.c
++++ b/net/sctp/stream_interleave.c
+@@ -954,12 +954,8 @@ static void sctp_renege_events(struct sctp_ulpq *ulpq, struct sctp_chunk *chunk,
+ 	__u32 freed = 0;
+ 	__u16 needed;
+ 
+-	if (chunk) {
+-		needed = ntohs(chunk->chunk_hdr->length);
+-		needed -= sizeof(struct sctp_idata_chunk);
+-	} else {
+-		needed = SCTP_DEFAULT_MAXWINDOW;
+-	}
++	needed = ntohs(chunk->chunk_hdr->length) -
++		 sizeof(struct sctp_idata_chunk);
+ 
+ 	if (skb_queue_empty(&asoc->base.sk->sk_receive_queue)) {
+ 		freed = sctp_ulpq_renege_list(ulpq, &ulpq->lobby, needed);
+-- 
+cgit 
+

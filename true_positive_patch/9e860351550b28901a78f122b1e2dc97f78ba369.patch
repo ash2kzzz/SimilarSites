@@ -1,0 +1,46 @@
+From 9e860351550b28901a78f122b1e2dc97f78ba369 Mon Sep 17 00:00:00 2001
+From: Thomas Gleixner <tglx@linutronix.de>
+Date: Sat, 21 Mar 2020 20:22:10 +0100
+Subject: m68knommu: Remove mm.h include from uaccess_no.h
+
+In file included
+  from include/linux/huge_mm.h:8,
+  from include/linux/mm.h:567,
+  from arch/m68k/include/asm/uaccess_no.h:8,
+  from arch/m68k/include/asm/uaccess.h:3,
+  from include/linux/uaccess.h:11,
+  from include/linux/sched/task.h:11,
+  from include/linux/sched/signal.h:9,
+  from include/linux/rcuwait.h:6,
+  from include/linux/percpu-rwsem.h:7,
+  from kernel/locking/percpu-rwsem.c:6:
+ include/linux/fs.h:1422:29: error: array type has incomplete element type 'struct percpu_rw_semaphore'
+    1422 |  struct percpu_rw_semaphore rw_sem[SB_FREEZE_LEVELS];
+
+Removing the include of linux/mm.h from the uaccess header solves the problem
+and various build tests of nommu configurations still work.
+
+Fixes: 80fbaf1c3f29 ("rcuwait: Add @state argument to rcuwait_wait_event()")
+Reported-by: kbuild test robot <lkp@intel.com>
+Signed-off-by: Thomas Gleixner <tglx@linutronix.de>
+Acked-by: Geert Uytterhoeven <geert@linux-m68k.org>
+Link: https://lkml.kernel.org/r/87fte1qzh0.fsf@nanos.tec.linutronix.de
+---
+ arch/m68k/include/asm/uaccess_no.h | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/arch/m68k/include/asm/uaccess_no.h b/arch/m68k/include/asm/uaccess_no.h
+index 6bc80c35726df..a24cfe4a0d328 100644
+--- a/arch/m68k/include/asm/uaccess_no.h
++++ b/arch/m68k/include/asm/uaccess_no.h
+@@ -5,7 +5,6 @@
+ /*
+  * User space memory access functions
+  */
+-#include <linux/mm.h>
+ #include <linux/string.h>
+ 
+ #include <asm/segment.h>
+-- 
+cgit 
+

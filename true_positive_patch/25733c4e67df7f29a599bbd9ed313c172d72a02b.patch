@@ -1,0 +1,203 @@
+From 25733c4e67df7f29a599bbd9ed313c172d72a02b Mon Sep 17 00:00:00 2001
+From: Brian Norris <briannorris@chromium.org>
+Date: Fri, 8 Feb 2019 14:55:38 +0200
+Subject: ath10k: pci: use mutex for diagnostic window CE polling
+
+The DIAG copy engine is only used via polling, but it holds a spinlock
+with softirqs disabled. Each iteration of our read/write loops can
+theoretically take 20ms (two 10ms timeout loops), and this loop can be
+run an unbounded number of times while holding the spinlock -- dependent
+on the request size given by the caller.
+
+As of commit 39501ea64116 ("ath10k: download firmware via diag Copy
+Engine for QCA6174 and QCA9377."), we transfer large chunks of firmware
+memory using this mechanism. With large enough firmware segments, this
+becomes an exceedingly long period for disabling soft IRQs. For example,
+with a 500KiB firmware segment, in testing QCA6174A, I see 200 loop
+iterations of about 50-100us each, which can total about 10-20ms.
+
+In reality, we don't really need to block softirqs for this duration.
+The DIAG CE is only used in polling mode, and we only need to hold
+ce_lock to make sure any CE bookkeeping is done without screwing up
+another CE. Otherwise, we only need to ensure exclusion between
+ath10k_pci_diag_{read,write}_mem() contexts.
+
+This patch moves to use fine-grained locking for the shared ce_lock,
+while adding a new mutex just to ensure mutual exclusion of diag
+read/write operations.
+
+Tested on QCA6174A, firmware version WLAN.RM.4.4.1-00132-QCARMSWPZ-1.
+
+Fixes: 39501ea64116 ("ath10k: download firmware via diag Copy Engine for QCA6174 and QCA9377.")
+Signed-off-by: Brian Norris <briannorris@chromium.org>
+Signed-off-by: Kalle Valo <kvalo@codeaurora.org>
+---
+ drivers/net/wireless/ath/ath10k/pci.c | 41 +++++++++++++----------------------
+ drivers/net/wireless/ath/ath10k/pci.h |  3 +++
+ 2 files changed, 18 insertions(+), 26 deletions(-)
+
+diff --git a/drivers/net/wireless/ath/ath10k/pci.c b/drivers/net/wireless/ath/ath10k/pci.c
+index eb18e8ea0b540..600ddaad88451 100644
+--- a/drivers/net/wireless/ath/ath10k/pci.c
++++ b/drivers/net/wireless/ath/ath10k/pci.c
+@@ -913,7 +913,6 @@ static int ath10k_pci_diag_read_mem(struct ath10k *ar, u32 address, void *data,
+ 				    int nbytes)
+ {
+ 	struct ath10k_pci *ar_pci = ath10k_pci_priv(ar);
+-	struct ath10k_ce *ce = ath10k_ce_priv(ar);
+ 	int ret = 0;
+ 	u32 *buf;
+ 	unsigned int completed_nbytes, alloc_nbytes, remaining_bytes;
+@@ -924,8 +923,7 @@ static int ath10k_pci_diag_read_mem(struct ath10k *ar, u32 address, void *data,
+ 	void *data_buf = NULL;
+ 	int i;
+ 
+-	spin_lock_bh(&ce->ce_lock);
+-
++	mutex_lock(&ar_pci->ce_diag_mutex);
+ 	ce_diag = ar_pci->ce_diag;
+ 
+ 	/*
+@@ -960,19 +958,17 @@ static int ath10k_pci_diag_read_mem(struct ath10k *ar, u32 address, void *data,
+ 		nbytes = min_t(unsigned int, remaining_bytes,
+ 			       DIAG_TRANSFER_LIMIT);
+ 
+-		ret = ce_diag->ops->ce_rx_post_buf(ce_diag, &ce_data, ce_data);
++		ret = ath10k_ce_rx_post_buf(ce_diag, &ce_data, ce_data);
+ 		if (ret != 0)
+ 			goto done;
+ 
+ 		/* Request CE to send from Target(!) address to Host buffer */
+-		ret = ath10k_ce_send_nolock(ce_diag, NULL, (u32)address, nbytes, 0,
+-					    0);
++		ret = ath10k_ce_send(ce_diag, NULL, (u32)address, nbytes, 0, 0);
+ 		if (ret)
+ 			goto done;
+ 
+ 		i = 0;
+-		while (ath10k_ce_completed_send_next_nolock(ce_diag,
+-							    NULL) != 0) {
++		while (ath10k_ce_completed_send_next(ce_diag, NULL) != 0) {
+ 			udelay(DIAG_ACCESS_CE_WAIT_US);
+ 			i += DIAG_ACCESS_CE_WAIT_US;
+ 
+@@ -983,10 +979,8 @@ static int ath10k_pci_diag_read_mem(struct ath10k *ar, u32 address, void *data,
+ 		}
+ 
+ 		i = 0;
+-		while (ath10k_ce_completed_recv_next_nolock(ce_diag,
+-							    (void **)&buf,
+-							    &completed_nbytes)
+-								!= 0) {
++		while (ath10k_ce_completed_recv_next(ce_diag, (void **)&buf,
++						     &completed_nbytes) != 0) {
+ 			udelay(DIAG_ACCESS_CE_WAIT_US);
+ 			i += DIAG_ACCESS_CE_WAIT_US;
+ 
+@@ -1019,7 +1013,7 @@ done:
+ 		dma_free_coherent(ar->dev, alloc_nbytes, data_buf,
+ 				  ce_data_base);
+ 
+-	spin_unlock_bh(&ce->ce_lock);
++	mutex_unlock(&ar_pci->ce_diag_mutex);
+ 
+ 	return ret;
+ }
+@@ -1067,7 +1061,6 @@ int ath10k_pci_diag_write_mem(struct ath10k *ar, u32 address,
+ 			      const void *data, int nbytes)
+ {
+ 	struct ath10k_pci *ar_pci = ath10k_pci_priv(ar);
+-	struct ath10k_ce *ce = ath10k_ce_priv(ar);
+ 	int ret = 0;
+ 	u32 *buf;
+ 	unsigned int completed_nbytes, alloc_nbytes, remaining_bytes;
+@@ -1076,8 +1069,7 @@ int ath10k_pci_diag_write_mem(struct ath10k *ar, u32 address,
+ 	dma_addr_t ce_data_base = 0;
+ 	int i;
+ 
+-	spin_lock_bh(&ce->ce_lock);
+-
++	mutex_lock(&ar_pci->ce_diag_mutex);
+ 	ce_diag = ar_pci->ce_diag;
+ 
+ 	/*
+@@ -1118,7 +1110,7 @@ int ath10k_pci_diag_write_mem(struct ath10k *ar, u32 address,
+ 		memcpy(data_buf, data, nbytes);
+ 
+ 		/* Set up to receive directly into Target(!) address */
+-		ret = ce_diag->ops->ce_rx_post_buf(ce_diag, &address, address);
++		ret = ath10k_ce_rx_post_buf(ce_diag, &address, address);
+ 		if (ret != 0)
+ 			goto done;
+ 
+@@ -1126,14 +1118,12 @@ int ath10k_pci_diag_write_mem(struct ath10k *ar, u32 address,
+ 		 * Request CE to send caller-supplied data that
+ 		 * was copied to bounce buffer to Target(!) address.
+ 		 */
+-		ret = ath10k_ce_send_nolock(ce_diag, NULL, ce_data_base,
+-					    nbytes, 0, 0);
++		ret = ath10k_ce_send(ce_diag, NULL, ce_data_base, nbytes, 0, 0);
+ 		if (ret != 0)
+ 			goto done;
+ 
+ 		i = 0;
+-		while (ath10k_ce_completed_send_next_nolock(ce_diag,
+-							    NULL) != 0) {
++		while (ath10k_ce_completed_send_next(ce_diag, NULL) != 0) {
+ 			udelay(DIAG_ACCESS_CE_WAIT_US);
+ 			i += DIAG_ACCESS_CE_WAIT_US;
+ 
+@@ -1144,10 +1134,8 @@ int ath10k_pci_diag_write_mem(struct ath10k *ar, u32 address,
+ 		}
+ 
+ 		i = 0;
+-		while (ath10k_ce_completed_recv_next_nolock(ce_diag,
+-							    (void **)&buf,
+-							    &completed_nbytes)
+-								!= 0) {
++		while (ath10k_ce_completed_recv_next(ce_diag, (void **)&buf,
++						     &completed_nbytes) != 0) {
+ 			udelay(DIAG_ACCESS_CE_WAIT_US);
+ 			i += DIAG_ACCESS_CE_WAIT_US;
+ 
+@@ -1182,7 +1170,7 @@ done:
+ 		ath10k_warn(ar, "failed to write diag value at 0x%x: %d\n",
+ 			    address, ret);
+ 
+-	spin_unlock_bh(&ce->ce_lock);
++	mutex_unlock(&ar_pci->ce_diag_mutex);
+ 
+ 	return ret;
+ }
+@@ -3462,6 +3450,7 @@ int ath10k_pci_setup_resource(struct ath10k *ar)
+ 
+ 	spin_lock_init(&ce->ce_lock);
+ 	spin_lock_init(&ar_pci->ps_lock);
++	mutex_init(&ar_pci->ce_diag_mutex);
+ 
+ 	timer_setup(&ar_pci->rx_post_retry, ath10k_pci_rx_replenish_retry, 0);
+ 
+diff --git a/drivers/net/wireless/ath/ath10k/pci.h b/drivers/net/wireless/ath/ath10k/pci.h
+index e8d86331c539a..a9270fa6463c4 100644
+--- a/drivers/net/wireless/ath/ath10k/pci.h
++++ b/drivers/net/wireless/ath/ath10k/pci.h
+@@ -19,6 +19,7 @@
+ #define _PCI_H_
+ 
+ #include <linux/interrupt.h>
++#include <linux/mutex.h>
+ 
+ #include "hw.h"
+ #include "ce.h"
+@@ -128,6 +129,8 @@ struct ath10k_pci {
+ 
+ 	/* Copy Engine used for Diagnostic Accesses */
+ 	struct ath10k_ce_pipe *ce_diag;
++	/* For protecting ce_diag */
++	struct mutex ce_diag_mutex;
+ 
+ 	struct ath10k_ce ce;
+ 	struct timer_list rx_post_retry;
+-- 
+cgit 
+

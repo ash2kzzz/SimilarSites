@@ -1,0 +1,82 @@
+From 0ac1077e3a549bf8d35971613e2be05bdbb41a00 Mon Sep 17 00:00:00 2001
+From: Xin Long <lucien.xin@gmail.com>
+Date: Tue, 16 Oct 2018 15:52:02 +0800
+Subject: sctp: get pr_assoc and pr_stream all status with SCTP_PR_SCTP_ALL
+ instead
+
+According to rfc7496 section 4.3 or 4.4:
+
+   sprstat_policy:  This parameter indicates for which PR-SCTP policy
+      the user wants the information.  It is an error to use
+      SCTP_PR_SCTP_NONE in sprstat_policy.  If SCTP_PR_SCTP_ALL is used,
+      the counters provided are aggregated over all supported policies.
+
+We change to dump pr_assoc and pr_stream all status by SCTP_PR_SCTP_ALL
+instead, and return error for SCTP_PR_SCTP_NONE, as it also said "It is
+an error to use SCTP_PR_SCTP_NONE in sprstat_policy. "
+
+Fixes: 826d253d57b1 ("sctp: add SCTP_PR_ASSOC_STATUS on sctp sockopt")
+Fixes: d229d48d183f ("sctp: add SCTP_PR_STREAM_STATUS sockopt for prsctp")
+Reported-by: Ying Xu <yinxu@redhat.com>
+Signed-off-by: Xin Long <lucien.xin@gmail.com>
+Acked-by: Neil Horman <nhorman@tuxdriver.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ include/uapi/linux/sctp.h | 1 +
+ net/sctp/socket.c         | 8 ++++----
+ 2 files changed, 5 insertions(+), 4 deletions(-)
+
+diff --git a/include/uapi/linux/sctp.h b/include/uapi/linux/sctp.h
+index b479db5c71d93..34dd3d497f2cc 100644
+--- a/include/uapi/linux/sctp.h
++++ b/include/uapi/linux/sctp.h
+@@ -301,6 +301,7 @@ enum sctp_sinfo_flags {
+ 	SCTP_SACK_IMMEDIATELY	= (1 << 3), /* SACK should be sent without delay. */
+ 	/* 2 bits here have been used by SCTP_PR_SCTP_MASK */
+ 	SCTP_SENDALL		= (1 << 6),
++	SCTP_PR_SCTP_ALL	= (1 << 7),
+ 	SCTP_NOTIFICATION	= MSG_NOTIFICATION, /* Next message is not user msg but notification. */
+ 	SCTP_EOF		= MSG_FIN,  /* Initiate graceful shutdown process. */
+ };
+diff --git a/net/sctp/socket.c b/net/sctp/socket.c
+index f73e9d38d5ba7..e25a20fc629ac 100644
+--- a/net/sctp/socket.c
++++ b/net/sctp/socket.c
+@@ -7100,14 +7100,14 @@ static int sctp_getsockopt_pr_assocstatus(struct sock *sk, int len,
+ 	}
+ 
+ 	policy = params.sprstat_policy;
+-	if (policy & ~SCTP_PR_SCTP_MASK)
++	if (!policy || (policy & ~(SCTP_PR_SCTP_MASK | SCTP_PR_SCTP_ALL)))
+ 		goto out;
+ 
+ 	asoc = sctp_id2assoc(sk, params.sprstat_assoc_id);
+ 	if (!asoc)
+ 		goto out;
+ 
+-	if (policy == SCTP_PR_SCTP_NONE) {
++	if (policy & SCTP_PR_SCTP_ALL) {
+ 		params.sprstat_abandoned_unsent = 0;
+ 		params.sprstat_abandoned_sent = 0;
+ 		for (policy = 0; policy <= SCTP_PR_INDEX(MAX); policy++) {
+@@ -7159,7 +7159,7 @@ static int sctp_getsockopt_pr_streamstatus(struct sock *sk, int len,
+ 	}
+ 
+ 	policy = params.sprstat_policy;
+-	if (policy & ~SCTP_PR_SCTP_MASK)
++	if (!policy || (policy & ~(SCTP_PR_SCTP_MASK | SCTP_PR_SCTP_ALL)))
+ 		goto out;
+ 
+ 	asoc = sctp_id2assoc(sk, params.sprstat_assoc_id);
+@@ -7175,7 +7175,7 @@ static int sctp_getsockopt_pr_streamstatus(struct sock *sk, int len,
+ 		goto out;
+ 	}
+ 
+-	if (policy == SCTP_PR_SCTP_NONE) {
++	if (policy == SCTP_PR_SCTP_ALL) {
+ 		params.sprstat_abandoned_unsent = 0;
+ 		params.sprstat_abandoned_sent = 0;
+ 		for (policy = 0; policy <= SCTP_PR_INDEX(MAX); policy++) {
+-- 
+cgit 
+

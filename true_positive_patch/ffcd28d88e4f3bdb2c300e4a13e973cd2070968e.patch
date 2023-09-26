@@ -1,0 +1,82 @@
+From ffcd28d88e4f3bdb2c300e4a13e973cd2070968e Mon Sep 17 00:00:00 2001
+From: Takashi Iwai <tiwai@suse.de>
+Date: Thu, 15 Jan 2015 10:11:52 +0100
+Subject: ALSA: hda - Select INPUT for Realtek HD-audio codec
+
+The commit commit [33f4acd3b214: ALSA: hda - Enable mic mute hotkey
+and LEDs for an HP machine] introduced a quirk for a HP machine
+involving with the input event handling.  Although the relevant code
+is protected via IS_ENABLED(CONFIG_INPUT), this doesn't suffice when
+the audio driver is built in while the input is module.
+
+As an easy workaround, this patch forcibly selects CONFIG_INPUT in
+Kconfig.  This shouldn't be a practical problem since CONFIG_INPUT is
+almost mandatory for all systems.  Also, this allows to remove the
+ugly ifdefs in the code.
+
+Fixes: 33f4acd3b214 ('ALSA: hda - Enable mic mute hotkey and LEDs for an HP machine')
+Acked-by: David Henningsson <david.henningsson@canonical.com>
+Signed-off-by: Takashi Iwai <tiwai@suse.de>
+---
+ sound/pci/hda/Kconfig         | 1 +
+ sound/pci/hda/patch_realtek.c | 6 ------
+ 2 files changed, 1 insertion(+), 6 deletions(-)
+
+diff --git a/sound/pci/hda/Kconfig b/sound/pci/hda/Kconfig
+index ebf4c2fb99df0..7f0f2c5a4e973 100644
+--- a/sound/pci/hda/Kconfig
++++ b/sound/pci/hda/Kconfig
+@@ -107,6 +107,7 @@ config SND_HDA_PATCH_LOADER
+ config SND_HDA_CODEC_REALTEK
+ 	tristate "Build Realtek HD-audio codec support"
+ 	select SND_HDA_GENERIC
++	select INPUT
+ 	help
+ 	  Say Y or M here to include Realtek HD-audio codec support in
+ 	  snd-hda-intel driver, such as ALC880.
+diff --git a/sound/pci/hda/patch_realtek.c b/sound/pci/hda/patch_realtek.c
+index a50e15e166c68..1720f8a457d1c 100644
+--- a/sound/pci/hda/patch_realtek.c
++++ b/sound/pci/hda/patch_realtek.c
+@@ -121,9 +121,7 @@ struct alc_spec {
+ 	hda_nid_t pll_nid;
+ 	unsigned int pll_coef_idx, pll_coef_bit;
+ 	unsigned int coef0;
+-#if IS_ENABLED(CONFIG_INPUT)
+ 	struct input_dev *kb_dev;
+-#endif
+ };
+ 
+ /*
+@@ -3476,7 +3474,6 @@ static void alc280_fixup_hp_gpio4(struct hda_codec *codec,
+ 	}
+ }
+ 
+-#if IS_ENABLED(CONFIG_INPUT)
+ static void gpio2_mic_hotkey_event(struct hda_codec *codec,
+ 				   struct hda_jack_callback *event)
+ {
+@@ -3489,12 +3486,10 @@ static void gpio2_mic_hotkey_event(struct hda_codec *codec,
+ 	input_report_key(spec->kb_dev, KEY_MICMUTE, 0);
+ 	input_sync(spec->kb_dev);
+ }
+-#endif
+ 
+ static void alc280_fixup_hp_gpio2_mic_hotkey(struct hda_codec *codec,
+ 					     const struct hda_fixup *fix, int action)
+ {
+-#if IS_ENABLED(CONFIG_INPUT)
+ 	/* GPIO1 = set according to SKU external amp
+ 	   GPIO2 = mic mute hotkey
+ 	   GPIO3 = mute LED
+@@ -3550,7 +3545,6 @@ static void alc280_fixup_hp_gpio2_mic_hotkey(struct hda_codec *codec,
+ 		input_unregister_device(spec->kb_dev);
+ 		spec->kb_dev = NULL;
+ 	}
+-#endif
+ }
+ 
+ static void alc269_fixup_hp_line1_mic1_led(struct hda_codec *codec,
+-- 
+cgit 
+

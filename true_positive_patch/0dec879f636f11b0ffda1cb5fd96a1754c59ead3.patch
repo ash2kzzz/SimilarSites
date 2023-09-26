@@ -1,0 +1,248 @@
+From 0dec879f636f11b0ffda1cb5fd96a1754c59ead3 Mon Sep 17 00:00:00 2001
+From: Julian Anastasov <ja@ssi.bg>
+Date: Mon, 6 Feb 2017 23:14:16 +0200
+Subject: net: use dst_confirm_neigh for UDP, RAW, ICMP, L2TP
+
+When same struct dst_entry can be used for many different
+neighbours we can not use it for pending confirmations.
+
+The datagram protocols can use MSG_CONFIRM to confirm the
+neighbour. When used with MSG_PROBE we do not reach the
+code where neighbour is confirmed, so we have to do the
+same slow lookup by using the dst_confirm_neigh() helper.
+When MSG_PROBE is not used, ip_append_data/ip6_append_data
+will set the skb flag dst_pending_confirm.
+
+Reported-by: YueHaibing <yuehaibing@huawei.com>
+Fixes: 5110effee8fd ("net: Do delayed neigh confirmation.")
+Fixes: f2bb4bedf35d ("ipv4: Cache output routes in fib_info nexthops.")
+Signed-off-by: Julian Anastasov <ja@ssi.bg>
+Acked-by: Eric Dumazet <edumazet@google.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ net/ipv4/ip_output.c  |  6 ++++++
+ net/ipv4/ping.c       |  3 ++-
+ net/ipv4/raw.c        |  6 +++++-
+ net/ipv4/udp.c        |  3 ++-
+ net/ipv6/ip6_output.c |  6 ++++++
+ net/ipv6/raw.c        |  6 +++++-
+ net/ipv6/route.c      | 27 ++++++++++++++-------------
+ net/ipv6/udp.c        |  3 ++-
+ net/l2tp/l2tp_ip6.c   |  3 ++-
+ 9 files changed, 44 insertions(+), 19 deletions(-)
+
+diff --git a/net/ipv4/ip_output.c b/net/ipv4/ip_output.c
+index c9fc32fa32727..7a719f1ae5568 100644
+--- a/net/ipv4/ip_output.c
++++ b/net/ipv4/ip_output.c
+@@ -889,6 +889,9 @@ static inline int ip_ufo_append_data(struct sock *sk,
+ 
+ 		skb->csum = 0;
+ 
++		if (flags & MSG_CONFIRM)
++			skb_set_dst_pending_confirm(skb, 1);
++
+ 		__skb_queue_tail(queue, skb);
+ 	} else if (skb_is_gso(skb)) {
+ 		goto append;
+@@ -1089,6 +1092,9 @@ alloc_new_skb:
+ 			exthdrlen = 0;
+ 			csummode = CHECKSUM_NONE;
+ 
++			if ((flags & MSG_CONFIRM) && !skb_prev)
++				skb_set_dst_pending_confirm(skb, 1);
++
+ 			/*
+ 			 * Put the packet on the pending queue.
+ 			 */
+diff --git a/net/ipv4/ping.c b/net/ipv4/ping.c
+index 592db6a3a0e92..6ee792d83d5be 100644
+--- a/net/ipv4/ping.c
++++ b/net/ipv4/ping.c
+@@ -848,7 +848,8 @@ out:
+ 	return err;
+ 
+ do_confirm:
+-	dst_confirm(&rt->dst);
++	if (msg->msg_flags & MSG_PROBE)
++		dst_confirm_neigh(&rt->dst, &fl4.daddr);
+ 	if (!(msg->msg_flags & MSG_PROBE) || len)
+ 		goto back_from_confirm;
+ 	err = 0;
+diff --git a/net/ipv4/raw.c b/net/ipv4/raw.c
+index 4e49e5cb001cc..8119e1f66e036 100644
+--- a/net/ipv4/raw.c
++++ b/net/ipv4/raw.c
+@@ -383,6 +383,9 @@ static int raw_send_hdrinc(struct sock *sk, struct flowi4 *fl4,
+ 
+ 	sock_tx_timestamp(sk, sockc->tsflags, &skb_shinfo(skb)->tx_flags);
+ 
++	if (flags & MSG_CONFIRM)
++		skb_set_dst_pending_confirm(skb, 1);
++
+ 	skb->transport_header = skb->network_header;
+ 	err = -EFAULT;
+ 	if (memcpy_from_msg(iph, msg, length))
+@@ -666,7 +669,8 @@ out:
+ 	return len;
+ 
+ do_confirm:
+-	dst_confirm(&rt->dst);
++	if (msg->msg_flags & MSG_PROBE)
++		dst_confirm_neigh(&rt->dst, &fl4.daddr);
+ 	if (!(msg->msg_flags & MSG_PROBE) || len)
+ 		goto back_from_confirm;
+ 	err = 0;
+diff --git a/net/ipv4/udp.c b/net/ipv4/udp.c
+index cf6ba33874013..4a1ba04565d11 100644
+--- a/net/ipv4/udp.c
++++ b/net/ipv4/udp.c
+@@ -1101,7 +1101,8 @@ out:
+ 	return err;
+ 
+ do_confirm:
+-	dst_confirm(&rt->dst);
++	if (msg->msg_flags & MSG_PROBE)
++		dst_confirm_neigh(&rt->dst, &fl4->daddr);
+ 	if (!(msg->msg_flags&MSG_PROBE) || len)
+ 		goto back_from_confirm;
+ 	err = 0;
+diff --git a/net/ipv6/ip6_output.c b/net/ipv6/ip6_output.c
+index 14d99fbf102e1..d299040613a03 100644
+--- a/net/ipv6/ip6_output.c
++++ b/net/ipv6/ip6_output.c
+@@ -1145,6 +1145,9 @@ static inline int ip6_ufo_append_data(struct sock *sk,
+ 		skb->protocol = htons(ETH_P_IPV6);
+ 		skb->csum = 0;
+ 
++		if (flags & MSG_CONFIRM)
++			skb_set_dst_pending_confirm(skb, 1);
++
+ 		__skb_queue_tail(queue, skb);
+ 	} else if (skb_is_gso(skb)) {
+ 		goto append;
+@@ -1517,6 +1520,9 @@ alloc_new_skb:
+ 			exthdrlen = 0;
+ 			dst_exthdrlen = 0;
+ 
++			if ((flags & MSG_CONFIRM) && !skb_prev)
++				skb_set_dst_pending_confirm(skb, 1);
++
+ 			/*
+ 			 * Put the packet on the pending queue
+ 			 */
+diff --git a/net/ipv6/raw.c b/net/ipv6/raw.c
+index ea89073c82474..f174e76e6505d 100644
+--- a/net/ipv6/raw.c
++++ b/net/ipv6/raw.c
+@@ -654,6 +654,9 @@ static int rawv6_send_hdrinc(struct sock *sk, struct msghdr *msg, int length,
+ 
+ 	skb->ip_summed = CHECKSUM_NONE;
+ 
++	if (flags & MSG_CONFIRM)
++		skb_set_dst_pending_confirm(skb, 1);
++
+ 	skb->transport_header = skb->network_header;
+ 	err = memcpy_from_msg(iph, msg, length);
+ 	if (err)
+@@ -934,7 +937,8 @@ out:
+ 	txopt_put(opt_to_free);
+ 	return err < 0 ? err : len;
+ do_confirm:
+-	dst_confirm(dst);
++	if (msg->msg_flags & MSG_PROBE)
++		dst_confirm_neigh(dst, &fl6.daddr);
+ 	if (!(msg->msg_flags & MSG_PROBE) || len)
+ 		goto back_from_confirm;
+ 	err = 0;
+diff --git a/net/ipv6/route.c b/net/ipv6/route.c
+index 98b183f1bc8bf..f54f4265b37f2 100644
+--- a/net/ipv6/route.c
++++ b/net/ipv6/route.c
+@@ -1381,6 +1381,7 @@ static bool rt6_cache_allowed_for_pmtu(const struct rt6_info *rt)
+ static void __ip6_rt_update_pmtu(struct dst_entry *dst, const struct sock *sk,
+ 				 const struct ipv6hdr *iph, u32 mtu)
+ {
++	const struct in6_addr *daddr, *saddr;
+ 	struct rt6_info *rt6 = (struct rt6_info *)dst;
+ 
+ 	if (rt6->rt6i_flags & RTF_LOCAL)
+@@ -1389,26 +1390,26 @@ static void __ip6_rt_update_pmtu(struct dst_entry *dst, const struct sock *sk,
+ 	if (dst_metric_locked(dst, RTAX_MTU))
+ 		return;
+ 
+-	dst_confirm(dst);
++	if (iph) {
++		daddr = &iph->daddr;
++		saddr = &iph->saddr;
++	} else if (sk) {
++		daddr = &sk->sk_v6_daddr;
++		saddr = &inet6_sk(sk)->saddr;
++	} else {
++		daddr = NULL;
++		saddr = NULL;
++	}
++	dst_confirm_neigh(dst, daddr);
+ 	mtu = max_t(u32, mtu, IPV6_MIN_MTU);
+ 	if (mtu >= dst_mtu(dst))
+ 		return;
+ 
+ 	if (!rt6_cache_allowed_for_pmtu(rt6)) {
+ 		rt6_do_update_pmtu(rt6, mtu);
+-	} else {
+-		const struct in6_addr *daddr, *saddr;
++	} else if (daddr) {
+ 		struct rt6_info *nrt6;
+ 
+-		if (iph) {
+-			daddr = &iph->daddr;
+-			saddr = &iph->saddr;
+-		} else if (sk) {
+-			daddr = &sk->sk_v6_daddr;
+-			saddr = &inet6_sk(sk)->saddr;
+-		} else {
+-			return;
+-		}
+ 		nrt6 = ip6_rt_cache_alloc(rt6, daddr, saddr);
+ 		if (nrt6) {
+ 			rt6_do_update_pmtu(nrt6, mtu);
+@@ -2332,7 +2333,7 @@ static void rt6_do_redirect(struct dst_entry *dst, struct sock *sk, struct sk_bu
+ 	 * Look, redirects are sent only in response to data packets,
+ 	 * so that this nexthop apparently is reachable. --ANK
+ 	 */
+-	dst_confirm(&rt->dst);
++	dst_confirm_neigh(&rt->dst, &ipv6_hdr(skb)->saddr);
+ 
+ 	neigh = __neigh_lookup(&nd_tbl, &msg->target, skb->dev, 1);
+ 	if (!neigh)
+diff --git a/net/ipv6/udp.c b/net/ipv6/udp.c
+index b4c6516a3a0c1..51346fa70298a 100644
+--- a/net/ipv6/udp.c
++++ b/net/ipv6/udp.c
+@@ -1308,7 +1308,8 @@ out:
+ 	return err;
+ 
+ do_confirm:
+-	dst_confirm(dst);
++	if (msg->msg_flags & MSG_PROBE)
++		dst_confirm_neigh(dst, &fl6.daddr);
+ 	if (!(msg->msg_flags&MSG_PROBE) || len)
+ 		goto back_from_confirm;
+ 	err = 0;
+diff --git a/net/l2tp/l2tp_ip6.c b/net/l2tp/l2tp_ip6.c
+index 4b06eb415f683..734798a00ca03 100644
+--- a/net/l2tp/l2tp_ip6.c
++++ b/net/l2tp/l2tp_ip6.c
+@@ -658,7 +658,8 @@ out:
+ 	return err < 0 ? err : len;
+ 
+ do_confirm:
+-	dst_confirm(dst);
++	if (msg->msg_flags & MSG_PROBE)
++		dst_confirm_neigh(dst, &fl6.daddr);
+ 	if (!(msg->msg_flags & MSG_PROBE) || len)
+ 		goto back_from_confirm;
+ 	err = 0;
+-- 
+cgit 
+

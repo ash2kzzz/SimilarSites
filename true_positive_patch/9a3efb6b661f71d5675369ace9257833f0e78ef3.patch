@@ -1,0 +1,63 @@
+From 9a3efb6b661f71d5675369ace9257833f0e78ef3 Mon Sep 17 00:00:00 2001
+From: Yonghong Song <yhs@fb.com>
+Date: Tue, 13 Feb 2018 19:00:21 -0800
+Subject: bpf: fix memory leak in lpm_trie map_free callback function
+
+There is a memory leak happening in lpm_trie map_free callback
+function trie_free. The trie structure itself does not get freed.
+
+Also, trie_free function did not do synchronize_rcu before freeing
+various data structures. This is incorrect as some rcu_read_lock
+region(s) for lookup, update, delete or get_next_key may not complete yet.
+The fix is to add synchronize_rcu in the beginning of trie_free.
+The useless spin_lock is removed from this function as well.
+
+Fixes: b95a5c4db09b ("bpf: add a longest prefix match trie map implementation")
+Reported-by: Mathieu Malaterre <malat@debian.org>
+Reported-by: Alexei Starovoitov <ast@kernel.org>
+Tested-by: Mathieu Malaterre <malat@debian.org>
+Signed-off-by: Yonghong Song <yhs@fb.com>
+Signed-off-by: Alexei Starovoitov <ast@kernel.org>
+---
+ kernel/bpf/lpm_trie.c | 11 +++++++----
+ 1 file changed, 7 insertions(+), 4 deletions(-)
+
+diff --git a/kernel/bpf/lpm_trie.c b/kernel/bpf/lpm_trie.c
+index 7b469d10d0e93..a75e02c961b5b 100644
+--- a/kernel/bpf/lpm_trie.c
++++ b/kernel/bpf/lpm_trie.c
+@@ -555,7 +555,10 @@ static void trie_free(struct bpf_map *map)
+ 	struct lpm_trie_node __rcu **slot;
+ 	struct lpm_trie_node *node;
+ 
+-	raw_spin_lock(&trie->lock);
++	/* Wait for outstanding programs to complete
++	 * update/lookup/delete/get_next_key and free the trie.
++	 */
++	synchronize_rcu();
+ 
+ 	/* Always start at the root and walk down to a node that has no
+ 	 * children. Then free that node, nullify its reference in the parent
+@@ -569,7 +572,7 @@ static void trie_free(struct bpf_map *map)
+ 			node = rcu_dereference_protected(*slot,
+ 					lockdep_is_held(&trie->lock));
+ 			if (!node)
+-				goto unlock;
++				goto out;
+ 
+ 			if (rcu_access_pointer(node->child[0])) {
+ 				slot = &node->child[0];
+@@ -587,8 +590,8 @@ static void trie_free(struct bpf_map *map)
+ 		}
+ 	}
+ 
+-unlock:
+-	raw_spin_unlock(&trie->lock);
++out:
++	kfree(trie);
+ }
+ 
+ static int trie_get_next_key(struct bpf_map *map, void *_key, void *_next_key)
+-- 
+cgit 
+

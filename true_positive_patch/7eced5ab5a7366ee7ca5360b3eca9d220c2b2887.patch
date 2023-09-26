@@ -1,0 +1,105 @@
+From 7eced5ab5a7366ee7ca5360b3eca9d220c2b2887 Mon Sep 17 00:00:00 2001
+From: Pablo Neira Ayuso <pablo@netfilter.org>
+Date: Sun, 3 Jun 2018 12:06:57 +0200
+Subject: netfilter: nf_tables: add NFT_LOGLEVEL_* enumeration and use it
+
+This is internal, not exposed through uapi, and although it maps with
+userspace LOG_*, with the introduction of LOGLEVEL_AUDIT we are
+incurring in namespace pollution.
+
+This patch adds the NFT_LOGLEVEL_ enumeration and use it from nft_log.
+
+Fixes: 1a893b44de45 ("netfilter: nf_tables: Add audit support to log statement")
+Signed-off-by: Pablo Neira Ayuso <pablo@netfilter.org>
+Acked-by: Phil Sutter <phil@nwl.cc>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ include/uapi/linux/netfilter/nf_tables.h | 28 +++++++++++++++++++++++++---
+ net/netfilter/nft_log.c                  | 10 +++++-----
+ 2 files changed, 30 insertions(+), 8 deletions(-)
+
+diff --git a/include/uapi/linux/netfilter/nf_tables.h b/include/uapi/linux/netfilter/nf_tables.h
+index ae00a3c49b8a4..c9bf74b94f370 100644
+--- a/include/uapi/linux/netfilter/nf_tables.h
++++ b/include/uapi/linux/netfilter/nf_tables.h
+@@ -1099,9 +1099,31 @@ enum nft_log_attributes {
+ #define NFTA_LOG_MAX		(__NFTA_LOG_MAX - 1)
+ 
+ /**
+- * LOGLEVEL_AUDIT - a pseudo log level enabling audit logging
+- */
+-#define LOGLEVEL_AUDIT		8
++ * enum nft_log_level - nf_tables log levels
++ *
++ * @NFT_LOGLEVEL_EMERG: system is unusable
++ * @NFT_LOGLEVEL_ALERT: action must be taken immediately
++ * @NFT_LOGLEVEL_CRIT: critical conditions
++ * @NFT_LOGLEVEL_ERR: error conditions
++ * @NFT_LOGLEVEL_WARNING: warning conditions
++ * @NFT_LOGLEVEL_NOTICE: normal but significant condition
++ * @NFT_LOGLEVEL_INFO: informational
++ * @NFT_LOGLEVEL_DEBUG: debug-level messages
++ * @NFT_LOGLEVEL_AUDIT: enabling audit logging
++ */
++enum nft_log_level {
++	NFT_LOGLEVEL_EMERG,
++	NFT_LOGLEVEL_ALERT,
++	NFT_LOGLEVEL_CRIT,
++	NFT_LOGLEVEL_ERR,
++	NFT_LOGLEVEL_WARNING,
++	NFT_LOGLEVEL_NOTICE,
++	NFT_LOGLEVEL_INFO,
++	NFT_LOGLEVEL_DEBUG,
++	NFT_LOGLEVEL_AUDIT,
++	__NFT_LOGLEVEL_MAX
++};
++#define NFT_LOGLEVEL_MAX	(__NFT_LOGLEVEL_MAX + 1)
+ 
+ /**
+  * enum nft_queue_attributes - nf_tables queue expression netlink attributes
+diff --git a/net/netfilter/nft_log.c b/net/netfilter/nft_log.c
+index 7eef1cffbf1bc..655187bed5d83 100644
+--- a/net/netfilter/nft_log.c
++++ b/net/netfilter/nft_log.c
+@@ -111,7 +111,7 @@ static void nft_log_eval(const struct nft_expr *expr,
+ 	const struct nft_log *priv = nft_expr_priv(expr);
+ 
+ 	if (priv->loginfo.type == NF_LOG_TYPE_LOG &&
+-	    priv->loginfo.u.log.level == LOGLEVEL_AUDIT) {
++	    priv->loginfo.u.log.level == NFT_LOGLEVEL_AUDIT) {
+ 		nft_log_eval_audit(pkt);
+ 		return;
+ 	}
+@@ -166,9 +166,9 @@ static int nft_log_init(const struct nft_ctx *ctx,
+ 			li->u.log.level =
+ 				ntohl(nla_get_be32(tb[NFTA_LOG_LEVEL]));
+ 		} else {
+-			li->u.log.level = LOGLEVEL_WARNING;
++			li->u.log.level = NFT_LOGLEVEL_WARNING;
+ 		}
+-		if (li->u.log.level > LOGLEVEL_AUDIT) {
++		if (li->u.log.level > NFT_LOGLEVEL_AUDIT) {
+ 			err = -EINVAL;
+ 			goto err1;
+ 		}
+@@ -196,7 +196,7 @@ static int nft_log_init(const struct nft_ctx *ctx,
+ 		break;
+ 	}
+ 
+-	if (li->u.log.level == LOGLEVEL_AUDIT)
++	if (li->u.log.level == NFT_LOGLEVEL_AUDIT)
+ 		return 0;
+ 
+ 	err = nf_logger_find_get(ctx->family, li->type);
+@@ -220,7 +220,7 @@ static void nft_log_destroy(const struct nft_ctx *ctx,
+ 	if (priv->prefix != nft_log_null_prefix)
+ 		kfree(priv->prefix);
+ 
+-	if (li->u.log.level == LOGLEVEL_AUDIT)
++	if (li->u.log.level == NFT_LOGLEVEL_AUDIT)
+ 		return;
+ 
+ 	nf_logger_put(ctx->family, li->type);
+-- 
+cgit 
+

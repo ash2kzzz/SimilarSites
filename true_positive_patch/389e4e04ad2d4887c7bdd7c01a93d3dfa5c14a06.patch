@@ -1,0 +1,34 @@
+From 389e4e04ad2d4887c7bdd7c01a93d3dfa5c14a06 Mon Sep 17 00:00:00 2001
+From: Dan Carpenter <dan.carpenter@oracle.com>
+Date: Tue, 15 Dec 2015 16:56:16 +0300
+Subject: qlcnic: fix a timeout loop
+
+The problem here is that at the end of the loop we test for if
+idc->vnic_wait_limit is zero, but since idc->vnic_wait_limit-- is a
+post-op, it actually ends up set to (u8)-1.  I have fixed this by
+moving the decrement inside the loop.
+
+Fixes: 486a5bc77a4a ('qlcnic: Add support for 83xx suspend and resume.')
+Signed-off-by: Dan Carpenter <dan.carpenter@oracle.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ drivers/net/ethernet/qlogic/qlcnic/qlcnic_83xx_vnic.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/net/ethernet/qlogic/qlcnic/qlcnic_83xx_vnic.c b/drivers/net/ethernet/qlogic/qlcnic/qlcnic_83xx_vnic.c
+index be7d7a62cc0d8..b1a452f291ee2 100644
+--- a/drivers/net/ethernet/qlogic/qlcnic/qlcnic_83xx_vnic.c
++++ b/drivers/net/ethernet/qlogic/qlcnic/qlcnic_83xx_vnic.c
+@@ -246,7 +246,8 @@ int qlcnic_83xx_check_vnic_state(struct qlcnic_adapter *adapter)
+ 	u32 state;
+ 
+ 	state = QLCRDX(ahw, QLC_83XX_VNIC_STATE);
+-	while (state != QLCNIC_DEV_NPAR_OPER && idc->vnic_wait_limit--) {
++	while (state != QLCNIC_DEV_NPAR_OPER && idc->vnic_wait_limit) {
++		idc->vnic_wait_limit--;
+ 		msleep(1000);
+ 		state = QLCRDX(ahw, QLC_83XX_VNIC_STATE);
+ 	}
+-- 
+cgit 
+

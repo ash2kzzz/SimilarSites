@@ -1,0 +1,85 @@
+From a9446a906f52292c52ecbd5be78eaa4d8395756c Mon Sep 17 00:00:00 2001
+From: Thomas Gleixner <tglx@linutronix.de>
+Date: Sun, 28 Jul 2019 15:12:52 +0200
+Subject: lib/vdso/32: Remove inconsistent NULL pointer checks
+
+The 32bit variants of vdso_clock_gettime()/getres() have a NULL pointer
+check for the timespec pointer. That's inconsistent vs. 64bit.
+
+But the vdso implementation will never be consistent versus the syscall
+because the only case which it can handle is NULL. Any other invalid
+pointer will cause a segfault. So special casing NULL is not really useful.
+
+Remove it along with the superflouos syscall fallback invocation as that
+will return -EFAULT anyway. That also gets rid of the dubious typecast
+which only works because the pointer is NULL.
+
+Fixes: 00b26474c2f1 ("lib/vdso: Provide generic VDSO implementation")
+Signed-off-by: Thomas Gleixner <tglx@linutronix.de>
+Tested-by: Vincenzo Frascino <vincenzo.frascino@arm.com>
+Reviewed-by: Vincenzo Frascino <vincenzo.frascino@arm.com>
+Reviewed-by: Andy Lutomirski <luto@kernel.org>
+Link: https://lkml.kernel.org/r/20190728131648.587523358@linutronix.de
+---
+ lib/vdso/gettimeofday.c | 18 ++----------------
+ 1 file changed, 2 insertions(+), 16 deletions(-)
+
+diff --git a/lib/vdso/gettimeofday.c b/lib/vdso/gettimeofday.c
+index 2d1c1f241fd9e..e28f5a607a5fa 100644
+--- a/lib/vdso/gettimeofday.c
++++ b/lib/vdso/gettimeofday.c
+@@ -115,9 +115,6 @@ __cvdso_clock_gettime32(clockid_t clock, struct old_timespec32 *res)
+ 	struct __kernel_timespec ts;
+ 	int ret;
+ 
+-	if (res == NULL)
+-		goto fallback;
+-
+ 	ret = __cvdso_clock_gettime(clock, &ts);
+ 
+ 	if (ret == 0) {
+@@ -126,9 +123,6 @@ __cvdso_clock_gettime32(clockid_t clock, struct old_timespec32 *res)
+ 	}
+ 
+ 	return ret;
+-
+-fallback:
+-	return clock_gettime_fallback(clock, (struct __kernel_timespec *)res);
+ }
+ 
+ static __maybe_unused int
+@@ -204,10 +198,8 @@ int __cvdso_clock_getres(clockid_t clock, struct __kernel_timespec *res)
+ 		goto fallback;
+ 	}
+ 
+-	if (res) {
+-		res->tv_sec = 0;
+-		res->tv_nsec = ns;
+-	}
++	res->tv_sec = 0;
++	res->tv_nsec = ns;
+ 
+ 	return 0;
+ 
+@@ -221,9 +213,6 @@ __cvdso_clock_getres_time32(clockid_t clock, struct old_timespec32 *res)
+ 	struct __kernel_timespec ts;
+ 	int ret;
+ 
+-	if (res == NULL)
+-		goto fallback;
+-
+ 	ret = __cvdso_clock_getres(clock, &ts);
+ 
+ 	if (ret == 0) {
+@@ -232,8 +221,5 @@ __cvdso_clock_getres_time32(clockid_t clock, struct old_timespec32 *res)
+ 	}
+ 
+ 	return ret;
+-
+-fallback:
+-	return clock_getres_fallback(clock, (struct __kernel_timespec *)res);
+ }
+ #endif /* VDSO_HAS_CLOCK_GETRES */
+-- 
+cgit 
+

@@ -1,0 +1,33 @@
+From e8ac9389f0d7c74fd988a5ce77765588f74dacd2 Mon Sep 17 00:00:00 2001
+From: Colin Ian King <colin.king@canonical.com>
+Date: Tue, 12 Feb 2019 11:22:33 +0000
+Subject: RDMA: Fix allocation failure on pointer pd
+
+The null check on an allocation failure on pd is currently checking
+if pd is non-null rather than null. Fix this by adding the missing !
+operator.
+
+Fixes: 21a428a019c9 ("RDMA: Handle PD allocations by IB/core")
+Signed-off-by: Colin Ian King <colin.king@canonical.com>
+Reviewed-by: Leon Romanovsky <leonro@mellanox.com>
+Signed-off-by: Jason Gunthorpe <jgg@mellanox.com>
+---
+ drivers/infiniband/hw/hns/hns_roce_hw_v1.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/infiniband/hw/hns/hns_roce_hw_v1.c b/drivers/infiniband/hw/hns/hns_roce_hw_v1.c
+index c8c90072baddd..97515c340134c 100644
+--- a/drivers/infiniband/hw/hns/hns_roce_hw_v1.c
++++ b/drivers/infiniband/hw/hns/hns_roce_hw_v1.c
+@@ -745,7 +745,7 @@ static int hns_roce_v1_rsv_lp_qp(struct hns_roce_dev *hr_dev)
+ 
+ 	ibdev = &hr_dev->ib_dev;
+ 	pd = rdma_zalloc_drv_obj(ibdev, ib_pd);
+-	if (pd)
++	if (!pd)
+ 		goto alloc_mem_failed;
+ 
+ 	pd->device  = ibdev;
+-- 
+cgit 
+

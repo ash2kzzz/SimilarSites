@@ -1,0 +1,45 @@
+From 12555a2d97e5784eeb105ca9b1b533d4c95f1115 Mon Sep 17 00:00:00 2001
+From: Todd Malsbary <todd.malsbary@linux.intel.com>
+Date: Tue, 19 May 2020 09:45:34 -0700
+Subject: mptcp: use rightmost 64 bits in ADD_ADDR HMAC
+
+This changes the HMAC used in the ADD_ADDR option from the leftmost 64
+bits to the rightmost 64 bits as described in RFC 8684, section 3.4.1.
+
+This issue was discovered while adding support to packetdrill for the
+ADD_ADDR v1 option.
+
+Fixes: 3df523ab582c ("mptcp: Add ADD_ADDR handling")
+Signed-off-by: Todd Malsbary <todd.malsbary@linux.intel.com>
+Acked-by: Christoph Paasch <cpaasch@apple.com>
+Reviewed-by: Matthieu Baerts <matthieu.baerts@tessares.net>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ net/mptcp/options.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/net/mptcp/options.c b/net/mptcp/options.c
+index 45497af23906c..b88fae233a625 100644
+--- a/net/mptcp/options.c
++++ b/net/mptcp/options.c
+@@ -545,7 +545,7 @@ static u64 add_addr_generate_hmac(u64 key1, u64 key2, u8 addr_id,
+ 
+ 	mptcp_crypto_hmac_sha(key1, key2, msg, 7, hmac);
+ 
+-	return get_unaligned_be64(hmac);
++	return get_unaligned_be64(&hmac[MPTCP_ADDR_HMAC_LEN - sizeof(u64)]);
+ }
+ 
+ #if IS_ENABLED(CONFIG_MPTCP_IPV6)
+@@ -562,7 +562,7 @@ static u64 add_addr6_generate_hmac(u64 key1, u64 key2, u8 addr_id,
+ 
+ 	mptcp_crypto_hmac_sha(key1, key2, msg, 19, hmac);
+ 
+-	return get_unaligned_be64(hmac);
++	return get_unaligned_be64(&hmac[MPTCP_ADDR_HMAC_LEN - sizeof(u64)]);
+ }
+ #endif
+ 
+-- 
+cgit 
+

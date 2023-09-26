@@ -1,0 +1,35 @@
+From 4a6e3c5def13c91adf2acc613837001f09af3baa Mon Sep 17 00:00:00 2001
+From: David Ahern <dsa@cumulusnetworks.com>
+Date: Wed, 12 Apr 2017 11:49:04 -0700
+Subject: net: ipv6: send unsolicited NA on admin up
+
+ndisc_notify is the ipv6 equivalent to arp_notify. When arp_notify is
+set to 1, gratuitous arp requests are sent when the device is brought up.
+The same is expected when ndisc_notify is set to 1 (per ndisc_notify in
+Documentation/networking/ip-sysctl.txt). The NA is not sent on NETDEV_UP
+event; add it.
+
+Fixes: 5cb04436eef6 ("ipv6: add knob to send unsolicited ND on link-layer address change")
+Signed-off-by: David Ahern <dsa@cumulusnetworks.com>
+Acked-by: Hannes Frederic Sowa <hannes@stressinduktion.org>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ net/ipv6/ndisc.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/net/ipv6/ndisc.c b/net/ipv6/ndisc.c
+index b5812b3f75399..b23822e642285 100644
+--- a/net/ipv6/ndisc.c
++++ b/net/ipv6/ndisc.c
+@@ -1748,6 +1748,8 @@ static int ndisc_netdev_event(struct notifier_block *this, unsigned long event,
+ 	case NETDEV_CHANGEADDR:
+ 		neigh_changeaddr(&nd_tbl, dev);
+ 		fib6_run_gc(0, net, false);
++		/* fallthrough */
++	case NETDEV_UP:
+ 		idev = in6_dev_get(dev);
+ 		if (!idev)
+ 			break;
+-- 
+cgit 
+

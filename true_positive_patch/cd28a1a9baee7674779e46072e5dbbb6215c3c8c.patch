@@ -1,0 +1,82 @@
+From cd28a1a9baee7674779e46072e5dbbb6215c3c8c Mon Sep 17 00:00:00 2001
+From: Florian Fainelli <f.fainelli@gmail.com>
+Date: Tue, 10 Mar 2015 16:57:13 -0700
+Subject: net: dsa: fully divert PHY reads/writes if requested
+
+In case a PHY is found via Device Tree, and is also flagged by the
+switch driver as needing indirect reads/writes using the switch driver
+implemented MDIO bus, make sure that we bind this PHY to the slave MII
+bus in order for this to happen.
+
+Without this, we would succeed in having the PHY driver probe()'s
+function to use slave MII bus read/write functions, because this is done
+during dsa_slave_mii_init(), but past that point, the PHY driver would
+not go through these diverted reads and writes.
+
+Fixes: 0d8bcdd383b88 ("net: dsa: allow for more complex PHY setups")
+Signed-off-by: Florian Fainelli <f.fainelli@gmail.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ net/dsa/slave.c | 29 ++++++++++++++++++++++-------
+ 1 file changed, 22 insertions(+), 7 deletions(-)
+
+diff --git a/net/dsa/slave.c b/net/dsa/slave.c
+index 19bc2b39c9d15..188b69773e702 100644
+--- a/net/dsa/slave.c
++++ b/net/dsa/slave.c
+@@ -618,11 +618,12 @@ static int dsa_slave_fixed_link_update(struct net_device *dev,
+ 
+ /* slave device setup *******************************************************/
+ static int dsa_slave_phy_connect(struct dsa_slave_priv *p,
+-				 struct net_device *slave_dev)
++				 struct net_device *slave_dev,
++				 int addr)
+ {
+ 	struct dsa_switch *ds = p->parent;
+ 
+-	p->phy = ds->slave_mii_bus->phy_map[p->port];
++	p->phy = ds->slave_mii_bus->phy_map[addr];
+ 	if (!p->phy)
+ 		return -ENODEV;
+ 
+@@ -667,10 +668,24 @@ static int dsa_slave_phy_setup(struct dsa_slave_priv *p,
+ 	if (ds->drv->get_phy_flags)
+ 		phy_flags = ds->drv->get_phy_flags(ds, p->port);
+ 
+-	if (phy_dn)
+-		p->phy = of_phy_connect(slave_dev, phy_dn,
+-					dsa_slave_adjust_link, phy_flags,
+-					p->phy_interface);
++	if (phy_dn) {
++		ret = of_mdio_parse_addr(&slave_dev->dev, phy_dn);
++		/* If this PHY address is part of phys_mii_mask, which means
++		 * that we need to divert reads and writes to/from it, then we
++		 * want to bind this device using the slave MII bus created by
++		 * DSA to make that happen.
++		 */
++		if (ret >= 0 && (ds->phys_mii_mask & (1 << ret))) {
++			ret = dsa_slave_phy_connect(p, slave_dev, ret);
++			if (ret)
++				return ret;
++		} else {
++			p->phy = of_phy_connect(slave_dev, phy_dn,
++						dsa_slave_adjust_link,
++						phy_flags,
++						p->phy_interface);
++		}
++	}
+ 
+ 	if (p->phy && phy_is_fixed)
+ 		fixed_phy_set_link_update(p->phy, dsa_slave_fixed_link_update);
+@@ -679,7 +694,7 @@ static int dsa_slave_phy_setup(struct dsa_slave_priv *p,
+ 	 * MDIO bus instead
+ 	 */
+ 	if (!p->phy) {
+-		ret = dsa_slave_phy_connect(p, slave_dev);
++		ret = dsa_slave_phy_connect(p, slave_dev, p->port);
+ 		if (ret)
+ 			return ret;
+ 	} else {
+-- 
+cgit 
+

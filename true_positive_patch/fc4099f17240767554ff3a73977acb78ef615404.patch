@@ -1,0 +1,735 @@
+From fc4099f17240767554ff3a73977acb78ef615404 Mon Sep 17 00:00:00 2001
+From: Pravin B Shelar <pshelar@nicira.com>
+Date: Thu, 22 Oct 2015 18:17:16 -0700
+Subject: openvswitch: Fix egress tunnel info.
+
+While transitioning to netdev based vport we broke OVS
+feature which allows user to retrieve tunnel packet egress
+information for lwtunnel devices.  Following patch fixes it
+by introducing ndo operation to get the tunnel egress info.
+Same ndo operation can be used for lwtunnel devices and compat
+ovs-tnl-vport devices. So after adding such device operation
+we can remove similar operation from ovs-vport.
+
+Fixes: 614732eaa12d ("openvswitch: Use regular VXLAN net_device device").
+Signed-off-by: Pravin B Shelar <pshelar@nicira.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ drivers/net/geneve.c           | 40 ++++++++++++++++++++++++-----
+ drivers/net/vxlan.c            | 41 +++++++++++++++++++++++++++++
+ include/linux/netdevice.h      |  7 +++++
+ include/net/dst_metadata.h     | 32 +++++++++++++++++++++++
+ net/core/dev.c                 | 27 ++++++++++++++++++++
+ net/ipv4/ip_gre.c              | 46 ++++++++++++++++++++++++++-------
+ net/openvswitch/actions.c      |  9 +++----
+ net/openvswitch/datapath.c     |  5 ++--
+ net/openvswitch/datapath.h     |  1 -
+ net/openvswitch/flow_netlink.c | 18 +++++--------
+ net/openvswitch/flow_netlink.h |  6 ++---
+ net/openvswitch/vport-geneve.c | 13 ----------
+ net/openvswitch/vport-gre.c    |  8 ------
+ net/openvswitch/vport-vxlan.c  | 19 --------------
+ net/openvswitch/vport.c        | 58 ------------------------------------------
+ net/openvswitch/vport.h        | 35 -------------------------
+ 16 files changed, 192 insertions(+), 173 deletions(-)
+
+diff --git a/drivers/net/geneve.c b/drivers/net/geneve.c
+index cde29f8a37bfe..445071c163cb3 100644
+--- a/drivers/net/geneve.c
++++ b/drivers/net/geneve.c
+@@ -594,14 +594,12 @@ static struct rtable *geneve_get_rt(struct sk_buff *skb,
+ 	rt = ip_route_output_key(geneve->net, fl4);
+ 	if (IS_ERR(rt)) {
+ 		netdev_dbg(dev, "no route to %pI4\n", &fl4->daddr);
+-		dev->stats.tx_carrier_errors++;
+-		return rt;
++		return ERR_PTR(-ENETUNREACH);
+ 	}
+ 	if (rt->dst.dev == dev) { /* is this necessary? */
+ 		netdev_dbg(dev, "circular route to %pI4\n", &fl4->daddr);
+-		dev->stats.collisions++;
+ 		ip_rt_put(rt);
+-		return ERR_PTR(-EINVAL);
++		return ERR_PTR(-ELOOP);
+ 	}
+ 	return rt;
+ }
+@@ -627,12 +625,12 @@ static netdev_tx_t geneve_xmit(struct sk_buff *skb, struct net_device *dev)
+ 	struct ip_tunnel_info *info = NULL;
+ 	struct rtable *rt = NULL;
+ 	const struct iphdr *iip; /* interior IP header */
++	int err = -EINVAL;
+ 	struct flowi4 fl4;
+ 	__u8 tos, ttl;
+ 	__be16 sport;
+ 	bool udp_csum;
+ 	__be16 df;
+-	int err;
+ 
+ 	if (geneve->collect_md) {
+ 		info = skb_tunnel_info(skb);
+@@ -647,7 +645,7 @@ static netdev_tx_t geneve_xmit(struct sk_buff *skb, struct net_device *dev)
+ 	rt = geneve_get_rt(skb, dev, &fl4, info);
+ 	if (IS_ERR(rt)) {
+ 		netdev_dbg(dev, "no route to %pI4\n", &fl4.daddr);
+-		dev->stats.tx_carrier_errors++;
++		err = PTR_ERR(rt);
+ 		goto tx_error;
+ 	}
+ 
+@@ -699,10 +697,37 @@ static netdev_tx_t geneve_xmit(struct sk_buff *skb, struct net_device *dev)
+ tx_error:
+ 	dev_kfree_skb(skb);
+ err:
+-	dev->stats.tx_errors++;
++	if (err == -ELOOP)
++		dev->stats.collisions++;
++	else if (err == -ENETUNREACH)
++		dev->stats.tx_carrier_errors++;
++	else
++		dev->stats.tx_errors++;
+ 	return NETDEV_TX_OK;
+ }
+ 
++static int geneve_fill_metadata_dst(struct net_device *dev, struct sk_buff *skb)
++{
++	struct ip_tunnel_info *info = skb_tunnel_info(skb);
++	struct geneve_dev *geneve = netdev_priv(dev);
++	struct rtable *rt;
++	struct flowi4 fl4;
++
++	if (ip_tunnel_info_af(info) != AF_INET)
++		return -EINVAL;
++
++	rt = geneve_get_rt(skb, dev, &fl4, info);
++	if (IS_ERR(rt))
++		return PTR_ERR(rt);
++
++	ip_rt_put(rt);
++	info->key.u.ipv4.src = fl4.saddr;
++	info->key.tp_src = udp_flow_src_port(geneve->net, skb,
++					     1, USHRT_MAX, true);
++	info->key.tp_dst = geneve->dst_port;
++	return 0;
++}
++
+ static const struct net_device_ops geneve_netdev_ops = {
+ 	.ndo_init		= geneve_init,
+ 	.ndo_uninit		= geneve_uninit,
+@@ -713,6 +738,7 @@ static const struct net_device_ops geneve_netdev_ops = {
+ 	.ndo_change_mtu		= eth_change_mtu,
+ 	.ndo_validate_addr	= eth_validate_addr,
+ 	.ndo_set_mac_address	= eth_mac_addr,
++	.ndo_fill_metadata_dst	= geneve_fill_metadata_dst,
+ };
+ 
+ static void geneve_get_drvinfo(struct net_device *dev,
+diff --git a/drivers/net/vxlan.c b/drivers/net/vxlan.c
+index afdc65fd5bc57..c1587ece28cff 100644
+--- a/drivers/net/vxlan.c
++++ b/drivers/net/vxlan.c
+@@ -2337,6 +2337,46 @@ static int vxlan_change_mtu(struct net_device *dev, int new_mtu)
+ 	return 0;
+ }
+ 
++static int egress_ipv4_tun_info(struct net_device *dev, struct sk_buff *skb,
++				struct ip_tunnel_info *info,
++				__be16 sport, __be16 dport)
++{
++	struct vxlan_dev *vxlan = netdev_priv(dev);
++	struct rtable *rt;
++	struct flowi4 fl4;
++
++	memset(&fl4, 0, sizeof(fl4));
++	fl4.flowi4_tos = RT_TOS(info->key.tos);
++	fl4.flowi4_mark = skb->mark;
++	fl4.flowi4_proto = IPPROTO_UDP;
++	fl4.daddr = info->key.u.ipv4.dst;
++
++	rt = ip_route_output_key(vxlan->net, &fl4);
++	if (IS_ERR(rt))
++		return PTR_ERR(rt);
++	ip_rt_put(rt);
++
++	info->key.u.ipv4.src = fl4.saddr;
++	info->key.tp_src = sport;
++	info->key.tp_dst = dport;
++	return 0;
++}
++
++static int vxlan_fill_metadata_dst(struct net_device *dev, struct sk_buff *skb)
++{
++	struct vxlan_dev *vxlan = netdev_priv(dev);
++	struct ip_tunnel_info *info = skb_tunnel_info(skb);
++	__be16 sport, dport;
++
++	sport = udp_flow_src_port(dev_net(dev), skb, vxlan->cfg.port_min,
++				  vxlan->cfg.port_max, true);
++	dport = info->key.tp_dst ? : vxlan->cfg.dst_port;
++
++	if (ip_tunnel_info_af(info) == AF_INET)
++		return egress_ipv4_tun_info(dev, skb, info, sport, dport);
++	return -EINVAL;
++}
++
+ static const struct net_device_ops vxlan_netdev_ops = {
+ 	.ndo_init		= vxlan_init,
+ 	.ndo_uninit		= vxlan_uninit,
+@@ -2351,6 +2391,7 @@ static const struct net_device_ops vxlan_netdev_ops = {
+ 	.ndo_fdb_add		= vxlan_fdb_add,
+ 	.ndo_fdb_del		= vxlan_fdb_delete,
+ 	.ndo_fdb_dump		= vxlan_fdb_dump,
++	.ndo_fill_metadata_dst	= vxlan_fill_metadata_dst,
+ };
+ 
+ /* Info for udev, that this is a virtual tunnel endpoint */
+diff --git a/include/linux/netdevice.h b/include/linux/netdevice.h
+index 2d15e38314403..210d11a75e4ff 100644
+--- a/include/linux/netdevice.h
++++ b/include/linux/netdevice.h
+@@ -1054,6 +1054,10 @@ typedef u16 (*select_queue_fallback_t)(struct net_device *dev,
+  *	This function is used to pass protocol port error state information
+  *	to the switch driver. The switch driver can react to the proto_down
+  *      by doing a phys down on the associated switch port.
++ * int (*ndo_fill_metadata_dst)(struct net_device *dev, struct sk_buff *skb);
++ *	This function is used to get egress tunnel information for given skb.
++ *	This is useful for retrieving outer tunnel header parameters while
++ *	sampling packet.
+  *
+  */
+ struct net_device_ops {
+@@ -1227,6 +1231,8 @@ struct net_device_ops {
+ 	int			(*ndo_get_iflink)(const struct net_device *dev);
+ 	int			(*ndo_change_proto_down)(struct net_device *dev,
+ 							 bool proto_down);
++	int			(*ndo_fill_metadata_dst)(struct net_device *dev,
++						       struct sk_buff *skb);
+ };
+ 
+ /**
+@@ -2203,6 +2209,7 @@ void dev_add_offload(struct packet_offload *po);
+ void dev_remove_offload(struct packet_offload *po);
+ 
+ int dev_get_iflink(const struct net_device *dev);
++int dev_fill_metadata_dst(struct net_device *dev, struct sk_buff *skb);
+ struct net_device *__dev_get_by_flags(struct net *net, unsigned short flags,
+ 				      unsigned short mask);
+ struct net_device *dev_get_by_name(struct net *net, const char *name);
+diff --git a/include/net/dst_metadata.h b/include/net/dst_metadata.h
+index af9d5382f6cba..ce009710120ca 100644
+--- a/include/net/dst_metadata.h
++++ b/include/net/dst_metadata.h
+@@ -60,6 +60,38 @@ static inline struct metadata_dst *tun_rx_dst(int md_size)
+ 	return tun_dst;
+ }
+ 
++static inline struct metadata_dst *tun_dst_unclone(struct sk_buff *skb)
++{
++	struct metadata_dst *md_dst = skb_metadata_dst(skb);
++	int md_size = md_dst->u.tun_info.options_len;
++	struct metadata_dst *new_md;
++
++	if (!md_dst)
++		return ERR_PTR(-EINVAL);
++
++	new_md = metadata_dst_alloc(md_size, GFP_ATOMIC);
++	if (!new_md)
++		return ERR_PTR(-ENOMEM);
++
++	memcpy(&new_md->u.tun_info, &md_dst->u.tun_info,
++	       sizeof(struct ip_tunnel_info) + md_size);
++	skb_dst_drop(skb);
++	dst_hold(&new_md->dst);
++	skb_dst_set(skb, &new_md->dst);
++	return new_md;
++}
++
++static inline struct ip_tunnel_info *skb_tunnel_info_unclone(struct sk_buff *skb)
++{
++	struct metadata_dst *dst;
++
++	dst = tun_dst_unclone(skb);
++	if (IS_ERR(dst))
++		return NULL;
++
++	return &dst->u.tun_info;
++}
++
+ static inline struct metadata_dst *ip_tun_rx_dst(struct sk_buff *skb,
+ 						 __be16 flags,
+ 						 __be64 tunnel_id,
+diff --git a/net/core/dev.c b/net/core/dev.c
+index 6bb6470f5b7bb..c14748d051e7f 100644
+--- a/net/core/dev.c
++++ b/net/core/dev.c
+@@ -99,6 +99,7 @@
+ #include <linux/rtnetlink.h>
+ #include <linux/stat.h>
+ #include <net/dst.h>
++#include <net/dst_metadata.h>
+ #include <net/pkt_sched.h>
+ #include <net/checksum.h>
+ #include <net/xfrm.h>
+@@ -681,6 +682,32 @@ int dev_get_iflink(const struct net_device *dev)
+ }
+ EXPORT_SYMBOL(dev_get_iflink);
+ 
++/**
++ *	dev_fill_metadata_dst - Retrieve tunnel egress information.
++ *	@dev: targeted interface
++ *	@skb: The packet.
++ *
++ *	For better visibility of tunnel traffic OVS needs to retrieve
++ *	egress tunnel information for a packet. Following API allows
++ *	user to get this info.
++ */
++int dev_fill_metadata_dst(struct net_device *dev, struct sk_buff *skb)
++{
++	struct ip_tunnel_info *info;
++
++	if (!dev->netdev_ops  || !dev->netdev_ops->ndo_fill_metadata_dst)
++		return -EINVAL;
++
++	info = skb_tunnel_info_unclone(skb);
++	if (!info)
++		return -ENOMEM;
++	if (unlikely(!(info->mode & IP_TUNNEL_INFO_TX)))
++		return -EINVAL;
++
++	return dev->netdev_ops->ndo_fill_metadata_dst(dev, skb);
++}
++EXPORT_SYMBOL_GPL(dev_fill_metadata_dst);
++
+ /**
+  *	__dev_get_by_name	- find a device by its name
+  *	@net: the applicable net namespace
+diff --git a/net/ipv4/ip_gre.c b/net/ipv4/ip_gre.c
+index bd0679d90519b..614521437e301 100644
+--- a/net/ipv4/ip_gre.c
++++ b/net/ipv4/ip_gre.c
+@@ -498,10 +498,26 @@ static struct sk_buff *gre_handle_offloads(struct sk_buff *skb,
+ 					csum ? SKB_GSO_GRE_CSUM : SKB_GSO_GRE);
+ }
+ 
++static struct rtable *gre_get_rt(struct sk_buff *skb,
++				 struct net_device *dev,
++				 struct flowi4 *fl,
++				 const struct ip_tunnel_key *key)
++{
++	struct net *net = dev_net(dev);
++
++	memset(fl, 0, sizeof(*fl));
++	fl->daddr = key->u.ipv4.dst;
++	fl->saddr = key->u.ipv4.src;
++	fl->flowi4_tos = RT_TOS(key->tos);
++	fl->flowi4_mark = skb->mark;
++	fl->flowi4_proto = IPPROTO_GRE;
++
++	return ip_route_output_key(net, fl);
++}
++
+ static void gre_fb_xmit(struct sk_buff *skb, struct net_device *dev)
+ {
+ 	struct ip_tunnel_info *tun_info;
+-	struct net *net = dev_net(dev);
+ 	const struct ip_tunnel_key *key;
+ 	struct flowi4 fl;
+ 	struct rtable *rt;
+@@ -516,14 +532,7 @@ static void gre_fb_xmit(struct sk_buff *skb, struct net_device *dev)
+ 		goto err_free_skb;
+ 
+ 	key = &tun_info->key;
+-	memset(&fl, 0, sizeof(fl));
+-	fl.daddr = key->u.ipv4.dst;
+-	fl.saddr = key->u.ipv4.src;
+-	fl.flowi4_tos = RT_TOS(key->tos);
+-	fl.flowi4_mark = skb->mark;
+-	fl.flowi4_proto = IPPROTO_GRE;
+-
+-	rt = ip_route_output_key(net, &fl);
++	rt = gre_get_rt(skb, dev, &fl, key);
+ 	if (IS_ERR(rt))
+ 		goto err_free_skb;
+ 
+@@ -566,6 +575,24 @@ err_free_skb:
+ 	dev->stats.tx_dropped++;
+ }
+ 
++static int gre_fill_metadata_dst(struct net_device *dev, struct sk_buff *skb)
++{
++	struct ip_tunnel_info *info = skb_tunnel_info(skb);
++	struct rtable *rt;
++	struct flowi4 fl4;
++
++	if (ip_tunnel_info_af(info) != AF_INET)
++		return -EINVAL;
++
++	rt = gre_get_rt(skb, dev, &fl4, &info->key);
++	if (IS_ERR(rt))
++		return PTR_ERR(rt);
++
++	ip_rt_put(rt);
++	info->key.u.ipv4.src = fl4.saddr;
++	return 0;
++}
++
+ static netdev_tx_t ipgre_xmit(struct sk_buff *skb,
+ 			      struct net_device *dev)
+ {
+@@ -1023,6 +1050,7 @@ static const struct net_device_ops gre_tap_netdev_ops = {
+ 	.ndo_change_mtu		= ip_tunnel_change_mtu,
+ 	.ndo_get_stats64	= ip_tunnel_get_stats64,
+ 	.ndo_get_iflink		= ip_tunnel_get_iflink,
++	.ndo_fill_metadata_dst	= gre_fill_metadata_dst,
+ };
+ 
+ static void ipgre_tap_setup(struct net_device *dev)
+diff --git a/net/openvswitch/actions.c b/net/openvswitch/actions.c
+index c6a39bf2c3b95..0bf0f406de523 100644
+--- a/net/openvswitch/actions.c
++++ b/net/openvswitch/actions.c
+@@ -768,7 +768,6 @@ static int output_userspace(struct datapath *dp, struct sk_buff *skb,
+ 			    struct sw_flow_key *key, const struct nlattr *attr,
+ 			    const struct nlattr *actions, int actions_len)
+ {
+-	struct ip_tunnel_info info;
+ 	struct dp_upcall_info upcall;
+ 	const struct nlattr *a;
+ 	int rem;
+@@ -796,11 +795,9 @@ static int output_userspace(struct datapath *dp, struct sk_buff *skb,
+ 			if (vport) {
+ 				int err;
+ 
+-				upcall.egress_tun_info = &info;
+-				err = ovs_vport_get_egress_tun_info(vport, skb,
+-								    &upcall);
+-				if (err)
+-					upcall.egress_tun_info = NULL;
++				err = dev_fill_metadata_dst(vport->dev, skb);
++				if (!err)
++					upcall.egress_tun_info = skb_tunnel_info(skb);
+ 			}
+ 
+ 			break;
+diff --git a/net/openvswitch/datapath.c b/net/openvswitch/datapath.c
+index b816ff8715283..c5d08ee377304 100644
+--- a/net/openvswitch/datapath.c
++++ b/net/openvswitch/datapath.c
+@@ -490,9 +490,8 @@ static int queue_userspace_packet(struct datapath *dp, struct sk_buff *skb,
+ 
+ 	if (upcall_info->egress_tun_info) {
+ 		nla = nla_nest_start(user_skb, OVS_PACKET_ATTR_EGRESS_TUN_KEY);
+-		err = ovs_nla_put_egress_tunnel_key(user_skb,
+-						    upcall_info->egress_tun_info,
+-						    upcall_info->egress_tun_opts);
++		err = ovs_nla_put_tunnel_info(user_skb,
++					      upcall_info->egress_tun_info);
+ 		BUG_ON(err);
+ 		nla_nest_end(user_skb, nla);
+ 	}
+diff --git a/net/openvswitch/datapath.h b/net/openvswitch/datapath.h
+index f88038a99f444..67bdecd9fdc1f 100644
+--- a/net/openvswitch/datapath.h
++++ b/net/openvswitch/datapath.h
+@@ -117,7 +117,6 @@ struct ovs_skb_cb {
+  */
+ struct dp_upcall_info {
+ 	struct ip_tunnel_info *egress_tun_info;
+-	const void *egress_tun_opts;
+ 	const struct nlattr *userdata;
+ 	const struct nlattr *actions;
+ 	int actions_len;
+diff --git a/net/openvswitch/flow_netlink.c b/net/openvswitch/flow_netlink.c
+index bd710bc374691..38536c137c54d 100644
+--- a/net/openvswitch/flow_netlink.c
++++ b/net/openvswitch/flow_netlink.c
+@@ -717,7 +717,7 @@ static int __ipv4_tun_to_nlattr(struct sk_buff *skb,
+ 	if ((output->tun_flags & TUNNEL_OAM) &&
+ 	    nla_put_flag(skb, OVS_TUNNEL_KEY_ATTR_OAM))
+ 		return -EMSGSIZE;
+-	if (tun_opts) {
++	if (swkey_tun_opts_len) {
+ 		if (output->tun_flags & TUNNEL_GENEVE_OPT &&
+ 		    nla_put(skb, OVS_TUNNEL_KEY_ATTR_GENEVE_OPTS,
+ 			    swkey_tun_opts_len, tun_opts))
+@@ -749,13 +749,12 @@ static int ipv4_tun_to_nlattr(struct sk_buff *skb,
+ 	return 0;
+ }
+ 
+-int ovs_nla_put_egress_tunnel_key(struct sk_buff *skb,
+-				  const struct ip_tunnel_info *egress_tun_info,
+-				  const void *egress_tun_opts)
++int ovs_nla_put_tunnel_info(struct sk_buff *skb,
++			    struct ip_tunnel_info *tun_info)
+ {
+-	return __ipv4_tun_to_nlattr(skb, &egress_tun_info->key,
+-				    egress_tun_opts,
+-				    egress_tun_info->options_len);
++	return __ipv4_tun_to_nlattr(skb, &tun_info->key,
++				    ip_tunnel_info_opts(tun_info),
++				    tun_info->options_len);
+ }
+ 
+ static int metadata_from_nlattrs(struct net *net, struct sw_flow_match *match,
+@@ -2383,10 +2382,7 @@ static int set_action_to_attr(const struct nlattr *a, struct sk_buff *skb)
+ 		if (!start)
+ 			return -EMSGSIZE;
+ 
+-		err = ipv4_tun_to_nlattr(skb, &tun_info->key,
+-					 tun_info->options_len ?
+-					     ip_tunnel_info_opts(tun_info) : NULL,
+-					 tun_info->options_len);
++		err = ovs_nla_put_tunnel_info(skb, tun_info);
+ 		if (err)
+ 			return err;
+ 		nla_nest_end(skb, start);
+diff --git a/net/openvswitch/flow_netlink.h b/net/openvswitch/flow_netlink.h
+index 6ca3f0baf449f..47dd142eca1c0 100644
+--- a/net/openvswitch/flow_netlink.h
++++ b/net/openvswitch/flow_netlink.h
+@@ -55,9 +55,9 @@ int ovs_nla_put_mask(const struct sw_flow *flow, struct sk_buff *skb);
+ int ovs_nla_get_match(struct net *, struct sw_flow_match *,
+ 		      const struct nlattr *key, const struct nlattr *mask,
+ 		      bool log);
+-int ovs_nla_put_egress_tunnel_key(struct sk_buff *,
+-				  const struct ip_tunnel_info *,
+-				  const void *egress_tun_opts);
++
++int ovs_nla_put_tunnel_info(struct sk_buff *skb,
++			    struct ip_tunnel_info *tun_info);
+ 
+ bool ovs_nla_get_ufid(struct sw_flow_id *, const struct nlattr *, bool log);
+ int ovs_nla_get_identifier(struct sw_flow_id *sfid, const struct nlattr *ufid,
+diff --git a/net/openvswitch/vport-geneve.c b/net/openvswitch/vport-geneve.c
+index 2735e9c4a3b88..5f8aaaaa07853 100644
+--- a/net/openvswitch/vport-geneve.c
++++ b/net/openvswitch/vport-geneve.c
+@@ -52,18 +52,6 @@ static int geneve_get_options(const struct vport *vport,
+ 	return 0;
+ }
+ 
+-static int geneve_get_egress_tun_info(struct vport *vport, struct sk_buff *skb,
+-				      struct dp_upcall_info *upcall)
+-{
+-	struct geneve_port *geneve_port = geneve_vport(vport);
+-	struct net *net = ovs_dp_get_net(vport->dp);
+-	__be16 dport = htons(geneve_port->port_no);
+-	__be16 sport = udp_flow_src_port(net, skb, 1, USHRT_MAX, true);
+-
+-	return ovs_tunnel_get_egress_info(upcall, ovs_dp_get_net(vport->dp),
+-					  skb, IPPROTO_UDP, sport, dport);
+-}
+-
+ static struct vport *geneve_tnl_create(const struct vport_parms *parms)
+ {
+ 	struct net *net = ovs_dp_get_net(parms->dp);
+@@ -130,7 +118,6 @@ static struct vport_ops ovs_geneve_vport_ops = {
+ 	.get_options	= geneve_get_options,
+ 	.send		= ovs_netdev_send,
+ 	.owner          = THIS_MODULE,
+-	.get_egress_tun_info	= geneve_get_egress_tun_info,
+ };
+ 
+ static int __init ovs_geneve_tnl_init(void)
+diff --git a/net/openvswitch/vport-gre.c b/net/openvswitch/vport-gre.c
+index 4d24481669c95..64225bf5eb405 100644
+--- a/net/openvswitch/vport-gre.c
++++ b/net/openvswitch/vport-gre.c
+@@ -84,18 +84,10 @@ static struct vport *gre_create(const struct vport_parms *parms)
+ 	return ovs_netdev_link(vport, parms->name);
+ }
+ 
+-static int gre_get_egress_tun_info(struct vport *vport, struct sk_buff *skb,
+-				   struct dp_upcall_info *upcall)
+-{
+-	return ovs_tunnel_get_egress_info(upcall, ovs_dp_get_net(vport->dp),
+-					  skb, IPPROTO_GRE, 0, 0);
+-}
+-
+ static struct vport_ops ovs_gre_vport_ops = {
+ 	.type		= OVS_VPORT_TYPE_GRE,
+ 	.create		= gre_create,
+ 	.send		= ovs_netdev_send,
+-	.get_egress_tun_info	= gre_get_egress_tun_info,
+ 	.destroy	= ovs_netdev_tunnel_destroy,
+ 	.owner		= THIS_MODULE,
+ };
+diff --git a/net/openvswitch/vport-vxlan.c b/net/openvswitch/vport-vxlan.c
+index c11413d5075f8..e1c9c08880373 100644
+--- a/net/openvswitch/vport-vxlan.c
++++ b/net/openvswitch/vport-vxlan.c
+@@ -146,31 +146,12 @@ static struct vport *vxlan_create(const struct vport_parms *parms)
+ 	return ovs_netdev_link(vport, parms->name);
+ }
+ 
+-static int vxlan_get_egress_tun_info(struct vport *vport, struct sk_buff *skb,
+-				     struct dp_upcall_info *upcall)
+-{
+-	struct vxlan_dev *vxlan = netdev_priv(vport->dev);
+-	struct net *net = ovs_dp_get_net(vport->dp);
+-	__be16 dst_port = vxlan_dev_dst_port(vxlan);
+-	__be16 src_port;
+-	int port_min;
+-	int port_max;
+-
+-	inet_get_local_port_range(net, &port_min, &port_max);
+-	src_port = udp_flow_src_port(net, skb, 0, 0, true);
+-
+-	return ovs_tunnel_get_egress_info(upcall, net,
+-					  skb, IPPROTO_UDP,
+-					  src_port, dst_port);
+-}
+-
+ static struct vport_ops ovs_vxlan_netdev_vport_ops = {
+ 	.type			= OVS_VPORT_TYPE_VXLAN,
+ 	.create			= vxlan_create,
+ 	.destroy		= ovs_netdev_tunnel_destroy,
+ 	.get_options		= vxlan_get_options,
+ 	.send			= ovs_netdev_send,
+-	.get_egress_tun_info	= vxlan_get_egress_tun_info,
+ };
+ 
+ static int __init ovs_vxlan_tnl_init(void)
+diff --git a/net/openvswitch/vport.c b/net/openvswitch/vport.c
+index 12a36ac21edaa..320c765ce44a0 100644
+--- a/net/openvswitch/vport.c
++++ b/net/openvswitch/vport.c
+@@ -479,61 +479,3 @@ void ovs_vport_deferred_free(struct vport *vport)
+ 	call_rcu(&vport->rcu, free_vport_rcu);
+ }
+ EXPORT_SYMBOL_GPL(ovs_vport_deferred_free);
+-
+-int ovs_tunnel_get_egress_info(struct dp_upcall_info *upcall,
+-			       struct net *net,
+-			       struct sk_buff *skb,
+-			       u8 ipproto,
+-			       __be16 tp_src,
+-			       __be16 tp_dst)
+-{
+-	struct ip_tunnel_info *egress_tun_info = upcall->egress_tun_info;
+-	const struct ip_tunnel_info *tun_info = skb_tunnel_info(skb);
+-	const struct ip_tunnel_key *tun_key;
+-	u32 skb_mark = skb->mark;
+-	struct rtable *rt;
+-	struct flowi4 fl;
+-
+-	if (unlikely(!tun_info))
+-		return -EINVAL;
+-	if (ip_tunnel_info_af(tun_info) != AF_INET)
+-		return -EINVAL;
+-
+-	tun_key = &tun_info->key;
+-
+-	/* Route lookup to get srouce IP address.
+-	 * The process may need to be changed if the corresponding process
+-	 * in vports ops changed.
+-	 */
+-	rt = ovs_tunnel_route_lookup(net, tun_key, skb_mark, &fl, ipproto);
+-	if (IS_ERR(rt))
+-		return PTR_ERR(rt);
+-
+-	ip_rt_put(rt);
+-
+-	/* Generate egress_tun_info based on tun_info,
+-	 * saddr, tp_src and tp_dst
+-	 */
+-	ip_tunnel_key_init(&egress_tun_info->key,
+-			   fl.saddr, tun_key->u.ipv4.dst,
+-			   tun_key->tos,
+-			   tun_key->ttl,
+-			   tp_src, tp_dst,
+-			   tun_key->tun_id,
+-			   tun_key->tun_flags);
+-	egress_tun_info->options_len = tun_info->options_len;
+-	egress_tun_info->mode = tun_info->mode;
+-	upcall->egress_tun_opts = ip_tunnel_info_opts(egress_tun_info);
+-	return 0;
+-}
+-EXPORT_SYMBOL_GPL(ovs_tunnel_get_egress_info);
+-
+-int ovs_vport_get_egress_tun_info(struct vport *vport, struct sk_buff *skb,
+-				  struct dp_upcall_info *upcall)
+-{
+-	/* get_egress_tun_info() is only implemented on tunnel ports. */
+-	if (unlikely(!vport->ops->get_egress_tun_info))
+-		return -EINVAL;
+-
+-	return vport->ops->get_egress_tun_info(vport, skb, upcall);
+-}
+diff --git a/net/openvswitch/vport.h b/net/openvswitch/vport.h
+index a413f3ae6a7b5..d341ad6f3afe5 100644
+--- a/net/openvswitch/vport.h
++++ b/net/openvswitch/vport.h
+@@ -27,7 +27,6 @@
+ #include <linux/skbuff.h>
+ #include <linux/spinlock.h>
+ #include <linux/u64_stats_sync.h>
+-#include <net/route.h>
+ 
+ #include "datapath.h"
+ 
+@@ -53,16 +52,6 @@ int ovs_vport_set_upcall_portids(struct vport *, const struct nlattr *pids);
+ int ovs_vport_get_upcall_portids(const struct vport *, struct sk_buff *);
+ u32 ovs_vport_find_upcall_portid(const struct vport *, struct sk_buff *);
+ 
+-int ovs_tunnel_get_egress_info(struct dp_upcall_info *upcall,
+-			       struct net *net,
+-			       struct sk_buff *,
+-			       u8 ipproto,
+-			       __be16 tp_src,
+-			       __be16 tp_dst);
+-
+-int ovs_vport_get_egress_tun_info(struct vport *vport, struct sk_buff *skb,
+-				  struct dp_upcall_info *upcall);
+-
+ /**
+  * struct vport_portids - array of netlink portids of a vport.
+  *                        must be protected by rcu.
+@@ -140,8 +129,6 @@ struct vport_parms {
+  * have any configuration.
+  * @send: Send a packet on the device.
+  * zero for dropped packets or negative for error.
+- * @get_egress_tun_info: Get the egress tunnel 5-tuple and other info for
+- * a packet.
+  */
+ struct vport_ops {
+ 	enum ovs_vport_type type;
+@@ -154,9 +141,6 @@ struct vport_ops {
+ 	int (*get_options)(const struct vport *, struct sk_buff *);
+ 
+ 	void (*send)(struct vport *, struct sk_buff *);
+-	int (*get_egress_tun_info)(struct vport *, struct sk_buff *,
+-				   struct dp_upcall_info *upcall);
+-
+ 	struct module *owner;
+ 	struct list_head list;
+ };
+@@ -215,25 +199,6 @@ static inline const char *ovs_vport_name(struct vport *vport)
+ int ovs_vport_ops_register(struct vport_ops *ops);
+ void ovs_vport_ops_unregister(struct vport_ops *ops);
+ 
+-static inline struct rtable *ovs_tunnel_route_lookup(struct net *net,
+-						     const struct ip_tunnel_key *key,
+-						     u32 mark,
+-						     struct flowi4 *fl,
+-						     u8 protocol)
+-{
+-	struct rtable *rt;
+-
+-	memset(fl, 0, sizeof(*fl));
+-	fl->daddr = key->u.ipv4.dst;
+-	fl->saddr = key->u.ipv4.src;
+-	fl->flowi4_tos = RT_TOS(key->tos);
+-	fl->flowi4_mark = mark;
+-	fl->flowi4_proto = protocol;
+-
+-	rt = ip_route_output_key(net, fl);
+-	return rt;
+-}
+-
+ static inline void ovs_vport_send(struct vport *vport, struct sk_buff *skb)
+ {
+ 	vport->ops->send(vport, skb);
+-- 
+cgit 
+

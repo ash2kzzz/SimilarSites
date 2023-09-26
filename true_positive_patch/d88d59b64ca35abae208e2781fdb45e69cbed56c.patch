@@ -1,0 +1,40 @@
+From d88d59b64ca35abae208e2781fdb45e69cbed56c Mon Sep 17 00:00:00 2001
+From: Thomas Gleixner <tglx@linutronix.de>
+Date: Wed, 19 Aug 2020 21:44:39 +0200
+Subject: core/entry: Respect syscall number rewrites
+
+The transcript of the x86 entry code to the generic version failed to
+reload the syscall number from ptregs after ptrace and seccomp have run,
+which both can modify the syscall number in ptregs. It returns the original
+syscall number instead which is obviously not the right thing to do.
+
+Reload the syscall number to fix that.
+
+Fixes: 142781e108b1 ("entry: Provide generic syscall entry functionality")
+Reported-by: Kyle Huey <me@kylehuey.com>
+Signed-off-by: Thomas Gleixner <tglx@linutronix.de>
+Tested-by: Kyle Huey <me@kylehuey.com>
+Tested-by: Kees Cook <keescook@chromium.org>
+Acked-by: Kees Cook <keescook@chromium.org>
+Link: https://lore.kernel.org/r/87blj6ifo8.fsf@nanos.tec.linutronix.de
+---
+ kernel/entry/common.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/kernel/entry/common.c b/kernel/entry/common.c
+index 9852e0d62d95c..fcae019158cad 100644
+--- a/kernel/entry/common.c
++++ b/kernel/entry/common.c
+@@ -65,7 +65,8 @@ static long syscall_trace_enter(struct pt_regs *regs, long syscall,
+ 
+ 	syscall_enter_audit(regs, syscall);
+ 
+-	return ret ? : syscall;
++	/* The above might have changed the syscall number */
++	return ret ? : syscall_get_nr(current, regs);
+ }
+ 
+ noinstr long syscall_enter_from_user_mode(struct pt_regs *regs, long syscall)
+-- 
+cgit 
+

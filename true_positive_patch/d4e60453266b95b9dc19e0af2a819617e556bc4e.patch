@@ -1,0 +1,39 @@
+From d4e60453266b95b9dc19e0af2a819617e556bc4e Mon Sep 17 00:00:00 2001
+From: Cesar Eduardo Barros <cesarb@cesarb.eti.br>
+Date: Thu, 9 Jul 2020 19:11:02 -0300
+Subject: Restore gcc check in mips asm/unroll.h
+
+While raising the gcc version requirement to 4.9, the compile-time check
+in the unroll macro was accidentally changed from being used on gcc and
+clang to being used on clang only.
+
+Restore the gcc check, changing it from "gcc >= 4.7" to "all gcc".
+
+[ We should probably remove this all entirely: if we remove the check
+  for CLANG, then the check for GCC can go away. Older versions of clang
+  are not really appropriate or supported for kernel builds - Linus ]
+
+Fixes: 6ec4476ac825 ("Raise gcc version requirement to 4.9")
+Signed-off-by: Cesar Eduardo Barros <cesarb@cesarb.eti.br>
+Signed-off-by: Linus Torvalds <torvalds@linux-foundation.org>
+---
+ arch/mips/include/asm/unroll.h | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/arch/mips/include/asm/unroll.h b/arch/mips/include/asm/unroll.h
+index 8ed660adc84fe..49009319ac2cd 100644
+--- a/arch/mips/include/asm/unroll.h
++++ b/arch/mips/include/asm/unroll.h
+@@ -25,7 +25,8 @@
+ 	 * generate reasonable code for the switch statement,	\
+ 	 * so we skip the sanity check for those compilers.	\
+ 	 */							\
+-	BUILD_BUG_ON((CONFIG_CLANG_VERSION >= 80000) &&		\
++	BUILD_BUG_ON((CONFIG_CC_IS_GCC ||			\
++		      CONFIG_CLANG_VERSION >= 80000) &&		\
+ 		     !__builtin_constant_p(times));		\
+ 								\
+ 	switch (times) {					\
+-- 
+cgit 
+

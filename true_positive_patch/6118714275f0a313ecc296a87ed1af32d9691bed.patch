@@ -1,0 +1,289 @@
+From 6118714275f0a313ecc296a87ed1af32d9691bed Mon Sep 17 00:00:00 2001
+From: Tony Lindgren <tony@atomide.com>
+Date: Thu, 30 Mar 2017 09:16:39 -0700
+Subject: pinctrl: core: Fix pinctrl_register_and_init() with pinctrl_enable()
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Recent pinctrl changes to allow dynamic allocation of pins exposed one
+more issue with the pinctrl pins claimed early by the controller itself.
+This caused a regression for IMX6 pinctrl hogs.
+
+Before enabling the pin controller driver we need to wait until it has
+been properly initialized, then claim the hogs, and only then enable it.
+
+To fix the regression, split the code into pinctrl_claim_hogs() and
+pinctrl_enable(). And then let's require that pinctrl_enable() is always
+called by the pin controller driver when ready after calling
+pinctrl_register_and_init().
+
+Depends-on: 950b0d91dc10 ("pinctrl: core: Fix regression caused by delayed
+work for hogs")
+Fixes: df61b366af26 ("pinctrl: core: Use delayed work for hogs")
+Fixes: e566fc11ea76 ("pinctrl: imx: use generic pinctrl helpers for
+managing groups")
+Cc: Haojian Zhuang <haojian.zhuang@linaro.org>
+Cc: Masahiro Yamada <yamada.masahiro@socionext.com>
+Cc: Mika Penttilä <mika.penttila@nextfour.com>
+Cc: Mika Westerberg <mika.westerberg@linux.intel.com>
+Cc: Nishanth Menon <nm@ti.com>
+Cc: Shawn Guo <shawnguo@kernel.org>
+Cc: Stefan Agner <stefan@agner.ch>
+Tested-by: Geert Uytterhoeven <geert+renesas@glider.be>
+Tested-by: Gary Bisson <gary.bisson@boundarydevices.com>
+Tested-by: Fabio Estevam <fabio.estevam@nxp.com>
+Signed-off-by: Tony Lindgren <tony@atomide.com>
+Signed-off-by: Linus Walleij <linus.walleij@linaro.org>
+---
+ Documentation/pinctrl.txt               |  8 ++-
+ drivers/pinctrl/core.c                  | 97 +++++++++++++++++++++------------
+ drivers/pinctrl/freescale/pinctrl-imx.c |  2 +-
+ drivers/pinctrl/pinctrl-single.c        |  2 +-
+ drivers/pinctrl/sh-pfc/pinctrl.c        | 11 +++-
+ drivers/pinctrl/ti/pinctrl-ti-iodelay.c |  2 +
+ include/linux/pinctrl/pinctrl.h         |  3 +-
+ 7 files changed, 83 insertions(+), 42 deletions(-)
+
+diff --git a/Documentation/pinctrl.txt b/Documentation/pinctrl.txt
+index 54bd5faa87822..f2af35f6d6b2b 100644
+--- a/Documentation/pinctrl.txt
++++ b/Documentation/pinctrl.txt
+@@ -77,9 +77,15 @@ static struct pinctrl_desc foo_desc = {
+ 
+ int __init foo_probe(void)
+ {
++	int error;
++
+ 	struct pinctrl_dev *pctl;
+ 
+-	return pinctrl_register_and_init(&foo_desc, <PARENT>, NULL, &pctl);
++	error = pinctrl_register_and_init(&foo_desc, <PARENT>, NULL, &pctl);
++	if (error)
++		return error;
++
++	return pinctrl_enable(pctl);
+ }
+ 
+ To enable the pinctrl subsystem and the subgroups for PINMUX and PINCONF and
+diff --git a/drivers/pinctrl/core.c b/drivers/pinctrl/core.c
+index d69046537b75f..32822b0d9cd0f 100644
+--- a/drivers/pinctrl/core.c
++++ b/drivers/pinctrl/core.c
+@@ -2010,29 +2010,57 @@ out_err:
+ 	return ERR_PTR(ret);
+ }
+ 
+-static int pinctrl_create_and_start(struct pinctrl_dev *pctldev)
++static int pinctrl_claim_hogs(struct pinctrl_dev *pctldev)
+ {
+ 	pctldev->p = create_pinctrl(pctldev->dev, pctldev);
+-	if (!IS_ERR(pctldev->p)) {
+-		kref_get(&pctldev->p->users);
+-		pctldev->hog_default =
+-			pinctrl_lookup_state(pctldev->p, PINCTRL_STATE_DEFAULT);
+-		if (IS_ERR(pctldev->hog_default)) {
+-			dev_dbg(pctldev->dev,
+-				"failed to lookup the default state\n");
+-		} else {
+-			if (pinctrl_select_state(pctldev->p,
+-						pctldev->hog_default))
+-				dev_err(pctldev->dev,
+-					"failed to select default state\n");
+-		}
++	if (PTR_ERR(pctldev->p) == -ENODEV) {
++		dev_dbg(pctldev->dev, "no hogs found\n");
+ 
+-		pctldev->hog_sleep =
+-			pinctrl_lookup_state(pctldev->p,
+-						    PINCTRL_STATE_SLEEP);
+-		if (IS_ERR(pctldev->hog_sleep))
+-			dev_dbg(pctldev->dev,
+-				"failed to lookup the sleep state\n");
++		return 0;
++	}
++
++	if (IS_ERR(pctldev->p)) {
++		dev_err(pctldev->dev, "error claiming hogs: %li\n",
++			PTR_ERR(pctldev->p));
++
++		return PTR_ERR(pctldev->p);
++	}
++
++	kref_get(&pctldev->p->users);
++	pctldev->hog_default =
++		pinctrl_lookup_state(pctldev->p, PINCTRL_STATE_DEFAULT);
++	if (IS_ERR(pctldev->hog_default)) {
++		dev_dbg(pctldev->dev,
++			"failed to lookup the default state\n");
++	} else {
++		if (pinctrl_select_state(pctldev->p,
++					 pctldev->hog_default))
++			dev_err(pctldev->dev,
++				"failed to select default state\n");
++	}
++
++	pctldev->hog_sleep =
++		pinctrl_lookup_state(pctldev->p,
++				     PINCTRL_STATE_SLEEP);
++	if (IS_ERR(pctldev->hog_sleep))
++		dev_dbg(pctldev->dev,
++			"failed to lookup the sleep state\n");
++
++	return 0;
++}
++
++int pinctrl_enable(struct pinctrl_dev *pctldev)
++{
++	int error;
++
++	error = pinctrl_claim_hogs(pctldev);
++	if (error) {
++		dev_err(pctldev->dev, "could not claim hogs: %i\n",
++			error);
++		mutex_destroy(&pctldev->mutex);
++		kfree(pctldev);
++
++		return error;
+ 	}
+ 
+ 	mutex_lock(&pinctrldev_list_mutex);
+@@ -2043,6 +2071,7 @@ static int pinctrl_create_and_start(struct pinctrl_dev *pctldev)
+ 
+ 	return 0;
+ }
++EXPORT_SYMBOL_GPL(pinctrl_enable);
+ 
+ /**
+  * pinctrl_register() - register a pin controller device
+@@ -2065,25 +2094,30 @@ struct pinctrl_dev *pinctrl_register(struct pinctrl_desc *pctldesc,
+ 	if (IS_ERR(pctldev))
+ 		return pctldev;
+ 
+-	error = pinctrl_create_and_start(pctldev);
+-	if (error) {
+-		mutex_destroy(&pctldev->mutex);
+-		kfree(pctldev);
+-
++	error = pinctrl_enable(pctldev);
++	if (error)
+ 		return ERR_PTR(error);
+-	}
+ 
+ 	return pctldev;
+ 
+ }
+ EXPORT_SYMBOL_GPL(pinctrl_register);
+ 
++/**
++ * pinctrl_register_and_init() - register and init pin controller device
++ * @pctldesc: descriptor for this pin controller
++ * @dev: parent device for this pin controller
++ * @driver_data: private pin controller data for this pin controller
++ * @pctldev: pin controller device
++ *
++ * Note that pinctrl_enable() still needs to be manually called after
++ * this once the driver is ready.
++ */
+ int pinctrl_register_and_init(struct pinctrl_desc *pctldesc,
+ 			      struct device *dev, void *driver_data,
+ 			      struct pinctrl_dev **pctldev)
+ {
+ 	struct pinctrl_dev *p;
+-	int error;
+ 
+ 	p = pinctrl_init_controller(pctldesc, dev, driver_data);
+ 	if (IS_ERR(p))
+@@ -2097,15 +2131,6 @@ int pinctrl_register_and_init(struct pinctrl_desc *pctldesc,
+ 	 */
+ 	*pctldev = p;
+ 
+-	error = pinctrl_create_and_start(p);
+-	if (error) {
+-		mutex_destroy(&p->mutex);
+-		kfree(p);
+-		*pctldev = NULL;
+-
+-		return error;
+-	}
+-
+ 	return 0;
+ }
+ EXPORT_SYMBOL_GPL(pinctrl_register_and_init);
+diff --git a/drivers/pinctrl/freescale/pinctrl-imx.c b/drivers/pinctrl/freescale/pinctrl-imx.c
+index a7ace9e1ad81f..74bd90dfd7b16 100644
+--- a/drivers/pinctrl/freescale/pinctrl-imx.c
++++ b/drivers/pinctrl/freescale/pinctrl-imx.c
+@@ -790,7 +790,7 @@ int imx_pinctrl_probe(struct platform_device *pdev,
+ 
+ 	dev_info(&pdev->dev, "initialized IMX pinctrl driver\n");
+ 
+-	return 0;
++	return pinctrl_enable(ipctl->pctl);
+ 
+ free:
+ 	imx_free_resources(ipctl);
+diff --git a/drivers/pinctrl/pinctrl-single.c b/drivers/pinctrl/pinctrl-single.c
+index 8b2d45e85baea..9c267dcda094a 100644
+--- a/drivers/pinctrl/pinctrl-single.c
++++ b/drivers/pinctrl/pinctrl-single.c
+@@ -1781,7 +1781,7 @@ static int pcs_probe(struct platform_device *pdev)
+ 	dev_info(pcs->dev, "%i pins at pa %p size %u\n",
+ 		 pcs->desc.npins, pcs->base, pcs->size);
+ 
+-	return 0;
++	return pinctrl_enable(pcs->pctl);
+ 
+ free:
+ 	pcs_free_resources(pcs);
+diff --git a/drivers/pinctrl/sh-pfc/pinctrl.c b/drivers/pinctrl/sh-pfc/pinctrl.c
+index 08150a321be6f..a70157f0acf4e 100644
+--- a/drivers/pinctrl/sh-pfc/pinctrl.c
++++ b/drivers/pinctrl/sh-pfc/pinctrl.c
+@@ -816,6 +816,13 @@ int sh_pfc_register_pinctrl(struct sh_pfc *pfc)
+ 	pmx->pctl_desc.pins = pmx->pins;
+ 	pmx->pctl_desc.npins = pfc->info->nr_pins;
+ 
+-	return devm_pinctrl_register_and_init(pfc->dev, &pmx->pctl_desc, pmx,
+-					      &pmx->pctl);
++	ret = devm_pinctrl_register_and_init(pfc->dev, &pmx->pctl_desc, pmx,
++					     &pmx->pctl);
++	if (ret) {
++		dev_err(pfc->dev, "could not register: %i\n", ret);
++
++		return ret;
++	}
++
++	return pinctrl_enable(pmx->pctl);
+ }
+diff --git a/drivers/pinctrl/ti/pinctrl-ti-iodelay.c b/drivers/pinctrl/ti/pinctrl-ti-iodelay.c
+index 717e3404900ca..362c50918c13a 100644
+--- a/drivers/pinctrl/ti/pinctrl-ti-iodelay.c
++++ b/drivers/pinctrl/ti/pinctrl-ti-iodelay.c
+@@ -893,6 +893,8 @@ static int ti_iodelay_probe(struct platform_device *pdev)
+ 
+ 	platform_set_drvdata(pdev, iod);
+ 
++	return pinctrl_enable(iod->pctl);
++
+ exit_out:
+ 	of_node_put(np);
+ 	return ret;
+diff --git a/include/linux/pinctrl/pinctrl.h b/include/linux/pinctrl/pinctrl.h
+index 8ce2d87a238b8..5e45385c5bdc7 100644
+--- a/include/linux/pinctrl/pinctrl.h
++++ b/include/linux/pinctrl/pinctrl.h
+@@ -145,8 +145,9 @@ struct pinctrl_desc {
+ extern int pinctrl_register_and_init(struct pinctrl_desc *pctldesc,
+ 				     struct device *dev, void *driver_data,
+ 				     struct pinctrl_dev **pctldev);
++extern int pinctrl_enable(struct pinctrl_dev *pctldev);
+ 
+-/* Please use pinctrl_register_and_init() instead */
++/* Please use pinctrl_register_and_init() and pinctrl_enable() instead */
+ extern struct pinctrl_dev *pinctrl_register(struct pinctrl_desc *pctldesc,
+ 				struct device *dev, void *driver_data);
+ 
+-- 
+cgit 
+

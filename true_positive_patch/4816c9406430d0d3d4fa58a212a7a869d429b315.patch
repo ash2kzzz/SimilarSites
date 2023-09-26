@@ -1,0 +1,59 @@
+From 4816c9406430d0d3d4fa58a212a7a869d429b315 Mon Sep 17 00:00:00 2001
+From: Herbert Xu <herbert@gondor.apana.org.au>
+Date: Thu, 28 Jul 2016 13:29:17 +0800
+Subject: lib/mpi: Fix SG miter leak
+
+In mpi_read_raw_from_sgl we may leak the SG miter resouces after
+reading the leading zeroes.  This patch fixes this by stopping the
+iteration once the leading zeroes have been read.
+
+Fixes: 127827b9c295 ("lib/mpi: Do not do sg_virt")
+Reported-by: Nicolai Stange <nicstange@gmail.com>
+Tested-by: Nicolai Stange <nicstange@gmail.com>
+Signed-off-by: Herbert Xu <herbert@gondor.apana.org.au>
+---
+ lib/mpi/mpicoder.c | 14 +++++++-------
+ 1 file changed, 7 insertions(+), 7 deletions(-)
+
+diff --git a/lib/mpi/mpicoder.c b/lib/mpi/mpicoder.c
+index c6272ae2015e7..5a0f75a3bf01c 100644
+--- a/lib/mpi/mpicoder.c
++++ b/lib/mpi/mpicoder.c
+@@ -363,6 +363,9 @@ MPI mpi_read_raw_from_sgl(struct scatterlist *sgl, unsigned int nbytes)
+ 		lzeros = 0;
+ 	}
+ 
++	miter.consumed = lzeros;
++	sg_miter_stop(&miter);
++
+ 	nbytes -= lzeros;
+ 	nbits = nbytes * 8;
+ 	if (nbits > MAX_EXTERN_MPI_BITS) {
+@@ -390,7 +393,10 @@ MPI mpi_read_raw_from_sgl(struct scatterlist *sgl, unsigned int nbytes)
+ 	z = BYTES_PER_MPI_LIMB - nbytes % BYTES_PER_MPI_LIMB;
+ 	z %= BYTES_PER_MPI_LIMB;
+ 
+-	for (;;) {
++	while (sg_miter_next(&miter)) {
++		buff = miter.addr;
++		len = miter.length;
++
+ 		for (x = 0; x < len; x++) {
+ 			a <<= 8;
+ 			a |= *buff++;
+@@ -400,12 +406,6 @@ MPI mpi_read_raw_from_sgl(struct scatterlist *sgl, unsigned int nbytes)
+ 			}
+ 		}
+ 		z += x;
+-
+-		if (!sg_miter_next(&miter))
+-			break;
+-
+-		buff = miter.addr;
+-		len = miter.length;
+ 	}
+ 
+ 	return val;
+-- 
+cgit 
+

@@ -1,0 +1,42 @@
+From 1be52e97ed3e524f82e25d6e53f48df3c6e85282 Mon Sep 17 00:00:00 2001
+From: Andrew Lunn <andrew@lunn.ch>
+Date: Wed, 8 Aug 2018 20:56:40 +0200
+Subject: dsa: slave: eee: Allow ports to use phylink
+
+For a port to be able to use EEE, both the MAC and the PHY must
+support EEE. A phy can be provided by both a phydev or phylink. Verify
+at least one of these exist, not just phydev.
+
+Fixes: aab9c4067d23 ("net: dsa: Plug in PHYLINK support")
+Signed-off-by: Andrew Lunn <andrew@lunn.ch>
+Reviewed-by: Florian Fainelli <f.fainelli@gmail.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ net/dsa/slave.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/net/dsa/slave.c b/net/dsa/slave.c
+index 732369c80644a..9864bcd3d317f 100644
+--- a/net/dsa/slave.c
++++ b/net/dsa/slave.c
+@@ -639,7 +639,7 @@ static int dsa_slave_set_eee(struct net_device *dev, struct ethtool_eee *e)
+ 	int ret;
+ 
+ 	/* Port's PHY and MAC both need to be EEE capable */
+-	if (!dev->phydev)
++	if (!dev->phydev && !dp->pl)
+ 		return -ENODEV;
+ 
+ 	if (!ds->ops->set_mac_eee)
+@@ -659,7 +659,7 @@ static int dsa_slave_get_eee(struct net_device *dev, struct ethtool_eee *e)
+ 	int ret;
+ 
+ 	/* Port's PHY and MAC both need to be EEE capable */
+-	if (!dev->phydev)
++	if (!dev->phydev && !dp->pl)
+ 		return -ENODEV;
+ 
+ 	if (!ds->ops->get_mac_eee)
+-- 
+cgit 
+

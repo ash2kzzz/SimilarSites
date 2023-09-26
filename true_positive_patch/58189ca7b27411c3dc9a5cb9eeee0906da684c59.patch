@@ -1,0 +1,108 @@
+From 58189ca7b27411c3dc9a5cb9eeee0906da684c59 Mon Sep 17 00:00:00 2001
+From: David Ahern <dsa@cumulusnetworks.com>
+Date: Tue, 15 Sep 2015 15:10:50 -0700
+Subject: net: Fix vti use case with oif in dst lookups
+
+Steffen reported that the recent change to add oif to dst lookups breaks
+the VTI use case. The problem is that with the oif set in the flow struct
+the comparison to the nh_oif is triggered. Fix by splitting the
+FLOWI_FLAG_VRFSRC into 2 flags -- one that triggers the vrf device cache
+bypass (FLOWI_FLAG_VRFSRC) and another telling the lookup to not compare
+nh oif (FLOWI_FLAG_SKIP_NH_OIF).
+
+Fixes: 42a7b32b73d6 ("xfrm: Add oif to dst lookups")
+
+Signed-off-by: David Ahern <dsa@cumulusnetworks.com>
+Acked-by: Steffen Klassert <steffen.klassert@secunet.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ drivers/net/vrf.c       | 3 ++-
+ include/net/flow.h      | 1 +
+ include/net/route.h     | 2 +-
+ net/ipv4/fib_trie.c     | 2 +-
+ net/ipv4/udp.c          | 3 ++-
+ net/ipv4/xfrm4_policy.c | 2 ++
+ 6 files changed, 9 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/net/vrf.c b/drivers/net/vrf.c
+index e7094fbd75685..488c6f50df736 100644
+--- a/drivers/net/vrf.c
++++ b/drivers/net/vrf.c
+@@ -193,7 +193,8 @@ static netdev_tx_t vrf_process_v4_outbound(struct sk_buff *skb,
+ 		.flowi4_oif = vrf_dev->ifindex,
+ 		.flowi4_iif = LOOPBACK_IFINDEX,
+ 		.flowi4_tos = RT_TOS(ip4h->tos),
+-		.flowi4_flags = FLOWI_FLAG_ANYSRC | FLOWI_FLAG_VRFSRC,
++		.flowi4_flags = FLOWI_FLAG_ANYSRC | FLOWI_FLAG_VRFSRC |
++				FLOWI_FLAG_SKIP_NH_OIF,
+ 		.daddr = ip4h->daddr,
+ 	};
+ 
+diff --git a/include/net/flow.h b/include/net/flow.h
+index acd6a096250e6..9b85db85f13cf 100644
+--- a/include/net/flow.h
++++ b/include/net/flow.h
+@@ -35,6 +35,7 @@ struct flowi_common {
+ #define FLOWI_FLAG_ANYSRC		0x01
+ #define FLOWI_FLAG_KNOWN_NH		0x02
+ #define FLOWI_FLAG_VRFSRC		0x04
++#define FLOWI_FLAG_SKIP_NH_OIF		0x08
+ 	__u32	flowic_secid;
+ 	struct flowi_tunnel flowic_tun_key;
+ };
+diff --git a/include/net/route.h b/include/net/route.h
+index cc61cb95f0591..f46af256880cd 100644
+--- a/include/net/route.h
++++ b/include/net/route.h
+@@ -255,7 +255,7 @@ static inline void ip_route_connect_init(struct flowi4 *fl4, __be32 dst, __be32
+ 		flow_flags |= FLOWI_FLAG_ANYSRC;
+ 
+ 	if (netif_index_is_vrf(sock_net(sk), oif))
+-		flow_flags |= FLOWI_FLAG_VRFSRC;
++		flow_flags |= FLOWI_FLAG_VRFSRC | FLOWI_FLAG_SKIP_NH_OIF;
+ 
+ 	flowi4_init_output(fl4, oif, sk->sk_mark, tos, RT_SCOPE_UNIVERSE,
+ 			   protocol, flow_flags, dst, src, dport, sport);
+diff --git a/net/ipv4/fib_trie.c b/net/ipv4/fib_trie.c
+index 26d6ffb6d23cd..6c2af797f2f92 100644
+--- a/net/ipv4/fib_trie.c
++++ b/net/ipv4/fib_trie.c
+@@ -1426,7 +1426,7 @@ found:
+ 			    nh->nh_flags & RTNH_F_LINKDOWN &&
+ 			    !(fib_flags & FIB_LOOKUP_IGNORE_LINKSTATE))
+ 				continue;
+-			if (!(flp->flowi4_flags & FLOWI_FLAG_VRFSRC)) {
++			if (!(flp->flowi4_flags & FLOWI_FLAG_SKIP_NH_OIF)) {
+ 				if (flp->flowi4_oif &&
+ 				    flp->flowi4_oif != nh->nh_oif)
+ 					continue;
+diff --git a/net/ipv4/udp.c b/net/ipv4/udp.c
+index c0a15e7f359fe..f7d1d5e19e955 100644
+--- a/net/ipv4/udp.c
++++ b/net/ipv4/udp.c
+@@ -1024,7 +1024,8 @@ int udp_sendmsg(struct sock *sk, struct msghdr *msg, size_t len)
+ 		if (netif_index_is_vrf(net, ipc.oif)) {
+ 			flowi4_init_output(fl4, ipc.oif, sk->sk_mark, tos,
+ 					   RT_SCOPE_UNIVERSE, sk->sk_protocol,
+-					   (flow_flags | FLOWI_FLAG_VRFSRC),
++					   (flow_flags | FLOWI_FLAG_VRFSRC |
++					    FLOWI_FLAG_SKIP_NH_OIF),
+ 					   faddr, saddr, dport,
+ 					   inet->inet_sport);
+ 
+diff --git a/net/ipv4/xfrm4_policy.c b/net/ipv4/xfrm4_policy.c
+index bb919b28619fb..c10a9ee684337 100644
+--- a/net/ipv4/xfrm4_policy.c
++++ b/net/ipv4/xfrm4_policy.c
+@@ -33,6 +33,8 @@ static struct dst_entry *__xfrm4_dst_lookup(struct net *net, struct flowi4 *fl4,
+ 	if (saddr)
+ 		fl4->saddr = saddr->a4;
+ 
++	fl4->flowi4_flags = FLOWI_FLAG_SKIP_NH_OIF;
++
+ 	rt = __ip_route_output_key(net, fl4);
+ 	if (!IS_ERR(rt))
+ 		return &rt->dst;
+-- 
+cgit 
+

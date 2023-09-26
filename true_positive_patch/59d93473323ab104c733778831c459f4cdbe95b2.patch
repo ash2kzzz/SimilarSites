@@ -1,0 +1,57 @@
+From 59d93473323ab104c733778831c459f4cdbe95b2 Mon Sep 17 00:00:00 2001
+From: Miquel Raynal <miquel.raynal@bootlin.com>
+Date: Fri, 13 Nov 2020 13:34:08 +0100
+Subject: mtd: rawnand: ams-delta: Move the ECC initialization to
+ ->attach_chip()
+
+The probe function is only supposed to initialize the controller
+hardware but not the ECC engine. Indeed, we don't know anything about
+the NAND chip(s) at this stage. Let's move the logic initializing the
+ECC engine, even pretty simple, to the ->attach_chip() hook which gets
+called during nand_scan() routine, after the NAND chip discovery. As
+the previously mentioned logic is supposed to parse the DT for us, it
+is likely that the chip->ecc.* entries be overwritten. So let's avoid
+this by moving these lines to ->attach_chip().
+
+Fixes: d7157ff49a5b ("mtd: rawnand: Use the ECC framework user input parsing bits")
+Signed-off-by: Miquel Raynal <miquel.raynal@bootlin.com>
+Link: https://lore.kernel.org/linux-mtd/20201113123424.32233-4-miquel.raynal@bootlin.com
+---
+ drivers/mtd/nand/raw/ams-delta.c | 12 +++++++++---
+ 1 file changed, 9 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/mtd/nand/raw/ams-delta.c b/drivers/mtd/nand/raw/ams-delta.c
+index d3c5cc513c8f9..0c352b39ad4be 100644
+--- a/drivers/mtd/nand/raw/ams-delta.c
++++ b/drivers/mtd/nand/raw/ams-delta.c
+@@ -215,8 +215,17 @@ static int gpio_nand_setup_interface(struct nand_chip *this, int csline,
+ 	return 0;
+ }
+ 
++static int gpio_nand_attach_chip(struct nand_chip *chip)
++{
++	chip->ecc.engine_type = NAND_ECC_ENGINE_TYPE_SOFT;
++	chip->ecc.algo = NAND_ECC_ALGO_HAMMING;
++
++	return 0;
++}
++
+ static const struct nand_controller_ops gpio_nand_ops = {
+ 	.exec_op = gpio_nand_exec_op,
++	.attach_chip = gpio_nand_attach_chip,
+ 	.setup_interface = gpio_nand_setup_interface,
+ };
+ 
+@@ -260,9 +269,6 @@ static int gpio_nand_probe(struct platform_device *pdev)
+ 		return err;
+ 	}
+ 
+-	this->ecc.engine_type = NAND_ECC_ENGINE_TYPE_SOFT;
+-	this->ecc.algo = NAND_ECC_ALGO_HAMMING;
+-
+ 	platform_set_drvdata(pdev, priv);
+ 
+ 	/* Set chip enabled but write protected */
+-- 
+cgit 
+

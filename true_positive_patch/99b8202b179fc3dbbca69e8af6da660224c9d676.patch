@@ -1,0 +1,62 @@
+From 99b8202b179fc3dbbca69e8af6da660224c9d676 Mon Sep 17 00:00:00 2001
+From: Vladimir Oltean <vladimir.oltean@nxp.com>
+Date: Wed, 3 Feb 2021 01:31:09 +0200
+Subject: net: dsa: fix SWITCHDEV_ATTR_ID_BRIDGE_VLAN_FILTERING getting ignored
+
+The bridge emits VLAN filtering events and quite a few others via
+switchdev with orig_dev = br->dev. After the blamed commit, these events
+started getting ignored.
+
+The point of the patch was to not offload switchdev objects for ports
+that didn't go through dsa_port_bridge_join, because the configuration
+is unsupported:
+- ports that offload a bonding/team interface go through
+  dsa_port_bridge_join when that bonding/team interface is later bridged
+  with another switch port or LAG
+- ports that don't offload LAG don't get notified of the bridge that is
+  on top of that LAG.
+
+Sadly, a check is missing, which is that the orig_dev is equal to the
+bridge device. This check is compatible with the original intention,
+because ports that don't offload bridging because they use a software
+LAG don't have dp->bridge_dev set.
+
+On a semi-related note, we should not offload switchdev objects or
+populate dp->bridge_dev if the driver doesn't implement .port_bridge_join
+either. However there is no regression associated with that, so it can
+be done separately.
+
+Fixes: 5696c8aedfcc ("net: dsa: Don't offload port attributes on standalone ports")
+Signed-off-by: Vladimir Oltean <vladimir.oltean@nxp.com>
+Reviewed-by: Tobias Waldekranz <tobias@waldekranz.com>
+Tested-by: Tobias Waldekranz <tobias@waldekranz.com>
+Link: https://lore.kernel.org/r/20210202233109.1591466-1-olteanv@gmail.com
+Signed-off-by: Jakub Kicinski <kuba@kernel.org>
+---
+ net/dsa/dsa_priv.h | 10 +++++++++-
+ 1 file changed, 9 insertions(+), 1 deletion(-)
+
+diff --git a/net/dsa/dsa_priv.h b/net/dsa/dsa_priv.h
+index edca57b558ad6..263593ce94a81 100644
+--- a/net/dsa/dsa_priv.h
++++ b/net/dsa/dsa_priv.h
+@@ -191,7 +191,15 @@ static inline bool dsa_port_offloads_netdev(struct dsa_port *dp,
+ 	/* Switchdev offloading can be configured on: */
+ 
+ 	if (dev == dp->slave)
+-		/* DSA ports directly connected to a bridge. */
++		/* DSA ports directly connected to a bridge, and event
++		 * was emitted for the ports themselves.
++		 */
++		return true;
++
++	if (dp->bridge_dev == dev)
++		/* DSA ports connected to a bridge, and event was emitted
++		 * for the bridge.
++		 */
+ 		return true;
+ 
+ 	if (dp->lag_dev == dev)
+-- 
+cgit 
+

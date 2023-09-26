@@ -1,0 +1,64 @@
+From b48c05ab5d32af2af4bc63851c153782d1c6ba42 Mon Sep 17 00:00:00 2001
+From: Steffen Klassert <steffen.klassert@secunet.com>
+Date: Mon, 16 Apr 2018 07:50:09 +0200
+Subject: xfrm: Fix warning in xfrm6_tunnel_net_exit.
+
+We need to make sure that all states are really deleted
+before we check that the state lists are empty. Otherwise
+we trigger a warning.
+
+Fixes: baeb0dbbb5659 ("xfrm6_tunnel: exit_net cleanup check added")
+Reported-and-tested-by:syzbot+777bf170a89e7b326405@syzkaller.appspotmail.com
+Signed-off-by: Steffen Klassert <steffen.klassert@secunet.com>
+---
+ include/net/xfrm.h      | 1 +
+ net/ipv6/xfrm6_tunnel.c | 3 +++
+ net/xfrm/xfrm_state.c   | 6 ++++++
+ 3 files changed, 10 insertions(+)
+
+diff --git a/include/net/xfrm.h b/include/net/xfrm.h
+index a872379b69da4e..45e75c36b738bf 100644
+--- a/include/net/xfrm.h
++++ b/include/net/xfrm.h
+@@ -375,6 +375,7 @@ struct xfrm_input_afinfo {
+ int xfrm_input_register_afinfo(const struct xfrm_input_afinfo *afinfo);
+ int xfrm_input_unregister_afinfo(const struct xfrm_input_afinfo *afinfo);
+ 
++void xfrm_flush_gc(void);
+ void xfrm_state_delete_tunnel(struct xfrm_state *x);
+ 
+ struct xfrm_type {
+diff --git a/net/ipv6/xfrm6_tunnel.c b/net/ipv6/xfrm6_tunnel.c
+index f85f0d7480acf4..4a46df8441c9fa 100644
+--- a/net/ipv6/xfrm6_tunnel.c
++++ b/net/ipv6/xfrm6_tunnel.c
+@@ -341,6 +341,9 @@ static void __net_exit xfrm6_tunnel_net_exit(struct net *net)
+ 	struct xfrm6_tunnel_net *xfrm6_tn = xfrm6_tunnel_pernet(net);
+ 	unsigned int i;
+ 
++	xfrm_state_flush(net, IPSEC_PROTO_ANY, false);
++	xfrm_flush_gc();
++
+ 	for (i = 0; i < XFRM6_TUNNEL_SPI_BYADDR_HSIZE; i++)
+ 		WARN_ON_ONCE(!hlist_empty(&xfrm6_tn->spi_byaddr[i]));
+ 
+diff --git a/net/xfrm/xfrm_state.c b/net/xfrm/xfrm_state.c
+index f9d2f2233f0953..6c177ae7a6d92f 100644
+--- a/net/xfrm/xfrm_state.c
++++ b/net/xfrm/xfrm_state.c
+@@ -2175,6 +2175,12 @@ struct xfrm_state_afinfo *xfrm_state_get_afinfo(unsigned int family)
+ 	return afinfo;
+ }
+ 
++void xfrm_flush_gc(void)
++{
++	flush_work(&xfrm_state_gc_work);
++}
++EXPORT_SYMBOL(xfrm_flush_gc);
++
+ /* Temporarily located here until net/xfrm/xfrm_tunnel.c is created */
+ void xfrm_state_delete_tunnel(struct xfrm_state *x)
+ {
+-- 
+cgit 
+

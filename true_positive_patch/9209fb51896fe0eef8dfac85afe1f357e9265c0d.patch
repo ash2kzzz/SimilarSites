@@ -1,0 +1,491 @@
+From 9209fb51896fe0eef8dfac85afe1f357e9265c0d Mon Sep 17 00:00:00 2001
+From: Christoph Hellwig <hch@lst.de>
+Date: Thu, 7 Nov 2019 10:20:39 +0100
+Subject: riscv: move sifive_l2_cache.c to drivers/soc
+
+The sifive_l2_cache.c is in no way related to RISC-V architecture
+memory management.  It is a little stub driver working around the fact
+that the EDAC maintainers prefer their drivers to be structured in a
+certain way that doesn't fit the SiFive SOCs.
+
+Move the file to drivers/soc and add a Kconfig option for it, as well
+as the whole drivers/soc boilerplate for CONFIG_SOC_SIFIVE.
+
+Fixes: a967a289f169 ("RISC-V: sifive_l2_cache: Add L2 cache controller driver for SiFive SoCs")
+Signed-off-by: Christoph Hellwig <hch@lst.de>
+Reviewed-by: Borislav Petkov <bp@suse.de>
+[paul.walmsley@sifive.com: keep the MAINTAINERS change specific to the L2$ controller code]
+Signed-off-by: Paul Walmsley <paul.walmsley@sifive.com>
+---
+ MAINTAINERS                          |   1 +
+ arch/riscv/mm/Makefile               |   1 -
+ arch/riscv/mm/sifive_l2_cache.c      | 178 -----------------------------------
+ drivers/edac/Kconfig                 |   2 +-
+ drivers/soc/Kconfig                  |   1 +
+ drivers/soc/Makefile                 |   1 +
+ drivers/soc/sifive/Kconfig           |  10 ++
+ drivers/soc/sifive/Makefile          |   3 +
+ drivers/soc/sifive/sifive_l2_cache.c | 178 +++++++++++++++++++++++++++++++++++
+ 9 files changed, 195 insertions(+), 180 deletions(-)
+ delete mode 100644 arch/riscv/mm/sifive_l2_cache.c
+ create mode 100644 drivers/soc/sifive/Kconfig
+ create mode 100644 drivers/soc/sifive/Makefile
+ create mode 100644 drivers/soc/sifive/sifive_l2_cache.c
+
+diff --git a/MAINTAINERS b/MAINTAINERS
+index a049abccaa269..4bc8405e632a8 100644
+--- a/MAINTAINERS
++++ b/MAINTAINERS
+@@ -6027,6 +6027,7 @@ M:	Yash Shah <yash.shah@sifive.com>
+ L:	linux-edac@vger.kernel.org
+ S:	Supported
+ F:	drivers/edac/sifive_edac.c
++F:	drivers/soc/sifive_l2_cache.c
+ 
+ EDAC-SKYLAKE
+ M:	Tony Luck <tony.luck@intel.com>
+diff --git a/arch/riscv/mm/Makefile b/arch/riscv/mm/Makefile
+index 3c8b332584579..a1bd95c8047a1 100644
+--- a/arch/riscv/mm/Makefile
++++ b/arch/riscv/mm/Makefile
+@@ -10,7 +10,6 @@ obj-y += extable.o
+ obj-$(CONFIG_MMU) += fault.o
+ obj-y += cacheflush.o
+ obj-y += context.o
+-obj-y += sifive_l2_cache.o
+ 
+ ifeq ($(CONFIG_MMU),y)
+ obj-$(CONFIG_SMP) += tlbflush.o
+diff --git a/arch/riscv/mm/sifive_l2_cache.c b/arch/riscv/mm/sifive_l2_cache.c
+deleted file mode 100644
+index a9ffff3277c77..0000000000000
+--- a/arch/riscv/mm/sifive_l2_cache.c
++++ /dev/null
+@@ -1,178 +0,0 @@
+-// SPDX-License-Identifier: GPL-2.0
+-/*
+- * SiFive L2 cache controller Driver
+- *
+- * Copyright (C) 2018-2019 SiFive, Inc.
+- *
+- */
+-#include <linux/debugfs.h>
+-#include <linux/interrupt.h>
+-#include <linux/of_irq.h>
+-#include <linux/of_address.h>
+-#include <asm/sifive_l2_cache.h>
+-
+-#define SIFIVE_L2_DIRECCFIX_LOW 0x100
+-#define SIFIVE_L2_DIRECCFIX_HIGH 0x104
+-#define SIFIVE_L2_DIRECCFIX_COUNT 0x108
+-
+-#define SIFIVE_L2_DATECCFIX_LOW 0x140
+-#define SIFIVE_L2_DATECCFIX_HIGH 0x144
+-#define SIFIVE_L2_DATECCFIX_COUNT 0x148
+-
+-#define SIFIVE_L2_DATECCFAIL_LOW 0x160
+-#define SIFIVE_L2_DATECCFAIL_HIGH 0x164
+-#define SIFIVE_L2_DATECCFAIL_COUNT 0x168
+-
+-#define SIFIVE_L2_CONFIG 0x00
+-#define SIFIVE_L2_WAYENABLE 0x08
+-#define SIFIVE_L2_ECCINJECTERR 0x40
+-
+-#define SIFIVE_L2_MAX_ECCINTR 3
+-
+-static void __iomem *l2_base;
+-static int g_irq[SIFIVE_L2_MAX_ECCINTR];
+-
+-enum {
+-	DIR_CORR = 0,
+-	DATA_CORR,
+-	DATA_UNCORR,
+-};
+-
+-#ifdef CONFIG_DEBUG_FS
+-static struct dentry *sifive_test;
+-
+-static ssize_t l2_write(struct file *file, const char __user *data,
+-			size_t count, loff_t *ppos)
+-{
+-	unsigned int val;
+-
+-	if (kstrtouint_from_user(data, count, 0, &val))
+-		return -EINVAL;
+-	if ((val >= 0 && val < 0xFF) || (val >= 0x10000 && val < 0x100FF))
+-		writel(val, l2_base + SIFIVE_L2_ECCINJECTERR);
+-	else
+-		return -EINVAL;
+-	return count;
+-}
+-
+-static const struct file_operations l2_fops = {
+-	.owner = THIS_MODULE,
+-	.open = simple_open,
+-	.write = l2_write
+-};
+-
+-static void setup_sifive_debug(void)
+-{
+-	sifive_test = debugfs_create_dir("sifive_l2_cache", NULL);
+-
+-	debugfs_create_file("sifive_debug_inject_error", 0200,
+-			    sifive_test, NULL, &l2_fops);
+-}
+-#endif
+-
+-static void l2_config_read(void)
+-{
+-	u32 regval, val;
+-
+-	regval = readl(l2_base + SIFIVE_L2_CONFIG);
+-	val = regval & 0xFF;
+-	pr_info("L2CACHE: No. of Banks in the cache: %d\n", val);
+-	val = (regval & 0xFF00) >> 8;
+-	pr_info("L2CACHE: No. of ways per bank: %d\n", val);
+-	val = (regval & 0xFF0000) >> 16;
+-	pr_info("L2CACHE: Sets per bank: %llu\n", (uint64_t)1 << val);
+-	val = (regval & 0xFF000000) >> 24;
+-	pr_info("L2CACHE: Bytes per cache block: %llu\n", (uint64_t)1 << val);
+-
+-	regval = readl(l2_base + SIFIVE_L2_WAYENABLE);
+-	pr_info("L2CACHE: Index of the largest way enabled: %d\n", regval);
+-}
+-
+-static const struct of_device_id sifive_l2_ids[] = {
+-	{ .compatible = "sifive,fu540-c000-ccache" },
+-	{ /* end of table */ },
+-};
+-
+-static ATOMIC_NOTIFIER_HEAD(l2_err_chain);
+-
+-int register_sifive_l2_error_notifier(struct notifier_block *nb)
+-{
+-	return atomic_notifier_chain_register(&l2_err_chain, nb);
+-}
+-EXPORT_SYMBOL_GPL(register_sifive_l2_error_notifier);
+-
+-int unregister_sifive_l2_error_notifier(struct notifier_block *nb)
+-{
+-	return atomic_notifier_chain_unregister(&l2_err_chain, nb);
+-}
+-EXPORT_SYMBOL_GPL(unregister_sifive_l2_error_notifier);
+-
+-static irqreturn_t l2_int_handler(int irq, void *device)
+-{
+-	unsigned int add_h, add_l;
+-
+-	if (irq == g_irq[DIR_CORR]) {
+-		add_h = readl(l2_base + SIFIVE_L2_DIRECCFIX_HIGH);
+-		add_l = readl(l2_base + SIFIVE_L2_DIRECCFIX_LOW);
+-		pr_err("L2CACHE: DirError @ 0x%08X.%08X\n", add_h, add_l);
+-		/* Reading this register clears the DirError interrupt sig */
+-		readl(l2_base + SIFIVE_L2_DIRECCFIX_COUNT);
+-		atomic_notifier_call_chain(&l2_err_chain, SIFIVE_L2_ERR_TYPE_CE,
+-					   "DirECCFix");
+-	}
+-	if (irq == g_irq[DATA_CORR]) {
+-		add_h = readl(l2_base + SIFIVE_L2_DATECCFIX_HIGH);
+-		add_l = readl(l2_base + SIFIVE_L2_DATECCFIX_LOW);
+-		pr_err("L2CACHE: DataError @ 0x%08X.%08X\n", add_h, add_l);
+-		/* Reading this register clears the DataError interrupt sig */
+-		readl(l2_base + SIFIVE_L2_DATECCFIX_COUNT);
+-		atomic_notifier_call_chain(&l2_err_chain, SIFIVE_L2_ERR_TYPE_CE,
+-					   "DatECCFix");
+-	}
+-	if (irq == g_irq[DATA_UNCORR]) {
+-		add_h = readl(l2_base + SIFIVE_L2_DATECCFAIL_HIGH);
+-		add_l = readl(l2_base + SIFIVE_L2_DATECCFAIL_LOW);
+-		pr_err("L2CACHE: DataFail @ 0x%08X.%08X\n", add_h, add_l);
+-		/* Reading this register clears the DataFail interrupt sig */
+-		readl(l2_base + SIFIVE_L2_DATECCFAIL_COUNT);
+-		atomic_notifier_call_chain(&l2_err_chain, SIFIVE_L2_ERR_TYPE_UE,
+-					   "DatECCFail");
+-	}
+-
+-	return IRQ_HANDLED;
+-}
+-
+-static int __init sifive_l2_init(void)
+-{
+-	struct device_node *np;
+-	struct resource res;
+-	int i, rc;
+-
+-	np = of_find_matching_node(NULL, sifive_l2_ids);
+-	if (!np)
+-		return -ENODEV;
+-
+-	if (of_address_to_resource(np, 0, &res))
+-		return -ENODEV;
+-
+-	l2_base = ioremap(res.start, resource_size(&res));
+-	if (!l2_base)
+-		return -ENOMEM;
+-
+-	for (i = 0; i < SIFIVE_L2_MAX_ECCINTR; i++) {
+-		g_irq[i] = irq_of_parse_and_map(np, i);
+-		rc = request_irq(g_irq[i], l2_int_handler, 0, "l2_ecc", NULL);
+-		if (rc) {
+-			pr_err("L2CACHE: Could not request IRQ %d\n", g_irq[i]);
+-			return rc;
+-		}
+-	}
+-
+-	l2_config_read();
+-
+-#ifdef CONFIG_DEBUG_FS
+-	setup_sifive_debug();
+-#endif
+-	return 0;
+-}
+-device_initcall(sifive_l2_init);
+diff --git a/drivers/edac/Kconfig b/drivers/edac/Kconfig
+index 417dad6355268..5c8272329a65d 100644
+--- a/drivers/edac/Kconfig
++++ b/drivers/edac/Kconfig
+@@ -462,7 +462,7 @@ config EDAC_ALTERA_SDMMC
+ 
+ config EDAC_SIFIVE
+ 	bool "Sifive platform EDAC driver"
+-	depends on EDAC=y && RISCV
++	depends on EDAC=y && SIFIVE_L2
+ 	help
+ 	  Support for error detection and correction on the SiFive SoCs.
+ 
+diff --git a/drivers/soc/Kconfig b/drivers/soc/Kconfig
+index 833e04a7835c5..1778f8c62861b 100644
+--- a/drivers/soc/Kconfig
++++ b/drivers/soc/Kconfig
+@@ -14,6 +14,7 @@ source "drivers/soc/qcom/Kconfig"
+ source "drivers/soc/renesas/Kconfig"
+ source "drivers/soc/rockchip/Kconfig"
+ source "drivers/soc/samsung/Kconfig"
++source "drivers/soc/sifive/Kconfig"
+ source "drivers/soc/sunxi/Kconfig"
+ source "drivers/soc/tegra/Kconfig"
+ source "drivers/soc/ti/Kconfig"
+diff --git a/drivers/soc/Makefile b/drivers/soc/Makefile
+index 2ec3550035243..8b49d782a1ab7 100644
+--- a/drivers/soc/Makefile
++++ b/drivers/soc/Makefile
+@@ -20,6 +20,7 @@ obj-y				+= qcom/
+ obj-y				+= renesas/
+ obj-$(CONFIG_ARCH_ROCKCHIP)	+= rockchip/
+ obj-$(CONFIG_SOC_SAMSUNG)	+= samsung/
++obj-$(CONFIG_SOC_SIFIVE)	+= sifive/
+ obj-y				+= sunxi/
+ obj-$(CONFIG_ARCH_TEGRA)	+= tegra/
+ obj-y				+= ti/
+diff --git a/drivers/soc/sifive/Kconfig b/drivers/soc/sifive/Kconfig
+new file mode 100644
+index 0000000000000..58cf8c40d08d5
+--- /dev/null
++++ b/drivers/soc/sifive/Kconfig
+@@ -0,0 +1,10 @@
++# SPDX-License-Identifier: GPL-2.0
++
++if SOC_SIFIVE
++
++config SIFIVE_L2
++	bool "Sifive L2 Cache controller"
++	help
++	  Support for the L2 cache controller on SiFive platforms.
++
++endif
+diff --git a/drivers/soc/sifive/Makefile b/drivers/soc/sifive/Makefile
+new file mode 100644
+index 0000000000000..b5caff77938f6
+--- /dev/null
++++ b/drivers/soc/sifive/Makefile
+@@ -0,0 +1,3 @@
++# SPDX-License-Identifier: GPL-2.0
++
++obj-$(CONFIG_SIFIVE_L2)	+= sifive_l2_cache.o
+diff --git a/drivers/soc/sifive/sifive_l2_cache.c b/drivers/soc/sifive/sifive_l2_cache.c
+new file mode 100644
+index 0000000000000..a9ffff3277c77
+--- /dev/null
++++ b/drivers/soc/sifive/sifive_l2_cache.c
+@@ -0,0 +1,178 @@
++// SPDX-License-Identifier: GPL-2.0
++/*
++ * SiFive L2 cache controller Driver
++ *
++ * Copyright (C) 2018-2019 SiFive, Inc.
++ *
++ */
++#include <linux/debugfs.h>
++#include <linux/interrupt.h>
++#include <linux/of_irq.h>
++#include <linux/of_address.h>
++#include <asm/sifive_l2_cache.h>
++
++#define SIFIVE_L2_DIRECCFIX_LOW 0x100
++#define SIFIVE_L2_DIRECCFIX_HIGH 0x104
++#define SIFIVE_L2_DIRECCFIX_COUNT 0x108
++
++#define SIFIVE_L2_DATECCFIX_LOW 0x140
++#define SIFIVE_L2_DATECCFIX_HIGH 0x144
++#define SIFIVE_L2_DATECCFIX_COUNT 0x148
++
++#define SIFIVE_L2_DATECCFAIL_LOW 0x160
++#define SIFIVE_L2_DATECCFAIL_HIGH 0x164
++#define SIFIVE_L2_DATECCFAIL_COUNT 0x168
++
++#define SIFIVE_L2_CONFIG 0x00
++#define SIFIVE_L2_WAYENABLE 0x08
++#define SIFIVE_L2_ECCINJECTERR 0x40
++
++#define SIFIVE_L2_MAX_ECCINTR 3
++
++static void __iomem *l2_base;
++static int g_irq[SIFIVE_L2_MAX_ECCINTR];
++
++enum {
++	DIR_CORR = 0,
++	DATA_CORR,
++	DATA_UNCORR,
++};
++
++#ifdef CONFIG_DEBUG_FS
++static struct dentry *sifive_test;
++
++static ssize_t l2_write(struct file *file, const char __user *data,
++			size_t count, loff_t *ppos)
++{
++	unsigned int val;
++
++	if (kstrtouint_from_user(data, count, 0, &val))
++		return -EINVAL;
++	if ((val >= 0 && val < 0xFF) || (val >= 0x10000 && val < 0x100FF))
++		writel(val, l2_base + SIFIVE_L2_ECCINJECTERR);
++	else
++		return -EINVAL;
++	return count;
++}
++
++static const struct file_operations l2_fops = {
++	.owner = THIS_MODULE,
++	.open = simple_open,
++	.write = l2_write
++};
++
++static void setup_sifive_debug(void)
++{
++	sifive_test = debugfs_create_dir("sifive_l2_cache", NULL);
++
++	debugfs_create_file("sifive_debug_inject_error", 0200,
++			    sifive_test, NULL, &l2_fops);
++}
++#endif
++
++static void l2_config_read(void)
++{
++	u32 regval, val;
++
++	regval = readl(l2_base + SIFIVE_L2_CONFIG);
++	val = regval & 0xFF;
++	pr_info("L2CACHE: No. of Banks in the cache: %d\n", val);
++	val = (regval & 0xFF00) >> 8;
++	pr_info("L2CACHE: No. of ways per bank: %d\n", val);
++	val = (regval & 0xFF0000) >> 16;
++	pr_info("L2CACHE: Sets per bank: %llu\n", (uint64_t)1 << val);
++	val = (regval & 0xFF000000) >> 24;
++	pr_info("L2CACHE: Bytes per cache block: %llu\n", (uint64_t)1 << val);
++
++	regval = readl(l2_base + SIFIVE_L2_WAYENABLE);
++	pr_info("L2CACHE: Index of the largest way enabled: %d\n", regval);
++}
++
++static const struct of_device_id sifive_l2_ids[] = {
++	{ .compatible = "sifive,fu540-c000-ccache" },
++	{ /* end of table */ },
++};
++
++static ATOMIC_NOTIFIER_HEAD(l2_err_chain);
++
++int register_sifive_l2_error_notifier(struct notifier_block *nb)
++{
++	return atomic_notifier_chain_register(&l2_err_chain, nb);
++}
++EXPORT_SYMBOL_GPL(register_sifive_l2_error_notifier);
++
++int unregister_sifive_l2_error_notifier(struct notifier_block *nb)
++{
++	return atomic_notifier_chain_unregister(&l2_err_chain, nb);
++}
++EXPORT_SYMBOL_GPL(unregister_sifive_l2_error_notifier);
++
++static irqreturn_t l2_int_handler(int irq, void *device)
++{
++	unsigned int add_h, add_l;
++
++	if (irq == g_irq[DIR_CORR]) {
++		add_h = readl(l2_base + SIFIVE_L2_DIRECCFIX_HIGH);
++		add_l = readl(l2_base + SIFIVE_L2_DIRECCFIX_LOW);
++		pr_err("L2CACHE: DirError @ 0x%08X.%08X\n", add_h, add_l);
++		/* Reading this register clears the DirError interrupt sig */
++		readl(l2_base + SIFIVE_L2_DIRECCFIX_COUNT);
++		atomic_notifier_call_chain(&l2_err_chain, SIFIVE_L2_ERR_TYPE_CE,
++					   "DirECCFix");
++	}
++	if (irq == g_irq[DATA_CORR]) {
++		add_h = readl(l2_base + SIFIVE_L2_DATECCFIX_HIGH);
++		add_l = readl(l2_base + SIFIVE_L2_DATECCFIX_LOW);
++		pr_err("L2CACHE: DataError @ 0x%08X.%08X\n", add_h, add_l);
++		/* Reading this register clears the DataError interrupt sig */
++		readl(l2_base + SIFIVE_L2_DATECCFIX_COUNT);
++		atomic_notifier_call_chain(&l2_err_chain, SIFIVE_L2_ERR_TYPE_CE,
++					   "DatECCFix");
++	}
++	if (irq == g_irq[DATA_UNCORR]) {
++		add_h = readl(l2_base + SIFIVE_L2_DATECCFAIL_HIGH);
++		add_l = readl(l2_base + SIFIVE_L2_DATECCFAIL_LOW);
++		pr_err("L2CACHE: DataFail @ 0x%08X.%08X\n", add_h, add_l);
++		/* Reading this register clears the DataFail interrupt sig */
++		readl(l2_base + SIFIVE_L2_DATECCFAIL_COUNT);
++		atomic_notifier_call_chain(&l2_err_chain, SIFIVE_L2_ERR_TYPE_UE,
++					   "DatECCFail");
++	}
++
++	return IRQ_HANDLED;
++}
++
++static int __init sifive_l2_init(void)
++{
++	struct device_node *np;
++	struct resource res;
++	int i, rc;
++
++	np = of_find_matching_node(NULL, sifive_l2_ids);
++	if (!np)
++		return -ENODEV;
++
++	if (of_address_to_resource(np, 0, &res))
++		return -ENODEV;
++
++	l2_base = ioremap(res.start, resource_size(&res));
++	if (!l2_base)
++		return -ENOMEM;
++
++	for (i = 0; i < SIFIVE_L2_MAX_ECCINTR; i++) {
++		g_irq[i] = irq_of_parse_and_map(np, i);
++		rc = request_irq(g_irq[i], l2_int_handler, 0, "l2_ecc", NULL);
++		if (rc) {
++			pr_err("L2CACHE: Could not request IRQ %d\n", g_irq[i]);
++			return rc;
++		}
++	}
++
++	l2_config_read();
++
++#ifdef CONFIG_DEBUG_FS
++	setup_sifive_debug();
++#endif
++	return 0;
++}
++device_initcall(sifive_l2_init);
+-- 
+cgit 
+

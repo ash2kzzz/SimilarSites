@@ -1,0 +1,138 @@
+From bee07b33db78d4ee7ed6a2fe810b9473d5471fe4 Mon Sep 17 00:00:00 2001
+From: Roman Gushchin <guro@fb.com>
+Date: Fri, 30 Aug 2019 16:04:32 -0700
+Subject: mm: memcontrol: flush percpu slab vmstats on kmem offlining
+
+I've noticed that the "slab" value in memory.stat is sometimes 0, even
+if some children memory cgroups have a non-zero "slab" value.  The
+following investigation showed that this is the result of the kmem_cache
+reparenting in combination with the per-cpu batching of slab vmstats.
+
+At the offlining some vmstat value may leave in the percpu cache, not
+being propagated upwards by the cgroup hierarchy.  It means that stats
+on ancestor levels are lower than actual.  Later when slab pages are
+released, the precise number of pages is substracted on the parent
+level, making the value negative.  We don't show negative values, 0 is
+printed instead.
+
+To fix this issue, let's flush percpu slab memcg and lruvec stats on
+memcg offlining.  This guarantees that numbers on all ancestor levels
+are accurate and match the actual number of outstanding slab pages.
+
+Link: http://lkml.kernel.org/r/20190819202338.363363-3-guro@fb.com
+Fixes: fb2f2b0adb98 ("mm: memcg/slab: reparent memcg kmem_caches on cgroup removal")
+Signed-off-by: Roman Gushchin <guro@fb.com>
+Cc: Johannes Weiner <hannes@cmpxchg.org>
+Cc: Michal Hocko <mhocko@kernel.org>
+Cc: Vladimir Davydov <vdavydov.dev@gmail.com>
+Signed-off-by: Andrew Morton <akpm@linux-foundation.org>
+Signed-off-by: Linus Torvalds <torvalds@linux-foundation.org>
+---
+ include/linux/mmzone.h |  5 +++--
+ mm/memcontrol.c        | 35 +++++++++++++++++++++++++++--------
+ 2 files changed, 30 insertions(+), 10 deletions(-)
+
+diff --git a/include/linux/mmzone.h b/include/linux/mmzone.h
+index d77d717c620cb..3f38c30d2f13d 100644
+--- a/include/linux/mmzone.h
++++ b/include/linux/mmzone.h
+@@ -215,8 +215,9 @@ enum node_stat_item {
+ 	NR_INACTIVE_FILE,	/*  "     "     "   "       "         */
+ 	NR_ACTIVE_FILE,		/*  "     "     "   "       "         */
+ 	NR_UNEVICTABLE,		/*  "     "     "   "       "         */
+-	NR_SLAB_RECLAIMABLE,
+-	NR_SLAB_UNRECLAIMABLE,
++	NR_SLAB_RECLAIMABLE,	/* Please do not reorder this item */
++	NR_SLAB_UNRECLAIMABLE,	/* and this one without looking at
++				 * memcg_flush_percpu_vmstats() first. */
+ 	NR_ISOLATED_ANON,	/* Temporary isolated pages from anon lru */
+ 	NR_ISOLATED_FILE,	/* Temporary isolated pages from file lru */
+ 	WORKINGSET_NODES,
+diff --git a/mm/memcontrol.c b/mm/memcontrol.c
+index 26e2999af608d..1f585d6c77c13 100644
+--- a/mm/memcontrol.c
++++ b/mm/memcontrol.c
+@@ -3260,37 +3260,49 @@ static u64 mem_cgroup_read_u64(struct cgroup_subsys_state *css,
+ 	}
+ }
+ 
+-static void memcg_flush_percpu_vmstats(struct mem_cgroup *memcg)
++static void memcg_flush_percpu_vmstats(struct mem_cgroup *memcg, bool slab_only)
+ {
+ 	unsigned long stat[MEMCG_NR_STAT];
+ 	struct mem_cgroup *mi;
+ 	int node, cpu, i;
++	int min_idx, max_idx;
+ 
+-	for (i = 0; i < MEMCG_NR_STAT; i++)
++	if (slab_only) {
++		min_idx = NR_SLAB_RECLAIMABLE;
++		max_idx = NR_SLAB_UNRECLAIMABLE;
++	} else {
++		min_idx = 0;
++		max_idx = MEMCG_NR_STAT;
++	}
++
++	for (i = min_idx; i < max_idx; i++)
+ 		stat[i] = 0;
+ 
+ 	for_each_online_cpu(cpu)
+-		for (i = 0; i < MEMCG_NR_STAT; i++)
++		for (i = min_idx; i < max_idx; i++)
+ 			stat[i] += raw_cpu_read(memcg->vmstats_percpu->stat[i]);
+ 
+ 	for (mi = memcg; mi; mi = parent_mem_cgroup(mi))
+-		for (i = 0; i < MEMCG_NR_STAT; i++)
++		for (i = min_idx; i < max_idx; i++)
+ 			atomic_long_add(stat[i], &mi->vmstats[i]);
+ 
++	if (!slab_only)
++		max_idx = NR_VM_NODE_STAT_ITEMS;
++
+ 	for_each_node(node) {
+ 		struct mem_cgroup_per_node *pn = memcg->nodeinfo[node];
+ 		struct mem_cgroup_per_node *pi;
+ 
+-		for (i = 0; i < NR_VM_NODE_STAT_ITEMS; i++)
++		for (i = min_idx; i < max_idx; i++)
+ 			stat[i] = 0;
+ 
+ 		for_each_online_cpu(cpu)
+-			for (i = 0; i < NR_VM_NODE_STAT_ITEMS; i++)
++			for (i = min_idx; i < max_idx; i++)
+ 				stat[i] += raw_cpu_read(
+ 					pn->lruvec_stat_cpu->count[i]);
+ 
+ 		for (pi = pn; pi; pi = parent_nodeinfo(pi, node))
+-			for (i = 0; i < NR_VM_NODE_STAT_ITEMS; i++)
++			for (i = min_idx; i < max_idx; i++)
+ 				atomic_long_add(stat[i], &pi->lruvec_stat[i]);
+ 	}
+ }
+@@ -3363,7 +3375,14 @@ static void memcg_offline_kmem(struct mem_cgroup *memcg)
+ 	if (!parent)
+ 		parent = root_mem_cgroup;
+ 
++	/*
++	 * Deactivate and reparent kmem_caches. Then flush percpu
++	 * slab statistics to have precise values at the parent and
++	 * all ancestor levels. It's required to keep slab stats
++	 * accurate after the reparenting of kmem_caches.
++	 */
+ 	memcg_deactivate_kmem_caches(memcg, parent);
++	memcg_flush_percpu_vmstats(memcg, true);
+ 
+ 	kmemcg_id = memcg->kmemcg_id;
+ 	BUG_ON(kmemcg_id < 0);
+@@ -4740,7 +4759,7 @@ static void __mem_cgroup_free(struct mem_cgroup *memcg)
+ 	 * Flush percpu vmstats and vmevents to guarantee the value correctness
+ 	 * on parent's and all ancestor levels.
+ 	 */
+-	memcg_flush_percpu_vmstats(memcg);
++	memcg_flush_percpu_vmstats(memcg, false);
+ 	memcg_flush_percpu_vmevents(memcg);
+ 	for_each_node(node)
+ 		free_mem_cgroup_per_node_info(memcg, node);
+-- 
+cgit 
+

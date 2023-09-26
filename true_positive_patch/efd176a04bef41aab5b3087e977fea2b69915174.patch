@@ -1,0 +1,93 @@
+From efd176a04bef41aab5b3087e977fea2b69915174 Mon Sep 17 00:00:00 2001
+From: Alexey Kardashevskiy <aik@ozlabs.ru>
+Date: Tue, 7 May 2019 16:25:58 +1000
+Subject: powerpc/pseries/dma: Allow SWIOTLB
+
+The commit 8617a5c5bc00 ("powerpc/dma: handle iommu bypass in
+dma_iommu_ops") merged direct DMA ops into the IOMMU DMA ops allowing
+SWIOTLB as well but only for mapping; the unmapping and bouncing parts
+were left unmodified.
+
+This adds missing direct unmapping calls to .unmap_page() and
+.unmap_sg().
+
+This adds missing sync callbacks and directs them to the direct DMA
+hooks.
+
+Fixes: 8617a5c5bc00 ("powerpc/dma: handle iommu bypass in dma_iommu_ops")
+Signed-off-by: Alexey Kardashevskiy <aik@ozlabs.ru>
+Signed-off-by: Thiago Jung Bauermann <bauerman@linux.ibm.com>
+Signed-off-by: Michael Ellerman <mpe@ellerman.id.au>
+---
+ arch/powerpc/kernel/dma-iommu.c | 36 ++++++++++++++++++++++++++++++++++++
+ 1 file changed, 36 insertions(+)
+
+diff --git a/arch/powerpc/kernel/dma-iommu.c b/arch/powerpc/kernel/dma-iommu.c
+index 168af3a5b4b16..a0879674a9c87 100644
+--- a/arch/powerpc/kernel/dma-iommu.c
++++ b/arch/powerpc/kernel/dma-iommu.c
+@@ -82,6 +82,8 @@ static void dma_iommu_unmap_page(struct device *dev, dma_addr_t dma_handle,
+ 	if (!dma_iommu_map_bypass(dev, attrs))
+ 		iommu_unmap_page(get_iommu_table_base(dev), dma_handle, size,
+ 				direction,  attrs);
++	else
++		dma_direct_unmap_page(dev, dma_handle, size, direction, attrs);
+ }
+ 
+ 
+@@ -102,6 +104,8 @@ static void dma_iommu_unmap_sg(struct device *dev, struct scatterlist *sglist,
+ 	if (!dma_iommu_map_bypass(dev, attrs))
+ 		ppc_iommu_unmap_sg(get_iommu_table_base(dev), sglist, nelems,
+ 			   direction, attrs);
++	else
++		dma_direct_unmap_sg(dev, sglist, nelems, direction, attrs);
+ }
+ 
+ static bool dma_iommu_bypass_supported(struct device *dev, u64 mask)
+@@ -163,6 +167,34 @@ u64 dma_iommu_get_required_mask(struct device *dev)
+ 	return mask;
+ }
+ 
++static void dma_iommu_sync_for_cpu(struct device *dev, dma_addr_t addr,
++		size_t size, enum dma_data_direction dir)
++{
++	if (dma_iommu_alloc_bypass(dev))
++		dma_direct_sync_single_for_cpu(dev, addr, size, dir);
++}
++
++static void dma_iommu_sync_for_device(struct device *dev, dma_addr_t addr,
++		size_t sz, enum dma_data_direction dir)
++{
++	if (dma_iommu_alloc_bypass(dev))
++		dma_direct_sync_single_for_device(dev, addr, sz, dir);
++}
++
++extern void dma_iommu_sync_sg_for_cpu(struct device *dev,
++		struct scatterlist *sgl, int nents, enum dma_data_direction dir)
++{
++	if (dma_iommu_alloc_bypass(dev))
++		dma_direct_sync_sg_for_cpu(dev, sgl, nents, dir);
++}
++
++extern void dma_iommu_sync_sg_for_device(struct device *dev,
++		struct scatterlist *sgl, int nents, enum dma_data_direction dir)
++{
++	if (dma_iommu_alloc_bypass(dev))
++		dma_direct_sync_sg_for_device(dev, sgl, nents, dir);
++}
++
+ const struct dma_map_ops dma_iommu_ops = {
+ 	.alloc			= dma_iommu_alloc_coherent,
+ 	.free			= dma_iommu_free_coherent,
+@@ -172,4 +204,8 @@ const struct dma_map_ops dma_iommu_ops = {
+ 	.map_page		= dma_iommu_map_page,
+ 	.unmap_page		= dma_iommu_unmap_page,
+ 	.get_required_mask	= dma_iommu_get_required_mask,
++	.sync_single_for_cpu	= dma_iommu_sync_for_cpu,
++	.sync_single_for_device	= dma_iommu_sync_for_device,
++	.sync_sg_for_cpu	= dma_iommu_sync_sg_for_cpu,
++	.sync_sg_for_device	= dma_iommu_sync_sg_for_device,
+ };
+-- 
+cgit 
+

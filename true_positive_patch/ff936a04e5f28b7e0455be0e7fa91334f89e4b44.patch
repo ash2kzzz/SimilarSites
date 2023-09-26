@@ -1,0 +1,228 @@
+From ff936a04e5f28b7e0455be0e7fa91334f89e4b44 Mon Sep 17 00:00:00 2001
+From: Alexei Starovoitov <ast@plumgrid.com>
+Date: Wed, 7 Oct 2015 10:55:41 -0700
+Subject: bpf: fix cb access in socket filter programs
+
+eBPF socket filter programs may see junk in 'u32 cb[5]' area,
+since it could have been used by protocol layers earlier.
+
+For socket filter programs used in af_packet we need to clean
+20 bytes of skb->cb area if it could be used by the program.
+For programs attached to TCP/UDP sockets we need to save/restore
+these 20 bytes, since it's used by protocol layers.
+
+Remove SK_RUN_FILTER macro, since it's no longer used.
+
+Long term we may move this bpf cb area to per-cpu scratch, but that
+requires addition of new 'per-cpu load/store' instructions,
+so not suitable as a short term fix.
+
+Fixes: d691f9e8d440 ("bpf: allow programs to write to certain skb fields")
+Reported-by: Eric Dumazet <edumazet@google.com>
+Signed-off-by: Alexei Starovoitov <ast@plumgrid.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ include/linux/bpf.h    |  6 +++---
+ include/linux/filter.h | 39 +++++++++++++++++++++++++++++++++++----
+ kernel/bpf/verifier.c  |  2 +-
+ net/core/filter.c      | 12 +++++++-----
+ net/packet/af_packet.c | 10 +++++-----
+ 5 files changed, 51 insertions(+), 18 deletions(-)
+
+diff --git a/include/linux/bpf.h b/include/linux/bpf.h
+index 3697ad5638996..b4fdee6cb6861 100644
+--- a/include/linux/bpf.h
++++ b/include/linux/bpf.h
+@@ -100,6 +100,8 @@ enum bpf_access_type {
+ 	BPF_WRITE = 2
+ };
+ 
++struct bpf_prog;
++
+ struct bpf_verifier_ops {
+ 	/* return eBPF function prototype for verification */
+ 	const struct bpf_func_proto *(*get_func_proto)(enum bpf_func_id func_id);
+@@ -111,7 +113,7 @@ struct bpf_verifier_ops {
+ 
+ 	u32 (*convert_ctx_access)(enum bpf_access_type type, int dst_reg,
+ 				  int src_reg, int ctx_off,
+-				  struct bpf_insn *insn);
++				  struct bpf_insn *insn, struct bpf_prog *prog);
+ };
+ 
+ struct bpf_prog_type_list {
+@@ -120,8 +122,6 @@ struct bpf_prog_type_list {
+ 	enum bpf_prog_type type;
+ };
+ 
+-struct bpf_prog;
+-
+ struct bpf_prog_aux {
+ 	atomic_t refcnt;
+ 	u32 used_map_cnt;
+diff --git a/include/linux/filter.h b/include/linux/filter.h
+index 1bbce14bcf179..4165e9ac9e36a 100644
+--- a/include/linux/filter.h
++++ b/include/linux/filter.h
+@@ -13,6 +13,7 @@
+ #include <linux/printk.h>
+ #include <linux/workqueue.h>
+ #include <linux/sched.h>
++#include <net/sch_generic.h>
+ 
+ #include <asm/cacheflush.h>
+ 
+@@ -302,10 +303,6 @@ struct bpf_prog_aux;
+ 	bpf_size;						\
+ })
+ 
+-/* Macro to invoke filter function. */
+-#define SK_RUN_FILTER(filter, ctx) \
+-	(*filter->prog->bpf_func)(ctx, filter->prog->insnsi)
+-
+ #ifdef CONFIG_COMPAT
+ /* A struct sock_filter is architecture independent. */
+ struct compat_sock_fprog {
+@@ -329,6 +326,7 @@ struct bpf_prog {
+ 	kmemcheck_bitfield_begin(meta);
+ 	u16			jited:1,	/* Is our filter JIT'ed? */
+ 				gpl_compatible:1, /* Is filter GPL compatible? */
++				cb_access:1,	/* Is control block accessed? */
+ 				dst_needed:1;	/* Do we need dst entry? */
+ 	kmemcheck_bitfield_end(meta);
+ 	u32			len;		/* Number of filter blocks */
+@@ -352,6 +350,39 @@ struct sk_filter {
+ 
+ #define BPF_PROG_RUN(filter, ctx)  (*filter->bpf_func)(ctx, filter->insnsi)
+ 
++static inline u32 bpf_prog_run_save_cb(const struct bpf_prog *prog,
++				       struct sk_buff *skb)
++{
++	u8 *cb_data = qdisc_skb_cb(skb)->data;
++	u8 saved_cb[QDISC_CB_PRIV_LEN];
++	u32 res;
++
++	BUILD_BUG_ON(FIELD_SIZEOF(struct __sk_buff, cb) !=
++		     QDISC_CB_PRIV_LEN);
++
++	if (unlikely(prog->cb_access)) {
++		memcpy(saved_cb, cb_data, sizeof(saved_cb));
++		memset(cb_data, 0, sizeof(saved_cb));
++	}
++
++	res = BPF_PROG_RUN(prog, skb);
++
++	if (unlikely(prog->cb_access))
++		memcpy(cb_data, saved_cb, sizeof(saved_cb));
++
++	return res;
++}
++
++static inline u32 bpf_prog_run_clear_cb(const struct bpf_prog *prog,
++					struct sk_buff *skb)
++{
++	u8 *cb_data = qdisc_skb_cb(skb)->data;
++
++	if (unlikely(prog->cb_access))
++		memset(cb_data, 0, QDISC_CB_PRIV_LEN);
++	return BPF_PROG_RUN(prog, skb);
++}
++
+ static inline unsigned int bpf_prog_size(unsigned int proglen)
+ {
+ 	return max(sizeof(struct bpf_prog),
+diff --git a/kernel/bpf/verifier.c b/kernel/bpf/verifier.c
+index b074b23000d6e..f8da034c22582 100644
+--- a/kernel/bpf/verifier.c
++++ b/kernel/bpf/verifier.c
+@@ -2024,7 +2024,7 @@ static int convert_ctx_accesses(struct verifier_env *env)
+ 
+ 		cnt = env->prog->aux->ops->
+ 			convert_ctx_access(type, insn->dst_reg, insn->src_reg,
+-					   insn->off, insn_buf);
++					   insn->off, insn_buf, env->prog);
+ 		if (cnt == 0 || cnt >= ARRAY_SIZE(insn_buf)) {
+ 			verbose("bpf verifier is misconfigured\n");
+ 			return -EINVAL;
+diff --git a/net/core/filter.c b/net/core/filter.c
+index 342e6c8fc415b..5f4cf1cffed36 100644
+--- a/net/core/filter.c
++++ b/net/core/filter.c
+@@ -56,10 +56,10 @@
+  *	@sk: sock associated with &sk_buff
+  *	@skb: buffer to filter
+  *
+- * Run the filter code and then cut skb->data to correct size returned by
+- * SK_RUN_FILTER. If pkt_len is 0 we toss packet. If skb->len is smaller
++ * Run the eBPF program and then cut skb->data to correct size returned by
++ * the program. If pkt_len is 0 we toss packet. If skb->len is smaller
+  * than pkt_len we keep whole skb->data. This is the socket level
+- * wrapper to SK_RUN_FILTER. It returns 0 if the packet should
++ * wrapper to BPF_PROG_RUN. It returns 0 if the packet should
+  * be accepted or -EPERM if the packet should be tossed.
+  *
+  */
+@@ -83,7 +83,7 @@ int sk_filter(struct sock *sk, struct sk_buff *skb)
+ 	rcu_read_lock();
+ 	filter = rcu_dereference(sk->sk_filter);
+ 	if (filter) {
+-		unsigned int pkt_len = SK_RUN_FILTER(filter, skb);
++		unsigned int pkt_len = bpf_prog_run_save_cb(filter->prog, skb);
+ 
+ 		err = pkt_len ? pskb_trim(skb, pkt_len) : -EPERM;
+ 	}
+@@ -1736,7 +1736,8 @@ static bool tc_cls_act_is_valid_access(int off, int size,
+ 
+ static u32 bpf_net_convert_ctx_access(enum bpf_access_type type, int dst_reg,
+ 				      int src_reg, int ctx_off,
+-				      struct bpf_insn *insn_buf)
++				      struct bpf_insn *insn_buf,
++				      struct bpf_prog *prog)
+ {
+ 	struct bpf_insn *insn = insn_buf;
+ 
+@@ -1827,6 +1828,7 @@ static u32 bpf_net_convert_ctx_access(enum bpf_access_type type, int dst_reg,
+ 		offsetof(struct __sk_buff, cb[4]):
+ 		BUILD_BUG_ON(FIELD_SIZEOF(struct qdisc_skb_cb, data) < 20);
+ 
++		prog->cb_access = 1;
+ 		ctx_off -= offsetof(struct __sk_buff, cb[0]);
+ 		ctx_off += offsetof(struct sk_buff, cb);
+ 		ctx_off += offsetof(struct qdisc_skb_cb, data);
+diff --git a/net/packet/af_packet.c b/net/packet/af_packet.c
+index 81c900fbc4a40..104910f7d1fb6 100644
+--- a/net/packet/af_packet.c
++++ b/net/packet/af_packet.c
+@@ -1423,7 +1423,7 @@ static unsigned int fanout_demux_bpf(struct packet_fanout *f,
+ 	rcu_read_lock();
+ 	prog = rcu_dereference(f->bpf_prog);
+ 	if (prog)
+-		ret = BPF_PROG_RUN(prog, skb) % num;
++		ret = bpf_prog_run_clear_cb(prog, skb) % num;
+ 	rcu_read_unlock();
+ 
+ 	return ret;
+@@ -1939,16 +1939,16 @@ out_free:
+ 	return err;
+ }
+ 
+-static unsigned int run_filter(const struct sk_buff *skb,
+-				      const struct sock *sk,
+-				      unsigned int res)
++static unsigned int run_filter(struct sk_buff *skb,
++			       const struct sock *sk,
++			       unsigned int res)
+ {
+ 	struct sk_filter *filter;
+ 
+ 	rcu_read_lock();
+ 	filter = rcu_dereference(sk->sk_filter);
+ 	if (filter != NULL)
+-		res = SK_RUN_FILTER(filter, skb);
++		res = bpf_prog_run_clear_cb(filter->prog, skb);
+ 	rcu_read_unlock();
+ 
+ 	return res;
+-- 
+cgit 
+

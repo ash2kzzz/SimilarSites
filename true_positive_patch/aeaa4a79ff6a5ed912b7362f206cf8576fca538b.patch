@@ -1,0 +1,68 @@
+From aeaa4a79ff6a5ed912b7362f206cf8576fca538b Mon Sep 17 00:00:00 2001
+From: "Eric W. Biederman" <ebiederm@xmission.com>
+Date: Sat, 23 Jul 2016 11:20:44 -0500
+Subject: fs: Call d_automount with the filesystems creds
+
+Seth Forshee reported a mount regression in nfs autmounts
+with "fs: Add user namespace member to struct super_block".
+
+It turns out that the assumption that current->cred is something
+reasonable during mount while necessary to improve support of
+unprivileged mounts is wrong in the automount path.
+
+To fix the existing filesystems override current->cred with the
+init_cred before calling d_automount and restore current->cred after
+d_automount completes.
+
+To support unprivileged mounts would require a more nuanced cred
+selection, so fail on unprivileged mounts for the time being.  As none
+of the filesystems that currently set FS_USERNS_MOUNT implement
+d_automount this check is only good for preventing future problems.
+
+Fixes: 6e4eab577a0c ("fs: Add user namespace member to struct super_block")
+Tested-by: Seth Forshee <seth.forshee@canonical.com>
+Signed-off-by: "Eric W. Biederman" <ebiederm@xmission.com>
+---
+ fs/namei.c | 7 +++++++
+ 1 file changed, 7 insertions(+)
+
+diff --git a/fs/namei.c b/fs/namei.c
+index 629823f19a6ab..ef573df3297fb 100644
+--- a/fs/namei.c
++++ b/fs/namei.c
+@@ -36,6 +36,7 @@
+ #include <linux/posix_acl.h>
+ #include <linux/hash.h>
+ #include <linux/bitops.h>
++#include <linux/init_task.h>
+ #include <asm/uaccess.h>
+ 
+ #include "internal.h"
+@@ -1099,6 +1100,7 @@ static int follow_automount(struct path *path, struct nameidata *nd,
+ 			    bool *need_mntput)
+ {
+ 	struct vfsmount *mnt;
++	const struct cred *old_cred;
+ 	int err;
+ 
+ 	if (!path->dentry->d_op || !path->dentry->d_op->d_automount)
+@@ -1120,11 +1122,16 @@ static int follow_automount(struct path *path, struct nameidata *nd,
+ 	    path->dentry->d_inode)
+ 		return -EISDIR;
+ 
++	if (path->dentry->d_sb->s_user_ns != &init_user_ns)
++		return -EACCES;
++
+ 	nd->total_link_count++;
+ 	if (nd->total_link_count >= 40)
+ 		return -ELOOP;
+ 
++	old_cred = override_creds(&init_cred);
+ 	mnt = path->dentry->d_op->d_automount(path);
++	revert_creds(old_cred);
+ 	if (IS_ERR(mnt)) {
+ 		/*
+ 		 * The filesystem is allowed to return -EISDIR here to indicate
+-- 
+cgit 
+

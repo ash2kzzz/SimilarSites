@@ -1,0 +1,39 @@
+From afc98a0b46d8576a55f18092400cc518d03a79a1 Mon Sep 17 00:00:00 2001
+From: Feras Daoud <ferasda@mellanox.com>
+Date: Wed, 3 Jan 2018 17:23:55 +0200
+Subject: net/mlx5: Update ptp_clock_event foreach PPS event
+
+PPS event did not update ptp_clock_event fields, therefore,
+timestamp value was not updated correctly. This fix updates the
+event source and the timestamp value for each PPS event.
+
+Fixes: 7c39afb394c7 ("net/mlx5: PTP code migration to driver core section")
+Signed-off-by: Feras Daoud <ferasda@mellanox.com>
+Reported-by: Or Gerlitz <ogerlitz@mellanox.com>
+Signed-off-by: Saeed Mahameed <saeedm@mellanox.com>
+---
+ drivers/net/ethernet/mellanox/mlx5/core/lib/clock.c | 6 +++++-
+ 1 file changed, 5 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/net/ethernet/mellanox/mlx5/core/lib/clock.c b/drivers/net/ethernet/mellanox/mlx5/core/lib/clock.c
+index fa8aed62b2314..5701f125e99c1 100644
+--- a/drivers/net/ethernet/mellanox/mlx5/core/lib/clock.c
++++ b/drivers/net/ethernet/mellanox/mlx5/core/lib/clock.c
+@@ -423,9 +423,13 @@ void mlx5_pps_event(struct mlx5_core_dev *mdev,
+ 
+ 	switch (clock->ptp_info.pin_config[pin].func) {
+ 	case PTP_PF_EXTTS:
++		ptp_event.index = pin;
++		ptp_event.timestamp = timecounter_cyc2time(&clock->tc,
++					be64_to_cpu(eqe->data.pps.time_stamp));
+ 		if (clock->pps_info.enabled) {
+ 			ptp_event.type = PTP_CLOCK_PPSUSR;
+-			ptp_event.pps_times.ts_real = ns_to_timespec64(eqe->data.pps.time_stamp);
++			ptp_event.pps_times.ts_real =
++					ns_to_timespec64(ptp_event.timestamp);
+ 		} else {
+ 			ptp_event.type = PTP_CLOCK_EXTTS;
+ 		}
+-- 
+cgit 
+

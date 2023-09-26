@@ -1,0 +1,38 @@
+From 5712bf9c5c30ade3204016147d7b04bece6952d9 Mon Sep 17 00:00:00 2001
+From: Paul Blakey <paulb@mellanox.com>
+Date: Wed, 19 Oct 2016 17:42:39 +0300
+Subject: net/sched: act_mirred: Use passed lastuse argument
+
+stats_update callback is called by NIC drivers doing hardware
+offloading of the mirred action. Lastuse is passed as argument
+to specify when the stats was actually last updated and is not
+always the current time.
+
+Fixes: 9798e6fe4f9b ('net: act_mirred: allow statistic updates from offloaded actions')
+Signed-off-by: Paul Blakey <paulb@mellanox.com>
+Signed-off-by: Or Gerlitz <ogerlitz@mellanox.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ net/sched/act_mirred.c | 5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/net/sched/act_mirred.c b/net/sched/act_mirred.c
+index 667dc382df82b..6b07fba5770b2 100644
+--- a/net/sched/act_mirred.c
++++ b/net/sched/act_mirred.c
+@@ -207,8 +207,11 @@ out:
+ static void tcf_stats_update(struct tc_action *a, u64 bytes, u32 packets,
+ 			     u64 lastuse)
+ {
+-	tcf_lastuse_update(&a->tcfa_tm);
++	struct tcf_mirred *m = to_mirred(a);
++	struct tcf_t *tm = &m->tcf_tm;
++
+ 	_bstats_cpu_update(this_cpu_ptr(a->cpu_bstats), bytes, packets);
++	tm->lastuse = lastuse;
+ }
+ 
+ static int tcf_mirred_dump(struct sk_buff *skb, struct tc_action *a, int bind,
+-- 
+cgit 
+

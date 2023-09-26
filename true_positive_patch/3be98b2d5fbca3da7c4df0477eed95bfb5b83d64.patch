@@ -1,0 +1,46 @@
+From 3be98b2d5fbca3da7c4df0477eed95bfb5b83d64 Mon Sep 17 00:00:00 2001
+From: Andrew Lunn <andrew@lunn.ch>
+Date: Tue, 14 Apr 2020 02:34:39 +0200
+Subject: net: dsa: Down cpu/dsa ports phylink will control
+
+DSA and CPU ports can be configured in two ways. By default, the
+driver should configure such ports to there maximum bandwidth. For
+most use cases, this is sufficient. When this default is insufficient,
+a phylink instance can be bound to such ports, and phylink will
+configure the port, e.g. based on fixed-link properties. phylink
+assumes the port is initially down. Given that the driver should have
+already configured it to its maximum speed, ask the driver to down
+the port before instantiating the phylink instance.
+
+Fixes: 30c4a5b0aad8 ("net: mv88e6xxx: use resolved link config in mac_link_up()")
+Signed-off-by: Andrew Lunn <andrew@lunn.ch>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ net/dsa/port.c | 7 ++++++-
+ 1 file changed, 6 insertions(+), 1 deletion(-)
+
+diff --git a/net/dsa/port.c b/net/dsa/port.c
+index 231b2d494f1cb..a58fdd3625743 100644
+--- a/net/dsa/port.c
++++ b/net/dsa/port.c
+@@ -670,11 +670,16 @@ int dsa_port_link_register_of(struct dsa_port *dp)
+ {
+ 	struct dsa_switch *ds = dp->ds;
+ 	struct device_node *phy_np;
++	int port = dp->index;
+ 
+ 	if (!ds->ops->adjust_link) {
+ 		phy_np = of_parse_phandle(dp->dn, "phy-handle", 0);
+-		if (of_phy_is_fixed_link(dp->dn) || phy_np)
++		if (of_phy_is_fixed_link(dp->dn) || phy_np) {
++			if (ds->ops->phylink_mac_link_down)
++				ds->ops->phylink_mac_link_down(ds, port,
++					MLO_AN_FIXED, PHY_INTERFACE_MODE_NA);
+ 			return dsa_port_phylink_register(dp);
++		}
+ 		return 0;
+ 	}
+ 
+-- 
+cgit 
+

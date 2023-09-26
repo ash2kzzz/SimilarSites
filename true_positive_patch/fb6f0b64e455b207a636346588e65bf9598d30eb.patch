@@ -1,0 +1,119 @@
+From fb6f0b64e455b207a636346588e65bf9598d30eb Mon Sep 17 00:00:00 2001
+From: Chris Wilson <chris@chris-wilson.co.uk>
+Date: Fri, 2 Nov 2018 16:12:12 +0000
+Subject: drm/i915: Prevent machine hang from Broxton's vtd w/a and error
+ capture
+
+Since capturing the error state requires fiddling around with the GGTT
+to read arbitrary buffers and is itself run under stop_machine(), it
+deadlocks the machine (effectively a hard hang) when run in conjunction
+with Broxton's VTd workaround to serialize GGTT access.
+
+v2: Store the ERR_PTR in first_error so that the error can be reported
+to the user via sysfs.
+v3: Mention the quirk in dmesg (using info as per usual)
+
+Fixes: 0ef34ad6222a ("drm/i915: Serialize GTT/Aperture accesses on BXT")
+Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+Cc: Jon Bloomfield <jon.bloomfield@intel.com>
+Cc: John Harrison <john.C.Harrison@intel.com>
+Cc: Tvrtko Ursulin <tvrtko.ursulin@intel.com>
+Cc: Joonas Lahtinen <joonas.lahtinen@linux.intel.com>
+Cc: Daniel Vetter <daniel.vetter@ffwll.ch>
+Reviewed-by: Joonas Lahtinen <joonas.lahtinen@linux.intel.com>
+Link: https://patchwork.freedesktop.org/patch/msgid/20181102161232.17742-5-chris@chris-wilson.co.uk
+---
+ drivers/gpu/drm/i915/i915_gem_gtt.c   |  5 +++++
+ drivers/gpu/drm/i915/i915_gpu_error.c | 15 ++++++++++++++-
+ drivers/gpu/drm/i915/i915_gpu_error.h |  8 +++++++-
+ 3 files changed, 26 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/gpu/drm/i915/i915_gem_gtt.c b/drivers/gpu/drm/i915/i915_gem_gtt.c
+index a98c29147d5e9..add1fe7aeb930 100644
+--- a/drivers/gpu/drm/i915/i915_gem_gtt.c
++++ b/drivers/gpu/drm/i915/i915_gem_gtt.c
+@@ -3360,6 +3360,11 @@ static int gen8_gmch_probe(struct i915_ggtt *ggtt)
+ 		ggtt->vm.insert_page    = bxt_vtd_ggtt_insert_page__BKL;
+ 		if (ggtt->vm.clear_range != nop_clear_range)
+ 			ggtt->vm.clear_range = bxt_vtd_ggtt_clear_range__BKL;
++
++		/* Prevent recursively calling stop_machine() and deadlocks. */
++		dev_info(dev_priv->drm.dev,
++			 "Disabling error capture for VT-d workaround\n");
++		i915_disable_error_state(dev_priv, -ENODEV);
+ 	}
+ 
+ 	ggtt->invalidate = gen6_ggtt_invalidate;
+diff --git a/drivers/gpu/drm/i915/i915_gpu_error.c b/drivers/gpu/drm/i915/i915_gpu_error.c
+index c8d8f79688a84..21b5c8765015c 100644
+--- a/drivers/gpu/drm/i915/i915_gpu_error.c
++++ b/drivers/gpu/drm/i915/i915_gpu_error.c
+@@ -648,6 +648,9 @@ int i915_error_state_to_str(struct drm_i915_error_state_buf *m,
+ 		return 0;
+ 	}
+ 
++	if (IS_ERR(error))
++		return PTR_ERR(error);
++
+ 	if (*error->error_msg)
+ 		err_printf(m, "%s\n", error->error_msg);
+ 	err_printf(m, "Kernel: " UTS_RELEASE "\n");
+@@ -1867,6 +1870,7 @@ void i915_capture_error_state(struct drm_i915_private *i915,
+ 	error = i915_capture_gpu_state(i915);
+ 	if (!error) {
+ 		DRM_DEBUG_DRIVER("out of memory, not capturing error state\n");
++		i915_disable_error_state(i915, -ENOMEM);
+ 		return;
+ 	}
+ 
+@@ -1922,5 +1926,14 @@ void i915_reset_error_state(struct drm_i915_private *i915)
+ 	i915->gpu_error.first_error = NULL;
+ 	spin_unlock_irq(&i915->gpu_error.lock);
+ 
+-	i915_gpu_state_put(error);
++	if (!IS_ERR(error))
++		i915_gpu_state_put(error);
++}
++
++void i915_disable_error_state(struct drm_i915_private *i915, int err)
++{
++	spin_lock_irq(&i915->gpu_error.lock);
++	if (!i915->gpu_error.first_error)
++		i915->gpu_error.first_error = ERR_PTR(err);
++	spin_unlock_irq(&i915->gpu_error.lock);
+ }
+diff --git a/drivers/gpu/drm/i915/i915_gpu_error.h b/drivers/gpu/drm/i915/i915_gpu_error.h
+index 8710fb18ed746..3ec89a504de52 100644
+--- a/drivers/gpu/drm/i915/i915_gpu_error.h
++++ b/drivers/gpu/drm/i915/i915_gpu_error.h
+@@ -343,6 +343,7 @@ static inline void i915_gpu_state_put(struct i915_gpu_state *gpu)
+ 
+ struct i915_gpu_state *i915_first_error_state(struct drm_i915_private *i915);
+ void i915_reset_error_state(struct drm_i915_private *i915);
++void i915_disable_error_state(struct drm_i915_private *i915, int err);
+ 
+ #else
+ 
+@@ -355,13 +356,18 @@ static inline void i915_capture_error_state(struct drm_i915_private *dev_priv,
+ static inline struct i915_gpu_state *
+ i915_first_error_state(struct drm_i915_private *i915)
+ {
+-	return NULL;
++	return ERR_PTR(-ENODEV);
+ }
+ 
+ static inline void i915_reset_error_state(struct drm_i915_private *i915)
+ {
+ }
+ 
++static inline void i915_disable_error_state(struct drm_i915_private *i915,
++					    int err)
++{
++}
++
+ #endif /* IS_ENABLED(CONFIG_DRM_I915_CAPTURE_ERROR) */
+ 
+ #endif /* _I915_GPU_ERROR_H_ */
+-- 
+cgit 
+

@@ -1,0 +1,34 @@
+From 0866df8dffd514185bfab0d205db76e4c02cf1e4 Mon Sep 17 00:00:00 2001
+From: Philipp Zabel <p.zabel@pengutronix.de>
+Date: Fri, 31 Mar 2017 10:33:26 -0300
+Subject: [media] tvp5150: fix pad format frame height
+
+Even if field order is set to V4L2_FIELD_ALTERNATE, the width and height
+values in struct v4l2_mbus_framefmt still refer to frame size, not field
+size.
+
+Fixes: 4f57d27be2a5 ("[media] tvp5150: fix tvp5150_fill_fmt()")
+
+Signed-off-by: Philipp Zabel <p.zabel@pengutronix.de>
+Signed-off-by: Hans Verkuil <hans.verkuil@cisco.com>
+Signed-off-by: Mauro Carvalho Chehab <mchehab@s-opensource.com>
+---
+ drivers/media/i2c/tvp5150.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/media/i2c/tvp5150.c b/drivers/media/i2c/tvp5150.c
+index abc3b18691d33..04e96b3057bb9 100644
+--- a/drivers/media/i2c/tvp5150.c
++++ b/drivers/media/i2c/tvp5150.c
+@@ -871,7 +871,7 @@ static int tvp5150_fill_fmt(struct v4l2_subdev *sd,
+ 	f = &format->format;
+ 
+ 	f->width = decoder->rect.width;
+-	f->height = decoder->rect.height / 2;
++	f->height = decoder->rect.height;
+ 
+ 	f->code = MEDIA_BUS_FMT_UYVY8_2X8;
+ 	f->field = V4L2_FIELD_ALTERNATE;
+-- 
+cgit 
+

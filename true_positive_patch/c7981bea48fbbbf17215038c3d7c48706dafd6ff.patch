@@ -1,0 +1,31 @@
+From c7981bea48fbbbf17215038c3d7c48706dafd6ff Mon Sep 17 00:00:00 2001
+From: Eran Ben Elisha <eranbe@mellanox.com>
+Date: Wed, 20 Feb 2019 12:10:48 +0200
+Subject: net/mlx5e: Fix return status of TX reporter timeout recover
+
+In case of lost interrupt recover, we shall return success. Fix that.
+
+Fixes: 7d91126b1aea ("net/mlx5e: Add tx timeout support for mlx5e tx reporter")
+Signed-off-by: Eran Ben Elisha <eranbe@mellanox.com>
+Reported-by: Maria Pasechnik <mariap@mellanox.com>
+Signed-off-by: Saeed Mahameed <saeedm@mellanox.com>
+---
+ drivers/net/ethernet/mellanox/mlx5/core/en/reporter_tx.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/net/ethernet/mellanox/mlx5/core/en/reporter_tx.c b/drivers/net/ethernet/mellanox/mlx5/core/en/reporter_tx.c
+index 201ea73e3021b..627392bead3b8 100644
+--- a/drivers/net/ethernet/mellanox/mlx5/core/en/reporter_tx.c
++++ b/drivers/net/ethernet/mellanox/mlx5/core/en/reporter_tx.c
+@@ -148,7 +148,7 @@ static int mlx5e_tx_reporter_timeout_recover(struct mlx5e_txqsq *sq)
+ 		   eq->core.eqn, eq->core.cons_index, eq->core.irqn);
+ 
+ 	eqe_count = mlx5_eq_poll_irq_disabled(eq);
+-	ret = eqe_count ? true : false;
++	ret = eqe_count ? false : true;
+ 	if (!eqe_count) {
+ 		clear_bit(MLX5E_SQ_STATE_ENABLED, &sq->state);
+ 		return ret;
+-- 
+cgit 
+

@@ -1,0 +1,88 @@
+From 399f8dd9a866e107639eabd3c1979cd526ca3a98 Mon Sep 17 00:00:00 2001
+From: Thomas Gleixner <tglx@linutronix.de>
+Date: Tue, 22 Jun 2021 01:08:30 +0200
+Subject: signal: Prevent sigqueue caching after task got released
+
+syzbot reported a memory leak related to sigqueue caching.
+
+The assumption that a task cannot cache a sigqueue after the signal handler
+has been dropped and exit_task_sigqueue_cache() has been invoked turns out
+to be wrong.
+
+Such a task can still invoke release_task(other_task), which cleans up the
+signals of 'other_task' and ends up in sigqueue_cache_or_free(), which in
+turn will cache the signal because task->sigqueue_cache is NULL. That's
+obviously bogus because nothing will free the cached signal of that task
+anymore, so the cached item is leaked.
+
+This happens when e.g. the last non-leader thread exits and reaps the
+zombie leader.
+
+Prevent this by setting tsk::sigqueue_cache to an error pointer value in
+exit_task_sigqueue_cache() which forces any subsequent invocation of
+sigqueue_cache_or_free() from that task to hand the sigqueue back to the
+kmemcache.
+
+Add comments to all relevant places.
+
+Fixes: 4bad58ebc8bc ("signal: Allow tasks to cache one sigqueue struct")
+Reported-by: syzbot+0bac5fec63d4f399ba98@syzkaller.appspotmail.com
+Signed-off-by: Thomas Gleixner <tglx@linutronix.de>
+Reviewed-by: Oleg Nesterov <oleg@redhat.com>
+Acked-by: Christian Brauner <christian.brauner@ubuntu.com>
+Link: https://lore.kernel.org/r/878s32g6j5.ffs@nanos.tec.linutronix.de
+---
+ kernel/signal.c | 17 ++++++++++++++++-
+ 1 file changed, 16 insertions(+), 1 deletion(-)
+
+diff --git a/kernel/signal.c b/kernel/signal.c
+index f7c6ffcbd04407..f1ecd8f0c11d98 100644
+--- a/kernel/signal.c
++++ b/kernel/signal.c
+@@ -435,6 +435,12 @@ __sigqueue_alloc(int sig, struct task_struct *t, gfp_t gfp_flags,
+ 		 * Preallocation does not hold sighand::siglock so it can't
+ 		 * use the cache. The lockless caching requires that only
+ 		 * one consumer and only one producer run at a time.
++		 *
++		 * For the regular allocation case it is sufficient to
++		 * check @q for NULL because this code can only be called
++		 * if the target task @t has not been reaped yet; which
++		 * means this code can never observe the error pointer which is
++		 * written to @t->sigqueue_cache in exit_task_sigqueue_cache().
+ 		 */
+ 		q = READ_ONCE(t->sigqueue_cache);
+ 		if (!q || sigqueue_flags)
+@@ -463,13 +469,18 @@ void exit_task_sigqueue_cache(struct task_struct *tsk)
+ 	struct sigqueue *q = tsk->sigqueue_cache;
+ 
+ 	if (q) {
+-		tsk->sigqueue_cache = NULL;
+ 		/*
+ 		 * Hand it back to the cache as the task might
+ 		 * be self reaping which would leak the object.
+ 		 */
+ 		 kmem_cache_free(sigqueue_cachep, q);
+ 	}
++
++	/*
++	 * Set an error pointer to ensure that @tsk will not cache a
++	 * sigqueue when it is reaping it's child tasks
++	 */
++	tsk->sigqueue_cache = ERR_PTR(-1);
+ }
+ 
+ static void sigqueue_cache_or_free(struct sigqueue *q)
+@@ -481,6 +492,10 @@ static void sigqueue_cache_or_free(struct sigqueue *q)
+ 	 * is intentional when run without holding current->sighand->siglock,
+ 	 * which is fine as current obviously cannot run __sigqueue_free()
+ 	 * concurrently.
++	 *
++	 * The NULL check is safe even if current has been reaped already,
++	 * in which case exit_task_sigqueue_cache() wrote an error pointer
++	 * into current->sigqueue_cache.
+ 	 */
+ 	if (!READ_ONCE(current->sigqueue_cache))
+ 		WRITE_ONCE(current->sigqueue_cache, q);
+-- 
+cgit 
+

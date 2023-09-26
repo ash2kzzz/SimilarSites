@@ -1,0 +1,68 @@
+From d525914b5bd8d71f7e92a30a170c108c485814ad Mon Sep 17 00:00:00 2001
+From: Miquel Raynal <miquel.raynal@bootlin.com>
+Date: Fri, 13 Nov 2020 13:34:07 +0100
+Subject: mtd: rawnand: xway: Move the ECC initialization to ->attach_chip()
+
+The probe function is only supposed to initialize the controller
+hardware but not the ECC engine. Indeed, we don't know anything about
+the NAND chip(s) at this stage. Let's move the logic initializing the
+ECC engine, even pretty simple, to the ->attach_chip() hook which gets
+called during nand_scan() routine, after the NAND chip discovery. As
+the previously mentioned logic is supposed to parse the DT for us, it
+is likely that the chip->ecc.* entries be overwritten. So let's avoid
+this by moving these lines to ->attach_chip(), a NAND controller
+hook.
+
+Fixes: d7157ff49a5b ("mtd: rawnand: Use the ECC framework user input parsing bits")
+Signed-off-by: Miquel Raynal <miquel.raynal@bootlin.com>
+Link: https://lore.kernel.org/linux-mtd/20201113123424.32233-3-miquel.raynal@bootlin.com
+---
+ drivers/mtd/nand/raw/xway_nand.c | 18 ++++++++++++++++--
+ 1 file changed, 16 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/mtd/nand/raw/xway_nand.c b/drivers/mtd/nand/raw/xway_nand.c
+index f2dbd63a5c1f1..efc5bf5434e00 100644
+--- a/drivers/mtd/nand/raw/xway_nand.c
++++ b/drivers/mtd/nand/raw/xway_nand.c
+@@ -62,6 +62,7 @@
+ #define NAND_CON_NANDM		1
+ 
+ struct xway_nand_data {
++	struct nand_controller	controller;
+ 	struct nand_chip	chip;
+ 	unsigned long		csflags;
+ 	void __iomem		*nandaddr;
+@@ -145,6 +146,18 @@ static void xway_write_buf(struct nand_chip *chip, const u_char *buf, int len)
+ 		xway_writeb(nand_to_mtd(chip), NAND_WRITE_DATA, buf[i]);
+ }
+ 
++static int xway_attach_chip(struct nand_chip *chip)
++{
++	chip->ecc.engine_type = NAND_ECC_ENGINE_TYPE_SOFT;
++	chip->ecc.algo = NAND_ECC_ALGO_HAMMING;
++
++	return 0;
++}
++
++static const struct nand_controller_ops xway_nand_ops = {
++	.attach_chip = xway_attach_chip,
++};
++
+ /*
+  * Probe for the NAND device.
+  */
+@@ -180,8 +193,9 @@ static int xway_nand_probe(struct platform_device *pdev)
+ 	data->chip.legacy.read_byte = xway_read_byte;
+ 	data->chip.legacy.chip_delay = 30;
+ 
+-	data->chip.ecc.engine_type = NAND_ECC_ENGINE_TYPE_SOFT;
+-	data->chip.ecc.algo = NAND_ECC_ALGO_HAMMING;
++	nand_controller_init(&data->controller);
++	data->controller.ops = &xway_nand_ops;
++	data->chip.controller = &data->controller;
+ 
+ 	platform_set_drvdata(pdev, data);
+ 	nand_set_controller_data(&data->chip, data);
+-- 
+cgit 
+

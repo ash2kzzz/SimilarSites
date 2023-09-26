@@ -1,0 +1,73 @@
+From 7a407aa5e0d3e587ba1fb8e1f7e4c1a3b558312e Mon Sep 17 00:00:00 2001
+From: Ralf Baechle <ralf@linux-mips.org>
+Date: Mon, 5 Feb 2018 16:40:00 +0100
+Subject: MIPS: Push ARCH_MIGHT_HAVE_PC_SERIO down to platform level
+
+Maybe once upon a time the select of ARCH_MIGHT_HAVE_PC_SERIO used to
+make sense.  These days MIPS platforms long have done away with i8042 or
+PS/2 style keyboard and mouse ports and embedded systems probably never
+had them anyway so push the select down to the level of individual
+platforms.
+
+Fixes: f2d0b0d5c171 ("MIPS: ranchu: Add Ranchu as a new generic-based board")
+Signed-off-by: Ralf Baechle <ralf@linux-mips.org>
+Signed-off-by: James Hogan <jhogan@kernel.org>
+---
+ arch/mips/Kconfig | 6 +++++-
+ 1 file changed, 5 insertions(+), 1 deletion(-)
+
+diff --git a/arch/mips/Kconfig b/arch/mips/Kconfig
+index 97afff54d9cfa..ac0f5bb10f0bf 100644
+--- a/arch/mips/Kconfig
++++ b/arch/mips/Kconfig
+@@ -7,7 +7,6 @@ config MIPS
+ 	select ARCH_DISCARD_MEMBLOCK
+ 	select ARCH_HAS_ELF_RANDOMIZE
+ 	select ARCH_HAS_TICK_BROADCAST if GENERIC_CLOCKEVENTS_BROADCAST
+-	select ARCH_MIGHT_HAVE_PC_SERIO
+ 	select ARCH_SUPPORTS_UPROBES
+ 	select ARCH_USE_BUILTIN_BSWAP
+ 	select ARCH_USE_CMPXCHG_LOCKREF if 64BIT
+@@ -341,6 +340,7 @@ config MACH_DECSTATION
+ config MACH_JAZZ
+ 	bool "Jazz family of machines"
+ 	select ARCH_MIGHT_HAVE_PC_PARPORT
++	select ARCH_MIGHT_HAVE_PC_SERIO
+ 	select FW_ARC
+ 	select FW_ARC32
+ 	select ARCH_MAY_HAVE_PC_FDC
+@@ -475,6 +475,7 @@ config MIPS_MALTA
+ 	bool "MIPS Malta board"
+ 	select ARCH_MAY_HAVE_PC_FDC
+ 	select ARCH_MIGHT_HAVE_PC_PARPORT
++	select ARCH_MIGHT_HAVE_PC_SERIO
+ 	select BOOT_ELF32
+ 	select BOOT_RAW
+ 	select BUILTIN_DTB
+@@ -611,6 +612,7 @@ config SGI_IP22
+ 	bool "SGI IP22 (Indy/Indigo2)"
+ 	select FW_ARC
+ 	select FW_ARC32
++	select ARCH_MIGHT_HAVE_PC_SERIO
+ 	select BOOT_ELF32
+ 	select CEVT_R4K
+ 	select CSRC_R4K
+@@ -673,6 +675,7 @@ config SGI_IP28
+ 	bool "SGI IP28 (Indigo2 R10k)"
+ 	select FW_ARC
+ 	select FW_ARC64
++	select ARCH_MIGHT_HAVE_PC_SERIO
+ 	select BOOT_ELF64
+ 	select CEVT_R4K
+ 	select CSRC_R4K
+@@ -823,6 +826,7 @@ config SNI_RM
+ 	select FW_SNIPROM if CPU_BIG_ENDIAN
+ 	select ARCH_MAY_HAVE_PC_FDC
+ 	select ARCH_MIGHT_HAVE_PC_PARPORT
++	select ARCH_MIGHT_HAVE_PC_SERIO
+ 	select BOOT_ELF32
+ 	select CEVT_R4K
+ 	select CSRC_R4K
+-- 
+cgit 
+

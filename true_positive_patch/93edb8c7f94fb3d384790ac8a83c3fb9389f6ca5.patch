@@ -1,0 +1,33 @@
+From 93edb8c7f94fb3d384790ac8a83c3fb9389f6ca5 Mon Sep 17 00:00:00 2001
+From: Pablo Neira <pablo@netfilter.org>
+Date: Tue, 10 May 2016 21:33:38 +0200
+Subject: gtp: reload GTPv1 header after pskb_may_pull()
+
+The GTPv1 header flags indicate the presence of optional extensions
+after this header. Refresh the pointer to the GTPv1 header as skb->head
+might have be reallocated via pskb_may_pull().
+
+Fixes: 459aa660eb1d ("gtp: add initial driver for datapath of GPRS Tunneling Protocol (GTP-U)")
+Reported-by: Eric Dumazet <eric.dumazet@gmail.com>
+Signed-off-by: Pablo Neira Ayuso <pablo@netfilter.org>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ drivers/net/gtp.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/drivers/net/gtp.c b/drivers/net/gtp.c
+index 8ce1104e4fdbe..f7caf1e35d83d 100644
+--- a/drivers/net/gtp.c
++++ b/drivers/net/gtp.c
+@@ -253,6 +253,8 @@ static int gtp1u_udp_encap_recv(struct gtp_dev *gtp, struct sk_buff *skb,
+ 	if (!pskb_may_pull(skb, hdrlen))
+ 		return -1;
+ 
++	gtp1 = (struct gtp1_header *)(skb->data + sizeof(struct udphdr));
++
+ 	rcu_read_lock();
+ 	pctx = gtp1_pdp_find(gtp, ntohl(gtp1->tid));
+ 	if (!pctx) {
+-- 
+cgit 
+

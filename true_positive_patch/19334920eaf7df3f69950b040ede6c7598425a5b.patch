@@ -1,0 +1,57 @@
+From 19334920eaf7df3f69950b040ede6c7598425a5b Mon Sep 17 00:00:00 2001
+From: Guenter Roeck <linux@roeck-us.net>
+Date: Mon, 16 Feb 2015 21:23:51 -0800
+Subject: net: dsa: Set valid phy interface type
+
+If the phy interface mode is not found in devicetree, or if devicetree
+is not configured, of_get_phy_mode returns -ENODEV. The current code
+sets the phy interface mode to the return value from of_get_phy_mode
+without checking if it is valid.
+
+This invalid phy interface mode is passed as parameter to of_phy_connect
+or to phy_connect_direct. This sets the phy interface mode to the invalid
+value, which in turn causes problems for any code using phydev->interface.
+
+Fixes: b31f65fb4383 ("net: dsa: slave: Fix autoneg for phys on switch MDIO bus")
+Fixes: 0d8bcdd383b8 ("net: dsa: allow for more complex PHY setups")
+Cc: Florian Fainelli <f.fainelli@gmail.com>
+Cc: Andrew Lunn <andrew@lunn.ch>
+Signed-off-by: Guenter Roeck <linux@roeck-us.net>
+Acked-by: Florian Fainelli <f.fainelli@gmail.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ net/dsa/slave.c | 9 +++++++--
+ 1 file changed, 7 insertions(+), 2 deletions(-)
+
+diff --git a/net/dsa/slave.c b/net/dsa/slave.c
+index d104ae15836fe..f23deadf42a07 100644
+--- a/net/dsa/slave.c
++++ b/net/dsa/slave.c
+@@ -521,10 +521,13 @@ static int dsa_slave_phy_setup(struct dsa_slave_priv *p,
+ 	struct device_node *phy_dn, *port_dn;
+ 	bool phy_is_fixed = false;
+ 	u32 phy_flags = 0;
+-	int ret;
++	int mode, ret;
+ 
+ 	port_dn = cd->port_dn[p->port];
+-	p->phy_interface = of_get_phy_mode(port_dn);
++	mode = of_get_phy_mode(port_dn);
++	if (mode < 0)
++		mode = PHY_INTERFACE_MODE_NA;
++	p->phy_interface = mode;
+ 
+ 	phy_dn = of_parse_phandle(port_dn, "phy-handle", 0);
+ 	if (of_phy_is_fixed_link(port_dn)) {
+@@ -559,6 +562,8 @@ static int dsa_slave_phy_setup(struct dsa_slave_priv *p,
+ 		if (!p->phy)
+ 			return -ENODEV;
+ 
++		/* Use already configured phy mode */
++		p->phy_interface = p->phy->interface;
+ 		phy_connect_direct(slave_dev, p->phy, dsa_slave_adjust_link,
+ 				   p->phy_interface);
+ 	} else {
+-- 
+cgit 
+

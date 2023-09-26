@@ -1,0 +1,182 @@
+009bb421b6ceb7916ce627023d0eb7ced04c8910 is finished.
+05255b823a6173525587f29c4e8f1ca33fd7677d is finished.
+0537250fdc6c876ed4cbbe874c739aebef493ee2 is finished.
+07bf7908950a8b14e81aa1807e3c667eab39287a is finished.
+0911287ce32b14fbc8aab0083151d9b54254091c is finished.
+0b7959b6257322f7693b08a459c505d4938646f2 is finished.
+0bf7800f1799b5b1fd7d4f024e9ece53ac489011 is finished.
+0eb6ddfb865c7d7ec05cb330050671363515e67f is finished.
+0fedc63fadf0404a729e73a35349481c8009c02f is finished.
+100f6d8e09905c59be45b6316f8f369c0be1b2d8 is finished.
+11789039da536fea96c98a40c2b441decf2e7323 is finished.
+137641287eb40260783a4413847a0aef06023a6c is finished.
+153fbd1226fb30b8630802aa5047b8af5ef53c9f is finished.
+[*] net/dccp/input.c:405 miss locks "rcu_read_lock".
+1ad98e9d1bdf4724c0a8532fabd84bf3c457c2bc is finished.
+1d011c4803c72f3907eccfc1ec63caefb852fcbf is finished.
+26fc181e6cacacd4837da7ffe0c871134a421600 is finished.
+2975d5de6428ff6d9317e9948f0968f7d42e5d74 is finished.
+2c32395d8111037ae2cb8cab883e80bcdbb70713 is finished.
+301428ea3708188dc4a243e6e6b46c03b46a0fbc is finished.
+304e024216a802a7dc8ba75d36de82fa136bbf3e is finished.
+3580d04aa674383c42de7b635d28e52a1e5bc72c is finished.
+37f96694cf73ba116993a9d2d99ad6a75fa7fdb0 is finished.
+399f8dd9a866e107639eabd3c1979cd526ca3a98 is finished.
+3f34cfae1238848fd53f25e5c8fd59da57901f4b is finished.
+40cb881b5aaa0b69a7d93dec8440d5c62dae299f is finished.
+4179b00c04d18ea7013f68d578d80f3c9d13150a is finished.
+[*] net/xdp/xsk.c:191 Variable "xs->state" needs to add a macro "WRITE_ONCE".
+[*] net/xdp/xsk.c:463 Variable "xs->state" needs to add a macro "WRITE_ONCE".
+[*] net/xdp/xsk.c:612 Variable "xs->state" needs to add a macro "WRITE_ONCE".
+[*] net/xdp/xsk.c:738 Variable "xs->state" needs to add a macro "WRITE_ONCE".
+[*] net/xdp/xsk.c:765 Variable "xs->state" needs to add a macro "WRITE_ONCE".
+[*] net/xdp/xsk.c:792 Variable "xs->state" needs to add a macro "WRITE_ONCE".
+[*] net/xdp/xsk.c:954 Variable "xs->state" needs to add a macro "WRITE_ONCE".
+[*] net/xdp/xsk.c:1091 Variable "xs->state" needs to add a macro "WRITE_ONCE".
+42fddcc7c64b723a867c7b2f5f7505e244212f13 is finished.
+4477138fa0ae4e1b699786ef0600863ea6e6c61c is finished.
+44d4775ca51805b376a8db5b34f650434a08e556 is finished.
+4512c43eac7e007d982e7ea45152ea6f3f4d1921 is finished.
+46613c9dfa964c0c60b5385dbdf5aaa18be52a9c is finished.
+46a8b29c6306d8bbfd92b614ef65a47c900d8e70 is finished.
+47c42e6b4192a2ac8b6c9858ebcf400a9eff7a10 is finished.
+48bb5697269a7cbe5194dbb044dc38c517e34c58 is finished.
+[*] net/ipv4/igmp.c:810 Variable "in_dev->mr_ifc_count" needs to add a macro "WRITE_ONCE".
+[*] net/ipv4/igmp.c:813 Variable "in_dev->mr_ifc_count" needs to add a macro "WRITE_ONCE".
+4a2b285e7e103d4d6c6ed3e5052a0ff74a5d7f15 is finished.
+4ab59c3c638c6c8952bf07739805d20eb6358a4d is finished.
+4b2e6877b8793b60abb75c15abaaa4377807a358 is finished.
+4d004099a668c41522242aa146a38cc4eb59cb1e is finished.
+4da6a196f93b1af7612340e8c1ad8ce71e18f955 is finished.
+4f07b80c973348a99b5d2a32476a2e7877e94a05 is finished.
+4f07ec0d76f242d4ca0f0c0c6f7293c28254a554 is finished.
+4f661542a40217713f2cee0bb6678fbb30d9d367 is finished.
+4fb0534fb7bbc2346ba7d3a072b538007f4135a5 is finished.
+50895b9de1d3e0258e015e8e55128d835d9a9f19 is finished.
+563bcbae3ba233c275c244bfce2efe12938f5363 is finished.
+57c722e932cfb82e9820bbaae1b1f7222ea97b52 is finished.
+57f015f5eccf25fd4a3336fe3cbbee920a8fba6f is finished.
+58acd10092268831e49de279446c314727101292 is finished.
+599be01ee567b61f4471ee8078870847d0a11e8e is finished.
+5d92e631b8be8965a90c144320f06e096081a551 is finished.
+61cf93700fe6359552848ed5e3becba6cd760efa is finished.
+62794fc4fbf52f2209dc094ea255eaef760e7d01 is finished.
+6289a98f0817a4a457750d6345e754838eae9439 is finished.
+636d25d557d1073281013c43e4ff4737692da2d4 is finished.
+66f2d19f8116e16898f8d82e28573a384ddc430d is finished.
+6a21dfc0d0db7b7e0acedce67ca533a6eb19283c is finished.
+6af1799aaf3f1bc8defedddfa00df3192445bbf3 is finished.
+6b9f34239b00e6956a267abed2bc559ede556ad6 is finished.
+6d6dd528d5af05dc2d0c773951ed68d630a0c3f1 is finished.
+6e6e41c3112276288ccaf80c70916779b84bb276 is finished.
+6ed69184ed9c43873b8a1ee721e3bf3c08c2c6be is finished.
+7212303268918b9a203aebeacfdbd83b5e87b20d is finished.
+730c5fd42c1e3652a065448fd235cb9fafb2bd10 is finished.
+776a39b8196dbca4afb69669db0d9926ffac29ab is finished.
+7a68d9fb851012829c29e770621905529bd9490b is finished.
+[*] drivers/infiniband/core/ucma.c:1476 miss locks "mutex_lock".
+7c11910783a1ea17e88777552ef146cace607b3c is finished.
+7d2c3f54e6f646887d019faa45f35d6fe9fe82ce is finished.
+7f700334be9aeb91d5d86ef9ad2d901b9b453e9b is finished.
+8866df9264a34e675b4ee8a151db819b87cce2d3 is finished.
+8a12f8836145ffe37e9c8733dce18c22fb668b66 is finished.
+8b39adbee805c539a461dbf208b125b096152b1c is finished.
+8cc196d6ef86bbab01dbf16f6c596cf56aa0839e is finished.
+8cfd36a0b53aeb4ec21d81eb79706697b84dfc3d is finished.
+8f5c5fcf353302374b36232d6885c1a3b579e5ca is finished.
+8f659a03a0ba9289b9aeb9b4470e6fb263d6f483 is finished.
+91c02557174be7f72e46ed7311e3bea1939840b0 is finished.
+9306425b70bf1284a037b7461222887aff48cf8d is finished.
+951c6db954a1adefab492f6da805decacabbd1a7 is finished.
+[*] drivers/net/macvlan.c:414 Variable "eth_hdr(skb)" needs to be changed to "skb_eth_hdr(skb)".
+[*] drivers/net/macvlan.c:440 Variable "eth_hdr(skb)" needs to be changed to "skb_eth_hdr(skb)".
+[*] drivers/net/macvlan.c:456 Variable "eth_hdr(skb)" needs to be changed to "skb_eth_hdr(skb)".
+96cc4b69581db68efc9749ef32e9cf8e0160c509 is finished.
+9aad13b087ab0a588cd68259de618f100053360e is finished.
+9cf448c200ba9935baa94e7a0964598ce947db9d is finished.
+[*] net/rxrpc/peer_object.c:28 Variable "local" needs to be changed to "rxrpc_get_local(local)".
+[*] net/rxrpc/peer_object.c:37 Variable "local" needs to be changed to "rxrpc_get_local(local)".
+[*] net/rxrpc/peer_object.c:77 Variable "local" needs to be changed to "rxrpc_get_local(local)".
+[*] net/rxrpc/peer_object.c:84 Variable "local" needs to be changed to "rxrpc_get_local(local)".
+[*] net/rxrpc/peer_object.c:115 Variable "local" needs to be changed to "rxrpc_get_local(local)".
+[*] net/rxrpc/peer_object.c:120 Variable "local" needs to be changed to "rxrpc_get_local(local)".
+[*] net/rxrpc/peer_object.c:123 Variable "local" needs to be changed to "rxrpc_get_local(local)".
+[*] net/rxrpc/peer_object.c:134 Variable "local" needs to be changed to "rxrpc_get_local(local)".
+[*] net/rxrpc/peer_object.c:138 Variable "local" needs to be changed to "rxrpc_get_local(local)".
+[*] net/rxrpc/peer_object.c:140 Variable "local" needs to be changed to "rxrpc_get_local(local)".
+[*] net/rxrpc/peer_object.c:210 Variable "local" needs to be changed to "rxrpc_get_local(local)".
+[*] net/rxrpc/peer_object.c:279 Variable "local" needs to be changed to "rxrpc_get_local(local)".
+[*] net/rxrpc/peer_object.c:288 Variable "local" needs to be changed to "rxrpc_get_local(local)".
+[*] net/rxrpc/peer_object.c:303 Variable "local" needs to be changed to "rxrpc_get_local(local)".
+[*] net/rxrpc/peer_object.c:306 Variable "local" needs to be changed to "rxrpc_get_local(local)".
+[*] net/rxrpc/peer_object.c:309 Variable "local" needs to be changed to "rxrpc_get_local(local)".
+[*] net/rxrpc/peer_object.c:322 Variable "local" needs to be changed to "rxrpc_get_local(local)".
+[*] net/rxrpc/peer_object.c:326 Variable "local" needs to be changed to "rxrpc_get_local(local)".
+[*] net/rxrpc/peer_object.c:327 Variable "local" needs to be changed to "rxrpc_get_local(local)".
+[*] net/rxrpc/peer_object.c:333 Variable "local" needs to be changed to "rxrpc_get_local(local)".
+[*] net/rxrpc/peer_object.c:342 Variable "local" needs to be changed to "rxrpc_get_local(local)".
+[*] net/rxrpc/peer_object.c:351 Variable "local" needs to be changed to "rxrpc_get_local(local)".
+[*] net/rxrpc/peer_object.c:410 Variable "local" needs to be changed to "rxrpc_get_local(local)".
+[*] net/rxrpc/peer_object.c:419 Variable "local" needs to be changed to "rxrpc_get_local(local)".
+[*] net/rxrpc/peer_object.c:456 Variable "local" needs to be changed to "rxrpc_get_local(local)".
+9ebeddef58c41bd700419cdcece24cf64ce32276 is finished.
+a65878d6f00bb2d791348ae90dcc2ede1dbe2b91 is finished.
+a7809ff90ce6c48598d3c4ab54eb599bec1e9c42 is finished.
+a786e3195d6af183033e86f0518ffd2c51c0e8ac is finished.
+ad9d24c9429e2159d1e279dc3a83191ccb4daf1d is finished.
+b196d88aba8ac72b775137854121097f4c4c6862 is finished.
+b1a811633f7321cf1ae2bb76a66805b7720e44c9 is finished.
+b3e456fce9f51d6276e576d00271e2813c1b8b67 is finished.
+b48c05ab5d32af2af4bc63851c153782d1c6ba42 is finished.
+b6f6118901d1e867ac9177bbff3b00b185bd4fdc is finished.
+b84bbaf7a6c8cca24f8acf25a2c8e46913a947ba is finished.
+bbefa1dd6a6d53537c11624752219e39959d04fb is finished.
+bce9b042ec73e8662b8119d4ca47e7c78b20d0bf is finished.
+c1eef220c1760762753b602c382127bfccee226d is finished.
+c344f07aa1b4ba38ca8fabe407a2afe2f436323c is finished.
+c36f05559104b66bcd7f617e931e38c680227b74 is finished.
+c3e2219216c92919a6bd1711f340f5faa98695e6 is finished.
+c468a8aa790e0dfe0a7f8a39db282d39c2c00b46 is finished.
+c47cc304990a2813995b1a92bbc11d0bb9a19ea9 is finished.
+c583bcb8f5edd48c1798798e341f78afb9bf4f6f is finished.
+c6741fbed6dc0f183d26c4b6bca4517672f92e6c is finished.
+c7b1850dfb41d0b4154aca8dbc04777fbd75616f is finished.
+c92e8c02fe664155ac4234516e32544bec0f113d is finished.
+c9bb6165a16e6d5498981a6c777b94a78e74462b is finished.
+cbbdf8433a5f117b1a2119ea30fc651b61ef7570 is finished.
+[*] net/netfilter/x_tables.c:1355 Variable "table->private" needs to be changed to "xt_table_get_private_protected(table)", or add a macro "rcu_assign_pointer".
+[*] net/netfilter/x_tables.c:1454 Variable "table->private" needs to be changed to "xt_table_get_private_protected(table)", or add a macro "rcu_assign_pointer".
+[*] net/ipv4/netfilter/arp_tables.c:1382 Variable "t->private" needs to be changed to "xt_table_get_private_protected(t)".
+[*] net/ipv4/netfilter/ip_tables.c:1592 Variable "t->private" needs to be changed to "xt_table_get_private_protected(t)".
+[*] net/ipv6/netfilter/ip6_tables.c:1601 Variable "t->private" needs to be changed to "xt_table_get_private_protected(t)".
+cc00bcaa589914096edef7fb87ca5cee4a166b5c is finished.
+[*] net/smc/af_smc.c:1727 miss condition "!smc->connect_nonblock".
+cd2063604ea6a8c2683b4eb9b5f4c4da74592d87 is finished.
+cf1b2326b734896734c6e167e41766f9cee7686a is finished.
+d0e13a1488ad30dc3c2c9347b931cb10f892e3a4 is finished.
+d10523d0b3d78153ee58d19853ced26c9004c8c4 is finished.
+d5be7f632bad0f489879eed0ff4b99bd7fe0b74c is finished.
+d5dd88794a13c2f24cce31abad7a0a6c5e0ed2db is finished.
+d624d276d1ddacbcb12ad96832ce0c7b82cd25db is finished.
+d98c9e83b5e7ca78175df1b13ac4a6d460d3962d is finished.
+[*] net/netfilter/nf_conntrack_core.c:1011 Variable "ct->timeout" needs to be changed to "READ_ONCE(ct->timeout)", or add a macro "WRITE_ONCE".
+[*] net/netfilter/nf_conntrack_core.c:1218 Variable "ct->timeout" needs to be changed to "READ_ONCE(ct->timeout)", or add a macro "WRITE_ONCE".
+[*] net/netfilter/nf_conntrack_core.c:1382 Variable "ct->timeout" needs to be changed to "READ_ONCE(ct->timeout)", or add a macro "WRITE_ONCE".
+e37542ba111f3974dc622ae0a21c1787318de500 is finished.
+e5571240236c5652f3e079b1d5866716a7ad819c is finished.
+e5e1a4bc916d29958c3b587354293738fcb984d7 is finished.
+e873e4b9cc7e8ce79e5c5627b32b107035bb3f5d is finished.
+[*] kernel/bpf/sockmap.c:1779 miss locks "write_lock".
+[*] kernel/bpf/sockmap.c:2369 Variable "e->hash_link" needs to be changed to "rcu_dereference(e->hash_link)".
+e9db4ef6bf4ca9894bb324c76e01b8f1a16b2650 is finished.
+eb73190f4fbeedf762394e92d6a4ec9ace684c88 is finished.
+ed17b8d377eaf6b4a01d46942b4c647378a79bdd is finished.
+ed42989eab57d619667d7e87dfbd8fe207db54fe is finished.
+eedbbb0d98b2a89250a8bb83d9c71b77881e5247 is finished.
+f0308fb0708078d6c1d8a4d533941a7a191af634 is finished.
+f65886606c2d3b562716de030706dfe1bea4ed5e is finished.
+f66ee0410b1c3481ee75e5db9b34547b4d582465 is finished.
+f75d118349be055d47407b4ba4ceb98e6437e472 is finished.
+f7d76e05d058b832b373237566cc1af8251371b5 is finished.
+fd851ba9caa9a63fdbb72a2e6ed5560c0989e999 is finished.
+fd8976790a6c1fee98bd7bc73754ddc9f01273ab is finished.
