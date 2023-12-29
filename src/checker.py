@@ -101,7 +101,7 @@ class SimilarSitesChecker(object):
                             if condition not in check_conditions:
                                 error_path = str(home) + '/' + str(file)
                                 error_path = error_path[60:]
-                                print('[*] ' + str(error_path) + ':' + str(base) + ' miss condition \"' + condition + '\".')
+                                print('[*] {path}:{line} miss condition \"{message}\".'.format(path=error_path, line=base, message=condition))
     
     def check_rule1(self):
         if not self.commit_id:
@@ -130,7 +130,7 @@ class SimilarSitesChecker(object):
                 else:
                     error_path = path
                     error_path = error_path[60:]
-                    print('[*] ' + str(error_path) + ':' + str(base) + ' miss locks \"' + common.lock_type_to_str(ctx_info.ctx_type) + '\".')
+                    print('[*] {path}:{line} miss locks \"{message}\".'.format(path=error_path, line=base, message=common.lock_type_to_str(ctx_info.ctx_type)))
                     index += 1
                                     
     def check_rule2(self):
@@ -177,10 +177,10 @@ class SimilarSitesChecker(object):
                                 index += 1
                                 continue
                             else:
-                                print('[*] ' + str(sub_path) + ':' + str(base) + ' Variable \"' + str(variable) + '\" needs to be changed to \"' + str(new_variable) + '\", or add a macro \"' + str(macro) + '\".')
+                                print('[*] {path}:{line} Variable \"{message1}\" needs to be changed to \"{message2}\", or add a macro \"{message3}\".'.format(path=sub_path, line=base, message1=variable, message2=new_variable, message3=macro))
                                 index += 1
                                 continue
-                        print('[*] ' + str(sub_path) + ':' + str(base) + ' Variable \"' + str(variable) + '\" needs to be changed to \"' + str(new_variable) + '\".')
+                        print('[*] {path}:{line} Variable \"{message1}\" needs to be changed to \"{message2}\".'.format(path=sub_path, line=base, message1=variable, message2=new_variable))
                         index += 1
         for variable, macro in checked_macro.items():
             for sub_path in path_list:
@@ -197,7 +197,7 @@ class SimilarSitesChecker(object):
                             continue
                         pattern = macro + '(' + variable
                         if pattern not in line_list[index]:
-                            print('[*] ' + str(sub_path) + ':' + str(base) + ' Variable \"' + str(variable) + '\" needs to add a macro \"' + str(macro) + '\".')
+                            print('[*] {path}:{line} Variable \"{message1}\" needs to add a macro \"{message2}\".'.format(path=sub_path, line=base, message1=variable, message2=macro))
                         index += 1
 
     def check_rule3(self):

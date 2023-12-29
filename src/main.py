@@ -4,7 +4,7 @@ import checker
 import argparse
 
 if __name__ == '__main__':
-    arg_parser = argparse.ArgumentParser(description='Output some necessary information after parsing.', add_help=True)
+    arg_parser = argparse.ArgumentParser(description='Output some necessary information before parsing.', add_help=True)
     arg_parser.add_argument("-p", "--path", type=str, help="The absolute path where the patch is located.")
     
     args = arg_parser.parse_args()
@@ -14,5 +14,5 @@ if __name__ == '__main__':
 
     c = checker.SimilarSitesChecker(args.path)
     c.check_all()
-    print(str(c.commit_id) + ' is finished.')
+    print('{commit_id} is finished.'.format(commit_id=c.commit_id))
 
