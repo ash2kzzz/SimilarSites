@@ -19,7 +19,7 @@ class PatchInfo(object):
         #        self.commit_id = m.group(1)
         #    else:
         #        self.commit_id = None
-        m = constants.PATH_COMMIT_ID.match(self.path)
+        m = constants.PATH_COMMIT_ID.match(self.path) # get commit ID from filename (eg. 1596dae2f17ec5c6e8c8f0e3fec78c5ae55c1e0b.patch)
         if m:
             self.commit_id = m.group(2)
         else:
