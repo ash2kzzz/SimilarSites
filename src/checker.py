@@ -84,7 +84,6 @@ class SimilarSitesChecker(object):
                             break
                         check_conditions = common.get_condition_list(if_str)
                         if not common.the_same_conditions(base_conditions, check_conditions):
-                            index += 1
                             continue
                         if ctx_info.ctx_type != ctx.statement_ctx_type.unknown:
                             pattern = ctx_info.ctx
