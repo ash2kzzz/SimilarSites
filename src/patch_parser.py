@@ -37,21 +37,23 @@ class ConditionPatchInfo(PatchInfo):
             for hunk in file:
                 index = 0
                 while index < len(hunk):
+                    # scan the beginning of a removed-if-statement 
                     if hunk[index].is_removed and hunk[index].value.strip().startswith(r'if ('):
                         remove_str = hunk[index].value.strip()
                         index += 1
                         if (index >= len(hunk)):
                             break
                         back = index
-                        # read the whole removed if statement
+                        # get the removed-if-statement
                         while index < len(hunk) and hunk[index].is_removed and not common.complete_if_statement(remove_str):
                             remove_str += hunk[index].value.strip()
                             index += 1
                         if (index >= len(hunk)):
                             break
-                        if not common.complete_if_statement(remove_str):
-                            if not hunk[index].is_added:
-                                continue
+                        # hold the removed-if-statement
+                        if not hunk[index].is_added or not hunk[index].value.strip().startswith(r'if ('):   # just remove the condition or not added-if-statement
+                            continue
+                        if not common.complete_if_statement(remove_str):   # the removed-if-statement is not complete
                             add_str = hunk[index].value.strip()
                             index += 1
                             if (index >= len(hunk)):
@@ -66,8 +68,6 @@ class ConditionPatchInfo(PatchInfo):
                                 add_str += hunk[index].value.strip()
                                 index += 1
                         else:
-                            if not hunk[index].is_added or not hunk[index].value.strip().startswith(r'if ('):
-                                continue
                             add_str = hunk[index].value.strip()
                             index += 1
                             if (index >= len(hunk)):
@@ -78,19 +78,23 @@ class ConditionPatchInfo(PatchInfo):
                         if (index >= len(hunk)):
                             break
                         ctx_info = ctx.StatementCTXInfo(hunk[index].value.strip())
-                        if not common.complete_if_statement(add_str):
+                        if not common.complete_if_statement(remove_str) or not common.complete_if_statement(add_str):
                             index = back
                             continue
                         remove_conditions = common.get_condition_list(remove_str)
                         add_conditions = common.get_condition_list(add_str)
-                        judge_conditions = common.get_judge_conditions(remove_conditions, add_conditions)
-                        change_conditions = common.get_change_conditions(remove_conditions, add_conditions)
-                        self.multi_res.append((judge_conditions, change_conditions, file.path, ctx_info))
+                        base_conditions = common.get_base_conditions(remove_conditions, add_conditions)
+                        remove_base_conditions = common.get_remove_base_conditions(remove_conditions)
+                        if not common.the_same_conditions(base_conditions, remove_base_conditions):   # keep the base conditions is all
+                            index = back
+                            continue
+                        extra_add_conditions = common.get_extra_add_conditions(remove_conditions, add_conditions)
+                        self.multi_res.append((base_conditions, extra_add_conditions, file.path, ctx_info))
                         remove_conditions2 = common.reverse_condition_list(remove_conditions)
                         add_conditions2 = common.reverse_condition_list(add_conditions)
-                        judge_conditions2 = common.get_judge_conditions(remove_conditions2, add_conditions2)
-                        change_conditions2 = common.get_change_conditions(remove_conditions2, add_conditions2)
-                        self.multi_res.append((judge_conditions2, change_conditions2, file.path, ctx_info))
+                        base_conditions2 = common.get_base_conditions(remove_conditions2, add_conditions2)
+                        extra_add_conditions2 = common.get_extra_add_conditions(remove_conditions2, add_conditions2)
+                        self.multi_res.append((base_conditions2, extra_add_conditions2, file.path, ctx_info))
                     else:
                         index += 1
                         continue

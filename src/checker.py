@@ -57,7 +57,7 @@ class SimilarSitesChecker(object):
             return
         shutil.rmtree('/tmp/'+str(self.commit_id))
 
-    def __check_rule1_find(self, judge_conditions, change_conditions, path, ctx_info):
+    def __check_rule1_find(self, base_conditions, extra_add_conditions, path, ctx_info):
         for home, _, files in os.walk(os.path.dirname(path)):
             for file in files:
                 if file[-2:] != '.c' and file[-2:] != '.h':
@@ -67,13 +67,12 @@ class SimilarSitesChecker(object):
                     line_list = f.readlines()
                     index = 0
                     while index < len(line_list):
-                        recheck = 0
                         if not line_list[index].strip().startswith(r'if ('):
                             index += 1
                             continue
-                        base = index + 1
                         if_str = line_list[index].strip()
                         index += 1
+                        base = index
                         while not common.complete_if_statement(if_str):
                             if_str += line_list[index].strip()
                             index += 1
@@ -81,13 +80,11 @@ class SimilarSitesChecker(object):
                                 next = 1
                                 break
                         if next:
+                            index += 1
                             break
                         check_conditions = common.get_condition_list(if_str)
-                        for condition in judge_conditions:
-                            if condition not in check_conditions:
-                                recheck = 1
-                                break
-                        if recheck:
+                        if not common.the_same_conditions(base_conditions, check_conditions):
+                            index += 1
                             continue
                         if ctx_info.ctx_type != ctx.statement_ctx_type.unknown:
                             pattern = ctx_info.ctx
@@ -95,9 +92,9 @@ class SimilarSitesChecker(object):
                                 continue
                             index += 1
                         else:
-                            if len(judge_conditions) <= 1:
+                            if len(base_conditions) <= 1:
                                 continue
-                        for condition in change_conditions:
+                        for condition in extra_add_conditions:
                             if condition not in check_conditions:
                                 error_path = str(home) + '/' + str(file)
                                 error_path = error_path[60:]
@@ -110,10 +107,10 @@ class SimilarSitesChecker(object):
         multi_list = self.condition_patch_info.get_multi_res_conditions()
         if not multi_list:
             return
-        for judge_conditions, change_conditions, sub_path, ctx_info in multi_list:
-            if len(judge_conditions) == 0 or len(change_conditions) == 0:
+        for base_conditions, extra_add_conditions, sub_path, ctx_info in multi_list:
+            if len(base_conditions) == 0 or len(extra_add_conditions) == 0:
                 continue
-            self.__check_rule1_find(judge_conditions, change_conditions, os.path.join('/tmp/'+str(self.commit_id)+'/linux_patched/', sub_path) ,ctx_info)
+            self.__check_rule1_find(base_conditions, extra_add_conditions, os.path.join('/tmp/'+str(self.commit_id)+'/linux_patched/', sub_path) ,ctx_info)
 
     def __check_rule2_find(self, path, ctx_info):
         with open(path, 'r') as f:

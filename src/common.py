@@ -59,19 +59,34 @@ def get_condition_list(if_str):
     all_conditions = list(map(cond_strip, re.split('&&|\|\|', all_conditions)))
     return list(map(cond_strip2, all_conditions))
 
-def get_judge_conditions(remove_condition_list, add_condition_list):
-    judge_conditions = []
+def the_same_conditions(condition_lis1, condition_lis2):
+    if len(condition_lis1) != len(condition_lis2):
+        return False
+    for condition in condition_lis1:
+        if condition not in condition_lis2:
+            return False
+    return True
+
+def get_remove_base_conditions(remove_condition_list):
+    remove_base_conditions = []
+    for condition in remove_condition_list:
+        if not is_simple_number(condition) and not is_simple_bool(condition):
+            remove_base_conditions.append(condition)
+    return remove_base_conditions
+
+def get_base_conditions(remove_condition_list, add_condition_list):
+    base_conditions = []
     for condition in remove_condition_list:
         if condition in add_condition_list and not is_simple_number(condition) and not is_simple_bool(condition):
-            judge_conditions.append(condition)
-    return judge_conditions
+            base_conditions.append(condition)
+    return base_conditions
 
-def get_change_conditions(remove_condition_list, add_condition_list):
-    change_conditions = []
+def get_extra_add_conditions(remove_condition_list, add_condition_list):
+    extra_add_conditions = []
     for condition in add_condition_list:
         if condition not in remove_condition_list and not is_simple_number(condition) and not is_simple_bool(condition):
-            change_conditions.append(condition)
-    return change_conditions
+            extra_add_conditions.append(condition)
+    return extra_add_conditions
 
 def is_simple_number(s):
     try:
