@@ -36,7 +36,8 @@ class StatementCTXInfo(object):
         self.ctx = ''
 
 class LockCTXInfo(object):
-    def __init__(self, func_name_list, ctx_type):
+    def __init__(self, func_name_list, ctx_type, ctx_args):
         self.ctx_type = ctx_type
-        self.func_name_list = func_name_list
+        self.ctx_args = ctx_args
+        self.func_name_list = func_name_list # list[tuple] tuple(func_name, func_args:list)
         

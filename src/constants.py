@@ -9,7 +9,7 @@ PATH_COMMIT_ID = re.compile(r'(/\w+)+/([\w]{40}).patch')
 
 FUNC_NAME = re.compile(r'(\w+)\(')
 GOTO_LABLE = re.compile(r'goto (\w+);')
-LOCK_NAME = re.compile(r'(\w+)\(')
+FUNC_ARGS = re.compile(r'(\w+)\(([^\n]*)\)')
 DEFINE_STATEMENT = re.compile(r'(\w+ )+(\w+)\(')
 
 EXPR = re.compile(r'(\w+(\->\w+)*)\s+=\s+((\w+)\((\w+(\->\w+)*)\)|(\w+(\->\w+)*));')
@@ -21,3 +21,6 @@ VARIABLE = re.compile(r'((\w+)\((\w+(\->\w+)*)\)|(\w+(\->\w+)*))')
 IDENTIFIER = re.compile(r'(\w+)')
 DEREF = re.compile(r'((\w+)\->\w+)')
 MACRO = re.compile(r'(\w+)\((\w+|\w+\->\w+)\)')
+
+START_OF_FUNCTION = re.compile(r'^{')
+END_OF_FUNCTION = re.compile(r'^}')

@@ -5,9 +5,6 @@ import constants
 import ctx
 import lockers
 
-SEARCH_LINES = 7
-CHECK_LINES = 5
-
 def complete_if_statement(line):
     stack = 1
     if line[:4] != "if (":
@@ -123,10 +120,23 @@ def capture_function_call(line):
     # list_for_each_entry_safe/list_del/list_add_tail
     if d or m.group(1).startswith(r'list_') or m.group(1).startswith(r'likely') or m.group(1).startswith(r'unlikely'):
         return None
+    if "lock" in m.group(1) or "unlock" in m.group(1) or "bit" in m.group(1):
+        return None
     return m.group(1)
 
+def capture_function_args(line):
+    m = constants.FUNC_ARGS.search(line.strip())
+    if not m:
+        return None
+    d = constants.DEFINE_STATEMENT.match(line.strip())
+    if d or m.group(1).startswith(r'list_') or m.group(1).startswith(r'likely') or m.group(1).startswith(r'unlikely'):
+        return None
+    if "lock" in m.group(1) or "unlock" in m.group(1) or "bit" in m.group(1):
+        return None
+    return m.group(2).split(", ")
+
 def is_lock_statement(line):
-    m = constants.LOCK_NAME.match(line.strip())
+    m = constants.FUNC_NAME.match(line.strip())
     if not m:
         return False
     line = m.group(1)
@@ -136,7 +146,7 @@ def is_lock_statement(line):
     return False
 
 def is_unlock_statement(line):
-    m = constants.LOCK_NAME.match(line.strip())
+    m = constants.FUNC_NAME.match(line.strip())
     if not m:
         return False
     line = m.group(1)
@@ -148,7 +158,7 @@ def is_unlock_statement(line):
 def statement_lock_type(line):
     if not is_lock_statement(line):
         return ctx.lock_ctx_type.unknown
-    line = constants.LOCK_NAME.match(line.strip()).group(1)
+    line = constants.FUNC_NAME.match(line.strip()).group(1)
     if line in lockers.spin_lock_list:
         return ctx.lock_ctx_type.spin_lock
     if line in lockers.read_lock_list:
@@ -172,7 +182,7 @@ def statement_lock_type(line):
 def statement_unlock_type(line):
     if not is_unlock_statement(line):
         return ctx.lock_ctx_type.unknown
-    line = constants.LOCK_NAME.match(line.strip()).group(1)
+    line = constants.FUNC_NAME.match(line.strip()).group(1)
     if line in lockers.spin_unlock_list:
         return ctx.lock_ctx_type.spin_lock
     if line in lockers.read_unlock_list:
@@ -213,35 +223,79 @@ def lock_type_to_str(lock_type):
     if lock_type == ctx.lock_ctx_type.rcu_read_lock:
         return "rcu_read_lock"
 
-def search_forward_lock(line_list, index, lock_type):
+def statement_lock_args(line):
+    if not is_lock_statement(line) and not is_unlock_statement(line):
+        return None
+    return constants.FUNC_ARGS.match(line.strip()).group(2).strip("&")
+
+def search_forward_lock(line_list, index, lock_type, lock_args):
     # index for the first
     if index == 0:
         return 0
-    search_lines = SEARCH_LINES
     line_no = index
-    while search_lines > 0:
+    while not start_of_function(line_list[line_no]) and line_no >= 0:
         if is_lock_statement(line_list[line_no]) and statement_lock_type(line_list[line_no]) == lock_type:
-            return line_no
-        search_lines -= 1
+            if statement_lock_args(line_list[line_no]) == lock_args:
+                return line_no
         line_no -= 1
-        if line_no < 0:
+        if line_no <= 0:
             return 0
     return 0
 
-def search_backward_unlock(line_list, index, lock_type):
+def search_backward_unlock(line_list, index, lock_type, lock_args):
     # index for the first
-    if index == 0:
+    if index == len(line_list):
         return 0
-    search_lines = SEARCH_LINES
     line_no = index
-    while search_lines > 0:
+    while not end_of_function(line_list[line_no]) and line_no <= len(line_list):
         if is_unlock_statement(line_list[line_no]) and statement_unlock_type(line_list[line_no]) == lock_type:
-            return line_no
-        search_lines -= 1
+            if str_tail_match(statement_lock_args(line_list[line_no]), lock_args):
+                return line_no
         line_no += 1
         if line_no >= len(line_list):
             return 0
     return 0
+
+def function_in_line(line, tuple_list):
+    func_name = capture_function_call(line)
+    func_args = capture_function_args(line) # must have args
+    if not func_name or not func_args:
+        return False
+    for func_n, func_a in tuple_list:
+        if func_n != func_name:
+            continue
+        if list_tail_match(func_args, func_a) or list_tail_match(func_a, func_args):
+            return True
+    return False
+
+def list_tail_match(list1, list2): # list2 greater than list1
+    if len(list1) != len(list2):
+        return False
+    for a1 in list1:
+        match_flag = 0
+        for a2 in list2:
+            if re.compile(add_escape(a1)+'$').search(a2):
+                match_flag = 1
+                break
+        if match_flag == 0:
+            return False
+    return True
+
+def str_tail_match(str1, str2):
+    if re.compile(add_escape(str1)+'$').search(str2) or re.compile(add_escape(str2)+'$').search(str1):
+        return True
+    return False
+
+def add_escape(str1):
+    # * . ? + $ ^ [ ] ( ) { } | \ /
+    escape_char = ["#", "*", ".", "?", "+", "$", "^", "[", "]", "(", ")", "{", "}", "|", "\\", "/"]
+    str2 = ""
+    for c in str1:
+        if c in escape_char:
+            str2 += "\\"+c
+        else:
+            str2 += c
+    return str2
 
 def is_assign_statement(line):
     if constants.EXPR.search(line.strip()):
@@ -316,4 +370,18 @@ def reverse_condition_list(conditions_list):
         else:
             reverse_conditions.append('!'+condition)
     return reverse_conditions
+
+def end_of_function(line):
+    m = constants.END_OF_FUNCTION.match(line)
+    if m:
+        return True
+    else:
+        return False
+    
+def start_of_function(line):
+    m = constants.START_OF_FUNCTION.match(line)
+    if m:
+        return True
+    else:
+        return False
 

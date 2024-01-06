@@ -13,10 +13,15 @@ import urllib.request
 import subprocess
 import getpass
 import constants
+import timeout_decorator
 from git import Repo
 
-linux = '/home/' + getpass.getuser() + "/repo/linux"
+linux = "/home/{user}/repo/linux".format(user=getpass.getuser())
 repo = Repo(linux)
+
+@timeout_decorator.timeout(20) # 20s
+def download(url, id):
+    urllib.request.urlretrieve(url, "/tmp/{id}/linux-{id}.tar.gz".format(id=id))
 
 class SimilarSitesChecker(object):
     def __init__(self, patch_file):
@@ -36,26 +41,38 @@ class SimilarSitesChecker(object):
         return constants.pattern.search(repo.commit(self.commit_id).message)
 
     def __get_source_code(self):
-        if not self.commit_id or os.path.exists('/tmp/'+str(self.commit_id)):
+        if not self.commit_id or os.path.exists("/tmp/{id}".format(id=self.commit_id)):
             return
-        os.makedirs('/tmp/'+str(self.commit_id))
-        url = 'https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/snapshot/linux-'+str(self.commit_id)+'.tar.gz'
-        urllib.request.urlretrieve(url, '/tmp/'+str(self.commit_id)+'/linux-'+str(self.commit_id)+'.tar.gz')
-        tarf = tarfile.open('/tmp/'+str(self.commit_id)+'/linux-'+str(self.commit_id)+'.tar.gz')
-        tarf.extractall('/tmp/'+str(self.commit_id))
+        os.makedirs("/tmp/{id}".format(id=self.commit_id))
+        url = "https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/snapshot/linux-{id}.tar.gz".format(id=self.commit_id)
+        # urllib.request.urlretrieve(url, "/tmp/{id}/linux-{id}.tar.gz".format(id=self.commit_id))
+        try:
+            download(url, self.commit_id)
+        except Exception:
+            current_path = os.getcwd()
+            os.chdir(linux)
+            os.makedirs("/tmp/{id}/linux-{id}".format(id=self.commit_id))
+            p = subprocess.Popen("git archive --format=tar.gz --output=\"/tmp/{id}/linux-{id}.tar.gz\" {id}".format(id=self.commit_id), shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=-1)
+            p.wait()
+            os.chdir(current_path)
+        tarf = tarfile.open("/tmp/{id}/linux-{id}.tar.gz".format(id=self.commit_id))
+        if os.path.exists("/tmp/{id}/linux-{id}".format(id=self.commit_id)):
+            tarf.extractall("/tmp/{id}/linux-{id}".format(id=self.commit_id))
+        else:
+            tarf.extractall("/tmp/{id}".format(id=self.commit_id))
         tarf.close()
-        os.remove('/tmp/'+str(self.commit_id)+'/linux-'+str(self.commit_id)+'.tar.gz')
-        os.rename('/tmp/'+str(self.commit_id)+'/linux-'+str(self.commit_id), '/tmp/'+str(self.commit_id)+'/linux_patched')
-        shutil.copytree('/tmp/'+str(self.commit_id)+'/linux_patched', '/tmp/'+str(self.commit_id)+'/linux_unpatched', symlinks=True)
+        os.remove("/tmp/{id}/linux-{id}.tar.gz".format(id=self.commit_id))
+        os.rename("/tmp/{id}/linux-{id}".format(id=self.commit_id), "/tmp/{id}/linux_patched".format(id=self.commit_id))
+        shutil.copytree("/tmp/{id}/linux_patched".format(id=self.commit_id), "/tmp/{id}/linux_unpatched".format(id=self.commit_id), symlinks=True)
         current_path = os.getcwd()
-        os.chdir('/tmp/'+str(self.commit_id)+'/linux_unpatched')
-        subprocess.Popen('patch -REp1'+' < '+str(self.patch_path), shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=-1)
+        os.chdir("/tmp/{id}/linux_unpatched".format(id=self.commit_id))
+        subprocess.Popen("patch -REp1 < {patch}".format(patch=self.patch_path), shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=-1)
         os.chdir(current_path)
 
     def __release_source_code(self):
-        if not self.commit_id or not os.path.exists('/tmp/'+str(self.commit_id)):
+        if not self.commit_id or not os.path.exists("/tmp/{id}".format(id=self.commit_id)):
             return
-        shutil.rmtree('/tmp/'+str(self.commit_id))
+        # shutil.rmtree("/tmp/{id}".format(id=self.commit_id))
 
     def __check_rule1_find(self, base_conditions, extra_add_conditions, path, ctx_info):
         for home, _, files in os.walk(os.path.dirname(path)):
@@ -109,7 +126,7 @@ class SimilarSitesChecker(object):
         for base_conditions, extra_add_conditions, sub_path, ctx_info in multi_list:
             if len(base_conditions) == 0 or len(extra_add_conditions) == 0:
                 continue
-            self.__check_rule1_find(base_conditions, extra_add_conditions, os.path.join('/tmp/'+str(self.commit_id)+'/linux_patched/', sub_path) ,ctx_info)
+            self.__check_rule1_find(base_conditions, extra_add_conditions, os.path.join("/tmp/{id}/linux_patched/".format(id=self.commit_id), sub_path) ,ctx_info)
 
     def __check_rule2_find(self, path, ctx_info):
         with open(path, 'r') as f:
@@ -117,15 +134,18 @@ class SimilarSitesChecker(object):
             index = 0
             while index < len(line_list):
                 base = index + 1
-                if common.capture_function_call(line_list[index]) not in ctx_info.func_name_list:
+                if not common.function_in_line(line_list[index], ctx_info.func_name_list):
                     index += 1
                     continue
-                if common.search_forward_lock(line_list, index-1, ctx_info.ctx_type) and common.search_backward_unlock(line_list, index+1, ctx_info.ctx_type):
-                    index = common.search_backward_unlock(line_list, index+1, ctx_info.ctx_type) + 1
+                # print(line_list[index].strip())
+                # print(ctx_info.func_name_list)
+                # index += 1
+                # continue
+                if common.search_forward_lock(line_list, index-1, ctx_info.ctx_type, ctx_info.ctx_args) and common.search_backward_unlock(line_list, index+1, ctx_info.ctx_type, ctx_info.ctx_args):
+                    index = common.search_backward_unlock(line_list, index+1, ctx_info.ctx_type, ctx_info.ctx_args) + 1
                     continue
                 else:
-                    error_path = path
-                    error_path = error_path[60:]
+                    error_path = path[60:]
                     print('[*] {path}:{line} miss locks \"{message}\".'.format(path=error_path, line=base, message=common.lock_type_to_str(ctx_info.ctx_type)))
                     index += 1
                                     
@@ -136,8 +156,11 @@ class SimilarSitesChecker(object):
         res_list = self.double_lock_path_info.get_res_locks()
         if not res_list:
             return
+        # for path, ctx_info in res_list:
+        #     print("path:{path}\nlock args:{args}\nfunc:{name}".format(path=path, args=ctx_info.ctx_args, name=ctx_info.func_name_list))
+        # return
         for sub_path, ctx_info in res_list:
-            self.__check_rule2_find(os.path.join('/tmp/'+str(self.commit_id)+'/linux_patched/', sub_path), ctx_info)
+            self.__check_rule2_find(os.path.join("/tmp/{id}/linux_patched/".format(id=self.commit_id), sub_path), ctx_info)
 
     def __check_rule3_find(self, d, macro_d, path_list):
         checked_macro = copy.deepcopy(macro_d)
@@ -148,7 +171,7 @@ class SimilarSitesChecker(object):
                 if variable in checked_macro:
                     del checked_macro[variable]
             for sub_path in path_list:
-                path = os.path.join('/tmp/'+str(self.commit_id)+'/linux_patched/', sub_path)
+                path = os.path.join("/tmp/{id}/linux_patched/".format(id=self.commit_id), sub_path)
                 if not os.path.exists(path):
                     continue
                 with open(path, 'r') as f:
@@ -180,7 +203,7 @@ class SimilarSitesChecker(object):
                         index += 1
         for variable, macro in checked_macro.items():
             for sub_path in path_list:
-                path = os.path.join('/tmp/'+str(self.commit_id)+'/linux_patched/', sub_path)
+                path = os.path.join("/tmp/{id}/linux_patched/".format(id=self.commit_id), sub_path)
                 if not os.path.exists(path):
                     continue
                 with open(path, 'r') as f:

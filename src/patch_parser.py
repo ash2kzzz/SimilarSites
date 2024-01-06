@@ -4,6 +4,7 @@ import constants
 import os
 import common
 import ctx
+import operator
 from unidiff import PatchSet
 
 class PatchInfo(object):
@@ -119,34 +120,29 @@ class DoubleLockPatchInfo(PatchInfo):
                 while index < len(hunk):
                     if hunk[index].is_added and common.is_lock_statement(hunk[index].value):
                         lock_type = common.statement_lock_type(hunk[index].value)
-                        check_lines = 0
-                        func_list = []
+                        lock_args = common.statement_lock_args(hunk[index].value)
+                        func_list = [] # (func_name, func_args_list)
                         index += 1
                         base = index
                         if (index >= len(hunk)):
                             break
-                        while index < len(hunk) and hunk[index].is_context and check_lines < common.CHECK_LINES and not common.is_unlock_statement(hunk[index].value):
+                        while index < len(hunk) and hunk[index].is_context and not common.end_of_function(hunk[index].value) and not common.is_unlock_statement(hunk[index].value):
                             if common.capture_function_call(hunk[index].value):
-                                func_list.append(common.capture_function_call(hunk[index].value))
-                            check_lines += 1
+                                func_list.append((common.capture_function_call(hunk[index].value), common.capture_function_args(hunk[index].value)))
                             index += 1
                         if (index >= len(hunk)):
                             break
-                        if check_lines >= common.CHECK_LINES:
+                        if common.end_of_function(hunk[index].value):
                             index = base
                             continue
-                        if not hunk[index].is_context:
-                            if hunk[index].is_removed:
-                                index += 1
-                                continue
-                            else:
-                                # hunk[index].is_added is True
-                                if not common.is_unlock_statement(hunk[index].value):
-                                    continue
-                        if common.statement_unlock_type(hunk[index].value) != lock_type or len(func_list) == 0:
+                        if hunk[index].is_added and not common.is_unlock_statement(hunk[index].value):
+                            continue
+                        # print("CTX: lock type:{type}  lock args:{args}".format(type=common.lock_type_to_str(lock_type), args=lock_args))
+                        # print("LINE: lock type:{type}  lock args:{args}".format(type=common.lock_type_to_str(common.statement_unlock_type(hunk[index].value)), args=common.statement_lock_args(hunk[index].value)))
+                        if hunk[index].is_removed or common.statement_unlock_type(hunk[index].value) != lock_type or common.statement_lock_args(hunk[index].value) != lock_args or len(func_list) == 0:
                             index += 1
                             continue
-                        ctx_info = ctx.LockCTXInfo(func_list, lock_type)
+                        ctx_info = ctx.LockCTXInfo(func_list, lock_type, lock_args)
                         if not self.already_have_it(ctx_info):
                             self.res.append((file.path, ctx_info))
                     else:
@@ -165,7 +161,11 @@ class DoubleLockPatchInfo(PatchInfo):
                 continue
             if len(already_ctx_info.func_name_list) != len(ctx_info.func_name_list):
                 continue
-            check_len_list = [x for x in already_ctx_info.func_name_list if x in ctx_info.func_name_list]
+            check_len_list = []
+            for func_tuple in already_ctx_info.func_name_list:
+                for func_tuple2 in ctx_info.func_name_list:
+                    if operator.eq(func_tuple, func_tuple2):
+                        check_len_list.append(func_tuple2)
             if len(check_len_list) == len(ctx_info.func_name_list):
                 return True
         return False
