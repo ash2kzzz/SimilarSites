@@ -1,0 +1,63 @@
+From a0eb7be22c0f934d1fe7e1131f174ef5bc59d3f9 Mon Sep 17 00:00:00 2001
+From: Charles Keepax <ckeepax@opensource.cirrus.com>
+Date: Tue, 9 May 2023 17:41:53 +0100
+Subject: spi: spi-cadence: Only overlap FIFO transactions in slave mode
+
+Commit b1b90514eaa3 ("spi: spi-cadence: Add support for Slave mode")
+updated the code to trigger the IRQ when the FIFO was half empty,
+overlapping filling more data into the FIFO and sending what is left.
+This appears to cause regressions on the Zynq 7000, for transactions
+longer than the FIFO size, below that no overlapping occurs.
+
+It would appear from my testing that any attempt to put new data into
+the FIFO whilst data is still transmitting causes data corruption
+on both send and receive. If I am reading the commit message right
+on commit 49530e641178 ("spi: cadence: Add usleep_range() for
+cdns_spi_fill_tx_fifo()"), that would also seem to imply this is the
+case.
+
+On the assumption that this isn't an issue on the platform
+the original slave mode support was added for, update the
+cdns_transfer_one to only set the watermark to 50% of the FIFO size
+when in slave mode. There by retaining the new behaviour for slave
+mode but reverting to the older behaviour when the SPI is used a
+master.
+
+Fixes: b1b90514eaa3 ("spi: spi-cadence: Add support for Slave mode")
+Signed-off-by: Charles Keepax <ckeepax@opensource.cirrus.com
+Link: https://lore.kernel.org/r/20230509164153.3907694-2-ckeepax@opensource.cirrus.com
+Signed-off-by: Mark Brown <broonie@kernel.org
+---
+ drivers/spi/spi-cadence.c | 15 ++++++++-------
+ 1 file changed, 8 insertions(+), 7 deletions(-)
+
+diff --git a/drivers/spi/spi-cadence.c b/drivers/spi/spi-cadence.c
+index b0ccb138e3566..ff02d81041319 100644
+--- a/drivers/spi/spi-cadence.c
++++ b/drivers/spi/spi-cadence.c
+@@ -438,14 +438,15 @@ static int cdns_transfer_one(struct spi_controller *ctlr,
+ 	xspi->tx_bytes = transfer->len;
+ 	xspi->rx_bytes = transfer->len;
+ 
+-	if (!spi_controller_is_slave(ctlr))
++	if (!spi_controller_is_slave(ctlr)) {
+ 		cdns_spi_setup_transfer(spi, transfer);
+-
+-	/* Set TX empty threshold to half of FIFO depth
+-	 * only if TX bytes are more than half FIFO depth.
+-	 */
+-	if (xspi->tx_bytes > xspi->tx_fifo_depth)
+-		cdns_spi_write(xspi, CDNS_SPI_THLD, xspi->tx_fifo_depth >> 1);
++	} else {
++		/* Set TX empty threshold to half of FIFO depth
++		 * only if TX bytes are more than half FIFO depth.
++		 */
++		if (xspi->tx_bytes > xspi->tx_fifo_depth)
++			cdns_spi_write(xspi, CDNS_SPI_THLD, xspi->tx_fifo_depth >> 1);
++	}
+ 
+ 	cdns_spi_fill_tx_fifo(xspi, xspi->tx_fifo_depth);
+ 	spi_transfer_delay_exec(transfer);
+-- 
+cgit 
+

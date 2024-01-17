@@ -1,0 +1,50 @@
+From 951bce29c8988209cc359e1fa35a4aaa35542fd5 Mon Sep 17 00:00:00 2001
+From: Xuan Zhuo <xuanzhuo@linux.alibaba.com>
+Date: Tue, 21 Feb 2023 15:51:40 +0800
+Subject: xsk: add linux/vmalloc.h to xsk.c
+
+Fix the failure of the compilation under the sh4.
+
+Because we introduced remap_vmalloc_range() earlier, this has caused
+the compilation failure on the sh4 platform. So this introduction of the
+header file of linux/vmalloc.h.
+
+config: sh-allmodconfig (https://download.01.org/0day-ci/archive/20230221/202302210041.kpPQLlNQ-lkp@intel.com/config)
+compiler: sh4-linux-gcc (GCC) 12.1.0
+reproduce (this is a W=1 build):
+        wget https://raw.githubusercontent.com/intel/lkp-tests/master/sbin/make.cross -O ~/bin/make.cross
+        chmod +x ~/bin/make.cross
+        # https://git.kernel.org/pub/scm/linux/kernel/git/davem/net-next.git/commit/?id=9f78bf330a66cd400b3e00f370f597e9fa939207
+        git remote add net-next https://git.kernel.org/pub/scm/linux/kernel/git/davem/net-next.git
+        git fetch --no-tags net-next master
+        git checkout 9f78bf330a66cd400b3e00f370f597e9fa939207
+        # save the config file
+        mkdir build_dir && cp config build_dir/.config
+        COMPILER_INSTALL_PATH=$HOME/0day COMPILER=gcc-12.1.0 make.cross W=1 O=build_dir ARCH=sh olddefconfig
+        COMPILER_INSTALL_PATH=$HOME/0day COMPILER=gcc-12.1.0 make.cross W=1 O=build_dir ARCH=sh SHELL=/bin/bash net/
+
+Fixes: 9f78bf330a66 ("xsk: support use vaddr as ring")
+Signed-off-by: Xuan Zhuo <xuanzhuo@linux.alibaba.com>
+Reported-by: kernel test robot <lkp@intel.com>
+Link: https://lore.kernel.org/oe-kbuild-all/202302210041.kpPQLlNQ-lkp@intel.com/
+Link: https://lore.kernel.org/r/20230221075140.46988-1-xuanzhuo@linux.alibaba.com
+Signed-off-by: Jakub Kicinski <kuba@kernel.org>
+---
+ net/xdp/xsk.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/net/xdp/xsk.c b/net/xdp/xsk.c
+index 45eef5af0a51c..2ac58b282b5eb 100644
+--- a/net/xdp/xsk.c
++++ b/net/xdp/xsk.c
+@@ -22,6 +22,7 @@
+ #include <linux/net.h>
+ #include <linux/netdevice.h>
+ #include <linux/rculist.h>
++#include <linux/vmalloc.h>
+ #include <net/xdp_sock_drv.h>
+ #include <net/busy_poll.h>
+ #include <net/xdp.h>
+-- 
+cgit 
+

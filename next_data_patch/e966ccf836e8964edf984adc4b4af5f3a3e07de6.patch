@@ -1,0 +1,128 @@
+From e966ccf836e8964edf984adc4b4af5f3a3e07de6 Mon Sep 17 00:00:00 2001
+From: Vasily Gorbik <gor@linux.ibm.com>
+Date: Mon, 23 Jan 2023 15:24:17 +0100
+Subject: s390/boot: avoid mapping standby memory
+
+Commit bb1520d581a3 ("s390/mm: start kernel with DAT enabled")
+doesn't consider online memory holes due to potential memory offlining
+and erroneously creates pgtables for stand-by memory, which bear RW+X
+attribute and trigger a warning:
+
+RANGE                                 SIZE   STATE REMOVABLE BLOCK
+0x0000000000000000-0x0000000c3fffffff  49G  online       yes  0-48
+0x0000000c40000000-0x0000000c7fffffff   1G offline              49
+0x0000000c80000000-0x0000000fffffffff  14G  online       yes 50-63
+0x0000001000000000-0x00000013ffffffff  16G offline           64-79
+
+    s390/mm: Found insecure W+X mapping at address 0xc40000000
+    WARNING: CPU: 14 PID: 1 at arch/s390/mm/dump_pagetables.c:142 note_page+0x2cc/0x2d8
+
+Map only online memory ranges which fit within identity mapping limit.
+
+Fixes: bb1520d581a3 ("s390/mm: start kernel with DAT enabled")
+Reviewed-by: Alexander Gordeev <agordeev@linux.ibm.com>
+Signed-off-by: Vasily Gorbik <gor@linux.ibm.com>
+Signed-off-by: Heiko Carstens <hca@linux.ibm.com>
+---
+ arch/s390/boot/boot.h    |  2 +-
+ arch/s390/boot/startup.c |  4 +---
+ arch/s390/boot/vmem.c    | 16 +++++++++++-----
+ 3 files changed, 13 insertions(+), 9 deletions(-)
+
+diff --git a/arch/s390/boot/boot.h b/arch/s390/boot/boot.h
+index 8abedae76e534..830cfabaa6a02 100644
+--- a/arch/s390/boot/boot.h
++++ b/arch/s390/boot/boot.h
+@@ -44,7 +44,7 @@ void print_missing_facilities(void);
+ void sclp_early_setup_buffer(void);
+ void print_pgm_check_info(void);
+ unsigned long get_random_base(unsigned long safe_addr);
+-void setup_vmem(unsigned long online_end, unsigned long asce_limit);
++void setup_vmem(unsigned long ident_map_size, unsigned long asce_limit);
+ void __printf(1, 2) decompressor_printk(const char *fmt, ...);
+ void error(char *m);
+ 
+diff --git a/arch/s390/boot/startup.c b/arch/s390/boot/startup.c
+index cb4b743a5e17a..c9dfd7e092331 100644
+--- a/arch/s390/boot/startup.c
++++ b/arch/s390/boot/startup.c
+@@ -278,7 +278,6 @@ void startup_kernel(void)
+ 	unsigned long random_lma;
+ 	unsigned long safe_addr;
+ 	unsigned long asce_limit;
+-	unsigned long online_end;
+ 	void *img;
+ 	psw_t psw;
+ 
+@@ -303,7 +302,6 @@ void startup_kernel(void)
+ 	setup_ident_map_size(detect_memory());
+ 	setup_vmalloc_size();
+ 	asce_limit = setup_kernel_memory_layout();
+-	online_end = min(get_mem_detect_end(), ident_map_size);
+ 
+ 	if (IS_ENABLED(CONFIG_RANDOMIZE_BASE) && kaslr_enabled) {
+ 		random_lma = get_random_base(safe_addr);
+@@ -335,7 +333,7 @@ void startup_kernel(void)
+ 	 */
+ 	clear_bss_section();
+ 	handle_relocs(__kaslr_offset);
+-	setup_vmem(online_end, asce_limit);
++	setup_vmem(ident_map_size, asce_limit);
+ 	copy_bootdata();
+ 
+ 	if (__kaslr_offset) {
+diff --git a/arch/s390/boot/vmem.c b/arch/s390/boot/vmem.c
+index 3bcef4fcea80e..edcad545b949f 100644
+--- a/arch/s390/boot/vmem.c
++++ b/arch/s390/boot/vmem.c
+@@ -39,7 +39,7 @@ static void boot_check_oom(void)
+ 		error("out of memory on boot\n");
+ }
+ 
+-static void pgtable_populate_begin(unsigned long online_end)
++static void pgtable_populate_begin(unsigned long ident_map_size)
+ {
+ 	unsigned long initrd_end;
+ 	unsigned long kernel_end;
+@@ -51,7 +51,7 @@ static void pgtable_populate_begin(unsigned long online_end)
+ 		pgalloc_low = max(pgalloc_low, initrd_end);
+ 	}
+ 
+-	pgalloc_end = round_down(online_end, PAGE_SIZE);
++	pgalloc_end = round_down(min(ident_map_size, get_mem_detect_end()), PAGE_SIZE);
+ 	pgalloc_pos = pgalloc_end;
+ 
+ 	boot_check_oom();
+@@ -247,10 +247,12 @@ static void pgtable_populate_end(void)
+ 	} while (pgalloc_pos < pgalloc_pos_prev);
+ }
+ 
+-void setup_vmem(unsigned long online_end, unsigned long asce_limit)
++void setup_vmem(unsigned long ident_map_size, unsigned long asce_limit)
+ {
++	unsigned long start, end;
+ 	unsigned long asce_type;
+ 	unsigned long asce_bits;
++	int i;
+ 
+ 	if (asce_limit == _REGION1_SIZE) {
+ 		asce_type = _REGION2_ENTRY_EMPTY;
+@@ -272,9 +274,13 @@ void setup_vmem(unsigned long online_end, unsigned long asce_limit)
+ 	 * No further pgtable_populate() calls are allowed after the value
+ 	 * of pgalloc_pos finalized with a call to pgtable_populate_end().
+ 	 */
+-	pgtable_populate_begin(online_end);
++	pgtable_populate_begin(ident_map_size);
+ 	pgtable_populate(0, sizeof(struct lowcore), POPULATE_ONE2ONE);
+-	pgtable_populate(0, online_end, POPULATE_ONE2ONE);
++	for_each_mem_detect_block(i, &start, &end) {
++		if (start >= ident_map_size)
++			break;
++		pgtable_populate(start, min(end, ident_map_size), POPULATE_ONE2ONE);
++	}
+ 	pgtable_populate(__abs_lowcore, __abs_lowcore + sizeof(struct lowcore),
+ 			 POPULATE_ABS_LOWCORE);
+ 	pgtable_populate(__memcpy_real_area, __memcpy_real_area + PAGE_SIZE,
+-- 
+cgit 
+

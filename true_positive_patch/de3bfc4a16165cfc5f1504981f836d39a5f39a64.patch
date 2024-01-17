@@ -1,0 +1,36 @@
+From de3bfc4a16165cfc5f1504981f836d39a5f39a64 Mon Sep 17 00:00:00 2001
+From: Wei Yongjun <yongjun_wei@trendmicro.com.cn>
+Date: Thu, 14 Jul 2016 12:06:45 +0000
+Subject: mtd: nand: omap2: fix return value check in omap_nand_probe()
+
+In case of error, the function dma_request_chan() returns ERR_PTR() and
+never returns NULL. The NULL test in the return value check should be
+replaced with IS_ERR().
+
+Fixes: aa7abd312c11 ('mtd: nand: omap2: Support parsing dma channel
+information from DT')
+Signed-off-by: Wei Yongjun <yongjun_wei@trendmicro.com.cn>
+Signed-off-by: Brian Norris <computersforpeace@gmail.com>
+---
+ drivers/mtd/nand/omap2.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/mtd/nand/omap2.c b/drivers/mtd/nand/omap2.c
+index 83b9091233d49..3dfd512b198b2 100644
+--- a/drivers/mtd/nand/omap2.c
++++ b/drivers/mtd/nand/omap2.c
+@@ -1920,9 +1920,9 @@ static int omap_nand_probe(struct platform_device *pdev)
+ 		dma_cap_set(DMA_SLAVE, mask);
+ 		info->dma = dma_request_chan(pdev->dev.parent, "rxtx");
+ 
+-		if (!info->dma) {
++		if (IS_ERR(info->dma)) {
+ 			dev_err(&pdev->dev, "DMA engine request failed\n");
+-			err = -ENXIO;
++			err = PTR_ERR(info->dma);
+ 			goto return_error;
+ 		} else {
+ 			struct dma_slave_config cfg;
+-- 
+cgit 
+

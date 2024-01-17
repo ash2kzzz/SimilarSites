@@ -1,0 +1,78 @@
+From daf3ddbe11a2ff74c95bc814df8e5fe3201b4cb5 Mon Sep 17 00:00:00 2001
+From: Heiner Kallweit <hkallweit1@gmail.com>
+Date: Fri, 10 May 2019 22:11:26 +0200
+Subject: net: phy: realtek: add missing page operations
+
+Add missing page operation callbacks to few Realtek drivers.
+This also fixes a NPE after the referenced commit added code to the
+RTL8211E driver that uses phy_select_page().
+
+Fixes: f81dadbcf7fd ("net: phy: realtek: Add rtl8211e rx/tx delays config")
+Signed-off-by: Heiner Kallweit <hkallweit1@gmail.com>
+Reviewed-by: Florian Fainelli <f.fainelli@gmail.com>
+Reported-by: Vicente Bergas <vicencb@gmail.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ drivers/net/phy/realtek.c | 12 ++++++++++++
+ 1 file changed, 12 insertions(+)
+
+diff --git a/drivers/net/phy/realtek.c b/drivers/net/phy/realtek.c
+index 761ce3b1e7bdb..29ce073125091 100644
+--- a/drivers/net/phy/realtek.c
++++ b/drivers/net/phy/realtek.c
+@@ -275,6 +275,8 @@ static struct phy_driver realtek_drvs[] = {
+ 		.config_aneg	= rtl8211_config_aneg,
+ 		.read_mmd	= &genphy_read_mmd_unsupported,
+ 		.write_mmd	= &genphy_write_mmd_unsupported,
++		.read_page	= rtl821x_read_page,
++		.write_page	= rtl821x_write_page,
+ 	}, {
+ 		PHY_ID_MATCH_EXACT(0x001cc912),
+ 		.name		= "RTL8211B Gigabit Ethernet",
+@@ -284,12 +286,16 @@ static struct phy_driver realtek_drvs[] = {
+ 		.write_mmd	= &genphy_write_mmd_unsupported,
+ 		.suspend	= rtl8211b_suspend,
+ 		.resume		= rtl8211b_resume,
++		.read_page	= rtl821x_read_page,
++		.write_page	= rtl821x_write_page,
+ 	}, {
+ 		PHY_ID_MATCH_EXACT(0x001cc913),
+ 		.name		= "RTL8211C Gigabit Ethernet",
+ 		.config_init	= rtl8211c_config_init,
+ 		.read_mmd	= &genphy_read_mmd_unsupported,
+ 		.write_mmd	= &genphy_write_mmd_unsupported,
++		.read_page	= rtl821x_read_page,
++		.write_page	= rtl821x_write_page,
+ 	}, {
+ 		PHY_ID_MATCH_EXACT(0x001cc914),
+ 		.name		= "RTL8211DN Gigabit Ethernet",
+@@ -297,6 +303,8 @@ static struct phy_driver realtek_drvs[] = {
+ 		.config_intr	= rtl8211e_config_intr,
+ 		.suspend	= genphy_suspend,
+ 		.resume		= genphy_resume,
++		.read_page	= rtl821x_read_page,
++		.write_page	= rtl821x_write_page,
+ 	}, {
+ 		PHY_ID_MATCH_EXACT(0x001cc915),
+ 		.name		= "RTL8211E Gigabit Ethernet",
+@@ -305,6 +313,8 @@ static struct phy_driver realtek_drvs[] = {
+ 		.config_intr	= &rtl8211e_config_intr,
+ 		.suspend	= genphy_suspend,
+ 		.resume		= genphy_resume,
++		.read_page	= rtl821x_read_page,
++		.write_page	= rtl821x_write_page,
+ 	}, {
+ 		PHY_ID_MATCH_EXACT(0x001cc916),
+ 		.name		= "RTL8211F Gigabit Ethernet",
+@@ -322,6 +332,8 @@ static struct phy_driver realtek_drvs[] = {
+ 		.resume		= genphy_resume,
+ 		.read_page	= rtl821x_read_page,
+ 		.write_page	= rtl821x_write_page,
++		.read_page	= rtl821x_read_page,
++		.write_page	= rtl821x_write_page,
+ 	}, {
+ 		PHY_ID_MATCH_EXACT(0x001cc961),
+ 		.name		= "RTL8366RB Gigabit Ethernet",
+-- 
+cgit 
+

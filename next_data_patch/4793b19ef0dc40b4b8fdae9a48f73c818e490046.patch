@@ -1,0 +1,40 @@
+From 4793b19ef0dc40b4b8fdae9a48f73c818e490046 Mon Sep 17 00:00:00 2001
+From: ChiYuan Huang <cy_huang@richtek.com>
+Date: Fri, 17 Mar 2023 23:42:40 +0800
+Subject: leds: rgb: mt6370: Fix implicit declaration for FIELD_GET
+
+0-DAY CI Kernel Test Service reported the implicit declaration error below:
+
+drivers/leds/rgb/leds-mt6370-rgb.c: In function'mt6370_check_vendor_info':
+>> drivers/leds/rgb/leds-mt6370-rgb.c:889:15: error: implicit  declaration
+   of function 'FIELD_GET' [-Werror=implicit-function-declaration]
+  889 |         vid = FIELD_GET(MT6370_VENDOR_ID_MASK, devinfo);
+      |
+
+Add the missing header 'bitfield.h' to fix it.
+
+Reported-by: kernel test robot <lkp@intel.com>
+Link: https://lore.kernel.org/oe-kbuild-all/202303171729.CcgyFx17-lkp@intel.com/
+Fixes: 55a8a5c16eb3 ("leds: rgb: mt6370: Add MediaTek MT6370 current sink type LED Indicator support")
+Signed-off-by: ChiYuan Huang <cy_huang@richtek.com>
+Signed-off-by: Lee Jones <lee@kernel.org>
+Link: https://lore.kernel.org/r/1679067760-19098-1-git-send-email-cy_huang@richtek.com
+---
+ drivers/leds/rgb/leds-mt6370-rgb.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/drivers/leds/rgb/leds-mt6370-rgb.c b/drivers/leds/rgb/leds-mt6370-rgb.c
+index 9c1e6d566f115..bb62431efe836 100644
+--- a/drivers/leds/rgb/leds-mt6370-rgb.c
++++ b/drivers/leds/rgb/leds-mt6370-rgb.c
+@@ -7,6 +7,7 @@
+  *   Alice Chen <alice_chen@richtek.com>
+  */
+ 
++#include <linux/bitfield.h>
+ #include <linux/bitops.h>
+ #include <linux/kernel.h>
+ #include <linux/leds.h>
+-- 
+cgit 
+

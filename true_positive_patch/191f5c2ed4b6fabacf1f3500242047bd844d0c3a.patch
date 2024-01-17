@@ -1,0 +1,223 @@
+From 191f5c2ed4b6fabacf1f3500242047bd844d0c3a Mon Sep 17 00:00:00 2001
+From: Tudor Ambarus <tudor.ambarus@microchip.com>
+Date: Mon, 10 Jun 2019 06:24:04 +0000
+Subject: mtd: spi-nor: use 16-bit WRR command when QE is set on spansion
+ flashes
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+SPI memory devices from different manufacturers have widely
+different configurations for Status, Control and Configuration
+registers. JEDEC 216C defines a new map for these common register
+bits and their functions, and describes how the individual bits may
+be accessed for a specific device. For the JEDEC 216B compliant
+flashes, we can partially deduce Status and Configuration registers
+functions by inspecting the 16th DWORD of BFPT. Older flashes that
+don't declare the SFDP tables (SPANSION FL512SAIFG1 311QQ063 A ©11
+SPANSION) let the software decide how to interact with these registers.
+
+The commit dcb4b22eeaf4 ("spi-nor: s25fl512s supports region locking")
+uncovered a probe error for s25fl512s, when the Quad Enable bit CR[1]
+was set to one in the bootloader. When this bit is one, only the Write
+Status (01h) command with two data byts may be used, the 01h command with
+one data byte is not recognized and hence the error when trying to clear
+the block protection bits.
+
+Fix the above by using the Write Status (01h) command with two data bytes
+when the Quad Enable bit is one.
+
+Backward compatibility should be fine. The newly introduced
+spi_nor_spansion_clear_sr_bp() is tightly coupled with the
+spansion_quad_enable() function. Both assume that the Write Register
+with 16 bits, together with the Read Configuration Register (35h)
+instructions are supported.
+
+Fixes: dcb4b22eeaf44f91 ("spi-nor: s25fl512s supports region locking")
+Reported-by: Geert Uytterhoeven <geert@linux-m68k.org>
+Signed-off-by: Tudor Ambarus <tudor.ambarus@microchip.com>
+Tested-by: Jonas Bonn <jonas@norrbonn.se>
+Tested-by: Geert Uytterhoeven <geert+renesas@glider.be>
+Reviewed-by: Vignesh Raghavendra <vigneshr@ti.com>
+Tested-by: Vignesh Raghavendra <vigneshr@ti.com>
+Signed-off-by: Miquel Raynal <miquel.raynal@bootlin.com>
+---
+ drivers/mtd/spi-nor/spi-nor.c | 119 ++++++++++++++++++++++++++++++++++++++----
+ include/linux/mtd/spi-nor.h   |   3 ++
+ 2 files changed, 111 insertions(+), 11 deletions(-)
+
+diff --git a/drivers/mtd/spi-nor/spi-nor.c b/drivers/mtd/spi-nor/spi-nor.c
+index 73172d7f512bc..0c2ec1c21434c 100644
+--- a/drivers/mtd/spi-nor/spi-nor.c
++++ b/drivers/mtd/spi-nor/spi-nor.c
+@@ -1636,6 +1636,95 @@ static int sr2_bit7_quad_enable(struct spi_nor *nor)
+ 	return 0;
+ }
+ 
++/**
++ * spi_nor_clear_sr_bp() - clear the Status Register Block Protection bits.
++ * @nor:        pointer to a 'struct spi_nor'
++ *
++ * Read-modify-write function that clears the Block Protection bits from the
++ * Status Register without affecting other bits.
++ *
++ * Return: 0 on success, -errno otherwise.
++ */
++static int spi_nor_clear_sr_bp(struct spi_nor *nor)
++{
++	int ret;
++	u8 mask = SR_BP2 | SR_BP1 | SR_BP0;
++
++	ret = read_sr(nor);
++	if (ret < 0) {
++		dev_err(nor->dev, "error while reading status register\n");
++		return ret;
++	}
++
++	write_enable(nor);
++
++	ret = write_sr(nor, ret & ~mask);
++	if (ret) {
++		dev_err(nor->dev, "write to status register failed\n");
++		return ret;
++	}
++
++	ret = spi_nor_wait_till_ready(nor);
++	if (ret)
++		dev_err(nor->dev, "timeout while writing status register\n");
++	return ret;
++}
++
++/**
++ * spi_nor_spansion_clear_sr_bp() - clear the Status Register Block Protection
++ * bits on spansion flashes.
++ * @nor:        pointer to a 'struct spi_nor'
++ *
++ * Read-modify-write function that clears the Block Protection bits from the
++ * Status Register without affecting other bits. The function is tightly
++ * coupled with the spansion_quad_enable() function. Both assume that the Write
++ * Register with 16 bits, together with the Read Configuration Register (35h)
++ * instructions are supported.
++ *
++ * Return: 0 on success, -errno otherwise.
++ */
++static int spi_nor_spansion_clear_sr_bp(struct spi_nor *nor)
++{
++	int ret;
++	u8 mask = SR_BP2 | SR_BP1 | SR_BP0;
++	u8 sr_cr[2] = {0};
++
++	/* Check current Quad Enable bit value. */
++	ret = read_cr(nor);
++	if (ret < 0) {
++		dev_err(nor->dev,
++			"error while reading configuration register\n");
++		return ret;
++	}
++
++	/*
++	 * When the configuration register Quad Enable bit is one, only the
++	 * Write Status (01h) command with two data bytes may be used.
++	 */
++	if (ret & CR_QUAD_EN_SPAN) {
++		sr_cr[1] = ret;
++
++		ret = read_sr(nor);
++		if (ret < 0) {
++			dev_err(nor->dev,
++				"error while reading status register\n");
++			return ret;
++		}
++		sr_cr[0] = ret & ~mask;
++
++		ret = write_sr_cr(nor, sr_cr);
++		if (ret)
++			dev_err(nor->dev, "16-bit write register failed\n");
++		return ret;
++	}
++
++	/*
++	 * If the Quad Enable bit is zero, use the Write Status (01h) command
++	 * with one data byte.
++	 */
++	return spi_nor_clear_sr_bp(nor);
++}
++
+ /* Used when the "_ext_id" is two bytes at most */
+ #define INFO(_jedec_id, _ext_id, _sector_size, _n_sectors, _flags)	\
+ 		.id = {							\
+@@ -3660,6 +3749,8 @@ static int spi_nor_init_params(struct spi_nor *nor,
+ 		default:
+ 			/* Kept only for backward compatibility purpose. */
+ 			params->quad_enable = spansion_quad_enable;
++			if (nor->clear_sr_bp)
++				nor->clear_sr_bp = spi_nor_spansion_clear_sr_bp;
+ 			break;
+ 		}
+ 
+@@ -3912,17 +4003,13 @@ static int spi_nor_init(struct spi_nor *nor)
+ {
+ 	int err;
+ 
+-	/*
+-	 * Atmel, SST, Intel/Numonyx, and others serial NOR tend to power up
+-	 * with the software protection bits set
+-	 */
+-	if (JEDEC_MFR(nor->info) == SNOR_MFR_ATMEL ||
+-	    JEDEC_MFR(nor->info) == SNOR_MFR_INTEL ||
+-	    JEDEC_MFR(nor->info) == SNOR_MFR_SST ||
+-	    nor->info->flags & SPI_NOR_HAS_LOCK) {
+-		write_enable(nor);
+-		write_sr(nor, 0);
+-		spi_nor_wait_till_ready(nor);
++	if (nor->clear_sr_bp) {
++		err = nor->clear_sr_bp(nor);
++		if (err) {
++			dev_err(nor->dev,
++				"fail to clear block protection bits\n");
++			return err;
++		}
+ 	}
+ 
+ 	if (nor->quad_enable) {
+@@ -4047,6 +4134,16 @@ int spi_nor_scan(struct spi_nor *nor, const char *name,
+ 	if (info->flags & SPI_S3AN)
+ 		nor->flags |=  SNOR_F_READY_XSR_RDY;
+ 
++	/*
++	 * Atmel, SST, Intel/Numonyx, and others serial NOR tend to power up
++	 * with the software protection bits set.
++	 */
++	if (JEDEC_MFR(nor->info) == SNOR_MFR_ATMEL ||
++	    JEDEC_MFR(nor->info) == SNOR_MFR_INTEL ||
++	    JEDEC_MFR(nor->info) == SNOR_MFR_SST ||
++	    nor->info->flags & SPI_NOR_HAS_LOCK)
++		nor->clear_sr_bp = spi_nor_clear_sr_bp;
++
+ 	/* Parse the Serial Flash Discoverable Parameters table. */
+ 	ret = spi_nor_init_params(nor, &params);
+ 	if (ret)
+diff --git a/include/linux/mtd/spi-nor.h b/include/linux/mtd/spi-nor.h
+index b3d360b0ee3d7..9f57cdfcc93d8 100644
+--- a/include/linux/mtd/spi-nor.h
++++ b/include/linux/mtd/spi-nor.h
+@@ -373,6 +373,8 @@ struct flash_info;
+  * @flash_unlock:	[FLASH-SPECIFIC] unlock a region of the SPI NOR
+  * @flash_is_locked:	[FLASH-SPECIFIC] check if a region of the SPI NOR is
+  * @quad_enable:	[FLASH-SPECIFIC] enables SPI NOR quad mode
++ * @clear_sr_bp:	[FLASH-SPECIFIC] clears the Block Protection Bits from
++ *			the SPI NOR Status Register.
+  *			completely locked
+  * @priv:		the private data
+  */
+@@ -410,6 +412,7 @@ struct spi_nor {
+ 	int (*flash_unlock)(struct spi_nor *nor, loff_t ofs, uint64_t len);
+ 	int (*flash_is_locked)(struct spi_nor *nor, loff_t ofs, uint64_t len);
+ 	int (*quad_enable)(struct spi_nor *nor);
++	int (*clear_sr_bp)(struct spi_nor *nor);
+ 
+ 	void *priv;
+ };
+-- 
+cgit 
+

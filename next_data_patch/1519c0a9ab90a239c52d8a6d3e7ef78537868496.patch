@@ -1,0 +1,50 @@
+From 1519c0a9ab90a239c52d8a6d3e7ef78537868496 Mon Sep 17 00:00:00 2001
+From: Bartosz Golaszewski <bartosz.golaszewski@linaro.org>
+Date: Mon, 30 Jan 2023 15:51:54 +0100
+Subject: dt-bindings: clock: qcom,sa8775p-gcc: add the power-domains property
+
+The binding document is missing the power-domains property. Add it and
+update the example.
+
+Fixes: 0fff9fa043f9 ("dt-bindings: clock: Add Qualcomm SA8775P GCC")
+Signed-off-by: Bartosz Golaszewski <bartosz.golaszewski@linaro.org>
+Acked-by: Rob Herring <robh@kernel.org>
+Signed-off-by: Bjorn Andersson <andersson@kernel.org>
+Link: https://lore.kernel.org/r/20230130145154.195562-1-brgl@bgdev.pl
+---
+ Documentation/devicetree/bindings/clock/qcom,sa8775p-gcc.yaml | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/Documentation/devicetree/bindings/clock/qcom,sa8775p-gcc.yaml b/Documentation/devicetree/bindings/clock/qcom,sa8775p-gcc.yaml
+index dae65ebc5557f..0f641c235b138 100644
+--- a/Documentation/devicetree/bindings/clock/qcom,sa8775p-gcc.yaml
++++ b/Documentation/devicetree/bindings/clock/qcom,sa8775p-gcc.yaml
+@@ -40,6 +40,9 @@ properties:
+   protected-clocks:
+     maxItems: 240
+ 
++  power-domains:
++    maxItems: 1
++
+ required:
+   - compatible
+   - clocks
+@@ -52,6 +55,7 @@ unevaluatedProperties: false
+ examples:
+   - |
+     #include <dt-bindings/clock/qcom,rpmh.h>
++    #include <dt-bindings/power/qcom-rpmpd.h>
+ 
+     gcc: clock-controller@100000 {
+         compatible = "qcom,sa8775p-gcc";
+@@ -71,6 +75,7 @@ examples:
+                  <&pcie_phy_pipe_clk>,
+                  <&rxc0_ref_clk>,
+                  <&rxc1_ref_clk>;
++        power-domains = <&rpmhpd SA8775P_CX>;
+ 
+         #clock-cells = <1>;
+         #reset-cells = <1>;
+-- 
+cgit 
+

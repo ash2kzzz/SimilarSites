@@ -1,0 +1,98 @@
+From 0c717d0f9cb46259dce5272705adce64a2d646d9 Mon Sep 17 00:00:00 2001
+From: Viresh Kumar <viresh.kumar@linaro.org>
+Date: Mon, 15 Feb 2016 21:56:42 +0530
+Subject: PM / OPP: Initialize regulator pointer to an error value
+
+We are currently required to do two checks for regulator pointer:
+IS_ERR() and IS_NULL().
+
+And multiple instances are reported, about both of these not being used
+consistently and so resulting in crashes.
+
+Fix that by initializing regulator pointer with an error value and
+checking it only against an error.
+
+This makes code more consistent and more efficient.
+
+Fixes: 7d34d56ef334 (PM / OPP: Disable OPPs that aren't supported by the regulator)
+Reported-and-tested-by: Jon Hunter <jonathanh@nvidia.com>
+Reported-and-tested-by: Tony Lindgren <tony@atomide.com>
+Reported-and-tested-by: Guenter Roeck <linux@roeck-us.net>
+Signed-off-by: Viresh Kumar <viresh.kumar@linaro.org>
+[ rjw: Initialize to -ENXIO ]
+Signed-off-by: Rafael J. Wysocki <rafael.j.wysocki@intel.com>
+---
+ drivers/base/power/opp/core.c | 15 +++++++++------
+ 1 file changed, 9 insertions(+), 6 deletions(-)
+
+diff --git a/drivers/base/power/opp/core.c b/drivers/base/power/opp/core.c
+index 19fd7e7a39691..5fb2f061129ea 100644
+--- a/drivers/base/power/opp/core.c
++++ b/drivers/base/power/opp/core.c
+@@ -257,7 +257,7 @@ unsigned long dev_pm_opp_get_max_volt_latency(struct device *dev)
+ 	}
+ 
+ 	reg = dev_opp->regulator;
+-	if (IS_ERR_OR_NULL(reg)) {
++	if (IS_ERR(reg)) {
+ 		/* Regulator may not be required for device */
+ 		if (reg)
+ 			dev_err(dev, "%s: Invalid regulator (%ld)\n", __func__,
+@@ -798,6 +798,9 @@ static struct device_opp *_add_device_opp(struct device *dev)
+ 		of_node_put(np);
+ 	}
+ 
++	/* Set regulator to a non-NULL error value */
++	dev_opp->regulator = ERR_PTR(-ENXIO);
++
+ 	/* Find clk for the device */
+ 	dev_opp->clk = clk_get(dev, NULL);
+ 	if (IS_ERR(dev_opp->clk)) {
+@@ -845,7 +848,7 @@ static void _remove_device_opp(struct device_opp *dev_opp)
+ 	if (dev_opp->prop_name)
+ 		return;
+ 
+-	if (!IS_ERR_OR_NULL(dev_opp->regulator))
++	if (!IS_ERR(dev_opp->regulator))
+ 		return;
+ 
+ 	/* Release clk */
+@@ -975,7 +978,7 @@ static bool _opp_supported_by_regulators(struct dev_pm_opp *opp,
+ {
+ 	struct regulator *reg = dev_opp->regulator;
+ 
+-	if (!IS_ERR_OR_NULL(reg) &&
++	if (!IS_ERR(reg) &&
+ 	    !regulator_is_supported_voltage(reg, opp->u_volt_min,
+ 					    opp->u_volt_max)) {
+ 		pr_warn("%s: OPP minuV: %lu maxuV: %lu, not supported by regulator\n",
+@@ -1441,7 +1444,7 @@ int dev_pm_opp_set_regulator(struct device *dev, const char *name)
+ 	}
+ 
+ 	/* Already have a regulator set */
+-	if (WARN_ON(!IS_ERR_OR_NULL(dev_opp->regulator))) {
++	if (WARN_ON(!IS_ERR(dev_opp->regulator))) {
+ 		ret = -EBUSY;
+ 		goto err;
+ 	}
+@@ -1492,7 +1495,7 @@ void dev_pm_opp_put_regulator(struct device *dev)
+ 		goto unlock;
+ 	}
+ 
+-	if (IS_ERR_OR_NULL(dev_opp->regulator)) {
++	if (IS_ERR(dev_opp->regulator)) {
+ 		dev_err(dev, "%s: Doesn't have regulator set\n", __func__);
+ 		goto unlock;
+ 	}
+@@ -1501,7 +1504,7 @@ void dev_pm_opp_put_regulator(struct device *dev)
+ 	WARN_ON(!list_empty(&dev_opp->opp_list));
+ 
+ 	regulator_put(dev_opp->regulator);
+-	dev_opp->regulator = ERR_PTR(-EINVAL);
++	dev_opp->regulator = ERR_PTR(-ENXIO);
+ 
+ 	/* Try freeing device_opp if this was the last blocking resource */
+ 	_remove_device_opp(dev_opp);
+-- 
+cgit 
+

@@ -1,0 +1,37 @@
+From 9442d05bba6c12749fdc4039eddcf801398ec82b Mon Sep 17 00:00:00 2001
+From: Marc Zyngier <maz@kernel.org>
+Date: Mon, 6 Feb 2023 09:24:40 +0000
+Subject: arm64/sme: Fix __finalise_el2 SMEver check
+
+When checking for ID_AA64SMFR0_EL1.SMEver, __check_override assumes
+that the ID_AA64SMFR0_EL1 value is in x1, and the intent of the code
+is to reuse value read a few lines above.
+
+However, as the comment says at the beginning of the macro, x1 will
+be clobbered, and the checks always fails.
+
+The easiest fix is just to reload the id register before checking it.
+
+Fixes: f122576f3533 ("arm64/sme: Enable host kernel to access ZT0")
+Signed-off-by: Marc Zyngier <maz@kernel.org>
+Reviewed-by: Mark Brown <broonie@kernel.org>
+Signed-off-by: Catalin Marinas <catalin.marinas@arm.com>
+---
+ arch/arm64/kernel/hyp-stub.S | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/arch/arm64/kernel/hyp-stub.S b/arch/arm64/kernel/hyp-stub.S
+index d31d1acb170d5..111ff33d93ee7 100644
+--- a/arch/arm64/kernel/hyp-stub.S
++++ b/arch/arm64/kernel/hyp-stub.S
+@@ -133,6 +133,7 @@ SYM_CODE_START_LOCAL(__finalise_el2)
+ .Lskip_sme_fa64:
+ 
+ 	// ZT0 available?
++	mrs_s	x1, SYS_ID_AA64SMFR0_EL1
+ 	__check_override id_aa64smfr0 ID_AA64SMFR0_EL1_SMEver_SHIFT 4 .Linit_sme_zt0 .Lskip_sme_zt0
+ .Linit_sme_zt0:
+ 	orr	x0, x0, SMCR_ELx_EZT0_MASK
+-- 
+cgit 
+

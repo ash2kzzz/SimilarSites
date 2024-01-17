@@ -1,0 +1,43 @@
+From 0aa821d846c0590ad64a00af95a3dcc29263d70f Mon Sep 17 00:00:00 2001
+From: Stefan Agner <stefan@agner.ch>
+Date: Fri, 20 Apr 2018 14:44:07 +0200
+Subject: serial: imx: fix cached UCR2 read on software reset
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+To reset the UART the SRST needs be cleared (low active). According
+to the documentation the bit will remain active for 4 module clocks
+until it is cleared (set to 1).
+
+Hence the real register need to be read in case the cached register
+indicates that the SRST bit is zero.
+
+This bug lead to wrong baudrate because the baud rate register got
+restored before reset completed in imx_flush_buffer.
+
+Fixes: 3a0ab62f43de ("serial: imx: implement shadow registers for UCRx and UFCR")
+Signed-off-by: Stefan Agner <stefan@agner.ch>
+Reviewed-by: Fabio Estevam <fabio.estevam@nxp.com>
+Reviewed-by: Uwe Kleine-König <u.kleine-koenig@pengutronix.de>
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+---
+ drivers/tty/serial/imx.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/tty/serial/imx.c b/drivers/tty/serial/imx.c
+index 65d7a2bfb6d2a..c2fc6bef7a6f2 100644
+--- a/drivers/tty/serial/imx.c
++++ b/drivers/tty/serial/imx.c
+@@ -316,7 +316,7 @@ static u32 imx_uart_readl(struct imx_port *sport, u32 offset)
+ 		 * differ from the value that was last written. As it only
+ 		 * clears after being set, reread conditionally.
+ 		 */
+-		if (sport->ucr2 & UCR2_SRST)
++		if (!(sport->ucr2 & UCR2_SRST))
+ 			sport->ucr2 = readl(sport->port.membase + offset);
+ 		return sport->ucr2;
+ 		break;
+-- 
+cgit 
+

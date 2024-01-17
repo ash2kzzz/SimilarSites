@@ -1,0 +1,89 @@
+From 42994ee3cd7298b27698daa6848ed7168e72d056 Mon Sep 17 00:00:00 2001
+From: Roberto Sassu <roberto.sassu@huawei.com>
+Date: Fri, 10 Mar 2023 09:53:59 +0100
+Subject: security: Introduce LSM_ORDER_LAST and set it for the integrity LSM
+
+Introduce LSM_ORDER_LAST, to satisfy the requirement of LSMs needing to be
+last, e.g. the 'integrity' LSM, without changing the kernel command line or
+configuration.
+
+Also, set this order for the 'integrity' LSM. While not enforced, this is
+the only LSM expected to use it.
+
+Similarly to LSM_ORDER_FIRST, LSMs with LSM_ORDER_LAST are always enabled
+and put at the end of the LSM list, if selected in the kernel
+configuration. Setting one of these orders alone, does not cause the LSMs
+to be selected and compiled built-in in the kernel.
+
+Finally, for LSM_ORDER_MUTABLE LSMs, set the found variable to true if an
+LSM is found, regardless of its order. In this way, the kernel would not
+wrongly report that the LSM is not built-in in the kernel if its order is
+LSM_ORDER_LAST.
+
+Fixes: 79f7865d844c ("LSM: Introduce "lsm=" for boottime LSM selection")
+Signed-off-by: Roberto Sassu <roberto.sassu@huawei.com>
+Acked-by: Mimi Zohar <zohar@linux.ibm.com>
+Signed-off-by: Paul Moore <paul@paul-moore.com>
+---
+ include/linux/lsm_hooks.h |  1 +
+ security/integrity/iint.c |  1 +
+ security/security.c       | 12 +++++++++---
+ 3 files changed, 11 insertions(+), 3 deletions(-)
+
+diff --git a/include/linux/lsm_hooks.h b/include/linux/lsm_hooks.h
+index ddbbe89a7a48e..c2be66c669ae1 100644
+--- a/include/linux/lsm_hooks.h
++++ b/include/linux/lsm_hooks.h
+@@ -92,6 +92,7 @@ extern void security_add_hooks(struct security_hook_list *hooks, int count,
+ enum lsm_order {
+ 	LSM_ORDER_FIRST = -1,	/* This is only for capabilities. */
+ 	LSM_ORDER_MUTABLE = 0,
++	LSM_ORDER_LAST = 1,	/* This is only for integrity. */
+ };
+ 
+ struct lsm_info {
+diff --git a/security/integrity/iint.c b/security/integrity/iint.c
+index 8638976f7990b..b97eb59e0e323 100644
+--- a/security/integrity/iint.c
++++ b/security/integrity/iint.c
+@@ -182,6 +182,7 @@ static int __init integrity_iintcache_init(void)
+ DEFINE_LSM(integrity) = {
+ 	.name = "integrity",
+ 	.init = integrity_iintcache_init,
++	.order = LSM_ORDER_LAST,
+ };
+ 
+ 
+diff --git a/security/security.c b/security/security.c
+index e6c275fff001a..b808e1b865514 100644
+--- a/security/security.c
++++ b/security/security.c
+@@ -285,9 +285,9 @@ static void __init ordered_lsm_parse(const char *order, const char *origin)
+ 		bool found = false;
+ 
+ 		for (lsm = __start_lsm_info; lsm < __end_lsm_info; lsm++) {
+-			if (lsm->order == LSM_ORDER_MUTABLE &&
+-			    strcmp(lsm->name, name) == 0) {
+-				append_ordered_lsm(lsm, origin);
++			if (strcmp(lsm->name, name) == 0) {
++				if (lsm->order == LSM_ORDER_MUTABLE)
++					append_ordered_lsm(lsm, origin);
+ 				found = true;
+ 			}
+ 		}
+@@ -307,6 +307,12 @@ static void __init ordered_lsm_parse(const char *order, const char *origin)
+ 		}
+ 	}
+ 
++	/* LSM_ORDER_LAST is always last. */
++	for (lsm = __start_lsm_info; lsm < __end_lsm_info; lsm++) {
++		if (lsm->order == LSM_ORDER_LAST)
++			append_ordered_lsm(lsm, "   last");
++	}
++
+ 	/* Disable all LSMs not in the ordered list. */
+ 	for (lsm = __start_lsm_info; lsm < __end_lsm_info; lsm++) {
+ 		if (exists_ordered_lsm(lsm))
+-- 
+cgit 
+

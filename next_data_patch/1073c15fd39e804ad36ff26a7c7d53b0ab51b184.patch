@@ -1,0 +1,33 @@
+From 1073c15fd39e804ad36ff26a7c7d53b0ab51b184 Mon Sep 17 00:00:00 2001
+From: Mirsad Goran Todorovac <mirsad.todorovac@alu.unizg.hr>
+Date: Wed, 22 Mar 2023 09:51:07 +0100
+Subject: scripts: merge_config: Fix typo in variable name.
+
+${WARNOVERRIDE} was misspelled as ${WARNOVVERIDE}, which caused a shell
+syntax error in certain paths of the script execution.
+
+Fixes: 46dff8d7e381 ("scripts: merge_config: Add option to suppress warning on overrides")
+Signed-off-by: Mirsad Goran Todorovac <mirsad.todorovac@alu.unizg.hr>
+Reviewed-by: Mark Brown <broonie@kernel.org>
+Acked-by: Randy Dunlap <rdunlap@infradead.org>
+Signed-off-by: Masahiro Yamada <masahiroy@kernel.org>
+---
+ scripts/kconfig/merge_config.sh | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/scripts/kconfig/merge_config.sh b/scripts/kconfig/merge_config.sh
+index 32620de473ad2..902eb429b9dbd 100755
+--- a/scripts/kconfig/merge_config.sh
++++ b/scripts/kconfig/merge_config.sh
+@@ -145,7 +145,7 @@ for ORIG_MERGE_FILE in $MERGE_LIST ; do
+ 		NEW_VAL=$(grep -w $CFG $MERGE_FILE)
+ 		BUILTIN_FLAG=false
+ 		if [ "$BUILTIN" = "true" ] && [ "${NEW_VAL#CONFIG_*=}" = "m" ] && [ "${PREV_VAL#CONFIG_*=}" = "y" ]; then
+-			${WARNOVVERIDE} Previous  value: $PREV_VAL
++			${WARNOVERRIDE} Previous  value: $PREV_VAL
+ 			${WARNOVERRIDE} New value:       $NEW_VAL
+ 			${WARNOVERRIDE} -y passed, will not demote y to m
+ 			${WARNOVERRIDE}
+-- 
+cgit 
+

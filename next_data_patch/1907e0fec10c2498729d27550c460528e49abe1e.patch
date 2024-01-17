@@ -1,0 +1,55 @@
+From 1907e0fec10c2498729d27550c460528e49abe1e Mon Sep 17 00:00:00 2001
+From: David Howells <dhowells@redhat.com>
+Date: Thu, 23 Feb 2023 08:15:38 +0000
+Subject: cifs: Add some missing xas_retry() calls
+
+The xas_for_each loops added into fs/cifs/file.c need to go round again if
+indicated by xas_retry().
+
+Fixes: b8713c4dbfa3 ("cifs: Add some helper functions")
+Signed-off-by: David Howells <dhowells@redhat.com>
+Reviewed-by: Paulo Alcantara (SUSE) <pc@cjr.nz>
+cc: Shyam Prasad N <nspmangalore@gmail.com>
+cc: Rohith Surabattula <rohiths.msft@gmail.com>
+cc: Tom Talpey <tom@talpey.com>
+cc: Jeff Layton <jlayton@kernel.org>
+cc: linux-cifs@vger.kernel.org
+Signed-off-by: Steve French <stfrench@microsoft.com>
+---
+ fs/cifs/file.c | 6 ++++++
+ 1 file changed, 6 insertions(+)
+
+diff --git a/fs/cifs/file.c b/fs/cifs/file.c
+index ebfcaae8c4373..879524bf7528b 100644
+--- a/fs/cifs/file.c
++++ b/fs/cifs/file.c
+@@ -52,6 +52,8 @@ static void cifs_undirty_folios(struct inode *inode, loff_t start, unsigned int
+ 
+ 	end = (start + len - 1) / PAGE_SIZE;
+ 	xas_for_each_marked(&xas, folio, end, PAGECACHE_TAG_DIRTY) {
++		if (xas_retry(&xas, folio))
++			continue;
+ 		xas_pause(&xas);
+ 		rcu_read_unlock();
+ 		folio_lock(folio);
+@@ -81,6 +83,8 @@ void cifs_pages_written_back(struct inode *inode, loff_t start, unsigned int len
+ 
+ 	end = (start + len - 1) / PAGE_SIZE;
+ 	xas_for_each(&xas, folio, end) {
++		if (xas_retry(&xas, folio))
++			continue;
+ 		if (!folio_test_writeback(folio)) {
+ 			WARN_ONCE(1, "bad %x @%llx page %lx %lx\n",
+ 				  len, start, folio_index(folio), end);
+@@ -112,6 +116,8 @@ void cifs_pages_write_failed(struct inode *inode, loff_t start, unsigned int len
+ 
+ 	end = (start + len - 1) / PAGE_SIZE;
+ 	xas_for_each(&xas, folio, end) {
++		if (xas_retry(&xas, folio))
++			continue;
+ 		if (!folio_test_writeback(folio)) {
+ 			WARN_ONCE(1, "bad %x @%llx page %lx %lx\n",
+ 				  len, start, folio_index(folio), end);
+-- 
+cgit 
+

@@ -1,0 +1,57 @@
+From 6bbf1090672673183a98cd6e19de91fa5a319df0 Mon Sep 17 00:00:00 2001
+From: Joey Gouly <joey.gouly@arm.com>
+Date: Wed, 8 Mar 2023 19:04:20 +0000
+Subject: mm: deduplicate error handling for map_deny_write_exec
+
+Patch series "Fixes for MDWE prctl"
+
+These are four small fixes for the recent memory-write-deny-execute prctl
+patches [1].  Two reported by Alexey about error handling and two tooling
+fixes by Peter.
+
+
+This patch (of 4):
+
+Commit cc8d1b097de7 ("mmap: clean up mmap_region() unrolling")
+deduplicated the error handling, do the same for the return value of
+`map_deny_write_exec`.
+
+Link: https://lkml.kernel.org/r/20230308190423.46491-1-joey.gouly@arm.com
+Link: https://lkml.kernel.org/r/20230308190423.46491-2-joey.gouly@arm.com
+Link: https://lore.kernel.org/linux-arm-kernel/20230119160344.54358-1-joey.gouly@arm.com/ [1]
+Fixes: b507808ebce2 ("mm: implement memory-deny-write-execute as a prctl")
+Signed-off-by: Joey Gouly <joey.gouly@arm.com>
+Reported-by: Alexey Izbyshev <izbyshev@ispras.ru>
+  Link: https://lore.kernel.org/linux-arm-kernel/8408d8901e9d7ee6b78db4c6cba04b78@ispras.ru/
+Reviewed-by: Catalin Marinas <catalin.marinas@arm.com>
+Cc: Arnaldo Carvalho de Melo <acme@redhat.com>
+Cc: Kees Cook <keescook@chromium.org>
+Cc: nd <nd@arm.com>
+Cc: Peter Xu <peterx@redhat.com>
+Cc: Shuah Khan <shuah@kernel.org>
+Signed-off-by: Andrew Morton <akpm@linux-foundation.org>
+---
+ mm/mmap.c | 7 +------
+ 1 file changed, 1 insertion(+), 6 deletions(-)
+
+diff --git a/mm/mmap.c b/mm/mmap.c
+index 740b54be3ed41..ad499f7b767fa 100644
+--- a/mm/mmap.c
++++ b/mm/mmap.c
+@@ -2621,12 +2621,7 @@ cannot_expand:
+ 
+ 	if (map_deny_write_exec(vma, vma->vm_flags)) {
+ 		error = -EACCES;
+-		if (file)
+-			goto close_and_free_vma;
+-		else if (vma->vm_file)
+-			goto unmap_and_free_vma;
+-		else
+-			goto free_vma;
++		goto close_and_free_vma;
+ 	}
+ 
+ 	/* Allow architectures to sanity-check the vm_flags */
+-- 
+cgit 
+

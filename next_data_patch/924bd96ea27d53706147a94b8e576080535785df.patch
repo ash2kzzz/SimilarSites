@@ -1,0 +1,59 @@
+From 924bd96ea27d53706147a94b8e576080535785df Mon Sep 17 00:00:00 2001
+From: Christoph Hellwig <hch@lst.de>
+Date: Mon, 13 Feb 2023 06:58:33 +0100
+Subject: nvme-pci: set the DMA mask earlier
+
+Set the DMA mask before calling dma_addressing_limited, which depends on it.
+
+Note that this stop checking the return value of dma_set_mask_and_coherent
+as this function can only fail for masks < 32-bit.
+
+Fixes: 3f30a79c2e2c ("nvme-pci: set constant paramters in nvme_pci_alloc_ctrl")
+Reported-by: Michael Kelley <mikelley@microsoft.com>
+Signed-off-by: Christoph Hellwig <hch@lst.de>
+Reviewed-by: Jens Axboe <axboe@kernel.dk>
+Reviewed-by: Sagi Grimberg <sagi@grimberg.me>
+Tested-by: Michael Kelley <mikelley@microsoft.com>
+---
+ drivers/nvme/host/pci.c | 12 +++++-------
+ 1 file changed, 5 insertions(+), 7 deletions(-)
+
+diff --git a/drivers/nvme/host/pci.c b/drivers/nvme/host/pci.c
+index d0ef4b549640e..b1ceb10327844 100644
+--- a/drivers/nvme/host/pci.c
++++ b/drivers/nvme/host/pci.c
+@@ -2509,18 +2509,12 @@ static int nvme_pci_enable(struct nvme_dev *dev)
+ {
+ 	int result = -ENOMEM;
+ 	struct pci_dev *pdev = to_pci_dev(dev->dev);
+-	int dma_address_bits = 64;
+ 
+ 	if (pci_enable_device_mem(pdev))
+ 		return result;
+ 
+ 	pci_set_master(pdev);
+ 
+-	if (dev->ctrl.quirks & NVME_QUIRK_DMA_ADDRESS_BITS_48)
+-		dma_address_bits = 48;
+-	if (dma_set_mask_and_coherent(dev->dev, DMA_BIT_MASK(dma_address_bits)))
+-		goto disable;
+-
+ 	if (readl(dev->bar + NVME_REG_CSTS) == -1) {
+ 		result = -ENODEV;
+ 		goto disable;
+@@ -2998,7 +2992,11 @@ static struct nvme_dev *nvme_pci_alloc_dev(struct pci_dev *pdev,
+ 			     quirks);
+ 	if (ret)
+ 		goto out_put_device;
+-	
++
++	if (dev->ctrl.quirks & NVME_QUIRK_DMA_ADDRESS_BITS_48)
++		dma_set_mask_and_coherent(&pdev->dev, DMA_BIT_MASK(48));
++	else
++		dma_set_mask_and_coherent(&pdev->dev, DMA_BIT_MASK(64));
+ 	dma_set_min_align_mask(&pdev->dev, NVME_CTRL_PAGE_SIZE - 1);
+ 	dma_set_max_seg_size(&pdev->dev, 0xffffffff);
+ 
+-- 
+cgit 
+

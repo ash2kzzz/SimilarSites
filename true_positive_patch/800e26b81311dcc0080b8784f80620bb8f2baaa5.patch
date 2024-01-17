@@ -1,0 +1,88 @@
+From 800e26b81311dcc0080b8784f80620bb8f2baaa5 Mon Sep 17 00:00:00 2001
+From: Christoph Hellwig <hch@lst.de>
+Date: Thu, 25 Jun 2020 20:30:40 -0700
+Subject: x86/hyperv: allocate the hypercall page with only read and execute
+ bits
+
+Patch series "fix a hyperv W^X violation and remove vmalloc_exec"
+
+Dexuan reported a W^X violation due to the fact that the hyper hypercall
+page due switching it to be allocated using vmalloc_exec.
+
+The problem is that PAGE_KERNEL_EXEC as used by vmalloc_exec actually
+sets writable permissions in the pte.  This series fixes the issue by
+switching to the low-level __vmalloc_node_range interface that allows
+specifing more detailed permissions instead.  It then also open codes
+the other two callers and removes the somewhat confusing vmalloc_exec
+interface.
+
+Peter noted that the hyper hypercall page allocation also has another
+long standing issue in that it shouldn't use the full vmalloc but just
+the module space.  This issue is so far theoretical as the allocation is
+done early in the boot process.  I plan to fix it with another bigger
+series for 5.9.
+
+This patch (of 3):
+
+Avoid a W^X violation cause by the fact that PAGE_KERNEL_EXEC includes
+the writable bit.
+
+For this resurrect the removed PAGE_KERNEL_RX definition, but as
+PAGE_KERNEL_ROX to match arm64 and powerpc.
+
+Link: http://lkml.kernel.org/r/20200618064307.32739-2-hch@lst.de
+Fixes: 78bb17f76edc ("x86/hyperv: use vmalloc_exec for the hypercall page")
+Signed-off-by: Christoph Hellwig <hch@lst.de>
+Reported-by: Dexuan Cui <decui@microsoft.com>
+Tested-by: Vitaly Kuznetsov <vkuznets@redhat.com>
+Acked-by: Wei Liu <wei.liu@kernel.org>
+Acked-by: Peter Zijlstra (Intel) <peterz@infradead.org>
+Cc: Catalin Marinas <catalin.marinas@arm.com>
+Cc: Will Deacon <will@kernel.org>
+Cc: Jessica Yu <jeyu@kernel.org>
+Cc: David Hildenbrand <david@redhat.com>
+Signed-off-by: Andrew Morton <akpm@linux-foundation.org>
+Signed-off-by: Linus Torvalds <torvalds@linux-foundation.org>
+---
+ arch/x86/hyperv/hv_init.c            | 4 +++-
+ arch/x86/include/asm/pgtable_types.h | 2 ++
+ 2 files changed, 5 insertions(+), 1 deletion(-)
+
+diff --git a/arch/x86/hyperv/hv_init.c b/arch/x86/hyperv/hv_init.c
+index a54c6a401581d..2bdc72e6890ec 100644
+--- a/arch/x86/hyperv/hv_init.c
++++ b/arch/x86/hyperv/hv_init.c
+@@ -375,7 +375,9 @@ void __init hyperv_init(void)
+ 	guest_id = generate_guest_id(0, LINUX_VERSION_CODE, 0);
+ 	wrmsrl(HV_X64_MSR_GUEST_OS_ID, guest_id);
+ 
+-	hv_hypercall_pg = vmalloc_exec(PAGE_SIZE);
++	hv_hypercall_pg = __vmalloc_node_range(PAGE_SIZE, 1, VMALLOC_START,
++			VMALLOC_END, GFP_KERNEL, PAGE_KERNEL_ROX,
++			VM_FLUSH_RESET_PERMS, NUMA_NO_NODE, __func__);
+ 	if (hv_hypercall_pg == NULL) {
+ 		wrmsrl(HV_X64_MSR_GUEST_OS_ID, 0);
+ 		goto remove_cpuhp_state;
+diff --git a/arch/x86/include/asm/pgtable_types.h b/arch/x86/include/asm/pgtable_types.h
+index 2da1f95b88d76..816b31c685505 100644
+--- a/arch/x86/include/asm/pgtable_types.h
++++ b/arch/x86/include/asm/pgtable_types.h
+@@ -194,6 +194,7 @@ enum page_cache_mode {
+ #define _PAGE_TABLE_NOENC	 (__PP|__RW|_USR|___A|   0|___D|   0|   0)
+ #define _PAGE_TABLE		 (__PP|__RW|_USR|___A|   0|___D|   0|   0| _ENC)
+ #define __PAGE_KERNEL_RO	 (__PP|   0|   0|___A|__NX|___D|   0|___G)
++#define __PAGE_KERNEL_ROX	 (__PP|   0|   0|___A|   0|___D|   0|___G)
+ #define __PAGE_KERNEL_NOCACHE	 (__PP|__RW|   0|___A|__NX|___D|   0|___G| __NC)
+ #define __PAGE_KERNEL_VVAR	 (__PP|   0|_USR|___A|__NX|___D|   0|___G)
+ #define __PAGE_KERNEL_LARGE	 (__PP|__RW|   0|___A|__NX|___D|_PSE|___G)
+@@ -219,6 +220,7 @@ enum page_cache_mode {
+ #define PAGE_KERNEL_RO		__pgprot_mask(__PAGE_KERNEL_RO         | _ENC)
+ #define PAGE_KERNEL_EXEC	__pgprot_mask(__PAGE_KERNEL_EXEC       | _ENC)
+ #define PAGE_KERNEL_EXEC_NOENC	__pgprot_mask(__PAGE_KERNEL_EXEC       |    0)
++#define PAGE_KERNEL_ROX		__pgprot_mask(__PAGE_KERNEL_ROX        | _ENC)
+ #define PAGE_KERNEL_NOCACHE	__pgprot_mask(__PAGE_KERNEL_NOCACHE    | _ENC)
+ #define PAGE_KERNEL_LARGE	__pgprot_mask(__PAGE_KERNEL_LARGE      | _ENC)
+ #define PAGE_KERNEL_LARGE_EXEC	__pgprot_mask(__PAGE_KERNEL_LARGE_EXEC | _ENC)
+-- 
+cgit 
+

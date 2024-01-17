@@ -1,0 +1,42 @@
+From ce06a7000f0e9ad1ea5f55129ed964a7888d6e1c Mon Sep 17 00:00:00 2001
+From: Yishai Hadas <yishaih@nvidia.com>
+Date: Wed, 8 Feb 2023 17:22:34 +0200
+Subject: vfio/mlx5: Fix range size calculation upon tracker creation
+
+Fix range size calculation to include the last byte of each range.
+
+In addition, log round up the length of the total ranges to be stricter.
+
+Fixes: c1d050b0d169 ("vfio/mlx5: Create and destroy page tracker object")
+Signed-off-by: Yishai Hadas <yishaih@nvidia.com>
+Link: https://lore.kernel.org/r/20230208152234.32370-1-yishaih@nvidia.com
+Signed-off-by: Alex Williamson <alex.williamson@redhat.com>
+---
+ drivers/vfio/pci/mlx5/cmd.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/vfio/pci/mlx5/cmd.c b/drivers/vfio/pci/mlx5/cmd.c
+index 5161d845c4787..deed156e61656 100644
+--- a/drivers/vfio/pci/mlx5/cmd.c
++++ b/drivers/vfio/pci/mlx5/cmd.c
+@@ -830,7 +830,7 @@ static int mlx5vf_create_tracker(struct mlx5_core_dev *mdev,
+ 	node = interval_tree_iter_first(ranges, 0, ULONG_MAX);
+ 	for (i = 0; i < num_ranges; i++) {
+ 		void *addr_range_i_base = range_list_ptr + record_size * i;
+-		unsigned long length = node->last - node->start;
++		unsigned long length = node->last - node->start + 1;
+ 
+ 		MLX5_SET64(page_track_range, addr_range_i_base, start_address,
+ 			   node->start);
+@@ -840,7 +840,7 @@ static int mlx5vf_create_tracker(struct mlx5_core_dev *mdev,
+ 	}
+ 
+ 	WARN_ON(node);
+-	log_addr_space_size = ilog2(total_ranges_len);
++	log_addr_space_size = ilog2(roundup_pow_of_two(total_ranges_len));
+ 	if (log_addr_space_size <
+ 	    (MLX5_CAP_ADV_VIRTUALIZATION(mdev, pg_track_log_min_addr_space)) ||
+ 	    log_addr_space_size >
+-- 
+cgit 
+

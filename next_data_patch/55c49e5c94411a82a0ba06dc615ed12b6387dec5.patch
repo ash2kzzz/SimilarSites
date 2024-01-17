@@ -1,0 +1,34 @@
+From 55c49e5c94411a82a0ba06dc615ed12b6387dec5 Mon Sep 17 00:00:00 2001
+From: Alex Elder <elder@linaro.org>
+Date: Thu, 16 Mar 2023 09:51:34 -0500
+Subject: net: ipa: add two missing declarations
+
+When gsi_reg_init() got added, its declaration was added to
+"gsi_reg.h" without declaring the two struct pointer types it uses.
+Add these struct declarations to "gsi_reg.h".
+
+Fixes: 3c506add35c7 ("net: ipa: introduce gsi_reg_init()")
+Signed-off-by: Alex Elder <elder@linaro.org>
+Signed-off-by: Jakub Kicinski <kuba@kernel.org>
+---
+ drivers/net/ipa/gsi_reg.h | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/drivers/net/ipa/gsi_reg.h b/drivers/net/ipa/gsi_reg.h
+index f62f0a5c653d1..48fde65fa2e8a 100644
+--- a/drivers/net/ipa/gsi_reg.h
++++ b/drivers/net/ipa/gsi_reg.h
+@@ -10,6 +10,10 @@
+ 
+ #include <linux/bits.h>
+ 
++struct platform_device;
++
++struct gsi;
++
+ /**
+  * DOC: GSI Registers
+  *
+-- 
+cgit 
+

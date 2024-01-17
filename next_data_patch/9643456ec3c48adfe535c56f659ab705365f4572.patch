@@ -1,0 +1,45 @@
+From 9643456ec3c48adfe535c56f659ab705365f4572 Mon Sep 17 00:00:00 2001
+From: Pierre-Louis Bossart <pierre-louis.bossart@linux.intel.com>
+Date: Fri, 12 May 2023 12:46:10 -0500
+Subject: ASoC: SOF: Intel: hda-mlink: initialize instance_offset member
+
+We defined the values but never initialized it for SoundWire/SSP, fix
+this miss.
+
+A Fixes: tag is not provided as instance_offset was not used so far,
+so nothing was really broken. This patch is only required for the
+SoundWire support in the following patch.
+
+Signed-off-by: Pierre-Louis Bossart <pierre-louis.bossart@linux.intel.com
+Reviewed-by: Bard Liao <yung-chuan.liao@linux.intel.com
+Reviewed-by: Rander Wang <rander.wang@intel.com
+Reviewed-by: Ranjani Sridharan <ranjani.sridharan@linux.intel.com
+Link: https://lore.kernel.org/r/20230512174611.84372-6-pierre-louis.bossart@linux.intel.com
+Signed-off-by: Mark Brown <broonie@kernel.org
+---
+ sound/soc/sof/intel/hda-mlink.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/sound/soc/sof/intel/hda-mlink.c b/sound/soc/sof/intel/hda-mlink.c
+index c540b1d75451f..2d0c5d5914b13 100644
+--- a/sound/soc/sof/intel/hda-mlink.c
++++ b/sound/soc/sof/intel/hda-mlink.c
+@@ -140,6 +140,7 @@ static int hdaml_lnk_enum(struct device *dev, struct hdac_ext2_link *h2link,
+ 
+ 	switch (h2link->elid) {
+ 	case AZX_REG_ML_LEPTR_ID_SDW:
++		h2link->instance_offset = AZX_REG_SDW_INSTANCE_OFFSET;
+ 		h2link->shim_offset = AZX_REG_SDW_SHIM_OFFSET;
+ 		h2link->ip_offset = AZX_REG_SDW_IP_OFFSET;
+ 		h2link->shim_vs_offset = AZX_REG_SDW_VS_SHIM_OFFSET;
+@@ -154,6 +155,7 @@ static int hdaml_lnk_enum(struct device *dev, struct hdac_ext2_link *h2link,
+ 			link_idx, base_offset);
+ 		break;
+ 	case AZX_REG_ML_LEPTR_ID_INTEL_SSP:
++		h2link->instance_offset = AZX_REG_INTEL_SSP_INSTANCE_OFFSET;
+ 		h2link->shim_offset = AZX_REG_INTEL_SSP_SHIM_OFFSET;
+ 		h2link->ip_offset = AZX_REG_INTEL_SSP_IP_OFFSET;
+ 		h2link->shim_vs_offset = AZX_REG_INTEL_SSP_VS_SHIM_OFFSET;
+-- 
+cgit 
+

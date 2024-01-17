@@ -1,0 +1,38 @@
+From 1665c027afb225882a5a0b014c45e84290b826c2 Mon Sep 17 00:00:00 2001
+From: Michael Ellerman <mpe@ellerman.id.au>
+Date: Tue, 31 Jan 2023 22:14:07 +1100
+Subject: powerpc/64s: Reconnect tlb_flush() to hash__tlb_flush()
+
+Commit baf1ed24b27d ("powerpc/mm: Remove empty hash__ functions")
+removed some empty hash MMU flushing routines, but got a bit overeager
+and also removed the call to hash__tlb_flush() from tlb_flush().
+
+In regular use this doesn't lead to any noticable breakage, which is a
+little concerning. Presumably there are flushes happening via other
+paths such as arch_leave_lazy_mmu_mode(), and/or a bit of luck.
+
+Fix it by reinstating the call to hash__tlb_flush().
+
+Fixes: baf1ed24b27d ("powerpc/mm: Remove empty hash__ functions")
+Signed-off-by: Michael Ellerman <mpe@ellerman.id.au>
+Link: https://lore.kernel.org/r/20230131111407.806770-1-mpe@ellerman.id.au
+---
+ arch/powerpc/include/asm/book3s/64/tlbflush.h | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/arch/powerpc/include/asm/book3s/64/tlbflush.h b/arch/powerpc/include/asm/book3s/64/tlbflush.h
+index dd39313242b4d..d5cd16270c5d5 100644
+--- a/arch/powerpc/include/asm/book3s/64/tlbflush.h
++++ b/arch/powerpc/include/asm/book3s/64/tlbflush.h
+@@ -97,6 +97,8 @@ static inline void tlb_flush(struct mmu_gather *tlb)
+ {
+ 	if (radix_enabled())
+ 		radix__tlb_flush(tlb);
++
++	return hash__tlb_flush(tlb);
+ }
+ 
+ #ifdef CONFIG_SMP
+-- 
+cgit 
+

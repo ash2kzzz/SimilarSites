@@ -1,0 +1,50 @@
+From f5be9caf7bf022ab550f62ea68f1c1bb8f5287ee Mon Sep 17 00:00:00 2001
+From: Vladimir Oltean <vladimir.oltean@nxp.com>
+Date: Tue, 24 Jan 2023 13:13:28 +0200
+Subject: net: ethtool: fix NULL pointer dereference in pause_prepare_data()
+
+In the following call path:
+
+ethnl_default_dumpit
+-> ethnl_default_dump_one
+   -> ctx->ops->prepare_data
+      -> pause_prepare_data
+
+struct genl_info *info will be passed as NULL, and pause_prepare_data()
+dereferences it while getting the extended ack pointer.
+
+To avoid that, just set the extack to NULL if "info" is NULL, since the
+netlink extack handling messages know how to deal with that.
+
+The pattern "info ? info->extack : NULL" is present in quite a few other
+"prepare_data" implementations, so it's clear that it's a more general
+problem to be dealt with at a higher level, but the code should have at
+least adhered to the current conventions to avoid the NULL dereference.
+
+Fixes: 04692c9020b7 ("net: ethtool: netlink: retrieve stats from multiple sources (eMAC, pMAC)")
+Reported-by: Eric Dumazet <edumazet@google.com>
+Signed-off-by: Vladimir Oltean <vladimir.oltean@nxp.com>
+Reported-by: syzbot+9d44aae2720fc40b8474@syzkaller.appspotmail.com
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ net/ethtool/pause.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/net/ethtool/pause.c b/net/ethtool/pause.c
+index e2be9e89c9d95..dcd34b9a849ff 100644
+--- a/net/ethtool/pause.c
++++ b/net/ethtool/pause.c
+@@ -54,9 +54,9 @@ static int pause_prepare_data(const struct ethnl_req_info *req_base,
+ 			      struct genl_info *info)
+ {
+ 	const struct pause_req_info *req_info = PAUSE_REQINFO(req_base);
++	struct netlink_ext_ack *extack = info ? info->extack : NULL;
+ 	struct pause_reply_data *data = PAUSE_REPDATA(reply_base);
+ 	enum ethtool_mac_stats_src src = req_info->src;
+-	struct netlink_ext_ack *extack = info->extack;
+ 	struct net_device *dev = reply_base->dev;
+ 	int ret;
+ 
+-- 
+cgit 
+

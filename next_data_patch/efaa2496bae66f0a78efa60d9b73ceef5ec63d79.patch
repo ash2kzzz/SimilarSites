@@ -1,0 +1,39 @@
+From efaa2496bae66f0a78efa60d9b73ceef5ec63d79 Mon Sep 17 00:00:00 2001
+From: Randy Dunlap <rdunlap@infradead.org>
+Date: Mon, 13 Feb 2023 16:54:00 -0800
+Subject: module: fix MIPS module_layout -> module_memory
+
+Correct the struct's field/member name from mod_mem to mem.
+
+Fixes this build error:
+../arch/mips/kernel/vpe.c: In function 'vpe_elfload':
+../arch/mips/kernel/vpe.c:643:41: error: 'struct module' has no member named 'mod_mem'
+  643 |         v->load_addr = alloc_progmem(mod.mod_mem[MOD_TEXT].size);
+
+Fixes: 2ece476a2346 ("module: replace module_layout with module_memory")
+Signed-off-by: Randy Dunlap <rdunlap@infradead.org>
+Cc: Song Liu <song@kernel.org>
+Cc: Luis Chamberlain <mcgrof@kernel.org>
+Cc: Thomas Bogendoerfer <tsbogend@alpha.franken.de>
+Cc: linux-mips@vger.kernel.org
+Signed-off-by: Luis Chamberlain <mcgrof@kernel.org>
+---
+ arch/mips/kernel/vpe.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/arch/mips/kernel/vpe.c b/arch/mips/kernel/vpe.c
+index ab114c686f9d2..5c4adc6ff0c1e 100644
+--- a/arch/mips/kernel/vpe.c
++++ b/arch/mips/kernel/vpe.c
+@@ -640,7 +640,7 @@ static int vpe_elfload(struct vpe *v)
+ 		layout_sections(&mod, hdr, sechdrs, secstrings);
+ 	}
+ 
+-	v->load_addr = alloc_progmem(mod.mod_mem[MOD_TEXT].size);
++	v->load_addr = alloc_progmem(mod.mem[MOD_TEXT].size);
+ 	if (!v->load_addr)
+ 		return -ENOMEM;
+ 
+-- 
+cgit 
+

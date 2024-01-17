@@ -1,0 +1,41 @@
+From faa7c4eee412ca14dd6a107cb6122d31c4277cbe Mon Sep 17 00:00:00 2001
+From: Pranjal Ramajor Asha Kanojiya <quic_pkanojiy@quicinc.com>
+Date: Wed, 17 May 2023 13:35:38 -0600
+Subject: accel/qaic: Flush the transfer list again
+
+Before calling synchronize_srcu() we clear the transfer list, this is to
+allow all the QAIC_WAIT_BO callers to exit otherwise the system could
+deadlock. There could be a corner case where more elements get added to
+transfer list after we have flushed it. Re-flush the transfer list once
+all the holders of dbc->ch_lock have completed execution i.e.
+synchronize_srcu() is complete.
+
+Fixes: ff13be830333 ("accel/qaic: Add datapath")
+Signed-off-by: Pranjal Ramajor Asha Kanojiya <quic_pkanojiy@quicinc.com>
+Reviewed-by: Carl Vanderlip <quic_carlv@quicinc.com>
+Reviewed-by: Jeffrey Hugo <quic_jhugo@quicinc.com>
+Signed-off-by: Jeffrey Hugo <quic_jhugo@quicinc.com>
+Link: https://patchwork.freedesktop.org/patch/msgid/20230517193540.14323-4-quic_jhugo@quicinc.com
+---
+ drivers/accel/qaic/qaic_data.c | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/drivers/accel/qaic/qaic_data.c b/drivers/accel/qaic/qaic_data.c
+index e672dd2447030..c1af99cfd2d14 100644
+--- a/drivers/accel/qaic/qaic_data.c
++++ b/drivers/accel/qaic/qaic_data.c
+@@ -1845,6 +1845,11 @@ void wakeup_dbc(struct qaic_device *qdev, u32 dbc_id)
+ 	dbc->usr = NULL;
+ 	empty_xfer_list(qdev, dbc);
+ 	synchronize_srcu(&dbc->ch_lock);
++	/*
++	 * Threads holding channel lock, may add more elements in the xfer_list.
++	 * Flush out these elements from xfer_list.
++	 */
++	empty_xfer_list(qdev, dbc);
+ }
+ 
+ void release_dbc(struct qaic_device *qdev, u32 dbc_id)
+-- 
+cgit 
+

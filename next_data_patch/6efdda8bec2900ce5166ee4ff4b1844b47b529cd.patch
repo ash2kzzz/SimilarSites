@@ -1,0 +1,133 @@
+From 6efdda8bec2900ce5166ee4ff4b1844b47b529cd Mon Sep 17 00:00:00 2001
+From: "Joel Fernandes (Google)" <joel@joelfernandes.org>
+Date: Thu, 12 Jan 2023 00:52:22 +0000
+Subject: rcu: Track laziness during boot and suspend
+
+Boot and suspend/resume should not be slowed down in kernels built with
+CONFIG_RCU_LAZY=y.  In particular, suspend can sometimes fail in such
+kernels.
+
+This commit therefore adds rcu_async_hurry(), rcu_async_relax(), and
+rcu_async_should_hurry() functions that track whether or not either
+a boot or a suspend/resume operation is in progress.  This will
+enable a later commit to refrain from laziness during those times.
+
+Export rcu_async_should_hurry(), rcu_async_hurry(), and rcu_async_relax()
+for later use by rcutorture.
+
+[ paulmck: Apply feedback from Steve Rostedt. ]
+
+Fixes: 3cb278e73be5 ("rcu: Make call_rcu() lazy to save power")
+Signed-off-by: Joel Fernandes (Google) <joel@joelfernandes.org>
+Signed-off-by: Paul E. McKenney <paulmck@kernel.org>
+---
+ kernel/rcu/rcu.h    |  6 ++++++
+ kernel/rcu/tree.c   |  2 ++
+ kernel/rcu/update.c | 40 +++++++++++++++++++++++++++++++++++++++-
+ 3 files changed, 47 insertions(+), 1 deletion(-)
+
+diff --git a/kernel/rcu/rcu.h b/kernel/rcu/rcu.h
+index fa640c45172e9..95a0038c92187 100644
+--- a/kernel/rcu/rcu.h
++++ b/kernel/rcu/rcu.h
+@@ -448,14 +448,20 @@ do {									\
+ /* Tiny RCU doesn't expedite, as its purpose in life is instead to be tiny. */
+ static inline bool rcu_gp_is_normal(void) { return true; }
+ static inline bool rcu_gp_is_expedited(void) { return false; }
++static inline bool rcu_async_should_hurry(void) { return false; }
+ static inline void rcu_expedite_gp(void) { }
+ static inline void rcu_unexpedite_gp(void) { }
++static inline void rcu_async_hurry(void) { }
++static inline void rcu_async_relax(void) { }
+ static inline void rcu_request_urgent_qs_task(struct task_struct *t) { }
+ #else /* #ifdef CONFIG_TINY_RCU */
+ bool rcu_gp_is_normal(void);     /* Internal RCU use. */
+ bool rcu_gp_is_expedited(void);  /* Internal RCU use. */
++bool rcu_async_should_hurry(void);  /* Internal RCU use. */
+ void rcu_expedite_gp(void);
+ void rcu_unexpedite_gp(void);
++void rcu_async_hurry(void);
++void rcu_async_relax(void);
+ void rcupdate_announce_bootup_oddness(void);
+ #ifdef CONFIG_TASKS_RCU_GENERIC
+ void show_rcu_tasks_gp_kthreads(void);
+diff --git a/kernel/rcu/tree.c b/kernel/rcu/tree.c
+index 89313c7c17b62..712c4e7b46755 100644
+--- a/kernel/rcu/tree.c
++++ b/kernel/rcu/tree.c
+@@ -4414,11 +4414,13 @@ static int rcu_pm_notify(struct notifier_block *self,
+ 	switch (action) {
+ 	case PM_HIBERNATION_PREPARE:
+ 	case PM_SUSPEND_PREPARE:
++		rcu_async_hurry();
+ 		rcu_expedite_gp();
+ 		break;
+ 	case PM_POST_HIBERNATION:
+ 	case PM_POST_SUSPEND:
+ 		rcu_unexpedite_gp();
++		rcu_async_relax();
+ 		break;
+ 	default:
+ 		break;
+diff --git a/kernel/rcu/update.c b/kernel/rcu/update.c
+index 6ed5020aee6d1..6d1ea210af1f4 100644
+--- a/kernel/rcu/update.c
++++ b/kernel/rcu/update.c
+@@ -144,8 +144,45 @@ bool rcu_gp_is_normal(void)
+ }
+ EXPORT_SYMBOL_GPL(rcu_gp_is_normal);
+ 
+-static atomic_t rcu_expedited_nesting = ATOMIC_INIT(1);
++static atomic_t rcu_async_hurry_nesting = ATOMIC_INIT(1);
++/*
++ * Should call_rcu() callbacks be processed with urgency or are
++ * they OK being executed with arbitrary delays?
++ */
++bool rcu_async_should_hurry(void)
++{
++	return !IS_ENABLED(CONFIG_RCU_LAZY) ||
++	       atomic_read(&rcu_async_hurry_nesting);
++}
++EXPORT_SYMBOL_GPL(rcu_async_should_hurry);
++
++/**
++ * rcu_async_hurry - Make future async RCU callbacks not lazy.
++ *
++ * After a call to this function, future calls to call_rcu()
++ * will be processed in a timely fashion.
++ */
++void rcu_async_hurry(void)
++{
++	if (IS_ENABLED(CONFIG_RCU_LAZY))
++		atomic_inc(&rcu_async_hurry_nesting);
++}
++EXPORT_SYMBOL_GPL(rcu_async_hurry);
+ 
++/**
++ * rcu_async_relax - Make future async RCU callbacks lazy.
++ *
++ * After a call to this function, future calls to call_rcu()
++ * will be processed in a lazy fashion.
++ */
++void rcu_async_relax(void)
++{
++	if (IS_ENABLED(CONFIG_RCU_LAZY))
++		atomic_dec(&rcu_async_hurry_nesting);
++}
++EXPORT_SYMBOL_GPL(rcu_async_relax);
++
++static atomic_t rcu_expedited_nesting = ATOMIC_INIT(1);
+ /*
+  * Should normal grace-period primitives be expedited?  Intended for
+  * use within RCU.  Note that this function takes the rcu_expedited
+@@ -195,6 +232,7 @@ static bool rcu_boot_ended __read_mostly;
+ void rcu_end_inkernel_boot(void)
+ {
+ 	rcu_unexpedite_gp();
++	rcu_async_relax();
+ 	if (rcu_normal_after_boot)
+ 		WRITE_ONCE(rcu_normal, 1);
+ 	rcu_boot_ended = true;
+-- 
+cgit 
+

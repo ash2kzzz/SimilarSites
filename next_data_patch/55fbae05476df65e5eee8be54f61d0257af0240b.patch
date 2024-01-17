@@ -1,0 +1,61 @@
+From 55fbae05476df65e5eee8be54f61d0257af0240b Mon Sep 17 00:00:00 2001
+From: Martin KaFai Lau <martin.lau@kernel.org>
+Date: Fri, 24 Mar 2023 11:42:41 -0700
+Subject: bpf: Check IS_ERR for the bpf_map_get() return value
+
+This patch fixes a mistake in checking NULL instead of
+checking IS_ERR for the bpf_map_get() return value.
+
+It also fixes the return value in link_update_map() from -EINVAL
+to PTR_ERR(*_map).
+
+Reported-by: syzbot+71ccc0fe37abb458406b@syzkaller.appspotmail.com
+Fixes: 68b04864ca42 ("bpf: Create links for BPF struct_ops maps.")
+Fixes: aef56f2e918b ("bpf: Update the struct_ops of a bpf_link.")
+Signed-off-by: Martin KaFai Lau <martin.lau@kernel.org>
+Acked-by: Kui-Feng Lee <kuifeng@meta.com>
+Acked-by: Stanislav Fomichev <sdf@google.com>
+Link: https://lore.kernel.org/r/20230324184241.1387437-1-martin.lau@linux.dev
+Signed-off-by: Alexei Starovoitov <ast@kernel.org>
+---
+ kernel/bpf/bpf_struct_ops.c | 4 ++--
+ kernel/bpf/syscall.c        | 4 ++--
+ 2 files changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/kernel/bpf/bpf_struct_ops.c b/kernel/bpf/bpf_struct_ops.c
+index 6401deca3b565..d3f0a4825fa61 100644
+--- a/kernel/bpf/bpf_struct_ops.c
++++ b/kernel/bpf/bpf_struct_ops.c
+@@ -871,8 +871,8 @@ int bpf_struct_ops_link_create(union bpf_attr *attr)
+ 	int err;
+ 
+ 	map = bpf_map_get(attr->link_create.map_fd);
+-	if (!map)
+-		return -EINVAL;
++	if (IS_ERR(map))
++		return PTR_ERR(map);
+ 
+ 	st_map = (struct bpf_struct_ops_map *)map;
+ 
+diff --git a/kernel/bpf/syscall.c b/kernel/bpf/syscall.c
+index b4d758fa5981d..a09597c95029b 100644
+--- a/kernel/bpf/syscall.c
++++ b/kernel/bpf/syscall.c
+@@ -4689,12 +4689,12 @@ static int link_update_map(struct bpf_link *link, union bpf_attr *attr)
+ 
+ 	new_map = bpf_map_get(attr->link_update.new_map_fd);
+ 	if (IS_ERR(new_map))
+-		return -EINVAL;
++		return PTR_ERR(new_map);
+ 
+ 	if (attr->link_update.flags & BPF_F_REPLACE) {
+ 		old_map = bpf_map_get(attr->link_update.old_map_fd);
+ 		if (IS_ERR(old_map)) {
+-			ret = -EINVAL;
++			ret = PTR_ERR(old_map);
+ 			goto out_put;
+ 		}
+ 	} else if (attr->link_update.old_map_fd) {
+-- 
+cgit 
+

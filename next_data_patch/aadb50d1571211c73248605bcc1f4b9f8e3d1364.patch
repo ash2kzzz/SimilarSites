@@ -1,0 +1,67 @@
+From aadb50d1571211c73248605bcc1f4b9f8e3d1364 Mon Sep 17 00:00:00 2001
+From: Arend van Spriel <arend.vanspriel@broadcom.com>
+Date: Tue, 3 Jan 2023 13:41:16 +0100
+Subject: wifi: brcmfmac: avoid NULL-deref in survey dump for 2G only device
+
+When dealing with a device for 2GHz band only the wiphy->bands for
+5GHz will be NULL. This would result in a NULL-deref in the
+brcmf_cfg80211_dump_survey() function. Rework the code with a
+for-loop to make it easier to add another band.
+
+Fixes: 6c04deae1438 ("brcmfmac: Add dump_survey cfg80211 ops for HostApd AutoChannelSelection")
+Signed-off-by: Arend van Spriel <arend.vanspriel@broadcom.com>
+Signed-off-by: Kalle Valo <kvalo@kernel.org>
+Link: https://lore.kernel.org/r/20230103124117.271988-3-arend.vanspriel@broadcom.com
+---
+ .../broadcom/brcm80211/brcmfmac/cfg80211.c         | 23 ++++++++++++----------
+ 1 file changed, 13 insertions(+), 10 deletions(-)
+
+diff --git a/drivers/net/wireless/broadcom/brcm80211/brcmfmac/cfg80211.c b/drivers/net/wireless/broadcom/brcm80211/brcmfmac/cfg80211.c
+index 478ca3848c64e..b115902eb475e 100644
+--- a/drivers/net/wireless/broadcom/brcm80211/brcmfmac/cfg80211.c
++++ b/drivers/net/wireless/broadcom/brcm80211/brcmfmac/cfg80211.c
+@@ -7964,6 +7964,7 @@ brcmf_cfg80211_dump_survey(struct wiphy *wiphy, struct net_device *ndev,
+ 	struct brcmf_if *ifp = netdev_priv(cfg_to_ndev(cfg));
+ 	struct brcmf_dump_survey survey = {};
+ 	struct ieee80211_supported_band *band;
++	enum nl80211_band band_id;
+ 	struct cca_msrmnt_query req;
+ 	u32 noise;
+ 	int err;
+@@ -7976,21 +7977,23 @@ brcmf_cfg80211_dump_survey(struct wiphy *wiphy, struct net_device *ndev,
+ 		return -EBUSY;
+ 	}
+ 
+-	band = wiphy->bands[NL80211_BAND_2GHZ];
+-	if (band && idx >= band->n_channels) {
+-		idx -= band->n_channels;
+-		band = NULL;
+-	}
++	for (band_id = 0; band_id < NUM_NL80211_BANDS; band_id++) {
++		band = wiphy->bands[band_id];
++		if (!band)
++			continue;
++		if (idx >= band->n_channels) {
++			idx -= band->n_channels;
++			continue;
++		}
+ 
+-	if (!band || idx >= band->n_channels) {
+-		band = wiphy->bands[NL80211_BAND_5GHZ];
+-		if (idx >= band->n_channels)
+-			return -ENOENT;
++		info->channel = &band->channels[idx];
++		break;
+ 	}
++	if (band_id == NUM_NL80211_BANDS)
++		return -ENOENT;
+ 
+ 	/* Setting current channel to the requested channel */
+ 	info->filled = 0;
+-	info->channel = &band->channels[idx];
+ 	if (cfg80211_set_channel(wiphy, ndev, info->channel, NL80211_CHAN_HT20))
+ 		return 0;
+ 
+-- 
+cgit 
+

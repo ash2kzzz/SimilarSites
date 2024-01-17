@@ -1,0 +1,69 @@
+From 774e7cb50359eff7e966f4e2e80c9486014d3a23 Mon Sep 17 00:00:00 2001
+From: Karol Wachowski <karol.wachowski@linux.intel.com>
+Date: Fri, 31 Mar 2023 13:36:02 +0200
+Subject: accel/ivpu: Add dma fence to command buffers only
+
+Currently job->done_fence is added to every BO handle within a job. If job
+handle (command buffer) is shared between multiple submits, KMD will add
+the fence in each of them. Then bo_wait_ioctl() executed on command buffer
+will exit only when all jobs containing that handle are done.
+
+This creates deadlock scenario for user mode driver in case when job handle
+is added as dependency of another job, because bo_wait_ioctl() of first job
+will wait until second job finishes, and second job can not finish before
+first one.
+
+Having fences added only to job buffer handle allows user space to execute
+bo_wait_ioctl() on the job even if it's handle is submitted with other job.
+
+Fixes: cd7272215c44 ("accel/ivpu: Add command buffer submission logic")
+Signed-off-by: Karol Wachowski <karol.wachowski@linux.intel.com>
+Signed-off-by: Stanislaw Gruszka <stanislaw.gruszka@linux.intel.com>
+Reviewed-by: Jeffrey Hugo <quic_jhugo@quicinc.com>
+Signed-off-by: Jacek Lawrynowicz <jacek.lawrynowicz@linux.intel.com>
+Link: https://patchwork.freedesktop.org/patch/msgid/20230331113603.2802515-2-stanislaw.gruszka@linux.intel.com
+---
+ drivers/accel/ivpu/ivpu_job.c | 18 +++++++-----------
+ 1 file changed, 7 insertions(+), 11 deletions(-)
+
+diff --git a/drivers/accel/ivpu/ivpu_job.c b/drivers/accel/ivpu/ivpu_job.c
+index 910301fae4351..3c6f1e16cf2ff 100644
+--- a/drivers/accel/ivpu/ivpu_job.c
++++ b/drivers/accel/ivpu/ivpu_job.c
+@@ -461,26 +461,22 @@ ivpu_job_prepare_bos_for_submit(struct drm_file *file, struct ivpu_job *job, u32
+ 
+ 	job->cmd_buf_vpu_addr = bo->vpu_addr + commands_offset;
+ 
+-	ret = drm_gem_lock_reservations((struct drm_gem_object **)job->bos, buf_count,
+-					&acquire_ctx);
++	ret = drm_gem_lock_reservations((struct drm_gem_object **)job->bos, 1, &acquire_ctx);
+ 	if (ret) {
+ 		ivpu_warn(vdev, "Failed to lock reservations: %d\n", ret);
+ 		return ret;
+ 	}
+ 
+-	for (i = 0; i < buf_count; i++) {
+-		ret = dma_resv_reserve_fences(job->bos[i]->base.resv, 1);
+-		if (ret) {
+-			ivpu_warn(vdev, "Failed to reserve fences: %d\n", ret);
+-			goto unlock_reservations;
+-		}
++	ret = dma_resv_reserve_fences(bo->base.resv, 1);
++	if (ret) {
++		ivpu_warn(vdev, "Failed to reserve fences: %d\n", ret);
++		goto unlock_reservations;
+ 	}
+ 
+-	for (i = 0; i < buf_count; i++)
+-		dma_resv_add_fence(job->bos[i]->base.resv, job->done_fence, DMA_RESV_USAGE_WRITE);
++	dma_resv_add_fence(bo->base.resv, job->done_fence, DMA_RESV_USAGE_WRITE);
+ 
+ unlock_reservations:
+-	drm_gem_unlock_reservations((struct drm_gem_object **)job->bos, buf_count, &acquire_ctx);
++	drm_gem_unlock_reservations((struct drm_gem_object **)job->bos, 1, &acquire_ctx);
+ 
+ 	wmb(); /* Flush write combining buffers */
+ 
+-- 
+cgit 
+

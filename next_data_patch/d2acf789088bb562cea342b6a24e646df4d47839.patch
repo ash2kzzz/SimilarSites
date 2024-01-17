@@ -1,0 +1,82 @@
+From d2acf789088bb562cea342b6a24e646df4d47839 Mon Sep 17 00:00:00 2001
+From: Pavel Begunkov <asml.silence@gmail.com>
+Date: Thu, 16 Mar 2023 15:26:05 +0000
+Subject: io_uring/rsrc: fix folio accounting
+
+| BUG: Bad page state in process kworker/u8:0  pfn:5c001
+| page:00000000bfda61c8 refcount:0 mapcount:0 mapping:0000000000000000 index:0x20001 pfn:0x5c001
+| head:0000000011409842 order:9 entire_mapcount:0 nr_pages_mapped:0 pincount:1
+| anon flags: 0x3fffc00000b0004(uptodate|head|mappedtodisk|swapbacked|node=0|zone=0|lastcpupid=0xffff)
+| raw: 03fffc0000000000 fffffc0000700001 ffffffff00700903 0000000100000000
+| raw: 0000000000000200 0000000000000000 00000000ffffffff 0000000000000000
+| head: 03fffc00000b0004 dead000000000100 dead000000000122 ffff00000a809dc1
+| head: 0000000000020000 0000000000000000 00000000ffffffff 0000000000000000
+| page dumped because: nonzero pincount
+| CPU: 3 PID: 9 Comm: kworker/u8:0 Not tainted 6.3.0-rc2-00001-gc6811bf0cd87 #1
+| Hardware name: linux,dummy-virt (DT)
+| Workqueue: events_unbound io_ring_exit_work
+| Call trace:
+|  dump_backtrace+0x13c/0x208
+|  show_stack+0x34/0x58
+|  dump_stack_lvl+0x150/0x1a8
+|  dump_stack+0x20/0x30
+|  bad_page+0xec/0x238
+|  free_tail_pages_check+0x280/0x350
+|  free_pcp_prepare+0x60c/0x830
+|  free_unref_page+0x50/0x498
+|  free_compound_page+0xcc/0x100
+|  free_transhuge_page+0x1f0/0x2b8
+|  destroy_large_folio+0x80/0xc8
+|  __folio_put+0xc4/0xf8
+|  gup_put_folio+0xd0/0x250
+|  unpin_user_page+0xcc/0x128
+|  io_buffer_unmap+0xec/0x2c0
+|  __io_sqe_buffers_unregister+0xa4/0x1e0
+|  io_ring_exit_work+0x68c/0x1188
+|  process_one_work+0x91c/0x1a58
+|  worker_thread+0x48c/0xe30
+|  kthread+0x278/0x2f0
+|  ret_from_fork+0x10/0x20
+
+Mark reports an issue with the recent patches coalescing compound pages
+while registering them in io_uring. The reason is that we try to drop
+excessive references with folio_put_refs(), but pages were acquired
+with pin_user_pages(), which has extra accounting and so should be put
+down with matching unpin_user_pages() or at least gup_put_folio().
+
+As a fix unpin_user_pages() all but first page instead, and let's figure
+out a better API after.
+
+Fixes: 57bebf807e2abcf8 ("io_uring/rsrc: optimise registered huge pages")
+Reported-by: Mark Rutland <mark.rutland@arm.com>
+Reviewed-by: Jens Axboe <axboe@kernel.dk>
+Tested-by: Jens Axboe <axboe@kernel.dk>
+Signed-off-by: Pavel Begunkov <asml.silence@gmail.com>
+Link: https://lore.kernel.org/r/10efd5507d6d1f05ea0f3c601830e08767e189bd.1678980230.git.asml.silence@gmail.com
+Signed-off-by: Jens Axboe <axboe@kernel.dk>
+---
+ io_uring/rsrc.c | 8 +++++++-
+ 1 file changed, 7 insertions(+), 1 deletion(-)
+
+diff --git a/io_uring/rsrc.c b/io_uring/rsrc.c
+index 09a16d709cb55..e2bac9f899029 100644
+--- a/io_uring/rsrc.c
++++ b/io_uring/rsrc.c
+@@ -1235,7 +1235,13 @@ static int io_sqe_buffer_register(struct io_ring_ctx *ctx, struct iovec *iov,
+ 			}
+ 		}
+ 		if (folio) {
+-			folio_put_refs(folio, nr_pages - 1);
++			/*
++			 * The pages are bound to the folio, it doesn't
++			 * actually unpin them but drops all but one reference,
++			 * which is usually put down by io_buffer_unmap().
++			 * Note, needs a better helper.
++			 */
++			unpin_user_pages(&pages[1], nr_pages - 1);
+ 			nr_pages = 1;
+ 		}
+ 	}
+-- 
+cgit 
+

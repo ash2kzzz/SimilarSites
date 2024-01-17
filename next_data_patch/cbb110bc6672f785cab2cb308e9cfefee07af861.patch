@@ -1,0 +1,124 @@
+From cbb110bc6672f785cab2cb308e9cfefee07af861 Mon Sep 17 00:00:00 2001
+From: Eduard Zingerman <eddyz87@gmail.com>
+Date: Fri, 21 Apr 2023 02:23:17 +0300
+Subject: selftests/bpf: populate map_array_ro map for verifier_array_access
+ test
+
+Two test cases:
+- "valid read map access into a read-only array 1" and
+- "valid read map access into a read-only array 2"
+
+Expect that map_array_ro map is filled with mock data. This logic was
+not taken into acount during initial test conversion.
+
+This commit modifies prog_tests/verifier.c entry point for this test
+to fill the map.
+
+Fixes: a3c830ae0209 ("selftests/bpf: verifier/array_access.c converted to inline assembly")
+Signed-off-by: Eduard Zingerman <eddyz87@gmail.com>
+Link: https://lore.kernel.org/r/20230420232317.2181776-5-eddyz87@gmail.com
+Signed-off-by: Alexei Starovoitov <ast@kernel.org>
+---
+ tools/testing/selftests/bpf/prog_tests/verifier.c  | 42 ++++++++++++++++++++--
+ .../selftests/bpf/progs/verifier_array_access.c    |  4 +--
+ 2 files changed, 41 insertions(+), 5 deletions(-)
+
+diff --git a/tools/testing/selftests/bpf/prog_tests/verifier.c b/tools/testing/selftests/bpf/prog_tests/verifier.c
+index 25bc8958dbfe2..7c68d78da9ea7 100644
+--- a/tools/testing/selftests/bpf/prog_tests/verifier.c
++++ b/tools/testing/selftests/bpf/prog_tests/verifier.c
+@@ -44,8 +44,17 @@
+ #include "verifier_xdp.skel.h"
+ #include "verifier_xdp_direct_packet_access.skel.h"
+ 
++#define MAX_ENTRIES 11
++
++struct test_val {
++	unsigned int index;
++	int foo[MAX_ENTRIES];
++};
++
+ __maybe_unused
+-static void run_tests_aux(const char *skel_name, skel_elf_bytes_fn elf_bytes_factory)
++static void run_tests_aux(const char *skel_name,
++			  skel_elf_bytes_fn elf_bytes_factory,
++			  pre_execution_cb pre_execution_cb)
+ {
+ 	struct test_loader tester = {};
+ 	__u64 old_caps;
+@@ -58,6 +67,7 @@ static void run_tests_aux(const char *skel_name, skel_elf_bytes_fn elf_bytes_fac
+ 		return;
+ 	}
+ 
++	test_loader__set_pre_execution_cb(&tester, pre_execution_cb);
+ 	test_loader__run_subtests(&tester, skel_name, elf_bytes_factory);
+ 	test_loader_fini(&tester);
+ 
+@@ -66,10 +76,9 @@ static void run_tests_aux(const char *skel_name, skel_elf_bytes_fn elf_bytes_fac
+ 		PRINT_FAIL("failed to restore CAP_SYS_ADMIN: %i, %s\n", err, strerror(err));
+ }
+ 
+-#define RUN(skel) run_tests_aux(#skel, skel##__elf_bytes)
++#define RUN(skel) run_tests_aux(#skel, skel##__elf_bytes, NULL)
+ 
+ void test_verifier_and(void)                  { RUN(verifier_and); }
+-void test_verifier_array_access(void)         { RUN(verifier_array_access); }
+ void test_verifier_basic_stack(void)          { RUN(verifier_basic_stack); }
+ void test_verifier_bounds_deduction(void)     { RUN(verifier_bounds_deduction); }
+ void test_verifier_bounds_deduction_non_const(void)     { RUN(verifier_bounds_deduction_non_const); }
+@@ -108,3 +117,30 @@ void test_verifier_var_off(void)              { RUN(verifier_var_off); }
+ void test_verifier_xadd(void)                 { RUN(verifier_xadd); }
+ void test_verifier_xdp(void)                  { RUN(verifier_xdp); }
+ void test_verifier_xdp_direct_packet_access(void) { RUN(verifier_xdp_direct_packet_access); }
++
++static int init_array_access_maps(struct bpf_object *obj)
++{
++	struct bpf_map *array_ro;
++	struct test_val value = {
++		.index = (6 + 1) * sizeof(int),
++		.foo[6] = 0xabcdef12,
++	};
++	int err, key = 0;
++
++	array_ro = bpf_object__find_map_by_name(obj, "map_array_ro");
++	if (!ASSERT_OK_PTR(array_ro, "lookup map_array_ro"))
++		return -EINVAL;
++
++	err = bpf_map_update_elem(bpf_map__fd(array_ro), &key, &value, 0);
++	if (!ASSERT_OK(err, "map_array_ro update"))
++		return err;
++
++	return 0;
++}
++
++void test_verifier_array_access(void)
++{
++	run_tests_aux("verifier_array_access",
++		      verifier_array_access__elf_bytes,
++		      init_array_access_maps);
++}
+diff --git a/tools/testing/selftests/bpf/progs/verifier_array_access.c b/tools/testing/selftests/bpf/progs/verifier_array_access.c
+index fceeeef787215..95d7ecc12963b 100644
+--- a/tools/testing/selftests/bpf/progs/verifier_array_access.c
++++ b/tools/testing/selftests/bpf/progs/verifier_array_access.c
+@@ -330,7 +330,7 @@ l0_%=:	exit;						\
+ 
+ SEC("socket")
+ __description("valid read map access into a read-only array 1")
+-__success __success_unpriv /* __retval(28) temporarily disable */
++__success __success_unpriv __retval(28)
+ __naked void a_read_only_array_1_1(void)
+ {
+ 	asm volatile ("					\
+@@ -351,7 +351,7 @@ l0_%=:	exit;						\
+ 
+ SEC("tc")
+ __description("valid read map access into a read-only array 2")
+-__success /* __retval(65507) temporarily disable */
++__success __retval(65507)
+ __naked void a_read_only_array_2_1(void)
+ {
+ 	asm volatile ("					\
+-- 
+cgit 
+

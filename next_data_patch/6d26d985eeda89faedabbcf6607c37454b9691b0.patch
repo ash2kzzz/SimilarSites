@@ -1,0 +1,37 @@
+From 6d26d985eeda89faedabbcf6607c37454b9691b0 Mon Sep 17 00:00:00 2001
+From: Florian Westphal <fw@strlen.de>
+Date: Sat, 22 Apr 2023 09:35:44 +0200
+Subject: bpf: fix link failure with NETFILTER=y INET=n
+
+Explicitly check if NETFILTER_BPF_LINK is enabled, else configs
+that have NETFILTER=y but CONFIG_INET=n fail to link:
+
+> kernel/bpf/syscall.o: undefined reference to `netfilter_prog_ops'
+> kernel/bpf/verifier.o: undefined reference to `netfilter_verifier_ops'
+
+Fixes: fd9c663b9ad6 ("bpf: minimal support for programs hooked into netfilter framework")
+Reported-by: kernel test robot <lkp@intel.com>
+Link: https://lore.kernel.org/oe-kbuild-all/202304220903.fRZTJtxe-lkp@intel.com/
+Signed-off-by: Florian Westphal <fw@strlen.de>
+Link: https://lore.kernel.org/r/20230422073544.17634-1-fw@strlen.de
+Signed-off-by: Alexei Starovoitov <ast@kernel.org>
+---
+ include/linux/bpf_types.h | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/include/linux/bpf_types.h b/include/linux/bpf_types.h
+index 39a999abb0ceb..fc0d6f32c6876 100644
+--- a/include/linux/bpf_types.h
++++ b/include/linux/bpf_types.h
+@@ -79,7 +79,7 @@ BPF_PROG_TYPE(BPF_PROG_TYPE_LSM, lsm,
+ #endif
+ BPF_PROG_TYPE(BPF_PROG_TYPE_SYSCALL, bpf_syscall,
+ 	      void *, void *)
+-#ifdef CONFIG_NETFILTER
++#ifdef CONFIG_NETFILTER_BPF_LINK
+ BPF_PROG_TYPE(BPF_PROG_TYPE_NETFILTER, netfilter,
+ 	      struct bpf_nf_ctx, struct bpf_nf_ctx)
+ #endif
+-- 
+cgit 
+

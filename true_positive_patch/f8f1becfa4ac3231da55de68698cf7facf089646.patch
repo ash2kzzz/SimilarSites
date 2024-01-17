@@ -1,0 +1,67 @@
+From f8f1becfa4ac3231da55de68698cf7facf089646 Mon Sep 17 00:00:00 2001
+From: Takashi Iwai <tiwai@suse.de>
+Date: Thu, 6 Feb 2014 18:14:03 +0100
+Subject: ALSA: hda - Fix leftover ifdef checks after modularization
+
+Since the commit [595fe1b702c3: ALSA: hda - Make
+CONFIG_SND_HDA_CODEC_* tristate], the kconfig variables for the
+generic parser and codec drivers can be "m" instead of boolean, but
+some codes are left unchanged to check only #ifdef
+CONFIG_SND_HDA_CODEC_XXX, which is no longer true for modules.
+This patch fixes them by replacing with IS_ENABLED() macros.
+
+Fixes: 595fe1b702c3 ('ALSA: hda - Make CONFIG_SND_HDA_CODEC_* tristate')
+Bugzilla: https://bugzilla.kernel.org/show_bug.cgi?id=70161
+Signed-off-by: Takashi Iwai <tiwai@suse.de>
+---
+ sound/pci/hda/hda_codec.c | 6 +++---
+ sound/pci/hda/hda_intel.c | 2 +-
+ 2 files changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/sound/pci/hda/hda_codec.c b/sound/pci/hda/hda_codec.c
+index ec4536c8d8d43..69acbf758bbb2 100644
+--- a/sound/pci/hda/hda_codec.c
++++ b/sound/pci/hda/hda_codec.c
+@@ -932,7 +932,7 @@ int snd_hda_bus_new(struct snd_card *card,
+ }
+ EXPORT_SYMBOL_GPL(snd_hda_bus_new);
+ 
+-#ifdef CONFIG_SND_HDA_GENERIC
++#if IS_ENABLED(CONFIG_SND_HDA_GENERIC)
+ #define is_generic_config(codec) \
+ 	(codec->modelname && !strcmp(codec->modelname, "generic"))
+ #else
+@@ -1570,7 +1570,7 @@ int snd_hda_codec_update_widgets(struct hda_codec *codec)
+ EXPORT_SYMBOL_GPL(snd_hda_codec_update_widgets);
+ 
+ 
+-#ifdef CONFIG_SND_HDA_CODEC_HDMI
++#if IS_ENABLED(CONFIG_SND_HDA_CODEC_HDMI)
+ /* if all audio out widgets are digital, let's assume the codec as a HDMI/DP */
+ static bool is_likely_hdmi_codec(struct hda_codec *codec)
+ {
+@@ -1622,7 +1622,7 @@ int snd_hda_codec_configure(struct hda_codec *codec)
+ 		unload_parser(codec); /* to be sure */
+ 		if (is_likely_hdmi_codec(codec))
+ 			patch = load_parser(codec, snd_hda_parse_hdmi_codec);
+-#ifdef CONFIG_SND_HDA_GENERIC
++#if IS_ENABLED(CONFIG_SND_HDA_GENERIC)
+ 		if (!patch)
+ 			patch = load_parser(codec, snd_hda_parse_generic_codec);
+ #endif
+diff --git a/sound/pci/hda/hda_intel.c b/sound/pci/hda/hda_intel.c
+index fa2879a21a50a..e354ab1ec20f2 100644
+--- a/sound/pci/hda/hda_intel.c
++++ b/sound/pci/hda/hda_intel.c
+@@ -198,7 +198,7 @@ MODULE_DESCRIPTION("Intel HDA driver");
+ #endif
+ 
+ #if defined(CONFIG_PM) && defined(CONFIG_VGA_SWITCHEROO)
+-#ifdef CONFIG_SND_HDA_CODEC_HDMI
++#if IS_ENABLED(CONFIG_SND_HDA_CODEC_HDMI)
+ #define SUPPORT_VGA_SWITCHEROO
+ #endif
+ #endif
+-- 
+cgit 
+

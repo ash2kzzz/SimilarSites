@@ -1,0 +1,75 @@
+From e4212ed0ba58264fbe7706c5493b9600339f60ae Mon Sep 17 00:00:00 2001
+From: Bagas Sanjaya <bagasdotme@gmail.com>
+Date: Wed, 3 May 2023 10:54:16 +0700
+Subject: ALSA: docs: Fix code block indentation in ALSA driver example
+
+Sphinx reports htmldocs warnings:
+
+Documentation/sound/kernel-api/writing-an-alsa-driver.rst:3997: WARNING: Literal block expected; none found.
+Documentation/sound/kernel-api/writing-an-alsa-driver.rst:4004: WARNING: Literal block expected; none found.
+Documentation/sound/kernel-api/writing-an-alsa-driver.rst:4009: WARNING: Unexpected indentation.
+Documentation/sound/kernel-api/writing-an-alsa-driver.rst:4035: WARNING: Literal block expected; none found.
+
+These are due to indentation of example driver snippets which is outside
+the code block scope.
+
+Fix these by indenting code blocks in question to the scope.
+
+Fixes: 4d421eebe1465d ("ALSA: docs: writing-an-alsa-driver.rst: polishing")
+Reported-by: kernel test robot <lkp@intel.com>
+Closes: https://lore.kernel.org/linux-doc/202305021822.4U6XOvGf-lkp@intel.com/
+Signed-off-by: Bagas Sanjaya <bagasdotme@gmail.com>
+Link: https://lore.kernel.org/r/20230503035416.62722-1-bagasdotme@gmail.com
+Signed-off-by: Takashi Iwai <tiwai@suse.de>
+---
+ .../sound/kernel-api/writing-an-alsa-driver.rst    | 22 +++++++++++-----------
+ 1 file changed, 11 insertions(+), 11 deletions(-)
+
+diff --git a/Documentation/sound/kernel-api/writing-an-alsa-driver.rst b/Documentation/sound/kernel-api/writing-an-alsa-driver.rst
+index c0f97b5e42496..4335c98b3d828 100644
+--- a/Documentation/sound/kernel-api/writing-an-alsa-driver.rst
++++ b/Documentation/sound/kernel-api/writing-an-alsa-driver.rst
+@@ -3994,21 +3994,21 @@ Driver with A Single Source File
+ 
+    Suppose you have a file xyz.c. Add the following two lines::
+ 
+-  snd-xyz-objs := xyz.o
+-  obj-$(CONFIG_SND_XYZ) += snd-xyz.o
++     snd-xyz-objs := xyz.o
++     obj-$(CONFIG_SND_XYZ) += snd-xyz.o
+ 
+ 2. Create the Kconfig entry
+ 
+    Add the new entry of Kconfig for your xyz driver::
+ 
+-  config SND_XYZ
+-    tristate "Foobar XYZ"
+-    depends on SND
+-    select SND_PCM
+-    help
+-      Say Y here to include support for Foobar XYZ soundcard.
+-      To compile this driver as a module, choose M here:
+-      the module will be called snd-xyz.
++     config SND_XYZ
++       tristate "Foobar XYZ"
++       depends on SND
++       select SND_PCM
++       help
++         Say Y here to include support for Foobar XYZ soundcard.
++         To compile this driver as a module, choose M here:
++         the module will be called snd-xyz.
+ 
+ The line ``select SND_PCM`` specifies that the driver xyz supports PCM.
+ In addition to SND_PCM, the following components are supported for
+@@ -4032,7 +4032,7 @@ located in the new subdirectory, sound/pci/xyz.
+ 1. Add a new directory (``sound/pci/xyz``) in ``sound/pci/Makefile``
+    as below::
+ 
+-  obj-$(CONFIG_SND) += sound/pci/xyz/
++     obj-$(CONFIG_SND) += sound/pci/xyz/
+ 
+ 
+ 2. Under the directory ``sound/pci/xyz``, create a Makefile::
+-- 
+cgit 
+

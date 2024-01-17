@@ -1,0 +1,74 @@
+From 1d7a4a40bf76e2305c8beed4a019bf58af6121ac Mon Sep 17 00:00:00 2001
+From: Krzysztof Kozlowski <krzysztof.kozlowski@linaro.org>
+Date: Fri, 23 Dec 2022 14:21:59 +0100
+Subject: dt-bindings: soundwire: qcom,soundwire: correct sizes related to
+ number of ports
+
+There are several properties depending on number of ports.  Some of them
+had maximum limit of 5 and some of 8.  SM8450 AudioReach comes with 8
+ports, so fix the limits:
+
+  sm8450-sony-xperia-nagara-pdx224.dtb: soundwire-controller@3250000: qcom,ports-word-length: 'oneOf' conditional failed, one must be fixed:
+    [[255, 255, 255, 255, 255, 255, 255, 255]] is too short
+    [255, 255, 255, 255, 255, 255, 255, 255] is too long
+
+Fixes: febc50b82bc9 ("dt-bindings: soundwire: Convert text bindings to DT Schema")
+Signed-off-by: Krzysztof Kozlowski <krzysztof.kozlowski@linaro.org>
+Link: https://lore.kernel.org/r/20221223132159.81211-1-krzysztof.kozlowski@linaro.org
+Signed-off-by: Rob Herring <robh@kernel.org>
+---
+ .../devicetree/bindings/soundwire/qcom,soundwire.yaml          | 10 +++++-----
+ 1 file changed, 5 insertions(+), 5 deletions(-)
+
+diff --git a/Documentation/devicetree/bindings/soundwire/qcom,soundwire.yaml b/Documentation/devicetree/bindings/soundwire/qcom,soundwire.yaml
+index bcbfa71536cda..3efdc192ab019 100644
+--- a/Documentation/devicetree/bindings/soundwire/qcom,soundwire.yaml
++++ b/Documentation/devicetree/bindings/soundwire/qcom,soundwire.yaml
+@@ -80,7 +80,7 @@ properties:
+       or applicable for the respective data port.
+       More info in MIPI Alliance SoundWire 1.0 Specifications.
+     minItems: 3
+-    maxItems: 5
++    maxItems: 8
+ 
+   qcom,ports-sinterval-low:
+     $ref: /schemas/types.yaml#/definitions/uint8-array
+@@ -124,7 +124,7 @@ properties:
+       or applicable for the respective data port.
+       More info in MIPI Alliance SoundWire 1.0 Specifications.
+     minItems: 3
+-    maxItems: 5
++    maxItems: 8
+ 
+   qcom,ports-block-pack-mode:
+     $ref: /schemas/types.yaml#/definitions/uint8-array
+@@ -154,7 +154,7 @@ properties:
+       or applicable for the respective data port.
+       More info in MIPI Alliance SoundWire 1.0 Specifications.
+     minItems: 3
+-    maxItems: 5
++    maxItems: 8
+     items:
+       oneOf:
+         - minimum: 0
+@@ -171,7 +171,7 @@ properties:
+       or applicable for the respective data port.
+       More info in MIPI Alliance SoundWire 1.0 Specifications.
+     minItems: 3
+-    maxItems: 5
++    maxItems: 8
+     items:
+       oneOf:
+         - minimum: 0
+@@ -187,7 +187,7 @@ properties:
+       or applicable for the respective data port.
+       More info in MIPI Alliance SoundWire 1.0 Specifications.
+     minItems: 3
+-    maxItems: 5
++    maxItems: 8
+     items:
+       oneOf:
+         - minimum: 0
+-- 
+cgit 
+

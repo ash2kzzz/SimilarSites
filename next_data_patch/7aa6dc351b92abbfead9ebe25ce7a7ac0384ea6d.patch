@@ -1,0 +1,72 @@
+From 7aa6dc351b92abbfead9ebe25ce7a7ac0384ea6d Mon Sep 17 00:00:00 2001
+From: Lorenzo Bianconi <lorenzo@kernel.org>
+Date: Thu, 9 Mar 2023 13:25:29 +0100
+Subject: net: ena: take into account xdp_features setting tx/rx queues
+
+ena nic allows xdp just if enough hw queues are available for XDP.
+Take into account queues configuration setting xdp_features.
+
+Fixes: 66c0e13ad236 ("drivers: net: turn on XDP features")
+Reviewed-by: Shay Agroskin <shayagr@amazon.com>
+Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
+Signed-off-by: Jakub Kicinski <kuba@kernel.org>
+---
+ drivers/net/ethernet/amazon/ena/ena_ethtool.c | 15 ++++++++++++---
+ drivers/net/ethernet/amazon/ena/ena_netdev.c  |  6 ++++--
+ 2 files changed, 16 insertions(+), 5 deletions(-)
+
+diff --git a/drivers/net/ethernet/amazon/ena/ena_ethtool.c b/drivers/net/ethernet/amazon/ena/ena_ethtool.c
+index 8da79eedc057c..1d4f2f4d10f29 100644
+--- a/drivers/net/ethernet/amazon/ena/ena_ethtool.c
++++ b/drivers/net/ethernet/amazon/ena/ena_ethtool.c
+@@ -850,11 +850,20 @@ static int ena_set_channels(struct net_device *netdev,
+ 	struct ena_adapter *adapter = netdev_priv(netdev);
+ 	u32 count = channels->combined_count;
+ 	/* The check for max value is already done in ethtool */
+-	if (count < ENA_MIN_NUM_IO_QUEUES ||
+-	    (ena_xdp_present(adapter) &&
+-	    !ena_xdp_legal_queue_count(adapter, count)))
++	if (count < ENA_MIN_NUM_IO_QUEUES)
+ 		return -EINVAL;
+ 
++	if (!ena_xdp_legal_queue_count(adapter, count)) {
++		if (ena_xdp_present(adapter))
++			return -EINVAL;
++
++		xdp_clear_features_flag(netdev);
++	} else {
++		xdp_set_features_flag(netdev,
++				      NETDEV_XDP_ACT_BASIC |
++				      NETDEV_XDP_ACT_REDIRECT);
++	}
++
+ 	return ena_update_queue_count(adapter, count);
+ }
+ 
+diff --git a/drivers/net/ethernet/amazon/ena/ena_netdev.c b/drivers/net/ethernet/amazon/ena/ena_netdev.c
+index d3999db7c6a29..cbfe7f977270f 100644
+--- a/drivers/net/ethernet/amazon/ena/ena_netdev.c
++++ b/drivers/net/ethernet/amazon/ena/ena_netdev.c
+@@ -4105,8 +4105,6 @@ static void ena_set_conf_feat_params(struct ena_adapter *adapter,
+ 	/* Set offload features */
+ 	ena_set_dev_offloads(feat, netdev);
+ 
+-	netdev->xdp_features = NETDEV_XDP_ACT_BASIC | NETDEV_XDP_ACT_REDIRECT;
+-
+ 	adapter->max_mtu = feat->dev_attr.max_mtu;
+ 	netdev->max_mtu = adapter->max_mtu;
+ 	netdev->min_mtu = ENA_MIN_MTU;
+@@ -4393,6 +4391,10 @@ static int ena_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
+ 
+ 	ena_config_debug_area(adapter);
+ 
++	if (ena_xdp_legal_queue_count(adapter, adapter->num_io_queues))
++		netdev->xdp_features = NETDEV_XDP_ACT_BASIC |
++				       NETDEV_XDP_ACT_REDIRECT;
++
+ 	memcpy(adapter->netdev->perm_addr, adapter->mac_addr, netdev->addr_len);
+ 
+ 	netif_carrier_off(netdev);
+-- 
+cgit 
+

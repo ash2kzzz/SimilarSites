@@ -1,0 +1,53 @@
+From e63273c1bc637fad711488afe9c2f1ab58a7ae86 Mon Sep 17 00:00:00 2001
+From: Bagas Sanjaya <bagasdotme@gmail.com>
+Date: Mon, 13 Feb 2023 17:07:59 +0700
+Subject: Documentation: admin-guide: Add toctree entry for thermal docs
+
+kernel test robot reported htmldocs warnings:
+
+Documentation/admin-guide/index.rst:62: WARNING: toctree contains reference to nonexisting document 'admin-guide/thermal'
+Documentation/admin-guide/thermal/intel_powerclamp.rst: WARNING: document isn't included in any toctree
+
+Add toctree entry for thermal/ docs to fix these warnings.
+
+Link: https://lore.kernel.org/linux-doc/202302121759.MmJgDTxc-lkp@intel.com/
+Fixes: 707bf8e1dfd51d ("Documentation: admin-guide: Move intel_powerclamp documentation")
+Reported-by: kernel test robot <lkp@intel.com>
+Signed-off-by: Bagas Sanjaya <bagasdotme@gmail.com>
+Signed-off-by: Rafael J. Wysocki <rafael.j.wysocki@intel.com>
+---
+ Documentation/admin-guide/index.rst         | 2 +-
+ Documentation/admin-guide/thermal/index.rst | 8 ++++++++
+ 2 files changed, 9 insertions(+), 1 deletion(-)
+ create mode 100644 Documentation/admin-guide/thermal/index.rst
+
+diff --git a/Documentation/admin-guide/index.rst b/Documentation/admin-guide/index.rst
+index c872a8a1ddfa2..0571938ecdc86 100644
+--- a/Documentation/admin-guide/index.rst
++++ b/Documentation/admin-guide/index.rst
+@@ -116,7 +116,7 @@ configure specific aspects of kernel behavior to your liking.
+    svga
+    syscall-user-dispatch
+    sysrq
+-   thermal
++   thermal/index
+    thunderbolt
+    ufs
+    unicode
+diff --git a/Documentation/admin-guide/thermal/index.rst b/Documentation/admin-guide/thermal/index.rst
+new file mode 100644
+index 0000000000000..193b7b01a87d7
+--- /dev/null
++++ b/Documentation/admin-guide/thermal/index.rst
+@@ -0,0 +1,8 @@
++=================
++Thermal Subsystem
++=================
++
++.. toctree::
++   :maxdepth: 1
++
++   intel_powerclamp
+-- 
+cgit 
+

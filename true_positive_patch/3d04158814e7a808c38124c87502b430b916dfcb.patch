@@ -1,0 +1,144 @@
+From 3d04158814e7a808c38124c87502b430b916dfcb Mon Sep 17 00:00:00 2001
+From: Corentin Labbe <clabbe@baylibre.com>
+Date: Sun, 17 Nov 2019 16:09:53 +0000
+Subject: crypto: amlogic - enable working on big endian kernel
+
+On big endian kernel, the GXL crypto driver does not works.
+This patch do the necessary modification to permit it to work on BE
+kernel (removing bitfield and adds some cpu_to_le32).
+
+Fixes: 48fe583fe541 ("crypto: amlogic - Add crypto accelerator for amlogic GXL")
+Signed-off-by: Corentin Labbe <clabbe@baylibre.com>
+Signed-off-by: Herbert Xu <herbert@gondor.apana.org.au>
+---
+ drivers/crypto/amlogic/amlogic-gxl-cipher.c | 26 +++++++--------
+ drivers/crypto/amlogic/amlogic-gxl.h        | 51 ++++++++++++-----------------
+ 2 files changed, 34 insertions(+), 43 deletions(-)
+
+diff --git a/drivers/crypto/amlogic/amlogic-gxl-cipher.c b/drivers/crypto/amlogic/amlogic-gxl-cipher.c
+index 1ddb14e9a99ac..e589015aac1cb 100644
+--- a/drivers/crypto/amlogic/amlogic-gxl-cipher.c
++++ b/drivers/crypto/amlogic/amlogic-gxl-cipher.c
+@@ -101,6 +101,7 @@ static int meson_cipher(struct skcipher_request *areq)
+ 	unsigned int keyivlen, ivsize, offset, tloffset;
+ 	dma_addr_t phykeyiv;
+ 	void *backup_iv = NULL, *bkeyiv;
++	__le32 v;
+ 
+ 	algt = container_of(alg, struct meson_alg_template, alg.skcipher);
+ 
+@@ -165,11 +166,11 @@ static int meson_cipher(struct skcipher_request *areq)
+ 		desc = &mc->chanlist[flow].tl[tloffset];
+ 		memset(desc, 0, sizeof(struct meson_desc));
+ 		todo = min(keyivlen - eat, 16u);
+-		desc->t_src = phykeyiv + i * 16;
+-		desc->t_dst = i * 16;
+-		desc->len = 16;
+-		desc->mode = MODE_KEY;
+-		desc->owner = 1;
++		desc->t_src = cpu_to_le32(phykeyiv + i * 16);
++		desc->t_dst = cpu_to_le32(i * 16);
++		v = (MODE_KEY << 20) | DESC_OWN | 16;
++		desc->t_status = cpu_to_le32(v);
++
+ 		eat += todo;
+ 		i++;
+ 		tloffset++;
+@@ -208,18 +209,17 @@ static int meson_cipher(struct skcipher_request *areq)
+ 		desc = &mc->chanlist[flow].tl[tloffset];
+ 		memset(desc, 0, sizeof(struct meson_desc));
+ 
+-		desc->t_src = sg_dma_address(src_sg);
+-		desc->t_dst = sg_dma_address(dst_sg);
++		desc->t_src = cpu_to_le32(sg_dma_address(src_sg));
++		desc->t_dst = cpu_to_le32(sg_dma_address(dst_sg));
+ 		todo = min(len, sg_dma_len(src_sg));
+-		desc->owner = 1;
+-		desc->len = todo;
+-		desc->mode = op->keymode;
+-		desc->op_mode = algt->blockmode;
+-		desc->enc = rctx->op_dir;
++		v = (op->keymode << 20) | DESC_OWN | todo | (algt->blockmode << 26);
++		if (rctx->op_dir)
++			v |= DESC_ENCRYPTION;
+ 		len -= todo;
+ 
+ 		if (!sg_next(src_sg))
+-			desc->eoc = 1;
++			v |= DESC_LAST;
++		desc->t_status = cpu_to_le32(v);
+ 		tloffset++;
+ 		src_sg = sg_next(src_sg);
+ 		dst_sg = sg_next(dst_sg);
+diff --git a/drivers/crypto/amlogic/amlogic-gxl.h b/drivers/crypto/amlogic/amlogic-gxl.h
+index fd9192b4050bf..b7f2de91ab76a 100644
+--- a/drivers/crypto/amlogic/amlogic-gxl.h
++++ b/drivers/crypto/amlogic/amlogic-gxl.h
+@@ -26,43 +26,34 @@
+ 
+ #define MAXDESC 64
+ 
++#define DESC_LAST BIT(18)
++#define DESC_ENCRYPTION BIT(28)
++#define DESC_OWN BIT(31)
++
+ /*
+  * struct meson_desc - Descriptor for DMA operations
+  * Note that without datasheet, some are unknown
+- * @len:	length of data to operate
+- * @irq:	Ignored by hardware
+- * @eoc:	End of descriptor
+- * @loop:	Unknown
+- * @mode:	Type of algorithm (AES, SHA)
+- * @begin:	Unknown
+- * @end:	Unknown
+- * @op_mode:	Blockmode (CBC, ECB)
+- * @block:	Unknown
+- * @error:	Unknown
+- * @owner:	owner of the descriptor, 1 own by HW
++ * @t_status:	Descriptor of the cipher operation (see description below)
+  * @t_src:	Physical address of data to read
+  * @t_dst:	Physical address of data to write
++ * t_status is segmented like this:
++ * @len:	0-16	length of data to operate
++ * @irq:	17	Ignored by hardware
++ * @eoc:	18	End means the descriptor is the last
++ * @loop:	19	Unknown
++ * @mode:	20-23	Type of algorithm (AES, SHA)
++ * @begin:	24	Unknown
++ * @end:	25	Unknown
++ * @op_mode:	26-27	Blockmode (CBC, ECB)
++ * @enc:	28	0 means decryption, 1 is for encryption
++ * @block:	29	Unknown
++ * @error:	30	Unknown
++ * @owner:	31	owner of the descriptor, 1 own by HW
+  */
+ struct meson_desc {
+-	union {
+-		u32 t_status;
+-		struct {
+-			u32 len:17;
+-			u32 irq:1;
+-			u32 eoc:1;
+-			u32 loop:1;
+-			u32 mode:4;
+-			u32 begin:1;
+-			u32 end:1;
+-			u32 op_mode:2;
+-			u32 enc:1;
+-			u32 block:1;
+-			u32 error:1;
+-			u32 owner:1;
+-		};
+-	};
+-	u32 t_src;
+-	u32 t_dst;
++	__le32 t_status;
++	__le32 t_src;
++	__le32 t_dst;
+ };
+ 
+ /*
+-- 
+cgit 
+

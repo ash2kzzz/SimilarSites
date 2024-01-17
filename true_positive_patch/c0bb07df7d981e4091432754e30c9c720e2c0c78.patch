@@ -1,0 +1,35 @@
+From c0bb07df7d981e4091432754e30c9c720e2c0c78 Mon Sep 17 00:00:00 2001
+From: Herbert Xu <herbert@gondor.apana.org.au>
+Date: Sat, 16 May 2015 21:50:28 +0800
+Subject: netlink: Reset portid after netlink_insert failure
+
+The commit c5adde9468b0714a051eac7f9666f23eb10b61f7 ("netlink:
+eliminate nl_sk_hash_lock") breaks the autobind retry mechanism
+because it doesn't reset portid after a failed netlink_insert.
+
+This means that should autobind fail the first time around, then
+the socket will be stuck in limbo as it can never be bound again
+since it already has a non-zero portid.
+
+Fixes: c5adde9468b0 ("netlink: eliminate nl_sk_hash_lock")
+Signed-off-by: Herbert Xu <herbert@gondor.apana.org.au>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ net/netlink/af_netlink.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/net/netlink/af_netlink.c b/net/netlink/af_netlink.c
+index dbe885901b34b..bf6e76643f787 100644
+--- a/net/netlink/af_netlink.c
++++ b/net/netlink/af_netlink.c
+@@ -1081,6 +1081,7 @@ static int netlink_insert(struct sock *sk, u32 portid)
+ 	if (err) {
+ 		if (err == -EEXIST)
+ 			err = -EADDRINUSE;
++		nlk_sk(sk)->portid = 0;
+ 		sock_put(sk);
+ 	}
+ 
+-- 
+cgit 
+

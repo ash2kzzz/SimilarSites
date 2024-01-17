@@ -1,0 +1,35 @@
+From 8d1b80a79452630f157bf634ae9cfcd9f4eed161 Mon Sep 17 00:00:00 2001
+From: Dan Carpenter <error27@gmail.com>
+Date: Thu, 16 Feb 2023 15:13:04 +0300
+Subject: erofs: fix an error code in z_erofs_init_zip_subsystem()
+
+Return -ENOMEM if alloc_workqueue() fails.  Don't return success.
+
+Fixes: d8a650adf429 ("erofs: add per-cpu threads for decompression as an option")
+Signed-off-by: Dan Carpenter <error27@gmail.com>
+Reviewed-by: Gao Xiang <hsiangkao@linux.alibaba.com>
+Link: https://lore.kernel.org/r/Y+4d0FRsUq8jPoOu@kili
+Signed-off-by: Gao Xiang <hsiangkao@linux.alibaba.com>
+---
+ fs/erofs/zdata.c | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/fs/erofs/zdata.c b/fs/erofs/zdata.c
+index 8ea3f5fe985e4..3247d2422beae 100644
+--- a/fs/erofs/zdata.c
++++ b/fs/erofs/zdata.c
+@@ -475,8 +475,10 @@ int __init z_erofs_init_zip_subsystem(void)
+ 
+ 	z_erofs_workqueue = alloc_workqueue("erofs_worker",
+ 			WQ_UNBOUND | WQ_HIGHPRI, num_possible_cpus());
+-	if (!z_erofs_workqueue)
++	if (!z_erofs_workqueue) {
++		err = -ENOMEM;
+ 		goto out_error_workqueue_init;
++	}
+ 
+ 	err = erofs_init_percpu_workers();
+ 	if (err)
+-- 
+cgit 
+

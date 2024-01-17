@@ -1,0 +1,42 @@
+From 02c4260713d62eff0875ca4a47019cd56371ffa7 Mon Sep 17 00:00:00 2001
+From: Necip Fazil Yildiran <fazilyildiran@gmail.com>
+Date: Tue, 15 Sep 2020 12:42:10 +0300
+Subject: staging: rtl8192e: fix kconfig dependency warning for
+ RTLLIB_CRYPTO_WEP
+
+When RTLLIB_CRYPTO_WEP is enabled and CRYPTO is disabled, it results in
+the following Kbuild warning:
+
+WARNING: unmet direct dependencies detected for CRYPTO_ARC4
+  Depends on [n]: CRYPTO [=n]
+  Selected by [m]:
+  - RTLLIB_CRYPTO_WEP [=m] && STAGING [=y] && RTLLIB [=m]
+
+The reason is that RTLLIB_CRYPTO_WEP selects CRYPTO_ARC4 without depending
+on or selecting CRYPTO while CRYPTO_ARC4 is subordinate to CRYPTO.
+
+Honor the kconfig menu hierarchy to remove kconfig dependency warnings.
+
+Fixes: e0e3daddad36 ("staging: r8192e: Fix possible error in configuration")
+Signed-off-by: Necip Fazil Yildiran <fazilyildiran@gmail.com>
+Link: https://lore.kernel.org/r/20200915094209.22664-1-fazilyildiran@gmail.com
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+---
+ drivers/staging/rtl8192e/Kconfig | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/drivers/staging/rtl8192e/Kconfig b/drivers/staging/rtl8192e/Kconfig
+index 01bb5fe8bd6f1..31e076cc6f16a 100644
+--- a/drivers/staging/rtl8192e/Kconfig
++++ b/drivers/staging/rtl8192e/Kconfig
+@@ -37,6 +37,7 @@ config RTLLIB_CRYPTO_TKIP
+ 
+ config RTLLIB_CRYPTO_WEP
+ 	tristate "Support for rtllib WEP crypto"
++	select CRYPTO
+ 	select CRYPTO_ARC4
+ 	depends on RTLLIB
+ 	default y
+-- 
+cgit 
+

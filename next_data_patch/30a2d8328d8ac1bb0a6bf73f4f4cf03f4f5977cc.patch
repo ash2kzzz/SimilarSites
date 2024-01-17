@@ -1,0 +1,46 @@
+From 30a2d8328d8ac1bb0a6bf73f4f4cf03f4f5977cc Mon Sep 17 00:00:00 2001
+From: David Vernet <void@manifault.com>
+Date: Tue, 28 Feb 2023 09:28:45 -0600
+Subject: bpf: Fix bpf_cgroup_from_id() doxygen header
+
+In commit 332ea1f697be ("bpf: Add bpf_cgroup_from_id() kfunc"), a new
+bpf_cgroup_from_id() kfunc was added which allows a BPF program to
+lookup and acquire a reference to a cgroup from a cgroup id. The
+commit's doxygen comment seems to have copy-pasted fields, which causes
+BPF kfunc helper documentation to fail to render:
+
+<snip>/helpers.c:2114: warning: Excess function parameter 'cgrp'...
+<snip>/helpers.c:2114: warning: Excess function parameter 'level'...
+
+<snip>
+
+<snip>/helpers.c:2114: warning: Excess function parameter 'level'...
+
+This patch fixes the doxygen header.
+
+Fixes: 332ea1f697be ("bpf: Add bpf_cgroup_from_id() kfunc")
+Signed-off-by: David Vernet <void@manifault.com>
+Acked-by: Yonghong Song <yhs@fb.com>
+Link: https://lore.kernel.org/r/20230228152845.294695-1-void@manifault.com
+Signed-off-by: Alexei Starovoitov <ast@kernel.org>
+---
+ kernel/bpf/helpers.c | 3 +--
+ 1 file changed, 1 insertion(+), 2 deletions(-)
+
+diff --git a/kernel/bpf/helpers.c b/kernel/bpf/helpers.c
+index a784be6f8bac4..abdcc52f90a63 100644
+--- a/kernel/bpf/helpers.c
++++ b/kernel/bpf/helpers.c
+@@ -2106,8 +2106,7 @@ __bpf_kfunc struct cgroup *bpf_cgroup_ancestor(struct cgroup *cgrp, int level)
+  * bpf_cgroup_from_id - Find a cgroup from its ID. A cgroup returned by this
+  * kfunc which is not subsequently stored in a map, must be released by calling
+  * bpf_cgroup_release().
+- * @cgrp: The cgroup for which we're performing a lookup.
+- * @level: The level of ancestor to look up.
++ * @cgid: cgroup id.
+  */
+ __bpf_kfunc struct cgroup *bpf_cgroup_from_id(u64 cgid)
+ {
+-- 
+cgit 
+

@@ -1,0 +1,42 @@
+From 3a12500ed5dd21a63da779ac73503f11085bbc1c Mon Sep 17 00:00:00 2001
+From: Tobias Klauser <tklauser@distanz.ch>
+Date: Wed, 26 Feb 2020 18:29:53 +0100
+Subject: unix: define and set show_fdinfo only if procfs is enabled
+
+Follow the pattern used with other *_show_fdinfo functions and only
+define unix_show_fdinfo and set it in proto_ops if CONFIG_PROCFS
+is set.
+
+Fixes: 3c32da19a858 ("unix: Show number of pending scm files of receive queue in fdinfo")
+Signed-off-by: Tobias Klauser <tklauser@distanz.ch>
+Reviewed-by: Kirill Tkhai <ktkhai@virtuozzo.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ net/unix/af_unix.c | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/net/unix/af_unix.c b/net/unix/af_unix.c
+index 62c12cb5763e6..aa6e2530e1ec6 100644
+--- a/net/unix/af_unix.c
++++ b/net/unix/af_unix.c
+@@ -682,6 +682,7 @@ static int unix_set_peek_off(struct sock *sk, int val)
+ 	return 0;
+ }
+ 
++#ifdef CONFIG_PROCFS
+ static void unix_show_fdinfo(struct seq_file *m, struct socket *sock)
+ {
+ 	struct sock *sk = sock->sk;
+@@ -692,6 +693,9 @@ static void unix_show_fdinfo(struct seq_file *m, struct socket *sock)
+ 		seq_printf(m, "scm_fds: %u\n", READ_ONCE(u->scm_stat.nr_fds));
+ 	}
+ }
++#else
++#define unix_show_fdinfo NULL
++#endif
+ 
+ static const struct proto_ops unix_stream_ops = {
+ 	.family =	PF_UNIX,
+-- 
+cgit 
+

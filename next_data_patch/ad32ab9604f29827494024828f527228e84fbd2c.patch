@@ -1,0 +1,39 @@
+From ad32ab9604f29827494024828f527228e84fbd2c Mon Sep 17 00:00:00 2001
+From: Juergen Gross <jgross@suse.com>
+Date: Thu, 23 Feb 2023 09:38:00 +0100
+Subject: irqdomain: Add missing NULL pointer check in
+ irq_domain_create_hierarchy()
+
+The recent switch to per-domain locking caused a NULL dereference in
+irq_domain_create_hierarchy(), as Xen code is calling
+msi_create_irq_domain() with a NULL parent pointer.
+
+Fix that by testing parent to be set before dereferencing it. For a
+non-existing parent the irqdomain's root will stay to point to
+itself.
+
+Fixes: 9dbb8e3452ab ("irqdomain: Switch to per-domain locking")
+Signed-off-by: Juergen Gross <jgross@suse.com>
+Signed-off-by: Thomas Gleixner <tglx@linutronix.de>
+Link: https://lore.kernel.org/r/20230223083800.31347-1-jgross@suse.com
+---
+ kernel/irq/irqdomain.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/kernel/irq/irqdomain.c b/kernel/irq/irqdomain.c
+index aa5b7eeeceb8d..6522dfb2e49c4 100644
+--- a/kernel/irq/irqdomain.c
++++ b/kernel/irq/irqdomain.c
+@@ -1172,7 +1172,8 @@ struct irq_domain *irq_domain_create_hierarchy(struct irq_domain *parent,
+ 		domain = __irq_domain_create(fwnode, 0, ~0, 0, ops, host_data);
+ 
+ 	if (domain) {
+-		domain->root = parent->root;
++		if (parent)
++			domain->root = parent->root;
+ 		domain->parent = parent;
+ 		domain->flags |= flags;
+ 
+-- 
+cgit 
+

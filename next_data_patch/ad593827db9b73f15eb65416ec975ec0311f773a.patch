@@ -1,0 +1,149 @@
+From ad593827db9b73f15eb65416ec975ec0311f773a Mon Sep 17 00:00:00 2001
+From: Jason Gunthorpe <jgg@nvidia.com>
+Date: Mon, 15 May 2023 21:12:31 -0300
+Subject: powerpc/iommu: Remove iommu_del_device()
+
+Now that power calls iommu_device_register() and populates its groups
+using iommu_ops->device_group it should not be calling
+iommu_group_remove_device().
+
+The core code owns the groups and all the other related iommu data, it
+will clean it up automatically.
+
+Remove the bus notifiers and explicit calls to
+iommu_group_remove_device().
+
+Fixes: a940904443e4 ("powerpc/iommu: Add iommu_ops to report capabilities and allow blocking domains")
+Signed-off-by: Jason Gunthorpe <jgg@nvidia.com>
+Signed-off-by: Michael Ellerman <mpe@ellerman.id.au>
+Link: https://msgid.link/0-v1-1421774b874b+167-ppc_device_group_jgg@nvidia.com
+---
+ arch/powerpc/include/asm/iommu.h       |  5 -----
+ arch/powerpc/kernel/iommu.c            | 17 -----------------
+ arch/powerpc/platforms/powernv/pci.c   | 25 -------------------------
+ arch/powerpc/platforms/pseries/iommu.c | 25 -------------------------
+ 4 files changed, 72 deletions(-)
+
+diff --git a/arch/powerpc/include/asm/iommu.h b/arch/powerpc/include/asm/iommu.h
+index 678b5bdc79b1f..34e14dfd8e042 100644
+--- a/arch/powerpc/include/asm/iommu.h
++++ b/arch/powerpc/include/asm/iommu.h
+@@ -205,7 +205,6 @@ extern void iommu_register_group(struct iommu_table_group *table_group,
+ 				 int pci_domain_number, unsigned long pe_num);
+ extern int iommu_add_device(struct iommu_table_group *table_group,
+ 		struct device *dev);
+-extern void iommu_del_device(struct device *dev);
+ extern long iommu_tce_xchg(struct mm_struct *mm, struct iommu_table *tbl,
+ 		unsigned long entry, unsigned long *hpa,
+ 		enum dma_data_direction *direction);
+@@ -229,10 +228,6 @@ static inline int iommu_add_device(struct iommu_table_group *table_group,
+ {
+ 	return 0;
+ }
+-
+-static inline void iommu_del_device(struct device *dev)
+-{
+-}
+ #endif /* !CONFIG_IOMMU_API */
+ 
+ u64 dma_iommu_get_required_mask(struct device *dev);
+diff --git a/arch/powerpc/kernel/iommu.c b/arch/powerpc/kernel/iommu.c
+index 0089dd49b4cbf..8fce2da109ebe 100644
+--- a/arch/powerpc/kernel/iommu.c
++++ b/arch/powerpc/kernel/iommu.c
+@@ -1168,23 +1168,6 @@ int iommu_add_device(struct iommu_table_group *table_group, struct device *dev)
+ }
+ EXPORT_SYMBOL_GPL(iommu_add_device);
+ 
+-void iommu_del_device(struct device *dev)
+-{
+-	/*
+-	 * Some devices might not have IOMMU table and group
+-	 * and we needn't detach them from the associated
+-	 * IOMMU groups
+-	 */
+-	if (!device_iommu_mapped(dev)) {
+-		pr_debug("iommu_tce: skipping device %s with no tbl\n",
+-			 dev_name(dev));
+-		return;
+-	}
+-
+-	iommu_group_remove_device(dev);
+-}
+-EXPORT_SYMBOL_GPL(iommu_del_device);
+-
+ /*
+  * A simple iommu_table_group_ops which only allows reusing the existing
+  * iommu_table. This handles VFIO for POWER7 or the nested KVM.
+diff --git a/arch/powerpc/platforms/powernv/pci.c b/arch/powerpc/platforms/powernv/pci.c
+index 233a50e65fced..7725492097b62 100644
+--- a/arch/powerpc/platforms/powernv/pci.c
++++ b/arch/powerpc/platforms/powernv/pci.c
+@@ -865,28 +865,3 @@ void __init pnv_pci_init(void)
+ 	/* Configure IOMMU DMA hooks */
+ 	set_pci_dma_ops(&dma_iommu_ops);
+ }
+-
+-static int pnv_tce_iommu_bus_notifier(struct notifier_block *nb,
+-		unsigned long action, void *data)
+-{
+-	struct device *dev = data;
+-
+-	switch (action) {
+-	case BUS_NOTIFY_DEL_DEVICE:
+-		iommu_del_device(dev);
+-		return 0;
+-	default:
+-		return 0;
+-	}
+-}
+-
+-static struct notifier_block pnv_tce_iommu_bus_nb = {
+-	.notifier_call = pnv_tce_iommu_bus_notifier,
+-};
+-
+-static int __init pnv_tce_iommu_bus_notifier_init(void)
+-{
+-	bus_register_notifier(&pci_bus_type, &pnv_tce_iommu_bus_nb);
+-	return 0;
+-}
+-machine_subsys_initcall_sync(powernv, pnv_tce_iommu_bus_notifier_init);
+diff --git a/arch/powerpc/platforms/pseries/iommu.c b/arch/powerpc/platforms/pseries/iommu.c
+index 7464fa6e41455..e44d3c4a0781d 100644
+--- a/arch/powerpc/platforms/pseries/iommu.c
++++ b/arch/powerpc/platforms/pseries/iommu.c
+@@ -1695,31 +1695,6 @@ static int __init disable_multitce(char *str)
+ 
+ __setup("multitce=", disable_multitce);
+ 
+-static int tce_iommu_bus_notifier(struct notifier_block *nb,
+-		unsigned long action, void *data)
+-{
+-	struct device *dev = data;
+-
+-	switch (action) {
+-	case BUS_NOTIFY_DEL_DEVICE:
+-		iommu_del_device(dev);
+-		return 0;
+-	default:
+-		return 0;
+-	}
+-}
+-
+-static struct notifier_block tce_iommu_bus_nb = {
+-	.notifier_call = tce_iommu_bus_notifier,
+-};
+-
+-static int __init tce_iommu_bus_notifier_init(void)
+-{
+-	bus_register_notifier(&pci_bus_type, &tce_iommu_bus_nb);
+-	return 0;
+-}
+-machine_subsys_initcall_sync(pseries, tce_iommu_bus_notifier_init);
+-
+ #ifdef CONFIG_SPAPR_TCE_IOMMU
+ struct iommu_group *pSeries_pci_device_group(struct pci_controller *hose,
+ 					     struct pci_dev *pdev)
+-- 
+cgit 
+

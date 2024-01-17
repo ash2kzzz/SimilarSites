@@ -1,0 +1,36 @@
+From 7e8472c820f04517ae5d5a27c1aecfa2263a0aa5 Mon Sep 17 00:00:00 2001
+From: Akira Yokosawa <akiyks@gmail.com>
+Date: Tue, 7 Mar 2023 10:36:34 +0900
+Subject: media: Adjust column width for pdfdocs
+
+The column width specifiers added in commit 8d0e3fc61abd ("media:
+Add 2-10-10-10 RGB formats") don't suffice for column 1 and too
+wide for column 2.
+
+Adjust them to get a good looking table.
+
+Fixes: 8d0e3fc61abd ("media: Add 2-10-10-10 RGB formats")
+Cc: Tomi Valkeinen <tomi.valkeinen@ideasonboard.com>
+Signed-off-by: Akira Yokosawa <akiyks@gmail.com>
+Link: https://lore.kernel.org/r/f94e3ada-212c-eef7-9e7b-03760bb29521@gmail.com
+Signed-off-by: Jonathan Corbet <corbet@lwn.net>
+---
+ Documentation/userspace-api/media/v4l/pixfmt-rgb.rst | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/Documentation/userspace-api/media/v4l/pixfmt-rgb.rst b/Documentation/userspace-api/media/v4l/pixfmt-rgb.rst
+index ea545ed1aeaaa..d9d7b7621d8ce 100644
+--- a/Documentation/userspace-api/media/v4l/pixfmt-rgb.rst
++++ b/Documentation/userspace-api/media/v4l/pixfmt-rgb.rst
+@@ -778,7 +778,7 @@ number of bits for each component.
+     \tiny
+     \setlength{\tabcolsep}{2pt}
+ 
+-.. tabularcolumns:: |p{2.8cm}|p{2.0cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|
++.. tabularcolumns:: |p{3.2cm}|p{0.8cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|p{0.22cm}|
+ 
+ 
+ .. flat-table:: RGB Formats 10 Bits Per Color Component
+-- 
+cgit 
+

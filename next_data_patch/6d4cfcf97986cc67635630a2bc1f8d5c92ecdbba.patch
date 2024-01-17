@@ -1,0 +1,35 @@
+From 6d4cfcf97986cc67635630a2bc1f8d5c92ecdbba Mon Sep 17 00:00:00 2001
+From: Sean Anderson <sean.anderson@seco.com>
+Date: Thu, 29 Dec 2022 15:21:20 -0500
+Subject: net: phy: Update documentation for get_rate_matching
+
+Now that phylink no longer calls phy_get_rate_matching with
+PHY_INTERFACE_MODE_NA, phys no longer need to support it. Remove the
+documentation mandating support.
+
+Fixes: 7642cc28fd37 ("net: phylink: fix PHY validation with rate adaption")
+Signed-off-by: Sean Anderson <sean.anderson@seco.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ include/linux/phy.h | 5 +----
+ 1 file changed, 1 insertion(+), 4 deletions(-)
+
+diff --git a/include/linux/phy.h b/include/linux/phy.h
+index 71eeb4e3b1fde..6378c997ded56 100644
+--- a/include/linux/phy.h
++++ b/include/linux/phy.h
+@@ -826,10 +826,7 @@ struct phy_driver {
+ 	 * whether to advertise lower-speed modes for that interface. It is
+ 	 * assumed that if a rate matching mode is supported on an interface,
+ 	 * then that interface's rate can be adapted to all slower link speeds
+-	 * supported by the phy. If iface is %PHY_INTERFACE_MODE_NA, and the phy
+-	 * supports any kind of rate matching for any interface, then it must
+-	 * return that rate matching mode (preferring %RATE_MATCH_PAUSE to
+-	 * %RATE_MATCH_CRS). If the interface is not supported, this should
++	 * supported by the phy. If the interface is not supported, this should
+ 	 * return %RATE_MATCH_NONE.
+ 	 */
+ 	int (*get_rate_matching)(struct phy_device *phydev,
+-- 
+cgit 
+

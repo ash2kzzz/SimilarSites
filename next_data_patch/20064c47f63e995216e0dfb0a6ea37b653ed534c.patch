@@ -1,0 +1,35 @@
+From 20064c47f63e995216e0dfb0a6ea37b653ed534c Mon Sep 17 00:00:00 2001
+From: William Zhang <william.zhang@broadcom.com>
+Date: Mon, 6 Mar 2023 17:20:04 -0800
+Subject: spi: Fix cocci warnings
+
+cocci reported warning: !A || A && B is equivalent to !A || B. This fix
+simplified the condition check to !A || B.
+
+Fixes: 76a85704cb91 ("spi: spi-mem: Allow controller supporting mem_ops without exec_op")
+Reported-by: kernel test robot <lkp@intel.com>
+Link: https://lore.kernel.org/oe-kbuild-all/202303010051.HrHWSr9y-lkp@intel.com/
+
+Signed-off-by: William Zhang <william.zhang@broadcom.com>
+Link: https://lore.kernel.org/r/20230307012004.414502-1-william.zhang@broadcom.com
+Signed-off-by: Mark Brown <broonie@kernel.org>
+---
+ drivers/spi/spi.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/spi/spi.c b/drivers/spi/spi.c
+index 295d02e7f0a88..c725b4bab7af4 100644
+--- a/drivers/spi/spi.c
++++ b/drivers/spi/spi.c
+@@ -3076,7 +3076,7 @@ static int spi_controller_check_ops(struct spi_controller *ctlr)
+ 	 * If ->mem_ops or ->mem_ops->exec_op is NULL, we request that at least
+ 	 * one of the ->transfer_xxx() method be implemented.
+ 	 */
+-	if (!ctlr->mem_ops || (ctlr->mem_ops && !ctlr->mem_ops->exec_op)) {
++	if (!ctlr->mem_ops || !ctlr->mem_ops->exec_op) {
+ 		if (!ctlr->transfer && !ctlr->transfer_one &&
+ 		   !ctlr->transfer_one_message) {
+ 			return -EINVAL;
+-- 
+cgit 
+

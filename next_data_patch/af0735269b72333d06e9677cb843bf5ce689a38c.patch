@@ -1,0 +1,265 @@
+From af0735269b72333d06e9677cb843bf5ce689a38c Mon Sep 17 00:00:00 2001
+From: Vasily Gorbik <gor@linux.ibm.com>
+Date: Fri, 10 Feb 2023 15:47:06 +0100
+Subject: s390/mem_detect: do not truncate online memory ranges info
+
+Commit bf64f0517e5d ("s390/mem_detect: handle online memory limit
+just once") introduced truncation of mem_detect online ranges
+based on identity mapping size. For kdump case however the full
+set of online memory ranges has to be feed into memblock_physmem_add
+so that crashed system memory could be extracted.
+
+Instead of truncating introduce a "usable limit" which is respected by
+mem_detect api. Also add extra online memory ranges iterator which still
+provides full set of online memory ranges disregarding the "usable limit".
+
+Fixes: bf64f0517e5d ("s390/mem_detect: handle online memory limit just once")
+Reported-by: Alexander Egorenkov <egorenar@linux.ibm.com>
+Tested-by: Alexander Egorenkov <egorenar@linux.ibm.com>
+Reviewed-by: Alexander Gordeev <agordeev@linux.ibm.com>
+Signed-off-by: Vasily Gorbik <gor@linux.ibm.com>
+Signed-off-by: Heiko Carstens <hca@linux.ibm.com>
+---
+ arch/s390/boot/boot.h              |  2 +-
+ arch/s390/boot/kaslr.c             | 10 +++++-----
+ arch/s390/boot/mem_detect.c        | 12 ++++++------
+ arch/s390/boot/startup.c           |  2 +-
+ arch/s390/boot/vmem.c              |  2 +-
+ arch/s390/include/asm/mem_detect.h | 32 ++++++++++++++++++++++----------
+ arch/s390/kernel/setup.c           |  4 ++--
+ arch/s390/mm/kasan_init.c          |  4 ++--
+ 8 files changed, 40 insertions(+), 28 deletions(-)
+
+diff --git a/arch/s390/boot/boot.h b/arch/s390/boot/boot.h
+index ed85b144119a0..58ce701d61104 100644
+--- a/arch/s390/boot/boot.h
++++ b/arch/s390/boot/boot.h
+@@ -34,7 +34,7 @@ struct vmlinux_info {
+ 
+ void startup_kernel(void);
+ unsigned long detect_memory(unsigned long *safe_addr);
+-void mem_detect_truncate(unsigned long limit);
++void mem_detect_set_usable_limit(unsigned long limit);
+ bool is_ipl_block_dump(void);
+ void store_ipl_parmblock(void);
+ unsigned long read_ipl_report(unsigned long safe_addr);
+diff --git a/arch/s390/boot/kaslr.c b/arch/s390/boot/kaslr.c
+index 70ff68dd1feec..3e3d846400b4e 100644
+--- a/arch/s390/boot/kaslr.c
++++ b/arch/s390/boot/kaslr.c
+@@ -132,7 +132,7 @@ static unsigned long count_valid_kernel_positions(unsigned long kernel_size,
+ 	unsigned long start, end, pos = 0;
+ 	int i;
+ 
+-	for_each_mem_detect_block(i, &start, &end) {
++	for_each_mem_detect_usable_block(i, &start, &end) {
+ 		if (_min >= end)
+ 			continue;
+ 		if (start >= _max)
+@@ -153,7 +153,7 @@ static unsigned long position_to_address(unsigned long pos, unsigned long kernel
+ 	unsigned long start, end;
+ 	int i;
+ 
+-	for_each_mem_detect_block(i, &start, &end) {
++	for_each_mem_detect_usable_block(i, &start, &end) {
+ 		if (_min >= end)
+ 			continue;
+ 		if (start >= _max)
+@@ -172,7 +172,7 @@ static unsigned long position_to_address(unsigned long pos, unsigned long kernel
+ 
+ unsigned long get_random_base(unsigned long safe_addr)
+ {
+-	unsigned long online_mem_total = get_mem_detect_online_total();
++	unsigned long usable_total = get_mem_detect_usable_total();
+ 	unsigned long memory_limit = get_mem_detect_end();
+ 	unsigned long base_pos, max_pos, kernel_size;
+ 	int i;
+@@ -182,8 +182,8 @@ unsigned long get_random_base(unsigned long safe_addr)
+ 	 * which vmem and kasan code will use for shadow memory and
+ 	 * pgtable mapping allocations.
+ 	 */
+-	memory_limit -= kasan_estimate_memory_needs(online_mem_total);
+-	memory_limit -= vmem_estimate_memory_needs(online_mem_total);
++	memory_limit -= kasan_estimate_memory_needs(usable_total);
++	memory_limit -= vmem_estimate_memory_needs(usable_total);
+ 
+ 	safe_addr = ALIGN(safe_addr, THREAD_SIZE);
+ 	kernel_size = vmlinux.image_size + vmlinux.bss_size;
+diff --git a/arch/s390/boot/mem_detect.c b/arch/s390/boot/mem_detect.c
+index 3058d397a9da4..35f4ba11f7fd4 100644
+--- a/arch/s390/boot/mem_detect.c
++++ b/arch/s390/boot/mem_detect.c
+@@ -172,20 +172,20 @@ unsigned long detect_memory(unsigned long *safe_addr)
+ 	return max_physmem_end;
+ }
+ 
+-void mem_detect_truncate(unsigned long limit)
++void mem_detect_set_usable_limit(unsigned long limit)
+ {
+ 	struct mem_detect_block *block;
+ 	int i;
+ 
++	/* make sure mem_detect.usable ends up within online memory block */
+ 	for (i = 0; i < mem_detect.count; i++) {
+ 		block = __get_mem_detect_block_ptr(i);
+-		if (block->start >= limit) {
+-			mem_detect.count = i;
++		if (block->start >= limit)
+ 			break;
+-		} else if (block->end > limit) {
+-			block->end = (u64)limit;
+-			mem_detect.count = i + 1;
++		if (block->end >= limit) {
++			mem_detect.usable = limit;
+ 			break;
+ 		}
++		mem_detect.usable = block->end;
+ 	}
+ }
+diff --git a/arch/s390/boot/startup.c b/arch/s390/boot/startup.c
+index f5a7545d3c13d..11413f0baabcb 100644
+--- a/arch/s390/boot/startup.c
++++ b/arch/s390/boot/startup.c
+@@ -304,7 +304,7 @@ void startup_kernel(void)
+ 	setup_ident_map_size(max_physmem_end);
+ 	setup_vmalloc_size();
+ 	asce_limit = setup_kernel_memory_layout();
+-	mem_detect_truncate(ident_map_size);
++	mem_detect_set_usable_limit(ident_map_size);
+ 
+ 	if (IS_ENABLED(CONFIG_RANDOMIZE_BASE) && kaslr_enabled) {
+ 		random_lma = get_random_base(safe_addr);
+diff --git a/arch/s390/boot/vmem.c b/arch/s390/boot/vmem.c
+index 4e54357ccd00e..4d1d0d8e99cb2 100644
+--- a/arch/s390/boot/vmem.c
++++ b/arch/s390/boot/vmem.c
+@@ -252,7 +252,7 @@ void setup_vmem(unsigned long asce_limit)
+ 	 */
+ 	pgtable_populate_init();
+ 	pgtable_populate(0, sizeof(struct lowcore), POPULATE_ONE2ONE);
+-	for_each_mem_detect_block(i, &start, &end)
++	for_each_mem_detect_usable_block(i, &start, &end)
+ 		pgtable_populate(start, end, POPULATE_ONE2ONE);
+ 	pgtable_populate(__abs_lowcore, __abs_lowcore + sizeof(struct lowcore),
+ 			 POPULATE_ABS_LOWCORE);
+diff --git a/arch/s390/include/asm/mem_detect.h b/arch/s390/include/asm/mem_detect.h
+index decd8c4cb799d..f9e7354036d23 100644
+--- a/arch/s390/include/asm/mem_detect.h
++++ b/arch/s390/include/asm/mem_detect.h
+@@ -30,6 +30,7 @@ struct mem_detect_block {
+ struct mem_detect_info {
+ 	u32 count;
+ 	u8 info_source;
++	unsigned long usable;
+ 	struct mem_detect_block entries[MEM_INLINED_ENTRIES];
+ 	struct mem_detect_block *entries_extended;
+ };
+@@ -38,7 +39,7 @@ extern struct mem_detect_info mem_detect;
+ void add_mem_detect_block(u64 start, u64 end);
+ 
+ static inline int __get_mem_detect_block(u32 n, unsigned long *start,
+-					 unsigned long *end)
++					 unsigned long *end, bool respect_usable_limit)
+ {
+ 	if (n >= mem_detect.count) {
+ 		*start = 0;
+@@ -53,28 +54,37 @@ static inline int __get_mem_detect_block(u32 n, unsigned long *start,
+ 		*start = (unsigned long)mem_detect.entries_extended[n - MEM_INLINED_ENTRIES].start;
+ 		*end = (unsigned long)mem_detect.entries_extended[n - MEM_INLINED_ENTRIES].end;
+ 	}
++
++	if (respect_usable_limit && mem_detect.usable) {
++		if (*start >= mem_detect.usable)
++			return -1;
++		if (*end > mem_detect.usable)
++			*end = mem_detect.usable;
++	}
+ 	return 0;
+ }
+ 
+ /**
+- * for_each_mem_detect_block - early online memory range iterator
++ * for_each_mem_detect_usable_block - early online memory range iterator
+  * @i: an integer used as loop variable
+  * @p_start: ptr to unsigned long for start address of the range
+  * @p_end: ptr to unsigned long for end address of the range
+  *
+- * Walks over detected online memory ranges.
++ * Walks over detected online memory ranges below usable limit.
+  */
+-#define for_each_mem_detect_block(i, p_start, p_end)			\
+-	for (i = 0, __get_mem_detect_block(i, p_start, p_end);		\
+-	     i < mem_detect.count;					\
+-	     i++, __get_mem_detect_block(i, p_start, p_end))
++#define for_each_mem_detect_usable_block(i, p_start, p_end)		\
++	for (i = 0; !__get_mem_detect_block(i, p_start, p_end, true); i++)
++
++/* Walks over all detected online memory ranges disregarding usable limit. */
++#define for_each_mem_detect_block(i, p_start, p_end)		\
++	for (i = 0; !__get_mem_detect_block(i, p_start, p_end, false); i++)
+ 
+-static inline unsigned long get_mem_detect_online_total(void)
++static inline unsigned long get_mem_detect_usable_total(void)
+ {
+ 	unsigned long start, end, total = 0;
+ 	int i;
+ 
+-	for_each_mem_detect_block(i, &start, &end)
++	for_each_mem_detect_usable_block(i, &start, &end)
+ 		total += end - start;
+ 
+ 	return total;
+@@ -95,8 +105,10 @@ static inline unsigned long get_mem_detect_end(void)
+ 	unsigned long start;
+ 	unsigned long end;
+ 
++	if (mem_detect.usable)
++		return mem_detect.usable;
+ 	if (mem_detect.count) {
+-		__get_mem_detect_block(mem_detect.count - 1, &start, &end);
++		__get_mem_detect_block(mem_detect.count - 1, &start, &end, false);
+ 		return end;
+ 	}
+ 	return 0;
+diff --git a/arch/s390/kernel/setup.c b/arch/s390/kernel/setup.c
+index d8f41ccfe54e6..8ec5cdf9dadc7 100644
+--- a/arch/s390/kernel/setup.c
++++ b/arch/s390/kernel/setup.c
+@@ -772,10 +772,10 @@ static void __init memblock_add_mem_detect_info(void)
+ 		 get_mem_info_source(), mem_detect.info_source);
+ 	/* keep memblock lists close to the kernel */
+ 	memblock_set_bottom_up(true);
+-	for_each_mem_detect_block(i, &start, &end) {
++	for_each_mem_detect_usable_block(i, &start, &end)
+ 		memblock_add(start, end - start);
++	for_each_mem_detect_block(i, &start, &end)
+ 		memblock_physmem_add(start, end - start);
+-	}
+ 	memblock_set_bottom_up(false);
+ 	memblock_set_node(0, ULONG_MAX, &memblock.memory, 0);
+ }
+diff --git a/arch/s390/mm/kasan_init.c b/arch/s390/mm/kasan_init.c
+index 4f6678282726d..ef89a5f26853d 100644
+--- a/arch/s390/mm/kasan_init.c
++++ b/arch/s390/mm/kasan_init.c
+@@ -244,7 +244,7 @@ void __init kasan_early_init(void)
+ 	memset64((u64 *)kasan_early_shadow_pte, pte_val(pte_z), PTRS_PER_PTE);
+ 
+ 	if (has_edat) {
+-		shadow_alloc_size = get_mem_detect_online_total() >> KASAN_SHADOW_SCALE_SHIFT;
++		shadow_alloc_size = get_mem_detect_usable_total() >> KASAN_SHADOW_SCALE_SHIFT;
+ 		segment_pos = round_down(pgalloc_pos, _SEGMENT_SIZE);
+ 		segment_low = segment_pos - shadow_alloc_size;
+ 		segment_low = round_down(segment_low, _SEGMENT_SIZE);
+@@ -282,7 +282,7 @@ void __init kasan_early_init(void)
+ 	 * +- shadow end ----+---------+- shadow end ---+
+ 	 */
+ 	/* populate kasan shadow (for identity mapping and zero page mapping) */
+-	for_each_mem_detect_block(i, &start, &end)
++	for_each_mem_detect_usable_block(i, &start, &end)
+ 		kasan_early_pgtable_populate(__sha(start), __sha(end), POPULATE_MAP);
+ 	if (IS_ENABLED(CONFIG_KASAN_VMALLOC)) {
+ 		untracked_end = VMALLOC_START;
+-- 
+cgit 
+

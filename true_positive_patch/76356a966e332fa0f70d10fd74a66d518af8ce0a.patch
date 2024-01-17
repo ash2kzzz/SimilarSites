@@ -1,0 +1,46 @@
+From 76356a966e332fa0f70d10fd74a66d518af8ce0a Mon Sep 17 00:00:00 2001
+From: Joel Stanley <joel@jms.id.au>
+Date: Fri, 5 Apr 2019 18:41:17 +1030
+Subject: drm: aspeed: Clean up Kconfig options
+
+The GFX IP is inside of the ASPEED BMC SoC so there is little use
+enabling it on a kernel that does not support ASPEED.
+
+When building with COMPILE_TEST the architecture many not have CMA
+support, so to avoid breaking the build we only select these options if
+the architecture supports the contiguous allocator.
+
+I suspect the DRM_PANEL came from a cut/paste error.
+
+Fixes: 4f2a8f5898ec ("drm: Add ASPEED GFX driver")
+Reported-by: Stephen Rothwell <sfr@canb.auug.org.au>
+Reported-by: kernel test robot <lkp@intel.com>
+Signed-off-by: Joel Stanley <joel@jms.id.au>
+Signed-off-by: Daniel Vetter <daniel.vetter@ffwll.ch>
+Link: https://patchwork.freedesktop.org/patch/msgid/20190405081117.27339-1-joel@jms.id.au
+---
+ drivers/gpu/drm/aspeed/Kconfig | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/gpu/drm/aspeed/Kconfig b/drivers/gpu/drm/aspeed/Kconfig
+index 42b74d18a41b8..cccab520e02f3 100644
+--- a/drivers/gpu/drm/aspeed/Kconfig
++++ b/drivers/gpu/drm/aspeed/Kconfig
+@@ -1,11 +1,11 @@
+ config DRM_ASPEED_GFX
+ 	tristate "ASPEED BMC Display Controller"
+ 	depends on DRM && OF
++	depends on (COMPILE_TEST || ARCH_ASPEED)
+ 	select DRM_KMS_HELPER
+ 	select DRM_KMS_CMA_HELPER
+-	select DRM_PANEL
+-	select DMA_CMA
+-	select CMA
++	select DMA_CMA if HAVE_DMA_CONTIGUOUS
++	select CMA if HAVE_DMA_CONTIGUOUS
+ 	select MFD_SYSCON
+ 	help
+ 	  Chose this option if you have an ASPEED AST2500 SOC Display
+-- 
+cgit 
+

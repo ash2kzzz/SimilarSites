@@ -1,0 +1,46 @@
+From 2e498f35c385654396e94cf12e097522d3973d41 Mon Sep 17 00:00:00 2001
+From: Srinivas Kandagatla <srinivas.kandagatla@linaro.org>
+Date: Thu, 2 Mar 2023 11:57:41 +0000
+Subject: arm64: dts: qcom: sc8280xp-x13s: fix va dmic dai links and routing
+
+VA dmics 0, 1, 2 micbias on X13s are connected to WCD MICBIAS1, WCD MICBIAS1
+and WCD MICBIAS3 respectively. Reflect this in dt to get dmics working.
+Also fix dmics to go via VA Macro instead of TX macro to fix device switching.
+
+Fixes: 8c1ea87e80b4 ("arm64: dts: qcom: sc8280xp-x13s: Add soundcard support")
+Signed-off-by: Srinivas Kandagatla <srinivas.kandagatla@linaro.org>
+Signed-off-by: Bjorn Andersson <andersson@kernel.org>
+Link: https://lore.kernel.org/r/20230302115741.7726-5-srinivas.kandagatla@linaro.org
+---
+ arch/arm64/boot/dts/qcom/sc8280xp-lenovo-thinkpad-x13s.dts | 8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/arch/arm64/boot/dts/qcom/sc8280xp-lenovo-thinkpad-x13s.dts b/arch/arm64/boot/dts/qcom/sc8280xp-lenovo-thinkpad-x13s.dts
+index 7d076b9e85bf7..fa412bea8985b 100644
+--- a/arch/arm64/boot/dts/qcom/sc8280xp-lenovo-thinkpad-x13s.dts
++++ b/arch/arm64/boot/dts/qcom/sc8280xp-lenovo-thinkpad-x13s.dts
+@@ -897,9 +897,9 @@
+ 		"VA DMIC0", "MIC BIAS1",
+ 		"VA DMIC1", "MIC BIAS1",
+ 		"VA DMIC2", "MIC BIAS3",
+-		"TX DMIC0", "MIC BIAS1",
+-		"TX DMIC1", "MIC BIAS2",
+-		"TX DMIC2", "MIC BIAS3",
++		"VA DMIC0", "VA MIC BIAS1",
++		"VA DMIC1", "VA MIC BIAS1",
++		"VA DMIC2", "VA MIC BIAS3",
+ 		"TX SWR_ADC1", "ADC2_OUTPUT";
+ 
+ 	wcd-playback-dai-link {
+@@ -950,7 +950,7 @@
+ 	va-dai-link {
+ 		link-name = "VA Capture";
+ 		cpu {
+-			sound-dai = <&q6apmbedai TX_CODEC_DMA_TX_3>;
++			sound-dai = <&q6apmbedai VA_CODEC_DMA_TX_0>;
+ 		};
+ 
+ 		platform {
+-- 
+cgit 
+

@@ -1,0 +1,58 @@
+From 112dc0c8069e5554e0ad29c58228f1e6ca49e13d Mon Sep 17 00:00:00 2001
+From: Johannes Berg <johannes.berg@intel.com>
+Date: Thu, 11 Aug 2016 11:50:22 +0200
+Subject: locking/barriers: Suppress sparse warnings in lockless_dereference()
+
+After Peter's commit:
+
+  331b6d8c7afc ("locking/barriers: Validate lockless_dereference() is used on a pointer type")
+
+... we get a lot of sparse warnings (one for every rcu_dereference, and more)
+since the expression here is assigning to the wrong address space.
+
+Instead of validating that 'p' is a pointer this way, instead make
+it fail compilation when it's not by using sizeof(*(p)). This will
+not cause any sparse warnings (tested, likely since the address
+space is irrelevant for sizeof), and will fail compilation when
+'p' isn't a pointer type.
+
+Tested-by: Paul E. McKenney <paulmck@linux.vnet.ibm.com>
+Signed-off-by: Johannes Berg <johannes.berg@intel.com>
+Signed-off-by: Peter Zijlstra (Intel) <peterz@infradead.org>
+Cc: Andrew Morton <akpm@linux-foundation.org>
+Cc: Chris Wilson <chris@chris-wilson.co.uk>
+Cc: Daniel Vetter <daniel.vetter@intel.com>
+Cc: Linus Torvalds <torvalds@linux-foundation.org>
+Cc: Peter Zijlstra <peterz@infradead.org>
+Cc: Thomas Gleixner <tglx@linutronix.de>
+Fixes: 331b6d8c7afc ("locking/barriers: Validate lockless_dereference() is used on a pointer type")
+Link: http://lkml.kernel.org/r/1470909022-687-2-git-send-email-johannes@sipsolutions.net
+Signed-off-by: Ingo Molnar <mingo@kernel.org>
+---
+ include/linux/compiler.h | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/include/linux/compiler.h b/include/linux/compiler.h
+index 1bb9548427250..436aa4e42221b 100644
+--- a/include/linux/compiler.h
++++ b/include/linux/compiler.h
+@@ -527,13 +527,13 @@ static __always_inline void __write_once_size(volatile void *p, void *res, int s
+  * object's lifetime is managed by something other than RCU.  That
+  * "something other" might be reference counting or simple immortality.
+  *
+- * The seemingly unused void * variable is to validate @p is indeed a pointer
+- * type. All pointer types silently cast to void *.
++ * The seemingly unused size_t variable is to validate @p is indeed a pointer
++ * type by making sure it can be dereferenced.
+  */
+ #define lockless_dereference(p) \
+ ({ \
+ 	typeof(p) _________p1 = READ_ONCE(p); \
+-	__maybe_unused const void * const _________p2 = _________p1; \
++	size_t __maybe_unused __size_of_ptr = sizeof(*(p)); \
+ 	smp_read_barrier_depends(); /* Dependency order vs. p above. */ \
+ 	(_________p1); \
+ })
+-- 
+cgit 
+

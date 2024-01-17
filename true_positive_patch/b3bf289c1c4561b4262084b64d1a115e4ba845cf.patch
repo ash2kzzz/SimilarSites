@@ -1,0 +1,54 @@
+From b3bf289c1c4561b4262084b64d1a115e4ba845cf Mon Sep 17 00:00:00 2001
+From: Tony Lindgren <tony@atomide.com>
+Date: Sun, 3 Jul 2016 23:29:45 -0700
+Subject: ARM: OMAP2+: Fix build with CONFIG_SMP and CONFIG_PM is not set
+
+I found one more make randconfig build error with the recent
+SMP kexec changes. We need the mpuss now always available early.
+
+Fixes: 0573b957fc21 ("ARM: OMAP4+: Prevent CPU1 related hang
+with kexec")
+Signed-off-by: Tony Lindgren <tony@atomide.com>
+---
+ arch/arm/mach-omap2/Makefile              | 5 ++++-
+ arch/arm/mach-omap2/omap-mpuss-lowpower.c | 2 +-
+ 2 files changed, 5 insertions(+), 2 deletions(-)
+
+diff --git a/arch/arm/mach-omap2/Makefile b/arch/arm/mach-omap2/Makefile
+index cd820f5df028b..a7f2d051f5240 100644
+--- a/arch/arm/mach-omap2/Makefile
++++ b/arch/arm/mach-omap2/Makefile
+@@ -78,13 +78,16 @@ obj-$(CONFIG_ARCH_OMAP4)		+= opp4xxx_data.o
+ endif
+ 
+ # Power Management
++omap-4-5-pm-common			= omap-mpuss-lowpower.o
++obj-$(CONFIG_ARCH_OMAP4)		+= $(omap-4-5-pm-common)
++obj-$(CONFIG_ARCH_OMAP5)		+= $(omap-4-5-pm-common)
+ obj-$(CONFIG_OMAP_PM_NOOP)		+= omap-pm-noop.o
+ 
+ ifeq ($(CONFIG_PM),y)
+ obj-$(CONFIG_ARCH_OMAP2)		+= pm24xx.o
+ obj-$(CONFIG_ARCH_OMAP2)		+= sleep24xx.o
+ obj-$(CONFIG_ARCH_OMAP3)		+= pm34xx.o sleep34xx.o
+-omap-4-5-pm-common			=  pm44xx.o omap-mpuss-lowpower.o
++omap-4-5-pm-common			+= pm44xx.o
+ obj-$(CONFIG_ARCH_OMAP4)		+= $(omap-4-5-pm-common)
+ obj-$(CONFIG_SOC_OMAP5)			+= $(omap-4-5-pm-common)
+ obj-$(CONFIG_SOC_DRA7XX)		+= $(omap-4-5-pm-common)
+diff --git a/arch/arm/mach-omap2/omap-mpuss-lowpower.c b/arch/arm/mach-omap2/omap-mpuss-lowpower.c
+index 17515179e6ae5..ad982465efd0d 100644
+--- a/arch/arm/mach-omap2/omap-mpuss-lowpower.c
++++ b/arch/arm/mach-omap2/omap-mpuss-lowpower.c
+@@ -64,7 +64,7 @@
+ 
+ static void __iomem *sar_base;
+ 
+-#ifdef CONFIG_SMP
++#if defined(CONFIG_PM) && defined(CONFIG_SMP)
+ 
+ struct omap4_cpu_pm_info {
+ 	struct powerdomain *pwrdm;
+-- 
+cgit 
+

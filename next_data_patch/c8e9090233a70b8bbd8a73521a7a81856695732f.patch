@@ -1,0 +1,46 @@
+From c8e9090233a70b8bbd8a73521a7a81856695732f Mon Sep 17 00:00:00 2001
+From: Dragos Tatulea <dtatulea@nvidia.com>
+Date: Thu, 30 Mar 2023 19:37:00 +0300
+Subject: net/mlx5e: RX, Fix releasing page_pool pages twice for striding RQ
+
+mlx5e_free_rx_descs is responsible for calling the dealloc_wqe op which
+returns pages to the page_pool. This can happen during flush or close.
+For XSK, the regular RQ is flushed (when replaced by the XSK RQ) and
+also closed later. This is normally not a problem as the wqe list is
+empty on a second call to mlx5e_free_rx_descs. However, for striding RQ,
+the previously released wqes from the list will appear as missing
+and will be released a second time by mlx5e_free_rx_missing_descs.
+
+This patch sets the no release bits on the striding RQ wqes in the
+dealloc_wqe op to prevent releasing the pages a second time.
+
+Please note that the bits are set only in the control path during
+close and not in the data path.
+
+Fixes: 4c2a13236807 ("net/mlx5e: RX, Defer page release in striding rq for better recycling")
+Signed-off-by: Dragos Tatulea <dtatulea@nvidia.com>
+Reviewed-by: Tariq Toukan <tariqt@nvidia.com>
+Signed-off-by: Saeed Mahameed <saeedm@nvidia.com>
+---
+ drivers/net/ethernet/mellanox/mlx5/core/en_rx.c | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/drivers/net/ethernet/mellanox/mlx5/core/en_rx.c b/drivers/net/ethernet/mellanox/mlx5/core/en_rx.c
+index a8c2ae389d6c0..5dc9075410943 100644
+--- a/drivers/net/ethernet/mellanox/mlx5/core/en_rx.c
++++ b/drivers/net/ethernet/mellanox/mlx5/core/en_rx.c
+@@ -861,6 +861,11 @@ static void mlx5e_dealloc_rx_mpwqe(struct mlx5e_rq *rq, u16 ix)
+ 	struct mlx5e_mpw_info *wi = mlx5e_get_mpw_info(rq, ix);
+ 	/* This function is called on rq/netdev close. */
+ 	mlx5e_free_rx_mpwqe(rq, wi);
++
++	/* Avoid a second release of the wqe pages: dealloc is called also
++	 * for missing wqes on an already flushed RQ.
++	 */
++	bitmap_fill(wi->skip_release_bitmap, rq->mpwqe.pages_per_wqe);
+ }
+ 
+ INDIRECT_CALLABLE_SCOPE bool mlx5e_post_rx_wqes(struct mlx5e_rq *rq)
+-- 
+cgit 
+

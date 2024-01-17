@@ -1,0 +1,80 @@
+From 467fbc77f673ecc9dcf4e58ffc1fa426a22df7fd Mon Sep 17 00:00:00 2001
+From: Neil Armstrong <neil.armstrong@linaro.org>
+Date: Tue, 7 Feb 2023 11:04:36 +0100
+Subject: dt-bindings: display: panel: visionox,vtdr6130: add missing reg
+ property
+
+Add missing reg property and update example to add dsi top node.
+
+Fixes: ef85db911134 ("dt-bindings: display: panel: document the Visionox VTDR6130 AMOLED DSI Panel")
+Acked-by: Sam Ravnborg <sam@ravnborg.org>
+Acked-by: Rob Herring <robh@kernel.org>
+Reviewed-by: Krzysztof Kozlowski <krzysztof.kozlowski@linaro.org>
+Signed-off-by: Neil Armstrong <neil.armstrong@linaro.org>
+Link: https://patchwork.freedesktop.org/patch/msgid/20230207-topic-sm8550-upstream-vtdr6130-bindings-fix-v1-1-0ba2323420c5@linaro.org
+---
+ .../bindings/display/panel/visionox,vtdr6130.yaml  | 34 ++++++++++++++--------
+ 1 file changed, 22 insertions(+), 12 deletions(-)
+
+diff --git a/Documentation/devicetree/bindings/display/panel/visionox,vtdr6130.yaml b/Documentation/devicetree/bindings/display/panel/visionox,vtdr6130.yaml
+index 49e2fd4b4e995..84562a5b710ae 100644
+--- a/Documentation/devicetree/bindings/display/panel/visionox,vtdr6130.yaml
++++ b/Documentation/devicetree/bindings/display/panel/visionox,vtdr6130.yaml
+@@ -16,6 +16,10 @@ properties:
+   compatible:
+     const: visionox,vtdr6130
+ 
++  reg:
++    maxItems: 1
++    description: DSI virtual channel
++
+   vddio-supply: true
+   vci-supply: true
+   vdd-supply: true
+@@ -26,6 +30,7 @@ additionalProperties: false
+ 
+ required:
+   - compatible
++  - reg
+   - vddio-supply
+   - vci-supply
+   - vdd-supply
+@@ -35,18 +40,23 @@ required:
+ examples:
+   - |
+     #include <dt-bindings/gpio/gpio.h>
+-    panel {
+-        compatible = "visionox,vtdr6130";
+-
+-        vddio-supply = <&vreg_l12b_1p8>;
+-        vci-supply = <&vreg_l13b_3p0>;
+-        vdd-supply = <&vreg_l11b_1p2>;
+-
+-        reset-gpios = <&tlmm 133 GPIO_ACTIVE_LOW>;
+-
+-        port {
+-            panel0_in: endpoint {
+-                remote-endpoint = <&dsi0_out>;
++    dsi {
++        #address-cells = <1>;
++        #size-cells = <0>;
++        panel@0 {
++            compatible = "visionox,vtdr6130";
++            reg = <0>;
++
++            vddio-supply = <&vreg_l12b_1p8>;
++            vci-supply = <&vreg_l13b_3p0>;
++            vdd-supply = <&vreg_l11b_1p2>;
++
++            reset-gpios = <&tlmm 133 GPIO_ACTIVE_LOW>;
++
++            port {
++                panel0_in: endpoint {
++                    remote-endpoint = <&dsi0_out>;
++                };
+             };
+         };
+     };
+-- 
+cgit 
+

@@ -1,0 +1,37 @@
+From 67314ec7b0250290cc85eaa7a2f88a8ddb9e8547 Mon Sep 17 00:00:00 2001
+From: Guenter Roeck <linux@roeck-us.net>
+Date: Wed, 5 Sep 2018 07:36:06 -0700
+Subject: RISC-V: Request newstat syscalls
+
+Since commit 82b355d161c9 ("y2038: Remove newstat family from default
+syscall set"), riscv images fail to boot with the following error.
+
+/sbin/init: error while loading shared libraries: libc.so.6:
+	cannot stat shared object: Error 38
+Kernel panic - not syncing: Attempted to kill init! exitcode=0x00007f00
+
+Explicitly request newstat syscalls to fix the problem.
+
+Fixes: 82b355d161c9 ("y2038: Remove newstat family from default syscall set")
+Cc: Arnd Bergmann <arnd@arndb.de>
+Signed-off-by: Guenter Roeck <linux@roeck-us.net>
+Signed-off-by: Arnd Bergmann <arnd@arndb.de>
+---
+ arch/riscv/include/asm/unistd.h | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/arch/riscv/include/asm/unistd.h b/arch/riscv/include/asm/unistd.h
+index 0caea01d5ccab..eff7aa9aa1637 100644
+--- a/arch/riscv/include/asm/unistd.h
++++ b/arch/riscv/include/asm/unistd.h
+@@ -16,6 +16,7 @@
+  * be included multiple times.  See uapi/asm/syscalls.h for more info.
+  */
+ 
++#define __ARCH_WANT_NEW_STAT
+ #define __ARCH_WANT_SYS_CLONE
+ #include <uapi/asm/unistd.h>
+ #include <uapi/asm/syscalls.h>
+-- 
+cgit 
+

@@ -1,0 +1,33 @@
+From 73a876022273cbc9c1db7869a54444ce8b9d085e Mon Sep 17 00:00:00 2001
+From: Colin Foster <colin.foster@in-advantage.com>
+Date: Fri, 27 Jan 2023 09:14:27 -0800
+Subject: net: phy: fix null dereference in phy_attach_direct
+
+Commit bc66fa87d4fd ("net: phy: Add link between phy dev and mac dev")
+introduced a link between net devices and phy devices. It fails to check
+whether dev is NULL, leading to a NULL dereference error.
+
+Fixes: bc66fa87d4fd ("net: phy: Add link between phy dev and mac dev")
+Signed-off-by: Colin Foster <colin.foster@in-advantage.com>
+Reviewed-by: Florian Fainelli <f.fainelli@gmail.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ drivers/net/phy/phy_device.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/net/phy/phy_device.c b/drivers/net/phy/phy_device.c
+index 716870a4499c5..607aa786c8cb4 100644
+--- a/drivers/net/phy/phy_device.c
++++ b/drivers/net/phy/phy_device.c
+@@ -1517,7 +1517,7 @@ int phy_attach_direct(struct net_device *dev, struct phy_device *phydev,
+ 	 * another mac interface, so we should create a device link between
+ 	 * phy dev and mac dev.
+ 	 */
+-	if (phydev->mdio.bus->parent && dev->dev.parent != phydev->mdio.bus->parent)
++	if (dev && phydev->mdio.bus->parent && dev->dev.parent != phydev->mdio.bus->parent)
+ 		phydev->devlink = device_link_add(dev->dev.parent, &phydev->mdio.dev,
+ 						  DL_FLAG_PM_RUNTIME | DL_FLAG_STATELESS);
+ 
+-- 
+cgit 
+

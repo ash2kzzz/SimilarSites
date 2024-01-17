@@ -1,0 +1,2870 @@
+From 256b734efc7494eb3c45f3ff5abd632ff0afde03 Mon Sep 17 00:00:00 2001
+From: ye xingchen <ye.xingchen@zte.com.cn>
+Date: Fri, 2 Dec 2022 16:56:04 +0800
+Subject: platform/chrome: use sysfs_emit() instead of scnprintf()
+
+Follow the advice in Documentation/filesystems/sysfs.rst:
+show() should only use sysfs_emit() or sysfs_emit_at() when formatting
+the value to be returned to user space.
+
+Signed-off-by: ye xingchen <ye.xingchen@zte.com.cn>
+Link: https://lore.kernel.org/r/202212021656040995199@zte.com.cn
+[tzungbi: fixed the commit message.]
+Signed-off-by: Tzung-Bi Shih <tzungbi@kernel.org>
+---
+ drivers/platform/chrome/cros_ec_lightbar.c | 14 ++++++--------
+ drivers/platform/chrome/cros_ec_sysfs.c    |  4 ++--
+ drivers/platform/chrome/wilco_ec/sysfs.c   |  3 +--
+ 3 files changed, 9 insertions(+), 12 deletions(-)
+
+diff --git a/drivers/platform/chrome/cros_ec_lightbar.c b/drivers/platform/chrome/cros_ec_lightbar.c
+index 1674105decfb2..376425bbd8ffb 100644
+--- a/drivers/platform/chrome/cros_ec_lightbar.c
++++ b/drivers/platform/chrome/cros_ec_lightbar.c
+@@ -34,7 +34,7 @@ static ssize_t interval_msec_show(struct device *dev,
+ {
+ 	unsigned long msec = lb_interval_jiffies * 1000 / HZ;
+ 
+-	return scnprintf(buf, PAGE_SIZE, "%lu\n", msec);
++	return sysfs_emit(buf, "%lu\n", msec);
+ }
+ 
+ static ssize_t interval_msec_store(struct device *dev,
+@@ -169,7 +169,7 @@ static ssize_t version_show(struct device *dev,
+ 	if (!get_lightbar_version(ec, &version, &flags))
+ 		return -EIO;
+ 
+-	return scnprintf(buf, PAGE_SIZE, "%d %d\n", version, flags);
++	return sysfs_emit(buf, "%d %d\n", version, flags);
+ }
+ 
+ static ssize_t brightness_store(struct device *dev,
+@@ -302,17 +302,15 @@ static ssize_t sequence_show(struct device *dev,
+ 
+ 	ret = cros_ec_cmd_xfer_status(ec->ec_dev, msg);
+ 	if (ret < 0) {
+-		ret = scnprintf(buf, PAGE_SIZE, "XFER / EC ERROR %d / %d\n",
+-				ret, msg->result);
++		ret = sysfs_emit(buf, "XFER / EC ERROR %d / %d\n", ret, msg->result);
+ 		goto exit;
+ 	}
+ 
+ 	resp = (struct ec_response_lightbar *)msg->data;
+ 	if (resp->get_seq.num >= ARRAY_SIZE(seqname))
+-		ret = scnprintf(buf, PAGE_SIZE, "%d\n", resp->get_seq.num);
++		ret = sysfs_emit(buf, "%d\n", resp->get_seq.num);
+ 	else
+-		ret = scnprintf(buf, PAGE_SIZE, "%s\n",
+-				seqname[resp->get_seq.num]);
++		ret = sysfs_emit(buf, "%s\n", seqname[resp->get_seq.num]);
+ 
+ exit:
+ 	kfree(msg);
+@@ -483,7 +481,7 @@ static ssize_t userspace_control_show(struct device *dev,
+ 				      struct device_attribute *attr,
+ 				      char *buf)
+ {
+-	return scnprintf(buf, PAGE_SIZE, "%d\n", userspace_control);
++	return sysfs_emit(buf, "%d\n", userspace_control);
+ }
+ 
+ static ssize_t userspace_control_store(struct device *dev,
+diff --git a/drivers/platform/chrome/cros_ec_sysfs.c b/drivers/platform/chrome/cros_ec_sysfs.c
+index f07eabcf9494c..e45e57cee3a87 100644
+--- a/drivers/platform/chrome/cros_ec_sysfs.c
++++ b/drivers/platform/chrome/cros_ec_sysfs.c
+@@ -227,7 +227,7 @@ static ssize_t flashinfo_show(struct device *dev,
+ 
+ 	resp = (struct ec_response_flash_info *)msg->data;
+ 
+-	ret = scnprintf(buf, PAGE_SIZE,
++	ret = sysfs_emit(buf,
+ 			"FlashSize %d\nWriteSize %d\n"
+ 			"EraseSize %d\nProtectSize %d\n",
+ 			resp->flash_size, resp->write_block_size,
+@@ -264,7 +264,7 @@ static ssize_t kb_wake_angle_show(struct device *dev,
+ 		goto exit;
+ 
+ 	resp = (struct ec_response_motion_sense *)msg->data;
+-	ret = scnprintf(buf, PAGE_SIZE, "%d\n", resp->kb_wake_angle.ret);
++	ret = sysfs_emit(buf, "%d\n", resp->kb_wake_angle.ret);
+ exit:
+ 	kfree(msg);
+ 	return ret;
+diff --git a/drivers/platform/chrome/wilco_ec/sysfs.c b/drivers/platform/chrome/wilco_ec/sysfs.c
+index 79a5e8fa680f2..893c59dde32a9 100644
+--- a/drivers/platform/chrome/wilco_ec/sysfs.c
++++ b/drivers/platform/chrome/wilco_ec/sysfs.c
+@@ -119,8 +119,7 @@ static ssize_t get_info(struct device *dev, char *buf, enum get_ec_info_op op)
+ 	if (ret < 0)
+ 		return ret;
+ 
+-	return scnprintf(buf, PAGE_SIZE, "%.*s\n", (int)sizeof(resp.value),
+-			 (char *)&resp.value);
++	return sysfs_emit(buf, "%.*s\n", (int)sizeof(resp.value), (char *)&resp.value);
+ }
+ 
+ static ssize_t version_show(struct device *dev, struct device_attribute *attr,
+-- 
+cgit 
+
+
+From b251c0e7ea5ddfab21495c36cd3c3fa90c36f104 Mon Sep 17 00:00:00 2001
+From: Tzung-Bi Shih <tzungbi@kernel.org>
+Date: Mon, 5 Dec 2022 14:10:42 +0800
+Subject: platform/chrome: use sysfs_emit_at() instead of scnprintf()
+
+Follow the advice in Documentation/filesystems/sysfs.rst:
+show() should only use sysfs_emit() or sysfs_emit_at() when formatting
+the value to be returned to user space.
+
+Signed-off-by: Tzung-Bi Shih <tzungbi@kernel.org>
+Reviewed-by: Guenter Roeck <linux@roeck-us.net>
+Link: https://lore.kernel.org/r/20221205061042.1774769-1-tzungbi@kernel.org
+---
+ drivers/platform/chrome/cros_ec_sysfs.c | 36 +++++++++++++--------------------
+ 1 file changed, 14 insertions(+), 22 deletions(-)
+
+diff --git a/drivers/platform/chrome/cros_ec_sysfs.c b/drivers/platform/chrome/cros_ec_sysfs.c
+index e45e57cee3a87..09e3bf5e8ec69 100644
+--- a/drivers/platform/chrome/cros_ec_sysfs.c
++++ b/drivers/platform/chrome/cros_ec_sysfs.c
+@@ -27,10 +27,9 @@ static ssize_t reboot_show(struct device *dev,
+ {
+ 	int count = 0;
+ 
+-	count += scnprintf(buf + count, PAGE_SIZE - count,
+-			   "ro|rw|cancel|cold|disable-jump|hibernate|cold-ap-off");
+-	count += scnprintf(buf + count, PAGE_SIZE - count,
+-			   " [at-shutdown]\n");
++	count += sysfs_emit_at(buf, count,
++			       "ro|rw|cancel|cold|disable-jump|hibernate|cold-ap-off");
++	count += sysfs_emit_at(buf, count, " [at-shutdown]\n");
+ 	return count;
+ }
+ 
+@@ -138,12 +137,9 @@ static ssize_t version_show(struct device *dev,
+ 	/* Strings should be null-terminated, but let's be sure. */
+ 	r_ver->version_string_ro[sizeof(r_ver->version_string_ro) - 1] = '\0';
+ 	r_ver->version_string_rw[sizeof(r_ver->version_string_rw) - 1] = '\0';
+-	count += scnprintf(buf + count, PAGE_SIZE - count,
+-			   "RO version:    %s\n", r_ver->version_string_ro);
+-	count += scnprintf(buf + count, PAGE_SIZE - count,
+-			   "RW version:    %s\n", r_ver->version_string_rw);
+-	count += scnprintf(buf + count, PAGE_SIZE - count,
+-			   "Firmware copy: %s\n",
++	count += sysfs_emit_at(buf, count, "RO version:    %s\n", r_ver->version_string_ro);
++	count += sysfs_emit_at(buf, count, "RW version:    %s\n", r_ver->version_string_rw);
++	count += sysfs_emit_at(buf, count, "Firmware copy: %s\n",
+ 			   (r_ver->current_image < ARRAY_SIZE(image_names) ?
+ 			    image_names[r_ver->current_image] : "?"));
+ 
+@@ -152,13 +148,12 @@ static ssize_t version_show(struct device *dev,
+ 	msg->insize = EC_HOST_PARAM_SIZE;
+ 	ret = cros_ec_cmd_xfer_status(ec->ec_dev, msg);
+ 	if (ret < 0) {
+-		count += scnprintf(buf + count, PAGE_SIZE - count,
++		count += sysfs_emit_at(buf, count,
+ 				   "Build info:    XFER / EC ERROR %d / %d\n",
+ 				   ret, msg->result);
+ 	} else {
+ 		msg->data[EC_HOST_PARAM_SIZE - 1] = '\0';
+-		count += scnprintf(buf + count, PAGE_SIZE - count,
+-				   "Build info:    %s\n", msg->data);
++		count += sysfs_emit_at(buf, count, "Build info:    %s\n", msg->data);
+ 	}
+ 
+ 	/* Get chip info. */
+@@ -166,7 +161,7 @@ static ssize_t version_show(struct device *dev,
+ 	msg->insize = sizeof(*r_chip);
+ 	ret = cros_ec_cmd_xfer_status(ec->ec_dev, msg);
+ 	if (ret < 0) {
+-		count += scnprintf(buf + count, PAGE_SIZE - count,
++		count += sysfs_emit_at(buf, count,
+ 				   "Chip info:     XFER / EC ERROR %d / %d\n",
+ 				   ret, msg->result);
+ 	} else {
+@@ -175,12 +170,9 @@ static ssize_t version_show(struct device *dev,
+ 		r_chip->vendor[sizeof(r_chip->vendor) - 1] = '\0';
+ 		r_chip->name[sizeof(r_chip->name) - 1] = '\0';
+ 		r_chip->revision[sizeof(r_chip->revision) - 1] = '\0';
+-		count += scnprintf(buf + count, PAGE_SIZE - count,
+-				   "Chip vendor:   %s\n", r_chip->vendor);
+-		count += scnprintf(buf + count, PAGE_SIZE - count,
+-				   "Chip name:     %s\n", r_chip->name);
+-		count += scnprintf(buf + count, PAGE_SIZE - count,
+-				   "Chip revision: %s\n", r_chip->revision);
++		count += sysfs_emit_at(buf, count, "Chip vendor:   %s\n", r_chip->vendor);
++		count += sysfs_emit_at(buf, count, "Chip name:     %s\n", r_chip->name);
++		count += sysfs_emit_at(buf, count, "Chip revision: %s\n", r_chip->revision);
+ 	}
+ 
+ 	/* Get board version */
+@@ -188,13 +180,13 @@ static ssize_t version_show(struct device *dev,
+ 	msg->insize = sizeof(*r_board);
+ 	ret = cros_ec_cmd_xfer_status(ec->ec_dev, msg);
+ 	if (ret < 0) {
+-		count += scnprintf(buf + count, PAGE_SIZE - count,
++		count += sysfs_emit_at(buf, count,
+ 				   "Board version: XFER / EC ERROR %d / %d\n",
+ 				   ret, msg->result);
+ 	} else {
+ 		r_board = (struct ec_response_board_version *)msg->data;
+ 
+-		count += scnprintf(buf + count, PAGE_SIZE - count,
++		count += sysfs_emit_at(buf, count,
+ 				   "Board version: %d\n",
+ 				   r_board->board_version);
+ 	}
+-- 
+cgit 
+
+
+From 04a8bdd135cc05b10b665cedb360c7353312602d Mon Sep 17 00:00:00 2001
+From: Bhanu Prakash Maiya <bhanumaiya@chromium.org>
+Date: Tue, 27 Dec 2022 12:32:22 -0700
+Subject: platform/chrome: cros_ec_uart: Add transport layer
+
+This patch does following:
+1. Adds a new cros-ec-uart driver. This driver can send EC requests on
+   UART and process response packets received on UART transport.
+2. Once probed, this driver will initialize the serdev device based on
+   the underlying information in the ACPI resource. After serdev device
+   properties are set, this driver will register itself cros-ec.
+3. High level driver can use this implementation to talk to ChromeOS
+   Embedded Controller device in case it supports UART as transport.
+4. When cros-ec driver initiates a request packet, outgoing message is
+   processed in buffer and sent via serdev. Once bytes are sent, driver
+   enables a wait_queue.
+5. Since ChromeOS EC device sends response asynchronously, AP's TTY
+   driver accumulates response bytes and calls the registered callback.
+   TTY driver can send multiple callback for bytes ranging from 1 to MAX
+   bytes supported by EC device.
+6. Driver waits for EC_MSG_DEADLINE_MS to collect and process received
+   bytes. It wakes wait_queue if expected bytes are received or else
+   wait_queue timeout. Based on the error condition, driver returns
+   data_len or error to cros_ec.
+
+Signed-off-by: Bhanu Prakash Maiya <bhanumaiya@chromium.org>
+Co-developed-by: Mark Hasemeyer <markhas@chromium.org>
+Signed-off-by: Mark Hasemeyer <markhas@chromium.org>
+Reviewed-by: Prashant Malani <pmalani@chromium.org>
+Signed-off-by: Tzung-Bi Shih <tzungbi@kernel.org>
+Link: https://lore.kernel.org/r/20221227123212.v13.1.If7926fcbad397bc6990dd725690229bed403948c@changeid
+---
+ MAINTAINERS                            |   7 +
+ drivers/platform/chrome/Kconfig        |  10 +
+ drivers/platform/chrome/Makefile       |   1 +
+ drivers/platform/chrome/cros_ec_uart.c | 352 +++++++++++++++++++++++++++++++++
+ 4 files changed, 370 insertions(+)
+ create mode 100644 drivers/platform/chrome/cros_ec_uart.c
+
+diff --git a/MAINTAINERS b/MAINTAINERS
+index f61eb221415bd..49b0f0525502f 100644
+--- a/MAINTAINERS
++++ b/MAINTAINERS
+@@ -4985,6 +4985,13 @@ S:	Maintained
+ F:	Documentation/devicetree/bindings/sound/google,cros-ec-codec.yaml
+ F:	sound/soc/codecs/cros_ec_codec.*
+ 
++CHROMEOS EC UART DRIVER
++M:	Bhanu Prakash Maiya <bhanumaiya@chromium.org>
++R:	Benson Leung <bleung@chromium.org>
++R:	Tzung-Bi Shih <tzungbi@kernel.org>
++S:	Maintained
++F:	drivers/platform/chrome/cros_ec_uart.c
++
+ CHROMEOS EC SUBDRIVERS
+ M:	Benson Leung <bleung@chromium.org>
+ R:	Guenter Roeck <groeck@chromium.org>
+diff --git a/drivers/platform/chrome/Kconfig b/drivers/platform/chrome/Kconfig
+index c1ca247987d2d..0d272c87f32b2 100644
+--- a/drivers/platform/chrome/Kconfig
++++ b/drivers/platform/chrome/Kconfig
+@@ -119,6 +119,16 @@ config CROS_EC_SPI
+ 	  response time cannot be guaranteed, we support ignoring
+ 	  'pre-amble' bytes before the response actually starts.
+ 
++config CROS_EC_UART
++	tristate "ChromeOS Embedded Controller (UART)"
++	depends on CROS_EC && ACPI && SERIAL_DEV_BUS
++	help
++	  If you say Y here, you get support for talking to the ChromeOS EC
++	  through a UART, using a byte-level protocol.
++
++	  To compile this driver as a module, choose M here: the
++	  module will be called cros_ec_uart.
++
+ config CROS_EC_LPC
+ 	tristate "ChromeOS Embedded Controller (LPC)"
+ 	depends on CROS_EC && ACPI && (X86 || COMPILE_TEST)
+diff --git a/drivers/platform/chrome/Makefile b/drivers/platform/chrome/Makefile
+index f6068d077a40a..0f39edef660dd 100644
+--- a/drivers/platform/chrome/Makefile
++++ b/drivers/platform/chrome/Makefile
+@@ -15,6 +15,7 @@ obj-$(CONFIG_CROS_EC_ISHTP)		+= cros_ec_ishtp.o
+ obj-$(CONFIG_CROS_TYPEC_SWITCH)		+= cros_typec_switch.o
+ obj-$(CONFIG_CROS_EC_RPMSG)		+= cros_ec_rpmsg.o
+ obj-$(CONFIG_CROS_EC_SPI)		+= cros_ec_spi.o
++obj-$(CONFIG_CROS_EC_UART)		+= cros_ec_uart.o
+ cros_ec_lpcs-objs			:= cros_ec_lpc.o cros_ec_lpc_mec.o
+ obj-$(CONFIG_CROS_EC_TYPEC)		+= cros_ec_typec.o
+ obj-$(CONFIG_CROS_EC_LPC)		+= cros_ec_lpcs.o
+diff --git a/drivers/platform/chrome/cros_ec_uart.c b/drivers/platform/chrome/cros_ec_uart.c
+new file mode 100644
+index 0000000000000..971ea4bc2df80
+--- /dev/null
++++ b/drivers/platform/chrome/cros_ec_uart.c
+@@ -0,0 +1,352 @@
++// SPDX-License-Identifier: GPL-2.0-only
++/*
++ * UART interface for ChromeOS Embedded Controller
++ *
++ * Copyright 2020-2022 Google LLC.
++ */
++
++#include <linux/acpi.h>
++#include <linux/delay.h>
++#include <linux/errno.h>
++#include <linux/init.h>
++#include <linux/kernel.h>
++#include <linux/module.h>
++#include <linux/platform_data/cros_ec_proto.h>
++#include <linux/serdev.h>
++#include <linux/slab.h>
++#include <uapi/linux/sched/types.h>
++
++#include "cros_ec.h"
++
++/*
++ * EC sends contiguous bytes of response packet on UART AP RX.
++ * TTY driver in AP accumulates incoming bytes and calls the registered callback
++ * function. Byte count can range from 1 to MAX bytes supported by EC.
++ * This driver should wait for long time for all callbacks to be processed.
++ * Considering the worst case scenario, wait for 500 msec. This timeout should
++ * account for max latency and some additional guard time.
++ * Best case: Entire packet is received in ~200 ms, wait queue will be released
++ * and packet will be processed.
++ * Worst case: TTY driver sends bytes in multiple callbacks. In this case this
++ * driver will wait for ~1 sec beyond which it will timeout.
++ * This timeout value should not exceed ~500 msec because in case if
++ * EC_CMD_REBOOT_EC sent, high level driver should be able to intercept EC
++ * in RO.
++ */
++#define EC_MSG_DEADLINE_MS		500
++
++/**
++ * struct response_info - Encapsulate EC response related
++ *			information for passing between function
++ *			cros_ec_uart_pkt_xfer() and cros_ec_uart_rx_bytes()
++ *			callback.
++ * @data:		Copy the data received from EC here.
++ * @max_size:		Max size allocated for the @data buffer. If the
++ *			received data exceeds this value, we log an error.
++ * @size:		Actual size of data received from EC. This is also
++ *			used to accumulate byte count with response is received
++ *			in dma chunks.
++ * @exp_len:		Expected bytes of response from EC including header.
++ * @status:		Re-init to 0 before sending a cmd. Updated to 1 when
++ *			a response is successfully received, or an error number
++ *			on failure.
++ * @wait_queue:	Wait queue EC response where the cros_ec sends request
++ *			to EC and waits
++ */
++struct response_info {
++	void *data;
++	size_t max_size;
++	size_t size;
++	size_t exp_len;
++	int status;
++	wait_queue_head_t wait_queue;
++};
++
++/**
++ * struct cros_ec_uart - information about a uart-connected EC
++ *
++ * @serdev:		serdev uart device we are connected to.
++ * @baudrate:		UART baudrate of attached EC device.
++ * @flowcontrol:	UART flowcontrol of attached device.
++ * @irq:		Linux IRQ number of associated serial device.
++ * @response:		Response info passing between cros_ec_uart_pkt_xfer()
++ *			and cros_ec_uart_rx_bytes()
++ */
++struct cros_ec_uart {
++	struct serdev_device *serdev;
++	u32 baudrate;
++	u8 flowcontrol;
++	u32 irq;
++	struct response_info response;
++};
++
++static int cros_ec_uart_rx_bytes(struct serdev_device *serdev,
++				 const u8 *data,
++				 size_t count)
++{
++	struct ec_host_response *host_response;
++	struct cros_ec_device *ec_dev = serdev_device_get_drvdata(serdev);
++	struct cros_ec_uart *ec_uart = ec_dev->priv;
++	struct response_info *resp = &ec_uart->response;
++
++	/* Check if bytes were sent out of band */
++	if (!resp->data) {
++		/* Discard all bytes */
++		dev_warn(ec_dev->dev, "Bytes received out of band, dropping them.\n");
++		return count;
++	}
++
++	/*
++	 * Check if incoming bytes + resp->size is greater than allocated
++	 * buffer in din by cros_ec. This will ensure that if EC sends more
++	 * bytes than max_size, waiting process will be notified with an error.
++	 */
++	if (resp->size + count > resp->max_size) {
++		resp->status = -EMSGSIZE;
++		wake_up(&resp->wait_queue);
++		return count;
++	}
++
++	memcpy(resp->data + resp->size, data, count);
++
++	resp->size += count;
++
++	/* Read data_len if we received response header and if exp_len was not read before. */
++	if (resp->size >= sizeof(*host_response) && resp->exp_len == 0) {
++		host_response = (struct ec_host_response *)resp->data;
++		resp->exp_len = host_response->data_len + sizeof(*host_response);
++	}
++
++	/* If driver received response header and payload from EC, wake up the wait queue. */
++	if (resp->size >= sizeof(*host_response) && resp->size == resp->exp_len) {
++		resp->status = 1;
++		wake_up(&resp->wait_queue);
++	}
++
++	return count;
++}
++
++static int cros_ec_uart_pkt_xfer(struct cros_ec_device *ec_dev,
++				 struct cros_ec_command *ec_msg)
++{
++	struct cros_ec_uart *ec_uart = ec_dev->priv;
++	struct serdev_device *serdev = ec_uart->serdev;
++	struct response_info *resp = &ec_uart->response;
++	struct ec_host_response *host_response;
++	unsigned int len;
++	int ret, i;
++	u8 sum;
++
++	len = cros_ec_prepare_tx(ec_dev, ec_msg);
++	dev_dbg(ec_dev->dev, "Prepared len=%d\n", len);
++
++	/* Setup for incoming response */
++	resp->data = ec_dev->din;
++	resp->max_size = ec_dev->din_size;
++	resp->size = 0;
++	resp->exp_len = 0;
++	resp->status = 0;
++
++	ret = serdev_device_write_buf(serdev, ec_dev->dout, len);
++	if (ret < len) {
++		dev_err(ec_dev->dev, "Unable to write data\n");
++		ret = -EIO;
++		goto exit;
++	}
++
++	ret = wait_event_timeout(resp->wait_queue, resp->status,
++				 msecs_to_jiffies(EC_MSG_DEADLINE_MS));
++	if (ret == 0) {
++		dev_warn(ec_dev->dev, "Timed out waiting for response.\n");
++		ret = -ETIMEDOUT;
++		goto exit;
++	}
++
++	if (resp->status < 0) {
++		ret = resp->status;
++		dev_warn(ec_dev->dev, "Error response received: %d\n", ret);
++		goto exit;
++	}
++
++	host_response = (struct ec_host_response *)ec_dev->din;
++	ec_msg->result = host_response->result;
++
++	if (host_response->data_len > ec_msg->insize) {
++		dev_err(ec_dev->dev, "Resp too long (%d bytes, expected %d)\n",
++			host_response->data_len, ec_msg->insize);
++		ret = -ENOSPC;
++		goto exit;
++	}
++
++	/* Validate checksum */
++	sum = 0;
++	for (i = 0; i < sizeof(*host_response) + host_response->data_len; i++)
++		sum += ec_dev->din[i];
++
++	if (sum) {
++		dev_err(ec_dev->dev, "Bad packet checksum calculated %x\n", sum);
++		ret = -EBADMSG;
++		goto exit;
++	}
++
++	memcpy(ec_msg->data, ec_dev->din + sizeof(*host_response), host_response->data_len);
++
++	ret = host_response->data_len;
++
++exit:
++	/* Invalidate response buffer to guard against out of band rx data */
++	resp->data = NULL;
++
++	if (ec_msg->command == EC_CMD_REBOOT_EC)
++		msleep(EC_REBOOT_DELAY_MS);
++
++	return ret;
++}
++
++static int cros_ec_uart_resource(struct acpi_resource *ares, void *data)
++{
++	struct cros_ec_uart *ec_uart = data;
++	struct acpi_resource_uart_serialbus *sb = &ares->data.uart_serial_bus;
++
++	if (ares->type == ACPI_RESOURCE_TYPE_SERIAL_BUS &&
++	    sb->type == ACPI_RESOURCE_SERIAL_TYPE_UART) {
++		ec_uart->baudrate = sb->default_baud_rate;
++		dev_dbg(&ec_uart->serdev->dev, "Baudrate %d\n", ec_uart->baudrate);
++
++		ec_uart->flowcontrol = sb->flow_control;
++		dev_dbg(&ec_uart->serdev->dev, "Flow control %d\n", ec_uart->flowcontrol);
++	}
++
++	return 0;
++}
++
++static int cros_ec_uart_acpi_probe(struct cros_ec_uart *ec_uart)
++{
++	int ret;
++	LIST_HEAD(resources);
++	struct acpi_device *adev = ACPI_COMPANION(&ec_uart->serdev->dev);
++
++	ret = acpi_dev_get_resources(adev, &resources, cros_ec_uart_resource, ec_uart);
++	if (ret < 0)
++		return ret;
++
++	acpi_dev_free_resource_list(&resources);
++
++	/* Retrieve GpioInt and translate it to Linux IRQ number */
++	ret = acpi_dev_gpio_irq_get(adev, 0);
++	if (ret < 0)
++		return ret;
++
++	ec_uart->irq = ret;
++	dev_dbg(&ec_uart->serdev->dev, "IRQ number %d\n", ec_uart->irq);
++
++	return 0;
++}
++
++static const struct serdev_device_ops cros_ec_uart_client_ops = {
++	.receive_buf = cros_ec_uart_rx_bytes,
++};
++
++static int cros_ec_uart_probe(struct serdev_device *serdev)
++{
++	struct device *dev = &serdev->dev;
++	struct cros_ec_device *ec_dev;
++	struct cros_ec_uart *ec_uart;
++	int ret;
++
++	ec_uart = devm_kzalloc(dev, sizeof(*ec_uart), GFP_KERNEL);
++	if (!ec_uart)
++		return -ENOMEM;
++
++	ec_dev = devm_kzalloc(dev, sizeof(*ec_dev), GFP_KERNEL);
++	if (!ec_dev)
++		return -ENOMEM;
++
++	ret = devm_serdev_device_open(dev, serdev);
++	if (ret) {
++		dev_err(dev, "Unable to open UART device");
++		return ret;
++	}
++
++	serdev_device_set_drvdata(serdev, ec_dev);
++	serdev_device_set_client_ops(serdev, &cros_ec_uart_client_ops);
++	init_waitqueue_head(&ec_uart->response.wait_queue);
++
++	ec_uart->serdev = serdev;
++
++	ret = cros_ec_uart_acpi_probe(ec_uart);
++	if (ret < 0) {
++		dev_err(dev, "Failed to get ACPI info (%d)", ret);
++		return ret;
++	}
++
++	ret = serdev_device_set_baudrate(serdev, ec_uart->baudrate);
++	if (ret < 0) {
++		dev_err(dev, "Failed to set up host baud rate (%d)", ret);
++		return ret;
++	}
++
++	serdev_device_set_flow_control(serdev, ec_uart->flowcontrol);
++
++	/* Initialize ec_dev for cros_ec  */
++	ec_dev->phys_name = dev_name(dev);
++	ec_dev->dev = dev;
++	ec_dev->priv = ec_uart;
++	ec_dev->irq = ec_uart->irq;
++	ec_dev->cmd_xfer = NULL;
++	ec_dev->pkt_xfer = cros_ec_uart_pkt_xfer;
++	ec_dev->din_size = sizeof(struct ec_host_response) +
++			   sizeof(struct ec_response_get_protocol_info);
++	ec_dev->dout_size = sizeof(struct ec_host_request);
++
++	return cros_ec_register(ec_dev);
++}
++
++static void cros_ec_uart_remove(struct serdev_device *serdev)
++{
++	struct cros_ec_device *ec_dev = serdev_device_get_drvdata(serdev);
++
++	cros_ec_unregister(ec_dev);
++};
++
++static int __maybe_unused cros_ec_uart_suspend(struct device *dev)
++{
++	struct cros_ec_device *ec_dev = dev_get_drvdata(dev);
++
++	return cros_ec_suspend(ec_dev);
++}
++
++static int __maybe_unused cros_ec_uart_resume(struct device *dev)
++{
++	struct cros_ec_device *ec_dev = dev_get_drvdata(dev);
++
++	return cros_ec_resume(ec_dev);
++}
++
++static SIMPLE_DEV_PM_OPS(cros_ec_uart_pm_ops, cros_ec_uart_suspend,
++			 cros_ec_uart_resume);
++
++#ifdef CONFIG_ACPI
++static const struct acpi_device_id cros_ec_uart_acpi_id[] = {
++	{ "GOOG0019", 0 },
++	{}
++};
++
++MODULE_DEVICE_TABLE(acpi, cros_ec_uart_acpi_id);
++#endif
++
++static struct serdev_device_driver cros_ec_uart_driver = {
++	.driver	= {
++		.name	= "cros-ec-uart",
++		.acpi_match_table = ACPI_PTR(cros_ec_uart_acpi_id),
++		.pm	= &cros_ec_uart_pm_ops,
++	},
++	.probe		= cros_ec_uart_probe,
++	.remove		= cros_ec_uart_remove,
++};
++
++module_serdev_device_driver(cros_ec_uart_driver);
++
++MODULE_LICENSE("GPL");
++MODULE_DESCRIPTION("UART interface for ChromeOS Embedded Controller");
++MODULE_AUTHOR("Bhanu Prakash Maiya <bhanumaiya@chromium.org>");
+-- 
+cgit 
+
+
+From f9bce00f78ed9ff9c38130388c13a2b2b72b857e Mon Sep 17 00:00:00 2001
+From: Bhanu Prakash Maiya <bhanumaiya@chromium.org>
+Date: Tue, 27 Dec 2022 12:32:24 -0700
+Subject: platform/chrome: cros_ec_uart: Add DT enumeration support
+
+Existing firmware uses the "PRP0001" _HID and an associated compatible
+string to enumerate the cros_ec_uart.
+
+Add DT enumeration support for already shipped firmware.
+
+Signed-off-by: Bhanu Prakash Maiya <bhanumaiya@chromium.org>
+Co-developed-by: Mark Hasemeyer <markhas@chromium.org>
+Signed-off-by: Mark Hasemeyer <markhas@chromium.org>
+Reviewed-by: Prashant Malani <pmalani@chromium.org>
+Signed-off-by: Tzung-Bi Shih <tzungbi@kernel.org>
+Link: https://lore.kernel.org/r/20221227123212.v13.3.Ie23c217d69ff25d7354db942613f143bbc8ef891@changeid
+---
+ drivers/platform/chrome/cros_ec_uart.c | 8 ++++++++
+ 1 file changed, 8 insertions(+)
+
+diff --git a/drivers/platform/chrome/cros_ec_uart.c b/drivers/platform/chrome/cros_ec_uart.c
+index 971ea4bc2df80..0cef2888dffd0 100644
+--- a/drivers/platform/chrome/cros_ec_uart.c
++++ b/drivers/platform/chrome/cros_ec_uart.c
+@@ -11,6 +11,7 @@
+ #include <linux/init.h>
+ #include <linux/kernel.h>
+ #include <linux/module.h>
++#include <linux/of.h>
+ #include <linux/platform_data/cros_ec_proto.h>
+ #include <linux/serdev.h>
+ #include <linux/slab.h>
+@@ -326,6 +327,12 @@ static int __maybe_unused cros_ec_uart_resume(struct device *dev)
+ static SIMPLE_DEV_PM_OPS(cros_ec_uart_pm_ops, cros_ec_uart_suspend,
+ 			 cros_ec_uart_resume);
+ 
++static const struct of_device_id cros_ec_uart_of_match[] = {
++	{ .compatible = "google,cros-ec-uart" },
++	{}
++};
++MODULE_DEVICE_TABLE(of, cros_ec_uart_of_match);
++
+ #ifdef CONFIG_ACPI
+ static const struct acpi_device_id cros_ec_uart_acpi_id[] = {
+ 	{ "GOOG0019", 0 },
+@@ -339,6 +346,7 @@ static struct serdev_device_driver cros_ec_uart_driver = {
+ 	.driver	= {
+ 		.name	= "cros-ec-uart",
+ 		.acpi_match_table = ACPI_PTR(cros_ec_uart_acpi_id),
++		.of_match_table = cros_ec_uart_of_match,
+ 		.pm	= &cros_ec_uart_pm_ops,
+ 	},
+ 	.probe		= cros_ec_uart_probe,
+-- 
+cgit 
+
+
+From 01f95d42b8f4e88f20d68791b0a85dbb9e3d1ac9 Mon Sep 17 00:00:00 2001
+From: Robert Zieba <robertzieba@google.com>
+Date: Thu, 29 Dec 2022 17:47:38 +0800
+Subject: platform/chrome: cros_ec_uart: fix race condition
+
+serdev_device_set_client_ops() is called before `ec_dev` is fully
+initialized.  This can result in cros_ec_uart_rx_bytes() being called
+while `ec_dev` is still not initialized, resulting in a kernel panic.
+
+Call serdev_device_set_client_ops() after `ec_dev` is initialized.
+
+Fixes: 04a8bdd135cc ("platform/chrome: cros_ec_uart: Add transport layer")
+Signed-off-by: Robert Zieba <robertzieba@google.com>
+[tzungbi: modified commit message and fixed context conflict.]
+Signed-off-by: Tzung-Bi Shih <tzungbi@kernel.org>
+Reviewed-by: Guenter Roeck <groeck@chromium.org>
+Link: https://lore.kernel.org/r/20221229094738.2304044-1-tzungbi@kernel.org
+---
+ drivers/platform/chrome/cros_ec_uart.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/platform/chrome/cros_ec_uart.c b/drivers/platform/chrome/cros_ec_uart.c
+index 0cef2888dffd0..6916069f15992 100644
+--- a/drivers/platform/chrome/cros_ec_uart.c
++++ b/drivers/platform/chrome/cros_ec_uart.c
+@@ -270,7 +270,6 @@ static int cros_ec_uart_probe(struct serdev_device *serdev)
+ 	}
+ 
+ 	serdev_device_set_drvdata(serdev, ec_dev);
+-	serdev_device_set_client_ops(serdev, &cros_ec_uart_client_ops);
+ 	init_waitqueue_head(&ec_uart->response.wait_queue);
+ 
+ 	ec_uart->serdev = serdev;
+@@ -300,6 +299,8 @@ static int cros_ec_uart_probe(struct serdev_device *serdev)
+ 			   sizeof(struct ec_response_get_protocol_info);
+ 	ec_dev->dout_size = sizeof(struct ec_host_request);
+ 
++	serdev_device_set_client_ops(serdev, &cros_ec_uart_client_ops);
++
+ 	return cros_ec_register(ec_dev);
+ }
+ 
+-- 
+cgit 
+
+
+From aaab5af4b226dce54cb8675dac1ffa359ec90872 Mon Sep 17 00:00:00 2001
+From: Andy Shevchenko <andriy.shevchenko@linux.intel.com>
+Date: Tue, 3 Jan 2023 16:50:23 +0200
+Subject: platform/chrome: cros_ec_proto: Use asm instead of asm-generic
+
+There is no point to specify asm-generic for the unaligned.h.
+Drop the 'generic' suffix.
+
+Signed-off-by: Andy Shevchenko <andriy.shevchenko@linux.intel.com>
+Reviewed-by: Guenter Roeck <groeck@chromium.org>
+[tzungbi: s/intead/instead/ in commit title.]
+Signed-off-by: Tzung-Bi Shih <tzungbi@kernel.org>
+Link: https://lore.kernel.org/r/20230103145023.40055-1-andriy.shevchenko@linux.intel.com
+---
+ drivers/platform/chrome/cros_ec_proto_test.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/platform/chrome/cros_ec_proto_test.c b/drivers/platform/chrome/cros_ec_proto_test.c
+index c6a83df91ae1e..08c58d031593a 100644
+--- a/drivers/platform/chrome/cros_ec_proto_test.c
++++ b/drivers/platform/chrome/cros_ec_proto_test.c
+@@ -5,7 +5,8 @@
+ 
+ #include <kunit/test.h>
+ 
+-#include <asm-generic/unaligned.h>
++#include <asm/unaligned.h>
++
+ #include <linux/platform_data/cros_ec_commands.h>
+ #include <linux/platform_data/cros_ec_proto.h>
+ 
+-- 
+cgit 
+
+
+From d90fa2c64d59f5f151beeef5dbc599784b3391ca Mon Sep 17 00:00:00 2001
+From: Rob Barnes <robbarnes@google.com>
+Date: Wed, 4 Jan 2023 01:15:23 +0000
+Subject: platform/chrome: cros_ec: Poll EC log on EC panic
+
+Add handler for CrOS EC panic events. When a panic is reported,
+immediately poll for EC log.
+
+This should result in the log leading to the EC panic being
+preserved.
+
+ACPI_NOTIFY_CROS_EC_PANIC is defined in coreboot at
+https://review.coreboot.org/plugins/gitiles/coreboot/+/refs/heads/master/src/ec/google/chromeec/acpi/ec.asl
+
+Signed-off-by: Rob Barnes <robbarnes@google.com>
+Reviewed-by: Prashant Malani <pmalani@chromium.org>
+Signed-off-by: Tzung-Bi Shih <tzungbi@kernel.org>
+Link: https://lore.kernel.org/r/20230104011524.369764-2-robbarnes@google.com
+---
+ drivers/platform/chrome/cros_ec_debugfs.c   | 23 +++++++++++++++++++++++
+ drivers/platform/chrome/cros_ec_lpc.c       |  7 +++++++
+ include/linux/platform_data/cros_ec_proto.h |  9 +++++++++
+ 3 files changed, 39 insertions(+)
+
+diff --git a/drivers/platform/chrome/cros_ec_debugfs.c b/drivers/platform/chrome/cros_ec_debugfs.c
+index 21d973fc6be2d..34f7b46f8761d 100644
+--- a/drivers/platform/chrome/cros_ec_debugfs.c
++++ b/drivers/platform/chrome/cros_ec_debugfs.c
+@@ -49,6 +49,7 @@ struct cros_ec_debugfs {
+ 	struct delayed_work log_poll_work;
+ 	/* EC panicinfo */
+ 	struct debugfs_blob_wrapper panicinfo_blob;
++	struct notifier_block notifier_panic;
+ };
+ 
+ /*
+@@ -437,6 +438,22 @@ free:
+ 	return ret;
+ }
+ 
++static int cros_ec_debugfs_panic_event(struct notifier_block *nb,
++				       unsigned long queued_during_suspend, void *_notify)
++{
++	struct cros_ec_debugfs *debug_info =
++		container_of(nb, struct cros_ec_debugfs, notifier_panic);
++
++	if (debug_info->log_buffer.buf) {
++		/* Force log poll work to run immediately */
++		mod_delayed_work(debug_info->log_poll_work.wq, &debug_info->log_poll_work, 0);
++		/* Block until log poll work finishes */
++		flush_delayed_work(&debug_info->log_poll_work);
++	}
++
++	return NOTIFY_DONE;
++}
++
+ static int cros_ec_debugfs_probe(struct platform_device *pd)
+ {
+ 	struct cros_ec_dev *ec = dev_get_drvdata(pd->dev.parent);
+@@ -473,6 +490,12 @@ static int cros_ec_debugfs_probe(struct platform_device *pd)
+ 	debugfs_create_u16("suspend_timeout_ms", 0664, debug_info->dir,
+ 			   &ec->ec_dev->suspend_timeout_ms);
+ 
++	debug_info->notifier_panic.notifier_call = cros_ec_debugfs_panic_event;
++	ret = blocking_notifier_chain_register(&ec->ec_dev->panic_notifier,
++					       &debug_info->notifier_panic);
++	if (ret)
++		goto remove_debugfs;
++
+ 	ec->debug_info = debug_info;
+ 
+ 	dev_set_drvdata(&pd->dev, ec);
+diff --git a/drivers/platform/chrome/cros_ec_lpc.c b/drivers/platform/chrome/cros_ec_lpc.c
+index 7fc8f82280ac8..5738f1d250915 100644
+--- a/drivers/platform/chrome/cros_ec_lpc.c
++++ b/drivers/platform/chrome/cros_ec_lpc.c
+@@ -320,6 +320,13 @@ static void cros_ec_lpc_acpi_notify(acpi_handle device, u32 value, void *data)
+ 
+ 	ec_dev->last_event_time = cros_ec_get_time_ns();
+ 
++	if (value == ACPI_NOTIFY_CROS_EC_PANIC) {
++		dev_emerg(ec_dev->dev, "CrOS EC Panic Reported. Shutdown is imminent!");
++		blocking_notifier_call_chain(&ec_dev->panic_notifier, 0, ec_dev);
++		/* Do not query for other events after a panic is reported */
++		return;
++	}
++
+ 	if (ec_dev->mkbp_event_supported)
+ 		do {
+ 			ret = cros_ec_get_next_event(ec_dev, NULL,
+diff --git a/include/linux/platform_data/cros_ec_proto.h b/include/linux/platform_data/cros_ec_proto.h
+index e43107e0bee16..7fb2196f99b0a 100644
+--- a/include/linux/platform_data/cros_ec_proto.h
++++ b/include/linux/platform_data/cros_ec_proto.h
+@@ -41,6 +41,13 @@
+ #define EC_MAX_REQUEST_OVERHEAD		1
+ #define EC_MAX_RESPONSE_OVERHEAD	32
+ 
++/*
++ * EC panic is not covered by the standard (0-F) ACPI notify values.
++ * Arbitrarily choosing B0 to notify ec panic, which is in the 84-BF
++ * device specific ACPI notify range.
++ */
++#define ACPI_NOTIFY_CROS_EC_PANIC 0xB0
++
+ /*
+  * Command interface between EC and AP, for LPC, I2C and SPI interfaces.
+  */
+@@ -176,6 +183,8 @@ struct cros_ec_device {
+ 	/* The platform devices used by the mfd driver */
+ 	struct platform_device *ec;
+ 	struct platform_device *pd;
++
++	struct blocking_notifier_head panic_notifier;
+ };
+ 
+ /**
+-- 
+cgit 
+
+
+From 957445d730badbea1b3b2ef038e60d2ca38abd0a Mon Sep 17 00:00:00 2001
+From: Rob Barnes <robbarnes@google.com>
+Date: Wed, 4 Jan 2023 01:15:24 +0000
+Subject: platform/chrome: cros_ec: Shutdown on EC Panic
+
+When an EC panic is reported, attempt an orderly shutdown.
+Force a shutdown after a brief timeout if the orderly shutdown
+fails for any reason.
+
+Using the common hw_protection_shutdown utility function since
+an EC panic has the potential to cause hw damage.
+
+This is all best effort. EC should also force a hard reset after a
+short timeout.
+
+Signed-off-by: Rob Barnes <robbarnes@google.com>
+Reviewed-by: Prashant Malani <pmalani@chromium.org>
+Signed-off-by: Tzung-Bi Shih <tzungbi@kernel.org>
+Link: https://lore.kernel.org/r/20230104011524.369764-3-robbarnes@google.com
+---
+ drivers/platform/chrome/cros_ec_lpc.c | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/drivers/platform/chrome/cros_ec_lpc.c b/drivers/platform/chrome/cros_ec_lpc.c
+index 5738f1d250915..3708fa75feb14 100644
+--- a/drivers/platform/chrome/cros_ec_lpc.c
++++ b/drivers/platform/chrome/cros_ec_lpc.c
+@@ -21,6 +21,7 @@
+ #include <linux/platform_data/cros_ec_proto.h>
+ #include <linux/platform_device.h>
+ #include <linux/printk.h>
++#include <linux/reboot.h>
+ #include <linux/suspend.h>
+ 
+ #include "cros_ec.h"
+@@ -323,6 +324,8 @@ static void cros_ec_lpc_acpi_notify(acpi_handle device, u32 value, void *data)
+ 	if (value == ACPI_NOTIFY_CROS_EC_PANIC) {
+ 		dev_emerg(ec_dev->dev, "CrOS EC Panic Reported. Shutdown is imminent!");
+ 		blocking_notifier_call_chain(&ec_dev->panic_notifier, 0, ec_dev);
++		/* Begin orderly shutdown. Force shutdown after 1 second. */
++		hw_protection_shutdown("CrOS EC Panic", 1000);
+ 		/* Do not query for other events after a panic is reported */
+ 		return;
+ 	}
+-- 
+cgit 
+
+
+From 0ac7200e3317bdde7b96112f24b9253208c0258b Mon Sep 17 00:00:00 2001
+From: Prashant Malani <pmalani@chromium.org>
+Date: Wed, 28 Dec 2022 00:45:04 +0000
+Subject: Revert "mfd: cros_ec: Add SCP Core-1 as a new CrOS EC MCU"
+
+This reverts commit 66ee379d743c69c726b61d078119a34d5be96a35.
+
+The feature flag introduced by Commit 66ee379d743c ("mfd: cros_ec: Add
+SCP Core-1 as a new CrOS EC MCU") was not first added in the source EC
+code base[1]. This can lead to the possible misinterpration of an EC's
+supported feature set, as well as causes issues with all future feature
+flag updates.
+
+[1] https://source.chromium.org/chromium/chromiumos/platform/ec/+/main:include/ec_commands.h
+
+Signed-off-by: Prashant Malani <pmalani@chromium.org>
+Acked-by: Lee Jones <lee@kernel.org>
+Reviewed-by: Benson Leung <bleung@chromium.org>
+Acked-by: Heikki Krogerus <heikki.krogerus@linux.intel.com>
+Link: https://lore.kernel.org/r/20221228004648.793339-2-pmalani@chromium.org
+---
+ drivers/mfd/cros_ec_dev.c                      | 5 -----
+ include/linux/platform_data/cros_ec_commands.h | 2 --
+ include/linux/platform_data/cros_ec_proto.h    | 1 -
+ 3 files changed, 8 deletions(-)
+
+diff --git a/drivers/mfd/cros_ec_dev.c b/drivers/mfd/cros_ec_dev.c
+index 344ad03bdc428..02d4271dfe06b 100644
+--- a/drivers/mfd/cros_ec_dev.c
++++ b/drivers/mfd/cros_ec_dev.c
+@@ -64,11 +64,6 @@ static const struct cros_feature_to_name cros_mcu_devices[] = {
+ 		.name	= CROS_EC_DEV_SCP_NAME,
+ 		.desc	= "System Control Processor",
+ 	},
+-	{
+-		.id	= EC_FEATURE_SCP_C1,
+-		.name	= CROS_EC_DEV_SCP_C1_NAME,
+-		.desc	= "System Control Processor 2nd Core",
+-	},
+ 	{
+ 		.id	= EC_FEATURE_TOUCHPAD,
+ 		.name	= CROS_EC_DEV_TP_NAME,
+diff --git a/include/linux/platform_data/cros_ec_commands.h b/include/linux/platform_data/cros_ec_commands.h
+index 5744a2d746aab..7c94bf5c8f05b 100644
+--- a/include/linux/platform_data/cros_ec_commands.h
++++ b/include/linux/platform_data/cros_ec_commands.h
+@@ -1300,8 +1300,6 @@ enum ec_feature_code {
+ 	 * mux.
+ 	 */
+ 	EC_FEATURE_TYPEC_MUX_REQUIRE_AP_ACK = 43,
+-	/* The MCU is a System Companion Processor (SCP) 2nd Core. */
+-	EC_FEATURE_SCP_C1 = 45,
+ };
+ 
+ #define EC_FEATURE_MASK_0(event_code) BIT(event_code % 32)
+diff --git a/include/linux/platform_data/cros_ec_proto.h b/include/linux/platform_data/cros_ec_proto.h
+index 7fb2196f99b0a..017d502ed66eb 100644
+--- a/include/linux/platform_data/cros_ec_proto.h
++++ b/include/linux/platform_data/cros_ec_proto.h
+@@ -19,7 +19,6 @@
+ #define CROS_EC_DEV_ISH_NAME	"cros_ish"
+ #define CROS_EC_DEV_PD_NAME	"cros_pd"
+ #define CROS_EC_DEV_SCP_NAME	"cros_scp"
+-#define CROS_EC_DEV_SCP_C1_NAME	"cros_scp_c1"
+ #define CROS_EC_DEV_TP_NAME	"cros_tp"
+ 
+ #define CROS_EC_DEV_EC_INDEX 0
+-- 
+cgit 
+
+
+From 0e0dba884c4318c433756118794a7dff8947e6ce Mon Sep 17 00:00:00 2001
+From: Prashant Malani <pmalani@chromium.org>
+Date: Wed, 28 Dec 2022 00:45:05 +0000
+Subject: platform_chrome: cros_ec: Add Type-C VDM defines
+
+Add the EC header changes need to support USB Type-C VDM (Vendor Defined
+Messages) communication between the system and USB PD-enabled
+peripherals.
+
+The headers are already present in the EC code base, from which they've
+been ported [1].
+
+[1] https://source.chromium.org/chromium/chromiumos/platform/ec/+/main:include/ec_commands.h
+
+Signed-off-by: Prashant Malani <pmalani@chromium.org>
+Reviewed-by: Benson Leung <bleung@chromium.org>
+Acked-by: Heikki Krogerus <heikki.krogerus@linux.intel.com>
+Link: https://lore.kernel.org/r/20221228004648.793339-3-pmalani@chromium.org
+---
+ include/linux/platform_data/cros_ec_commands.h | 51 ++++++++++++++++++++++++++
+ 1 file changed, 51 insertions(+)
+
+diff --git a/include/linux/platform_data/cros_ec_commands.h b/include/linux/platform_data/cros_ec_commands.h
+index 7c94bf5c8f05b..6665e7da6ee28 100644
+--- a/include/linux/platform_data/cros_ec_commands.h
++++ b/include/linux/platform_data/cros_ec_commands.h
+@@ -1300,6 +1300,18 @@ enum ec_feature_code {
+ 	 * mux.
+ 	 */
+ 	EC_FEATURE_TYPEC_MUX_REQUIRE_AP_ACK = 43,
++	/*
++	 * The EC supports entering and residing in S4.
++	 */
++	EC_FEATURE_S4_RESIDENCY = 44,
++	/*
++	 * The EC supports the AP directing mux sets for the board.
++	 */
++	EC_FEATURE_TYPEC_AP_MUX_SET = 45,
++	/*
++	 * The EC supports the AP composing VDMs for us to send.
++	 */
++	EC_FEATURE_TYPEC_AP_VDM_SEND = 46,
+ };
+ 
+ #define EC_FEATURE_MASK_0(event_code) BIT(event_code % 32)
+@@ -5724,6 +5736,8 @@ enum typec_control_command {
+ 	TYPEC_CONTROL_COMMAND_ENTER_MODE,
+ 	TYPEC_CONTROL_COMMAND_TBT_UFP_REPLY,
+ 	TYPEC_CONTROL_COMMAND_USB_MUX_SET,
++	TYPEC_CONTROL_COMMAND_BIST_SHARE_MODE,
++	TYPEC_CONTROL_COMMAND_SEND_VDM_REQ,
+ };
+ 
+ /* Replies the AP may specify to the TBT EnterMode command as a UFP */
+@@ -5737,6 +5751,17 @@ struct typec_usb_mux_set {
+ 	uint8_t mux_flags;	/* USB_PD_MUX_*-encoded USB mux state to set */
+ } __ec_align1;
+ 
++#define VDO_MAX_SIZE 7
++
++struct typec_vdm_req {
++	/* VDM data, including VDM header */
++	uint32_t vdm_data[VDO_MAX_SIZE];
++	/* Number of 32-bit fields filled in */
++	uint8_t vdm_data_objects;
++	/* Partner to address - see enum typec_partner_type */
++	uint8_t partner_type;
++} __ec_align1;
++
+ struct ec_params_typec_control {
+ 	uint8_t port;
+ 	uint8_t command;	/* enum typec_control_command */
+@@ -5752,6 +5777,8 @@ struct ec_params_typec_control {
+ 		uint8_t mode_to_enter;      /* enum typec_mode */
+ 		uint8_t tbt_ufp_reply;      /* enum typec_tbt_ufp_reply */
+ 		struct typec_usb_mux_set mux_params;
++		/* Used for VMD_REQ */
++		struct typec_vdm_req vdm_req_params;
+ 		uint8_t placeholder[128];
+ 	};
+ } __ec_align1;
+@@ -5833,6 +5860,8 @@ enum tcpc_cc_polarity {
+ #define PD_STATUS_EVENT_DISCONNECTED		BIT(3)
+ #define PD_STATUS_EVENT_MUX_0_SET_DONE		BIT(4)
+ #define PD_STATUS_EVENT_MUX_1_SET_DONE		BIT(5)
++#define PD_STATUS_EVENT_VDM_REQ_REPLY		BIT(6)
++#define PD_STATUS_EVENT_VDM_REQ_FAILED		BIT(7)
+ 
+ struct ec_params_typec_status {
+ 	uint8_t port;
+@@ -5876,6 +5905,28 @@ struct ec_response_typec_status {
+ 	uint32_t sink_cap_pdos[7];	/* Max 7 PDOs can be present */
+ } __ec_align1;
+ 
++/*
++ * Gather the response to the most recent VDM REQ from the AP
++ */
++#define EC_CMD_TYPEC_VDM_RESPONSE 0x013C
++
++struct ec_params_typec_vdm_response {
++	uint8_t port;
++} __ec_align1;
++
++struct ec_response_typec_vdm_response {
++	/* Number of 32-bit fields filled in */
++	uint8_t vdm_data_objects;
++	/* Partner to address - see enum typec_partner_type */
++	uint8_t partner_type;
++	/* Reserved */
++	uint16_t reserved;
++	/* VDM data, including VDM header */
++	uint32_t vdm_response[VDO_MAX_SIZE];
++} __ec_align1;
++
++#undef VDO_MAX_SIZE
++
+ /*****************************************************************************/
+ /* The command range 0x200-0x2FF is reserved for Rotor. */
+ 
+-- 
+cgit 
+
+
+From 4dc9355cef4f507f12289c56b7ea5df911758278 Mon Sep 17 00:00:00 2001
+From: Prashant Malani <pmalani@chromium.org>
+Date: Wed, 28 Dec 2022 00:45:06 +0000
+Subject: platform/chrome: cros_ec_typec: Stash port driver info
+
+Stash port number and a pointer to the driver-specific struct in the
+local typec port struct.
+
+These can be useful to the port driver to figure out how to communicate
+with the Chrome EC when an altmode-driver related callback is invoked
+from the Type-C class code.
+
+Signed-off-by: Prashant Malani <pmalani@chromium.org>
+Reviewed-by: Benson Leung <bleung@chromium.org>
+Acked-by: Heikki Krogerus <heikki.krogerus@linux.intel.com>
+Link: https://lore.kernel.org/r/20221228004648.793339-4-pmalani@chromium.org
+---
+ drivers/platform/chrome/cros_ec_typec.c | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/drivers/platform/chrome/cros_ec_typec.c b/drivers/platform/chrome/cros_ec_typec.c
+index 001b0de95a46e..bc8dc8bd90b33 100644
+--- a/drivers/platform/chrome/cros_ec_typec.c
++++ b/drivers/platform/chrome/cros_ec_typec.c
+@@ -45,6 +45,7 @@ struct cros_typec_altmode_node {
+ /* Per port data. */
+ struct cros_typec_port {
+ 	struct typec_port *port;
++	int port_num;
+ 	/* Initial capabilities for the port. */
+ 	struct typec_capability caps;
+ 	struct typec_partner *partner;
+@@ -78,6 +79,8 @@ struct cros_typec_port {
+ 	struct usb_power_delivery *partner_pd;
+ 	struct usb_power_delivery_capabilities *partner_src_caps;
+ 	struct usb_power_delivery_capabilities *partner_sink_caps;
++
++	struct cros_typec_data *typec_data;
+ };
+ 
+ /* Platform-specific data for the Chrome OS EC Type C controller. */
+@@ -408,6 +411,8 @@ static int cros_typec_init_ports(struct cros_typec_data *typec)
+ 			goto unregister_ports;
+ 		}
+ 
++		cros_port->port_num = port_num;
++		cros_port->typec_data = typec;
+ 		typec->ports[port_num] = cros_port;
+ 		cap = &cros_port->caps;
+ 
+-- 
+cgit 
+
+
+From c856e3ff98bba1950259d5f52b45760e80ace412 Mon Sep 17 00:00:00 2001
+From: Prashant Malani <pmalani@chromium.org>
+Date: Wed, 28 Dec 2022 00:45:07 +0000
+Subject: platform/chrome: cros_ec_typec: Set port alt mode drvdata
+
+Save the ChromeOS-specific Type-C port info in the port altmodes' driver
+data. This makes communication with the ChromeOS EC (Embedded
+Controller) easier when alt mode drivers need to send messages to
+peripherals.
+
+Cc: Heikki Krogerus <heikki.krogerus@linux.intel.com>
+Signed-off-by: Prashant Malani <pmalani@chromium.org>
+Reviewed-by: Benson Leung <bleung@chromium.org>
+Acked-by: Heikki Krogerus <heikki.krogerus@linux.intel.com>
+Link: https://lore.kernel.org/r/20221228004648.793339-5-pmalani@chromium.org
+---
+ drivers/platform/chrome/cros_ec_typec.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/drivers/platform/chrome/cros_ec_typec.c b/drivers/platform/chrome/cros_ec_typec.c
+index bc8dc8bd90b33..05dc5a63af537 100644
+--- a/drivers/platform/chrome/cros_ec_typec.c
++++ b/drivers/platform/chrome/cros_ec_typec.c
+@@ -345,6 +345,7 @@ static int cros_typec_register_port_altmodes(struct cros_typec_data *typec,
+ 	if (IS_ERR(amode))
+ 		return PTR_ERR(amode);
+ 	port->port_altmode[CROS_EC_ALTMODE_DP] = amode;
++	typec_altmode_set_drvdata(amode, port);
+ 
+ 	/*
+ 	 * Register TBT compatibility alt mode. The EC will not enter the mode
+@@ -358,6 +359,7 @@ static int cros_typec_register_port_altmodes(struct cros_typec_data *typec,
+ 	if (IS_ERR(amode))
+ 		return PTR_ERR(amode);
+ 	port->port_altmode[CROS_EC_ALTMODE_TBT] = amode;
++	typec_altmode_set_drvdata(amode, port);
+ 
+ 	port->state.alt = NULL;
+ 	port->state.mode = TYPEC_STATE_USB;
+-- 
+cgit 
+
+
+From 8d2b28df6c3dc1581d856f52d9f78059ef2a568f Mon Sep 17 00:00:00 2001
+From: Prashant Malani <pmalani@chromium.org>
+Date: Wed, 28 Dec 2022 00:45:08 +0000
+Subject: platform/chrome: cros_ec_typec: Update port DP VDO
+
+The port advertising DP support is a Type-C receptacle. Fix the port's
+DisplayPort VDO to reflect this.
+
+Fixes: 1903adae0464 ("platform/chrome: cros_ec_typec: Add bit offset for DP VDO")
+Signed-off-by: Prashant Malani <pmalani@chromium.org>
+Reviewed-by: Benson Leung <bleung@chromium.org>
+Acked-by: Heikki Krogerus <heikki.krogerus@linux.intel.com>
+Link: https://lore.kernel.org/r/20221228004648.793339-6-pmalani@chromium.org
+---
+ drivers/platform/chrome/cros_ec_typec.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/platform/chrome/cros_ec_typec.c b/drivers/platform/chrome/cros_ec_typec.c
+index 05dc5a63af537..665fa76e24165 100644
+--- a/drivers/platform/chrome/cros_ec_typec.c
++++ b/drivers/platform/chrome/cros_ec_typec.c
+@@ -27,7 +27,7 @@
+ #define DRV_NAME "cros-ec-typec"
+ 
+ #define DP_PORT_VDO	(DP_CONF_SET_PIN_ASSIGN(BIT(DP_PIN_ASSIGN_C) | BIT(DP_PIN_ASSIGN_D)) | \
+-				DP_CAP_DFP_D)
++				DP_CAP_DFP_D | DP_CAP_RECEPTACLE)
+ 
+ /* Supported alt modes. */
+ enum {
+-- 
+cgit 
+
+
+From 69058096515359fbe15b63ea8b111fe0bb21cecb Mon Sep 17 00:00:00 2001
+From: Prashant Malani <pmalani@chromium.org>
+Date: Wed, 28 Dec 2022 00:45:09 +0000
+Subject: platform/chrome: cros_ec_typec: Move structs to header
+
+Move ChromeOS Type-C structs into their own header, so they can be
+referenced by other files which can be added to the same module.
+
+No functional changes introduced by this patch.
+
+Signed-off-by: Prashant Malani <pmalani@chromium.org>
+Reviewed-by: Benson Leung <bleung@chromium.org>
+Acked-by: Heikki Krogerus <heikki.krogerus@linux.intel.com>
+Link: https://lore.kernel.org/r/20221228004648.793339-7-pmalani@chromium.org
+---
+ MAINTAINERS                             |  2 +-
+ drivers/platform/chrome/cros_ec_typec.c | 78 +-----------------------------
+ drivers/platform/chrome/cros_ec_typec.h | 85 +++++++++++++++++++++++++++++++++
+ 3 files changed, 88 insertions(+), 77 deletions(-)
+ create mode 100644 drivers/platform/chrome/cros_ec_typec.h
+
+diff --git a/MAINTAINERS b/MAINTAINERS
+index 49b0f0525502f..f383b78bceb2f 100644
+--- a/MAINTAINERS
++++ b/MAINTAINERS
+@@ -5005,7 +5005,7 @@ CHROMEOS EC USB TYPE-C DRIVER
+ M:	Prashant Malani <pmalani@chromium.org>
+ L:	chrome-platform@lists.linux.dev
+ S:	Maintained
+-F:	drivers/platform/chrome/cros_ec_typec.c
++F:	drivers/platform/chrome/cros_ec_typec.*
+ F:	drivers/platform/chrome/cros_typec_switch.c
+ 
+ CHROMEOS EC USB PD NOTIFY DRIVER
+diff --git a/drivers/platform/chrome/cros_ec_typec.c b/drivers/platform/chrome/cros_ec_typec.c
+index 665fa76e24165..a4eff590ca569 100644
+--- a/drivers/platform/chrome/cros_ec_typec.c
++++ b/drivers/platform/chrome/cros_ec_typec.c
+@@ -7,96 +7,22 @@
+  */
+ 
+ #include <linux/acpi.h>
+-#include <linux/list.h>
+ #include <linux/module.h>
+ #include <linux/of.h>
+ #include <linux/platform_data/cros_ec_commands.h>
+-#include <linux/platform_data/cros_ec_proto.h>
+ #include <linux/platform_data/cros_usbpd_notify.h>
+ #include <linux/platform_device.h>
+-#include <linux/usb/pd.h>
+ #include <linux/usb/pd_vdo.h>
+-#include <linux/usb/typec.h>
+-#include <linux/usb/typec_altmode.h>
+ #include <linux/usb/typec_dp.h>
+-#include <linux/usb/typec_mux.h>
+-#include <linux/usb/typec_retimer.h>
+ #include <linux/usb/typec_tbt.h>
+-#include <linux/usb/role.h>
++
++#include "cros_ec_typec.h"
+ 
+ #define DRV_NAME "cros-ec-typec"
+ 
+ #define DP_PORT_VDO	(DP_CONF_SET_PIN_ASSIGN(BIT(DP_PIN_ASSIGN_C) | BIT(DP_PIN_ASSIGN_D)) | \
+ 				DP_CAP_DFP_D | DP_CAP_RECEPTACLE)
+ 
+-/* Supported alt modes. */
+-enum {
+-	CROS_EC_ALTMODE_DP = 0,
+-	CROS_EC_ALTMODE_TBT,
+-	CROS_EC_ALTMODE_MAX,
+-};
+-
+-/* Container for altmode pointer nodes. */
+-struct cros_typec_altmode_node {
+-	struct typec_altmode *amode;
+-	struct list_head list;
+-};
+-
+-/* Per port data. */
+-struct cros_typec_port {
+-	struct typec_port *port;
+-	int port_num;
+-	/* Initial capabilities for the port. */
+-	struct typec_capability caps;
+-	struct typec_partner *partner;
+-	struct typec_cable *cable;
+-	/* SOP' plug. */
+-	struct typec_plug *plug;
+-	/* Port partner PD identity info. */
+-	struct usb_pd_identity p_identity;
+-	/* Port cable PD identity info. */
+-	struct usb_pd_identity c_identity;
+-	struct typec_switch *ori_sw;
+-	struct typec_mux *mux;
+-	struct typec_retimer *retimer;
+-	struct usb_role_switch *role_sw;
+-
+-	/* Variables keeping track of switch state. */
+-	struct typec_mux_state state;
+-	uint8_t mux_flags;
+-	uint8_t role;
+-
+-	struct typec_altmode *port_altmode[CROS_EC_ALTMODE_MAX];
+-
+-	/* Flag indicating that PD partner discovery data parsing is completed. */
+-	bool sop_disc_done;
+-	bool sop_prime_disc_done;
+-	struct ec_response_typec_discovery *disc_data;
+-	struct list_head partner_mode_list;
+-	struct list_head plug_mode_list;
+-
+-	/* PDO-related structs */
+-	struct usb_power_delivery *partner_pd;
+-	struct usb_power_delivery_capabilities *partner_src_caps;
+-	struct usb_power_delivery_capabilities *partner_sink_caps;
+-
+-	struct cros_typec_data *typec_data;
+-};
+-
+-/* Platform-specific data for the Chrome OS EC Type C controller. */
+-struct cros_typec_data {
+-	struct device *dev;
+-	struct cros_ec_device *ec;
+-	int num_ports;
+-	unsigned int pd_ctrl_ver;
+-	/* Array of ports, indexed by port number. */
+-	struct cros_typec_port *ports[EC_USB_PD_MAX_PORTS];
+-	struct notifier_block nb;
+-	struct work_struct port_work;
+-	bool typec_cmd_supported;
+-	bool needs_mux_ack;
+-};
+-
+ static int cros_typec_parse_port_props(struct typec_capability *cap,
+ 				       struct fwnode_handle *fwnode,
+ 				       struct device *dev)
+diff --git a/drivers/platform/chrome/cros_ec_typec.h b/drivers/platform/chrome/cros_ec_typec.h
+new file mode 100644
+index 0000000000000..deda180a646f3
+--- /dev/null
++++ b/drivers/platform/chrome/cros_ec_typec.h
+@@ -0,0 +1,85 @@
++/* SPDX-License-Identifier: GPL-2.0-only */
++
++#ifndef __CROS_EC_TYPEC__
++#define __CROS_EC_TYPEC__
++
++#include <linux/list.h>
++#include <linux/notifier.h>
++#include <linux/platform_data/cros_ec_proto.h>
++#include <linux/usb/pd.h>
++#include <linux/usb/role.h>
++#include <linux/usb/typec.h>
++#include <linux/usb/typec_altmode.h>
++#include <linux/usb/typec_mux.h>
++#include <linux/usb/typec_retimer.h>
++#include <linux/workqueue.h>
++
++/* Supported alt modes. */
++enum {
++	CROS_EC_ALTMODE_DP = 0,
++	CROS_EC_ALTMODE_TBT,
++	CROS_EC_ALTMODE_MAX,
++};
++
++/* Container for altmode pointer nodes. */
++struct cros_typec_altmode_node {
++	struct typec_altmode *amode;
++	struct list_head list;
++};
++
++/* Platform-specific data for the Chrome OS EC Type C controller. */
++struct cros_typec_data {
++	struct device *dev;
++	struct cros_ec_device *ec;
++	int num_ports;
++	unsigned int pd_ctrl_ver;
++	/* Array of ports, indexed by port number. */
++	struct cros_typec_port *ports[EC_USB_PD_MAX_PORTS];
++	struct notifier_block nb;
++	struct work_struct port_work;
++	bool typec_cmd_supported;
++	bool needs_mux_ack;
++};
++
++/* Per port data. */
++struct cros_typec_port {
++	struct typec_port *port;
++	int port_num;
++	/* Initial capabilities for the port. */
++	struct typec_capability caps;
++	struct typec_partner *partner;
++	struct typec_cable *cable;
++	/* SOP' plug. */
++	struct typec_plug *plug;
++	/* Port partner PD identity info. */
++	struct usb_pd_identity p_identity;
++	/* Port cable PD identity info. */
++	struct usb_pd_identity c_identity;
++	struct typec_switch *ori_sw;
++	struct typec_mux *mux;
++	struct typec_retimer *retimer;
++	struct usb_role_switch *role_sw;
++
++	/* Variables keeping track of switch state. */
++	struct typec_mux_state state;
++	uint8_t mux_flags;
++	uint8_t role;
++
++	struct typec_altmode *port_altmode[CROS_EC_ALTMODE_MAX];
++
++	/* Flag indicating that PD partner discovery data parsing is completed. */
++	bool sop_disc_done;
++	bool sop_prime_disc_done;
++	struct ec_response_typec_discovery *disc_data;
++	struct list_head partner_mode_list;
++	struct list_head plug_mode_list;
++
++	/* PDO-related structs */
++	struct usb_power_delivery *partner_pd;
++	struct usb_power_delivery_capabilities *partner_src_caps;
++	struct usb_power_delivery_capabilities *partner_sink_caps;
++
++	struct cros_typec_data *typec_data;
++};
++
++#endif /*  __CROS_EC_TYPEC__ */
+-- 
+cgit 
+
+
+From e5eea6a3319fcd0d6c71c8ff359e0d8c5b1bd5cd Mon Sep 17 00:00:00 2001
+From: Prashant Malani <pmalani@chromium.org>
+Date: Wed, 28 Dec 2022 00:45:10 +0000
+Subject: platform/chrome: cros_ec_typec: Alter module name with hyphens
+
+Change the Type-C module name from cros_ec_typec to cros-ec-typec. This
+allows us to include more files in the same module (rather than relying
+on the file name cros_ec_typec to also be the module name).
+
+Signed-off-by: Prashant Malani <pmalani@chromium.org>
+[pmalani: Fixed trivial conflict in Makefile]
+Reviewed-by: Benson Leung <bleung@chromium.org>
+Acked-by: Heikki Krogerus <heikki.krogerus@linux.intel.com>
+Link: https://lore.kernel.org/r/20221228004648.793339-8-pmalani@chromium.org
+---
+ drivers/platform/chrome/Kconfig  | 2 +-
+ drivers/platform/chrome/Makefile | 3 ++-
+ 2 files changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/platform/chrome/Kconfig b/drivers/platform/chrome/Kconfig
+index 0d272c87f32b2..7d82a0946e1c8 100644
+--- a/drivers/platform/chrome/Kconfig
++++ b/drivers/platform/chrome/Kconfig
+@@ -236,7 +236,7 @@ config CROS_EC_TYPEC
+ 	  information from the Chrome OS EC.
+ 
+ 	  To compile this driver as a module, choose M here: the module will be
+-	  called cros_ec_typec.
++	  called cros-ec-typec.
+ 
+ config CROS_HPS_I2C
+ 	tristate "ChromeOS HPS device"
+diff --git a/drivers/platform/chrome/Makefile b/drivers/platform/chrome/Makefile
+index 0f39edef660dd..fc2335d699d83 100644
+--- a/drivers/platform/chrome/Makefile
++++ b/drivers/platform/chrome/Makefile
+@@ -17,7 +17,8 @@ obj-$(CONFIG_CROS_EC_RPMSG)		+= cros_ec_rpmsg.o
+ obj-$(CONFIG_CROS_EC_SPI)		+= cros_ec_spi.o
+ obj-$(CONFIG_CROS_EC_UART)		+= cros_ec_uart.o
+ cros_ec_lpcs-objs			:= cros_ec_lpc.o cros_ec_lpc_mec.o
+-obj-$(CONFIG_CROS_EC_TYPEC)		+= cros_ec_typec.o
++cros-ec-typec-objs			:= cros_ec_typec.o
++obj-$(CONFIG_CROS_EC_TYPEC)		+= cros-ec-typec.o
+ obj-$(CONFIG_CROS_EC_LPC)		+= cros_ec_lpcs.o
+ obj-$(CONFIG_CROS_EC_PROTO)		+= cros_ec_proto.o cros_ec_trace.o
+ obj-$(CONFIG_CROS_KBD_LED_BACKLIGHT)	+= cros_kbd_led_backlight.o
+-- 
+cgit 
+
+
+From 493e699b9934d9cd6a46ecc7782540014b369267 Mon Sep 17 00:00:00 2001
+From: Prashant Malani <pmalani@chromium.org>
+Date: Wed, 28 Dec 2022 00:45:11 +0000
+Subject: platform/chrome: cros_ec_typec: Add initial VDM support
+
+Add ops to support USB PD VDM (Vendor Defined Message) from the port
+driver. This enables the port driver to interface with alternate mode
+drivers and communicate with connected peripherals.
+
+The initial support just contains an implementation of the Enter
+Mode command.
+
+Cc: Heikki Krogerus <heikki.krogerus@linux.intel.com>
+Signed-off-by: Prashant Malani <pmalani@chromium.org>
+[pmalani: Fixed trivial conflict in Makefile]
+Reviewed-by: Benson Leung <bleung@chromium.org>
+Acked-by: Heikki Krogerus <heikki.krogerus@linux.intel.com>
+Link: https://lore.kernel.org/r/20221228004648.793339-9-pmalani@chromium.org
+---
+ MAINTAINERS                              |  1 +
+ drivers/platform/chrome/Makefile         |  2 +-
+ drivers/platform/chrome/cros_ec_typec.c  |  3 +++
+ drivers/platform/chrome/cros_typec_vdm.c | 43 ++++++++++++++++++++++++++++++++
+ drivers/platform/chrome/cros_typec_vdm.h | 10 ++++++++
+ 5 files changed, 58 insertions(+), 1 deletion(-)
+ create mode 100644 drivers/platform/chrome/cros_typec_vdm.c
+ create mode 100644 drivers/platform/chrome/cros_typec_vdm.h
+
+diff --git a/MAINTAINERS b/MAINTAINERS
+index f383b78bceb2f..4c17470676243 100644
+--- a/MAINTAINERS
++++ b/MAINTAINERS
+@@ -5007,6 +5007,7 @@ L:	chrome-platform@lists.linux.dev
+ S:	Maintained
+ F:	drivers/platform/chrome/cros_ec_typec.*
+ F:	drivers/platform/chrome/cros_typec_switch.c
++F:	drivers/platform/chrome/cros_typec_vdm.*
+ 
+ CHROMEOS EC USB PD NOTIFY DRIVER
+ M:	Prashant Malani <pmalani@chromium.org>
+diff --git a/drivers/platform/chrome/Makefile b/drivers/platform/chrome/Makefile
+index fc2335d699d83..9e26e45c4a375 100644
+--- a/drivers/platform/chrome/Makefile
++++ b/drivers/platform/chrome/Makefile
+@@ -17,7 +17,7 @@ obj-$(CONFIG_CROS_EC_RPMSG)		+= cros_ec_rpmsg.o
+ obj-$(CONFIG_CROS_EC_SPI)		+= cros_ec_spi.o
+ obj-$(CONFIG_CROS_EC_UART)		+= cros_ec_uart.o
+ cros_ec_lpcs-objs			:= cros_ec_lpc.o cros_ec_lpc_mec.o
+-cros-ec-typec-objs			:= cros_ec_typec.o
++cros-ec-typec-objs			:= cros_ec_typec.o cros_typec_vdm.o
+ obj-$(CONFIG_CROS_EC_TYPEC)		+= cros-ec-typec.o
+ obj-$(CONFIG_CROS_EC_LPC)		+= cros_ec_lpcs.o
+ obj-$(CONFIG_CROS_EC_PROTO)		+= cros_ec_proto.o cros_ec_trace.o
+diff --git a/drivers/platform/chrome/cros_ec_typec.c b/drivers/platform/chrome/cros_ec_typec.c
+index a4eff590ca569..1e28d56b094d5 100644
+--- a/drivers/platform/chrome/cros_ec_typec.c
++++ b/drivers/platform/chrome/cros_ec_typec.c
+@@ -17,6 +17,7 @@
+ #include <linux/usb/typec_tbt.h>
+ 
+ #include "cros_ec_typec.h"
++#include "cros_typec_vdm.h"
+ 
+ #define DRV_NAME "cros-ec-typec"
+ 
+@@ -272,6 +273,7 @@ static int cros_typec_register_port_altmodes(struct cros_typec_data *typec,
+ 		return PTR_ERR(amode);
+ 	port->port_altmode[CROS_EC_ALTMODE_DP] = amode;
+ 	typec_altmode_set_drvdata(amode, port);
++	amode->ops = &port_amode_ops;
+ 
+ 	/*
+ 	 * Register TBT compatibility alt mode. The EC will not enter the mode
+@@ -286,6 +288,7 @@ static int cros_typec_register_port_altmodes(struct cros_typec_data *typec,
+ 		return PTR_ERR(amode);
+ 	port->port_altmode[CROS_EC_ALTMODE_TBT] = amode;
+ 	typec_altmode_set_drvdata(amode, port);
++	amode->ops = &port_amode_ops;
+ 
+ 	port->state.alt = NULL;
+ 	port->state.mode = TYPEC_STATE_USB;
+diff --git a/drivers/platform/chrome/cros_typec_vdm.c b/drivers/platform/chrome/cros_typec_vdm.c
+new file mode 100644
+index 0000000000000..df0102ca3a185
+--- /dev/null
++++ b/drivers/platform/chrome/cros_typec_vdm.c
+@@ -0,0 +1,43 @@
++// SPDX-License-Identifier: GPL-2.0-only
++/*
++ * USB Power Delivery Vendor Defined Message (VDM) support code.
++ *
++ * Copyright 2023 Google LLC
++ * Author: Prashant Malani <pmalani@chromium.org>
++ */
++
++#include <linux/module.h>
++#include <linux/platform_data/cros_ec_commands.h>
++#include <linux/usb/pd_vdo.h>
++
++#include "cros_ec_typec.h"
++#include "cros_typec_vdm.h"
++
++static int cros_typec_port_amode_enter(struct typec_altmode *amode, u32 *vdo)
++{
++	struct cros_typec_port *port = typec_altmode_get_drvdata(amode);
++	struct ec_params_typec_control req = {
++		.port = port->port_num,
++		.command = TYPEC_CONTROL_COMMAND_SEND_VDM_REQ,
++	};
++	struct typec_vdm_req vdm_req = {};
++	u32 hdr;
++
++	hdr = VDO(amode->svid, 1, SVDM_VER_2_0, CMD_ENTER_MODE);
++	hdr |= VDO_OPOS(amode->mode);
++
++	vdm_req.vdm_data[0] = hdr;
++	vdm_req.vdm_data_objects = 1;
++	vdm_req.partner_type = TYPEC_PARTNER_SOP;
++	req.vdm_req_params = vdm_req;
++
++	dev_dbg(port->typec_data->dev, "Sending EnterMode VDM, hdr: %x, port: %d\n",
++		hdr, port->port_num);
++
++	return cros_ec_cmd(port->typec_data->ec, 0, EC_CMD_TYPEC_CONTROL, &req,
++			   sizeof(req), NULL, 0);
++}
++
++struct typec_altmode_ops port_amode_ops = {
++	.enter = cros_typec_port_amode_enter,
++};
+diff --git a/drivers/platform/chrome/cros_typec_vdm.h b/drivers/platform/chrome/cros_typec_vdm.h
+new file mode 100644
+index 0000000000000..7e282d168a983
+--- /dev/null
++++ b/drivers/platform/chrome/cros_typec_vdm.h
+@@ -0,0 +1,10 @@
++/* SPDX-License-Identifier: GPL-2.0-only */
++
++#ifndef __CROS_TYPEC_VDM__
++#define __CROS_TYPEC_VDM__
++
++#include <linux/usb/typec_altmode.h>
++
++extern struct typec_altmode_ops port_amode_ops;
++
++#endif /*  __CROS_TYPEC_VDM__ */
+-- 
+cgit 
+
+
+From 50ed638bbc47ba68ccc90d81118fe030cf39b6b5 Mon Sep 17 00:00:00 2001
+From: Prashant Malani <pmalani@chromium.org>
+Date: Wed, 28 Dec 2022 00:45:12 +0000
+Subject: platform/chrome: cros_typec_vdm: Add VDM reply support
+
+Handle response VDMs which are sent by the partner (replying to VDMs
+sent by the host system itself). These get forwarded to the altmode
+driver.
+
+Cc: Heikki Krogerus <heikki.krogerus@linux.intel.com>
+Signed-off-by: Prashant Malani <pmalani@chromium.org>
+Reviewed-by: Benson Leung <bleung@chromium.org>
+Acked-by: Heikki Krogerus <heikki.krogerus@linux.intel.com>
+Link: https://lore.kernel.org/r/20221228004648.793339-10-pmalani@chromium.org
+---
+ drivers/platform/chrome/cros_ec_typec.c  |  7 ++++++
+ drivers/platform/chrome/cros_typec_vdm.c | 39 ++++++++++++++++++++++++++++++++
+ drivers/platform/chrome/cros_typec_vdm.h |  2 ++
+ 3 files changed, 48 insertions(+)
+
+diff --git a/drivers/platform/chrome/cros_ec_typec.c b/drivers/platform/chrome/cros_ec_typec.c
+index 1e28d56b094d5..e02107a6870a6 100644
+--- a/drivers/platform/chrome/cros_ec_typec.c
++++ b/drivers/platform/chrome/cros_ec_typec.c
+@@ -1000,6 +1000,13 @@ static void cros_typec_handle_status(struct cros_typec_data *typec, int port_num
+ 					 "Failed SOP Disc event clear, port: %d\n", port_num);
+ 		}
+ 	}
++
++	if (resp.events & PD_STATUS_EVENT_VDM_REQ_REPLY) {
++		cros_typec_handle_vdm_response(typec, port_num);
++		ret = cros_typec_send_clear_event(typec, port_num, PD_STATUS_EVENT_VDM_REQ_REPLY);
++		if (ret < 0)
++			dev_warn(typec->dev, "Failed VDM Reply event clear, port: %d\n", port_num);
++	}
+ }
+ 
+ static int cros_typec_port_update(struct cros_typec_data *typec, int port_num)
+diff --git a/drivers/platform/chrome/cros_typec_vdm.c b/drivers/platform/chrome/cros_typec_vdm.c
+index df0102ca3a185..fc7b602ceb37f 100644
+--- a/drivers/platform/chrome/cros_typec_vdm.c
++++ b/drivers/platform/chrome/cros_typec_vdm.c
+@@ -13,6 +13,45 @@
+ #include "cros_ec_typec.h"
+ #include "cros_typec_vdm.h"
+ 
++/*
++ * Retrieves a VDM response from the EC and forwards it to the altmode driver based on SVID.
++ */
++void cros_typec_handle_vdm_response(struct cros_typec_data *typec, int port_num)
++{
++	struct ec_response_typec_vdm_response resp;
++	struct ec_params_typec_vdm_response req = {
++		.port = port_num,
++	};
++	struct typec_altmode *amode;
++	u16 svid;
++	u32 hdr;
++	int ret;
++
++	ret = cros_ec_cmd(typec->ec, 0, EC_CMD_TYPEC_VDM_RESPONSE, &req,
++			  sizeof(req), &resp, sizeof(resp));
++	if (ret < 0) {
++		dev_warn(typec->dev, "Failed VDM response fetch, port: %d\n", port_num);
++		return;
++	}
++
++	hdr = resp.vdm_response[0];
++	svid = PD_VDO_VID(hdr);
++	dev_dbg(typec->dev, "Received VDM header: %x, port: %d\n", hdr, port_num);
++
++	amode = typec_match_altmode(typec->ports[port_num]->port_altmode, CROS_EC_ALTMODE_MAX,
++				    svid, PD_VDO_OPOS(hdr));
++	if (!amode) {
++		dev_err(typec->dev, "Received VDM for unregistered altmode (SVID:%x), port: %d\n",
++			svid, port_num);
++		return;
++	}
++
++	ret = typec_altmode_vdm(amode, hdr, &resp.vdm_response[1], resp.vdm_data_objects);
++	if (ret)
++		dev_err(typec->dev, "Failed to forward VDM to altmode (SVID:%x), port: %d\n",
++			svid, port_num);
++}
++
+ static int cros_typec_port_amode_enter(struct typec_altmode *amode, u32 *vdo)
+ {
+ 	struct cros_typec_port *port = typec_altmode_get_drvdata(amode);
+diff --git a/drivers/platform/chrome/cros_typec_vdm.h b/drivers/platform/chrome/cros_typec_vdm.h
+index 7e282d168a983..003587525554c 100644
+--- a/drivers/platform/chrome/cros_typec_vdm.h
++++ b/drivers/platform/chrome/cros_typec_vdm.h
+@@ -7,4 +7,6 @@
+ 
+ extern struct typec_altmode_ops port_amode_ops;
+ 
++void cros_typec_handle_vdm_response(struct cros_typec_data *typec, int port_num);
++
+ #endif /*  __CROS_TYPEC_VDM__ */
+-- 
+cgit 
+
+
+From 40a9b13a09ef2ec207fec1b328ed796d08e20e54 Mon Sep 17 00:00:00 2001
+From: Prashant Malani <pmalani@chromium.org>
+Date: Wed, 28 Dec 2022 00:45:13 +0000
+Subject: platform/chrome: cros_typec_vdm: Add VDM send support
+
+Add support to send generic VDM messages from the alt mode driver to the
+partner (via the ChromeOS EC). The function introduced here is intended
+to be called by the alt mode driver (via the Type-C bus logic).
+
+Cc: Heikki Krogerus <heikki.krogerus@linux.intel.com>
+Signed-off-by: Prashant Malani <pmalani@chromium.org>
+Reviewed-by: Benson Leung <bleung@chromium.org>
+Acked-by: Heikki Krogerus <heikki.krogerus@linux.intel.com>
+Link: https://lore.kernel.org/r/20221228004648.793339-11-pmalani@chromium.org
+---
+ drivers/platform/chrome/cros_typec_vdm.c | 24 ++++++++++++++++++++++++
+ 1 file changed, 24 insertions(+)
+
+diff --git a/drivers/platform/chrome/cros_typec_vdm.c b/drivers/platform/chrome/cros_typec_vdm.c
+index fc7b602ceb37f..aca9d337118ef 100644
+--- a/drivers/platform/chrome/cros_typec_vdm.c
++++ b/drivers/platform/chrome/cros_typec_vdm.c
+@@ -77,6 +77,30 @@ static int cros_typec_port_amode_enter(struct typec_altmode *amode, u32 *vdo)
+ 			   sizeof(req), NULL, 0);
+ }
+ 
++static int cros_typec_port_amode_vdm(struct typec_altmode *amode, const u32 hdr,
++				     const u32 *vdo, int cnt)
++{
++	struct cros_typec_port *port = typec_altmode_get_drvdata(amode);
++	struct ec_params_typec_control req = {
++		.port = port->port_num,
++		.command = TYPEC_CONTROL_COMMAND_SEND_VDM_REQ,
++	};
++	struct typec_vdm_req vdm_req = {};
++
++	vdm_req.vdm_data[0] = hdr;
++	vdm_req.vdm_data_objects = cnt;
++	memcpy(&vdm_req.vdm_data[1], vdo, cnt - 1);
++	vdm_req.partner_type = TYPEC_PARTNER_SOP;
++	req.vdm_req_params = vdm_req;
++
++	dev_dbg(port->typec_data->dev, "Sending VDM, hdr: %x, num_objects: %d, port: %d\n",
++		hdr, cnt, port->port_num);
++
++	return cros_ec_cmd(port->typec_data->ec, 0, EC_CMD_TYPEC_CONTROL, &req,
++			   sizeof(req), NULL, 0);
++}
++
+ struct typec_altmode_ops port_amode_ops = {
+ 	.enter = cros_typec_port_amode_enter,
++	.vdm = cros_typec_port_amode_vdm,
+ };
+-- 
+cgit 
+
+
+From ef9c00dbd383d2b68207cc996caa05c25c7894f5 Mon Sep 17 00:00:00 2001
+From: Prashant Malani <pmalani@chromium.org>
+Date: Wed, 4 Jan 2023 06:08:44 +0000
+Subject: platform/chrome: cros_typec_switch: Use fwnode* prop check
+
+Using device_property_present() multiple times on an ACPI device
+leads to kernel panics on Chromebook systems. This happens when there
+is > 1 boolean property in an ACPI device which is created dynamically
+by the BIOS as part of SSDT[1] on Chromebook systems
+
+Since fwnode_* can handle simple device tree properties equally
+well, switch to using the fwnode_property_present() function
+version. This will avoid panics and make the usage consistent
+when we introduce a check for the 2nd property in a subsequent patch.
+
+[1] https://wiki.osdev.org/SSDT
+
+Signed-off-by: Prashant Malani <pmalani@chromium.org>
+Reviewed-by: Benson Leung <bleung@chromium.org>
+Link: https://lore.kernel.org/r/20230104060846.112216-1-pmalani@chromium.org
+---
+ drivers/platform/chrome/cros_typec_switch.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/platform/chrome/cros_typec_switch.c b/drivers/platform/chrome/cros_typec_switch.c
+index a26219e97c931..2536bda03bf34 100644
+--- a/drivers/platform/chrome/cros_typec_switch.c
++++ b/drivers/platform/chrome/cros_typec_switch.c
+@@ -254,7 +254,7 @@ static int cros_typec_register_switches(struct cros_typec_switch_data *sdata)
+ 
+ 		dev_dbg(dev, "Retimer switch registered for index %llu\n", index);
+ 
+-		if (!device_property_present(fwnode->dev, "mode-switch"))
++		if (!fwnode_property_present(fwnode, "mode-switch"))
+ 			continue;
+ 
+ 		ret = cros_typec_register_mode_switch(port, fwnode);
+-- 
+cgit 
+
+
+From 441529bed41cd6f368fe337ebbb4920e3519da24 Mon Sep 17 00:00:00 2001
+From: Prashant Malani <pmalani@chromium.org>
+Date: Wed, 4 Jan 2023 06:08:45 +0000
+Subject: platform/chrome: cros_typec_switch: Check for retimer flag
+
+Not all ports have retimers. Only register a retimer switch if the
+"retimer-switch" property is present for that port's mux
+device.
+
+Signed-off-by: Prashant Malani <pmalani@chromium.org>
+Reviewed-by: Benson Leung <bleung@chromium.org>
+Link: https://lore.kernel.org/r/20230104060846.112216-2-pmalani@chromium.org
+---
+ drivers/platform/chrome/cros_typec_switch.c | 14 ++++++++------
+ 1 file changed, 8 insertions(+), 6 deletions(-)
+
+diff --git a/drivers/platform/chrome/cros_typec_switch.c b/drivers/platform/chrome/cros_typec_switch.c
+index 2536bda03bf34..9ed1605f4071d 100644
+--- a/drivers/platform/chrome/cros_typec_switch.c
++++ b/drivers/platform/chrome/cros_typec_switch.c
+@@ -246,14 +246,16 @@ static int cros_typec_register_switches(struct cros_typec_switch_data *sdata)
+ 		port->port_num = index;
+ 		sdata->ports[index] = port;
+ 
+-		ret = cros_typec_register_retimer(port, fwnode);
+-		if (ret) {
+-			dev_err(dev, "Retimer switch register failed\n");
+-			goto err_switch;
++		if (fwnode_property_present(fwnode, "retimer-switch")) {
++			ret = cros_typec_register_retimer(port, fwnode);
++			if (ret) {
++				dev_err(dev, "Retimer switch register failed\n");
++				goto err_switch;
++			}
++
++			dev_dbg(dev, "Retimer switch registered for index %llu\n", index);
+ 		}
+ 
+-		dev_dbg(dev, "Retimer switch registered for index %llu\n", index);
+-
+ 		if (!fwnode_property_present(fwnode, "mode-switch"))
+ 			continue;
+ 
+-- 
+cgit 
+
+
+From 9e69b1b27b13eb4eb85405900e290c0d539454bf Mon Sep 17 00:00:00 2001
+From: Marek Szyprowski <m.szyprowski@samsung.com>
+Date: Tue, 10 Jan 2023 23:10:33 +0100
+Subject: platform/chrome: cros_ec: Fix panic notifier registration
+
+Initialize panic notifier to avoid the following lockdep warning:
+
+INFO: trying to register non-static key.
+The code is fine but needs lockdep annotation, or maybe
+you didn't initialize this object before use?
+turning off the locking correctness validator.
+[...]
+Hardware name: Samsung Exynos (Flattened Device Tree)
+Workqueue: events_unbound async_run_entry_fn
+ unwind_backtrace from show_stack
+[...]
+ blocking_notifier_chain_register from cros_ec_debugfs_probe
+ cros_ec_debugfs_probe from platform_probe
+
+Fixes: d90fa2c64d59 ("platform/chrome: cros_ec: Poll EC log on EC panic")
+Signed-off-by: Marek Szyprowski <m.szyprowski@samsung.com>
+[tzungbi: trimmed the stack trace in commit message.]
+Signed-off-by: Tzung-Bi Shih <tzungbi@kernel.org>
+Link: https://lore.kernel.org/r/20230110221033.7441-1-m.szyprowski@samsung.com
+---
+ drivers/platform/chrome/cros_ec.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/drivers/platform/chrome/cros_ec.c b/drivers/platform/chrome/cros_ec.c
+index ec733f683f34f..c4345dafec576 100644
+--- a/drivers/platform/chrome/cros_ec.c
++++ b/drivers/platform/chrome/cros_ec.c
+@@ -182,6 +182,7 @@ int cros_ec_register(struct cros_ec_device *ec_dev)
+ 	int err = 0;
+ 
+ 	BLOCKING_INIT_NOTIFIER_HEAD(&ec_dev->event_notifier);
++	BLOCKING_INIT_NOTIFIER_HEAD(&ec_dev->panic_notifier);
+ 
+ 	ec_dev->max_request = sizeof(struct ec_params_hello);
+ 	ec_dev->max_response = sizeof(struct ec_response_get_protocol_info);
+-- 
+cgit 
+
+
+From 2ae3c610e7d21bc4a27da2b71f7007f2c4efce01 Mon Sep 17 00:00:00 2001
+From: Tom Rix <trix@redhat.com>
+Date: Tue, 10 Jan 2023 14:36:11 -0500
+Subject: platform/chrome: cros_ec_lpc: initialize the buf variable
+
+Clang static analysis reports this problem
+drivers/platform/chrome/cros_ec_lpc.c:379:13: warning: The left operand
+  of '!=' is a garbage value [core.UndefinedBinaryOperatorResult]
+    if (buf[0] != 'E' || buf[1] != 'C') {
+         ~~~~~~ ^
+
+The check depends on the side effect of the read.  When the read fails
+or is short, a buf containing garbage could be mistaken as correct.
+
+Signed-off-by: Tom Rix <trix@redhat.com>
+Signed-off-by: Tzung-Bi Shih <tzungbi@kernel.org>
+Link: https://lore.kernel.org/r/20230110193611.3573777-1-trix@redhat.com
+---
+ drivers/platform/chrome/cros_ec_lpc.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/platform/chrome/cros_ec_lpc.c b/drivers/platform/chrome/cros_ec_lpc.c
+index 3708fa75feb14..68bba0fcafab3 100644
+--- a/drivers/platform/chrome/cros_ec_lpc.c
++++ b/drivers/platform/chrome/cros_ec_lpc.c
+@@ -350,7 +350,7 @@ static int cros_ec_lpc_probe(struct platform_device *pdev)
+ 	struct acpi_device *adev;
+ 	acpi_status status;
+ 	struct cros_ec_device *ec_dev;
+-	u8 buf[2];
++	u8 buf[2] = {};
+ 	int irq, ret;
+ 
+ 	/*
+-- 
+cgit 
+
+
+From 16d73129f1fd8e91eb565482245233809647c649 Mon Sep 17 00:00:00 2001
+From: Tzung-Bi Shih <tzungbi@kernel.org>
+Date: Wed, 11 Jan 2023 13:57:25 +0800
+Subject: platform/chrome: fix kernel-doc warnings for panic notifier
+
+Fix the following kernel-doc warnings:
+
+$ ./scripts/kernel-doc -none drivers/platform/chrome/*
+drivers/platform/chrome/cros_ec_debugfs.c:54: warning: Function
+parameter or member 'notifier_panic' not described in 'cros_ec_debugfs'
+
+$ ./scripts/kernel-doc -none include/linux/platform_data/cros_ec_proto.h
+include/linux/platform_data/cros_ec_proto.h:187: warning: Function
+parameter or member 'panic_notifier' not described in 'cros_ec_device'
+
+Cc: Rob Barnes <robbarnes@google.com>
+Fixes: d90fa2c64d59 ("platform/chrome: cros_ec: Poll EC log on EC panic")
+Signed-off-by: Tzung-Bi Shih <tzungbi@kernel.org>
+Reviewed-by: Guenter Roeck <groweck@chromium.org>
+Link: https://lore.kernel.org/r/20230111055728.708990-2-tzungbi@kernel.org
+---
+ drivers/platform/chrome/cros_ec_debugfs.c   | 2 ++
+ include/linux/platform_data/cros_ec_proto.h | 1 +
+ 2 files changed, 3 insertions(+)
+
+diff --git a/drivers/platform/chrome/cros_ec_debugfs.c b/drivers/platform/chrome/cros_ec_debugfs.c
+index 34f7b46f8761d..a98c529d8c698 100644
+--- a/drivers/platform/chrome/cros_ec_debugfs.c
++++ b/drivers/platform/chrome/cros_ec_debugfs.c
+@@ -38,6 +38,8 @@ static DECLARE_WAIT_QUEUE_HEAD(cros_ec_debugfs_log_wq);
+  * @log_mutex: mutex to protect circular buffer
+  * @log_poll_work: recurring task to poll EC for new console log data
+  * @panicinfo_blob: panicinfo debugfs blob
++ * @notifier_panic: notifier_block to let kernel to flush buffered log
++ *                  when EC panic
+  */
+ struct cros_ec_debugfs {
+ 	struct cros_ec_dev *ec;
+diff --git a/include/linux/platform_data/cros_ec_proto.h b/include/linux/platform_data/cros_ec_proto.h
+index 017d502ed66eb..a4a3fec155048 100644
+--- a/include/linux/platform_data/cros_ec_proto.h
++++ b/include/linux/platform_data/cros_ec_proto.h
+@@ -140,6 +140,7 @@ struct cros_ec_command {
+  *      main EC.
+  * @pd: The platform_device used by the mfd driver to interface with the
+  *      PD behind an EC.
++ * @panic_notifier: EC panic notifier.
+  */
+ struct cros_ec_device {
+ 	/* These are used by other drivers that want to talk to the EC */
+-- 
+cgit 
+
+
+From 20eb556dac27427f951ca13e117d32bd1c041b79 Mon Sep 17 00:00:00 2001
+From: Tzung-Bi Shih <tzungbi@kernel.org>
+Date: Wed, 11 Jan 2023 13:57:26 +0800
+Subject: platform/chrome: fix kernel-doc warning for suspend_timeout_ms
+
+Fix the following kernel-doc warning:
+
+$ ./scripts/kernel-doc -none include/linux/platform_data/cros_ec_proto.h
+include/linux/platform_data/cros_ec_proto.h:187: warning: Function
+parameter or member 'suspend_timeout_ms' not described in 'cros_ec_device'
+
+Cc: Evan Green <evgreen@chromium.org>
+Fixes: e8bf17d58a4d ("platform/chrome: cros_ec: Expose suspend_timeout_ms in debugfs")
+Signed-off-by: Tzung-Bi Shih <tzungbi@kernel.org>
+Reviewed-by: Guenter Roeck <groeck@chromium.org>
+Link: https://lore.kernel.org/r/20230111055728.708990-3-tzungbi@kernel.org
+---
+ include/linux/platform_data/cros_ec_proto.h | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/include/linux/platform_data/cros_ec_proto.h b/include/linux/platform_data/cros_ec_proto.h
+index a4a3fec155048..805dcb19a36d9 100644
+--- a/include/linux/platform_data/cros_ec_proto.h
++++ b/include/linux/platform_data/cros_ec_proto.h
+@@ -131,6 +131,11 @@ struct cros_ec_command {
+  * @event_data: Raw payload transferred with the MKBP event.
+  * @event_size: Size in bytes of the event data.
+  * @host_event_wake_mask: Mask of host events that cause wake from suspend.
++ * @suspend_timeout_ms: The timeout in milliseconds between when sleep event
++ *                      is received and when the EC will declare sleep
++ *                      transition failure if the sleep signal is not
++ *                      asserted.  See also struct
++ *                      ec_params_host_sleep_event_v1 in cros_ec_commands.h.
+  * @last_event_time: exact time from the hard irq when we got notified of
+  *     a new event.
+  * @notifier_ready: The notifier_block to let the kernel re-query EC
+-- 
+cgit 
+
+
+From 212c9b9c395f72fd83c10cf2692b9562c2110d0f Mon Sep 17 00:00:00 2001
+From: Tzung-Bi Shih <tzungbi@kernel.org>
+Date: Wed, 11 Jan 2023 13:57:27 +0800
+Subject: platform/chrome: fix kernel-doc warning for last_resume_result
+
+Fix the following kernel-doc warning:
+
+$ ./scripts/kernel-doc -none include/linux/platform_data/cros_ec_proto.h
+include/linux/platform_data/cros_ec_proto.h:187: warning: Function
+parameter or member 'last_resume_result' not described in 'cros_ec_device'
+
+Cc: Evan Green <evgreen@chromium.org>
+Fixes: 8c3166e17cf1 ("mfd / platform: cros_ec_debugfs: Expose resume result via debugfs")
+Signed-off-by: Tzung-Bi Shih <tzungbi@kernel.org>
+Reviewed-by: Guenter Roeck <groeck@chromium.org>
+Link: https://lore.kernel.org/r/20230111055728.708990-4-tzungbi@kernel.org
+---
+ include/linux/platform_data/cros_ec_proto.h | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/include/linux/platform_data/cros_ec_proto.h b/include/linux/platform_data/cros_ec_proto.h
+index 805dcb19a36d9..4865c54d4af14 100644
+--- a/include/linux/platform_data/cros_ec_proto.h
++++ b/include/linux/platform_data/cros_ec_proto.h
+@@ -136,6 +136,10 @@ struct cros_ec_command {
+  *                      transition failure if the sleep signal is not
+  *                      asserted.  See also struct
+  *                      ec_params_host_sleep_event_v1 in cros_ec_commands.h.
++ * @last_resume_result: The number of sleep power signal transitions that
++ *                      occurred since the suspend message. The high bit
++ *                      indicates a timeout occurred.  See also struct
++ *                      ec_response_host_sleep_event_v1 in cros_ec_commands.h.
+  * @last_event_time: exact time from the hard irq when we got notified of
+  *     a new event.
+  * @notifier_ready: The notifier_block to let the kernel re-query EC
+-- 
+cgit 
+
+
+From 5fa1dd818fb4b30cd2de42696de547e243d946d6 Mon Sep 17 00:00:00 2001
+From: Tzung-Bi Shih <tzungbi@kernel.org>
+Date: Wed, 11 Jan 2023 13:57:28 +0800
+Subject: platform/chrome: fix kernel-doc warnings for cros_ec_command
+
+Fix the following kernel-doc warnings:
+
+$ ./scripts/kernel-doc -none \
+	include/linux/platform_data/cros_ec_commands.h
+include/linux/platform_data/cros_ec_commands.h:1092: warning: expecting
+prototype for struct ec_response_get_cmd_version. Prototype was for
+struct ec_response_get_cmd_versions instead
+include/linux/platform_data/cros_ec_commands.h:5485: warning: This
+comment starts with '/**', but isn't a kernel-doc comment.
+include/linux/platform_data/cros_ec_commands.h:5496: warning: This
+comment starts with '/**', but isn't a kernel-doc comment.
+
+Signed-off-by: Tzung-Bi Shih <tzungbi@kernel.org>
+Reviewed-by: Guenter Roeck <groeck@chromium.org>
+Link: https://lore.kernel.org/r/20230111055728.708990-5-tzungbi@kernel.org
+---
+ include/linux/platform_data/cros_ec_commands.h | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/include/linux/platform_data/cros_ec_commands.h b/include/linux/platform_data/cros_ec_commands.h
+index 6665e7da6ee28..b9c4a39642477 100644
+--- a/include/linux/platform_data/cros_ec_commands.h
++++ b/include/linux/platform_data/cros_ec_commands.h
+@@ -1082,7 +1082,7 @@ struct ec_params_get_cmd_versions_v1 {
+ } __ec_align2;
+ 
+ /**
+- * struct ec_response_get_cmd_version - Response to the get command versions.
++ * struct ec_response_get_cmd_versions - Response to the get command versions.
+  * @version_mask: Mask of supported versions; use EC_VER_MASK() to compare with
+  *                a desired version.
+  */
+@@ -5480,7 +5480,7 @@ struct ec_response_rollback_info {
+ /* Issue AP reset */
+ #define EC_CMD_AP_RESET 0x0125
+ 
+-/**
++/*
+  * Get the number of peripheral charge ports
+  */
+ #define EC_CMD_PCHG_COUNT 0x0134
+@@ -5491,7 +5491,7 @@ struct ec_response_pchg_count {
+ 	uint8_t port_count;
+ } __ec_align1;
+ 
+-/**
++/*
+  * Get the status of a peripheral charge port
+  */
+ #define EC_CMD_PCHG 0x0135
+-- 
+cgit 
+
+
+From 961a325becd9a142ae5c8b258e5c2f221f8bfac8 Mon Sep 17 00:00:00 2001
+From: Chen-Yu Tsai <wenst@chromium.org>
+Date: Wed, 11 Jan 2023 15:41:46 +0800
+Subject: platform/chrome: cros_ec: Use per-device lockdep key
+
+Lockdep reports a bogus possible deadlock on MT8192 Chromebooks due to
+the following lock sequences:
+
+1. lock(i2c_register_adapter) [1]; lock(&ec_dev->lock)
+2. lock(&ec_dev->lock); lock(prepare_lock);
+
+The actual dependency chains are much longer. The shortened version
+looks somewhat like:
+
+1. cros-ec-rpmsg on mtk-scp
+   ec_dev->lock -> prepare_lock
+2. In rt5682_i2c_probe() on native I2C bus:
+   prepare_lock -> regmap->lock -> (possibly) i2c_adapter->bus_lock
+3. In rt5682_i2c_probe() on native I2C bus:
+   regmap->lock -> i2c_adapter->bus_lock
+4. In sbs_probe() on i2c-cros-ec-tunnel I2C bus attached on cros-ec:
+   i2c_adapter->bus_lock -> ec_dev->lock
+
+While lockdep is correct that the shared lockdep classes have a circular
+dependency, it is bogus because
+
+  a) 2+3 happen on a native I2C bus
+  b) 4 happens on the actual EC on ChromeOS devices
+  c) 1 happens on the SCP coprocessor on MediaTek Chromebooks that just
+     happens to expose a cros-ec interface, but does not have an
+     i2c-cros-ec-tunnel I2C bus
+
+In short, the "dependencies" are actually on different devices.
+
+Setup a per-device lockdep key for cros_ec devices so lockdep can tell
+the two instances apart. This helps with getting rid of the bogus
+lockdep warning. For ChromeOS devices that only have one cros-ec
+instance this doesn't change anything.
+
+Also add a missing mutex_destroy, just to make the teardown complete.
+
+[1] This is likely the per I2C bus lock with shared lockdep class
+
+Signed-off-by: Chen-Yu Tsai <wenst@chromium.org>
+Signed-off-by: Tzung-Bi Shih <tzungbi@kernel.org>
+Link: https://lore.kernel.org/r/20230111074146.2624496-1-wenst@chromium.org
+---
+ drivers/platform/chrome/cros_ec.c           | 14 +++++++++++---
+ include/linux/platform_data/cros_ec_proto.h |  4 ++++
+ 2 files changed, 15 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/platform/chrome/cros_ec.c b/drivers/platform/chrome/cros_ec.c
+index c4345dafec576..b895c8130bba1 100644
+--- a/drivers/platform/chrome/cros_ec.c
++++ b/drivers/platform/chrome/cros_ec.c
+@@ -199,12 +199,14 @@ int cros_ec_register(struct cros_ec_device *ec_dev)
+ 	if (!ec_dev->dout)
+ 		return -ENOMEM;
+ 
++	lockdep_register_key(&ec_dev->lockdep_key);
+ 	mutex_init(&ec_dev->lock);
++	lockdep_set_class(&ec_dev->lock, &ec_dev->lockdep_key);
+ 
+ 	err = cros_ec_query_all(ec_dev);
+ 	if (err) {
+ 		dev_err(dev, "Cannot identify the EC: error %d\n", err);
+-		return err;
++		goto destroy_mutex;
+ 	}
+ 
+ 	if (ec_dev->irq > 0) {
+@@ -216,7 +218,7 @@ int cros_ec_register(struct cros_ec_device *ec_dev)
+ 		if (err) {
+ 			dev_err(dev, "Failed to request IRQ %d: %d\n",
+ 				ec_dev->irq, err);
+-			return err;
++			goto destroy_mutex;
+ 		}
+ 	}
+ 
+@@ -227,7 +229,8 @@ int cros_ec_register(struct cros_ec_device *ec_dev)
+ 	if (IS_ERR(ec_dev->ec)) {
+ 		dev_err(ec_dev->dev,
+ 			"Failed to create CrOS EC platform device\n");
+-		return PTR_ERR(ec_dev->ec);
++		err = PTR_ERR(ec_dev->ec);
++		goto destroy_mutex;
+ 	}
+ 
+ 	if (ec_dev->max_passthru) {
+@@ -293,6 +296,9 @@ int cros_ec_register(struct cros_ec_device *ec_dev)
+ exit:
+ 	platform_device_unregister(ec_dev->ec);
+ 	platform_device_unregister(ec_dev->pd);
++destroy_mutex:
++	mutex_destroy(&ec_dev->lock);
++	lockdep_unregister_key(&ec_dev->lockdep_key);
+ 	return err;
+ }
+ EXPORT_SYMBOL(cros_ec_register);
+@@ -310,6 +316,8 @@ void cros_ec_unregister(struct cros_ec_device *ec_dev)
+ 	if (ec_dev->pd)
+ 		platform_device_unregister(ec_dev->pd);
+ 	platform_device_unregister(ec_dev->ec);
++	mutex_destroy(&ec_dev->lock);
++	lockdep_unregister_key(&ec_dev->lockdep_key);
+ }
+ EXPORT_SYMBOL(cros_ec_unregister);
+ 
+diff --git a/include/linux/platform_data/cros_ec_proto.h b/include/linux/platform_data/cros_ec_proto.h
+index 4865c54d4af14..4f9f756bc17ce 100644
+--- a/include/linux/platform_data/cros_ec_proto.h
++++ b/include/linux/platform_data/cros_ec_proto.h
+@@ -9,6 +9,7 @@
+ #define __LINUX_CROS_EC_PROTO_H
+ 
+ #include <linux/device.h>
++#include <linux/lockdep_types.h>
+ #include <linux/mutex.h>
+ #include <linux/notifier.h>
+ 
+@@ -122,6 +123,8 @@ struct cros_ec_command {
+  *            command. The caller should check msg.result for the EC's result
+  *            code.
+  * @pkt_xfer: Send packet to EC and get response.
++ * @lockdep_key: Lockdep class for each instance. Unused if CONFIG_LOCKDEP is
++ *		 not enabled.
+  * @lock: One transaction at a time.
+  * @mkbp_event_supported: 0 if MKBP not supported. Otherwise its value is
+  *                        the maximum supported version of the MKBP host event
+@@ -176,6 +179,7 @@ struct cros_ec_device {
+ 			struct cros_ec_command *msg);
+ 	int (*pkt_xfer)(struct cros_ec_device *ec,
+ 			struct cros_ec_command *msg);
++	struct lock_class_key lockdep_key;
+ 	struct mutex lock;
+ 	u8 mkbp_event_supported;
+ 	bool host_sleep_v1;
+-- 
+cgit 
+
+
+From 8bb233b27fb7c11deefbe2318e75490b22cf3d1a Mon Sep 17 00:00:00 2001
+From: Tzung-Bi Shih <tzungbi@kernel.org>
+Date: Mon, 9 Jan 2023 16:15:54 +0800
+Subject: platform/chrome: cros_ec_uart: fix negative type promoted to high
+
+serdev_device_write_buf() returns negative numbers on errors.  When
+the return value compares to unsigned integer `len`, it promotes to
+quite large positive number.
+
+Fix it.
+
+Fixes: 04a8bdd135cc ("platform/chrome: cros_ec_uart: Add transport layer")
+Reported-by: Dan Carpenter <error27@gmail.com>
+Signed-off-by: Tzung-Bi Shih <tzungbi@kernel.org>
+Reviewed-by: Dan Carpenter <dan.carpenter@oracle.com>
+Reviewed-by: Benson Leung <bleung@chromium.org>
+Link: https://lore.kernel.org/r/20230109081554.3792547-1-tzungbi@kernel.org
+---
+ drivers/platform/chrome/cros_ec_uart.c | 5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/platform/chrome/cros_ec_uart.c b/drivers/platform/chrome/cros_ec_uart.c
+index 6916069f15992..788246559bbba 100644
+--- a/drivers/platform/chrome/cros_ec_uart.c
++++ b/drivers/platform/chrome/cros_ec_uart.c
+@@ -149,9 +149,10 @@ static int cros_ec_uart_pkt_xfer(struct cros_ec_device *ec_dev,
+ 	resp->status = 0;
+ 
+ 	ret = serdev_device_write_buf(serdev, ec_dev->dout, len);
+-	if (ret < len) {
++	if (ret < 0 || ret < len) {
+ 		dev_err(ec_dev->dev, "Unable to write data\n");
+-		ret = -EIO;
++		if (ret >= 0)
++			ret = -EIO;
+ 		goto exit;
+ 	}
+ 
+-- 
+cgit 
+
+
+From 6514bac4a321daaf2fdf3a116a644c77e4908f20 Mon Sep 17 00:00:00 2001
+From: Tzung-Bi Shih <tzungbi@kernel.org>
+Date: Tue, 17 Jan 2023 16:02:54 +0800
+Subject: platform/chrome: cros_ec_proto: remove big stub objects from stack
+
+sizeof(struct device) = 680
+sizeof(struct cros_ec_dev) = 720
+
+They tend to exceed the stack frame size limit in some specific
+environment which results in the following compilation error:
+
+>> drivers/platform/chrome/cros_ec_proto_test.c:2530:13: error: stack
+frame size (2128) exceeds limit (2048) in
+'cros_ec_proto_test_get_sensor_count_legacy'
+
+Remove the big stub objects from stack.
+
+This is:
+$ sed -i 's/struct cros_ec_dev /static struct cros_ec_dev /' \
+    drivers/platform/chrome/cros_ec_proto_test.c
+
+Reported-by: kernel test robot <lkp@intel.com>
+Signed-off-by: Tzung-Bi Shih <tzungbi@kernel.org>
+Reviewed-by: Guenter Roeck <linux@roeck-us.net>
+Link: https://lore.kernel.org/r/20230117080254.2725536-1-tzungbi@kernel.org
+---
+ drivers/platform/chrome/cros_ec_proto_test.c | 10 +++++-----
+ 1 file changed, 5 insertions(+), 5 deletions(-)
+
+diff --git a/drivers/platform/chrome/cros_ec_proto_test.c b/drivers/platform/chrome/cros_ec_proto_test.c
+index 08c58d031593a..5b9748e0463bc 100644
+--- a/drivers/platform/chrome/cros_ec_proto_test.c
++++ b/drivers/platform/chrome/cros_ec_proto_test.c
+@@ -2371,7 +2371,7 @@ static void cros_ec_proto_test_get_host_event_normal(struct kunit *test)
+ static void cros_ec_proto_test_check_features_cached(struct kunit *test)
+ {
+ 	int ret, i;
+-	struct cros_ec_dev ec;
++	static struct cros_ec_dev ec;
+ 
+ 	ec.features.flags[0] = EC_FEATURE_MASK_0(EC_FEATURE_FINGERPRINT);
+ 	ec.features.flags[1] = EC_FEATURE_MASK_0(EC_FEATURE_SCP);
+@@ -2396,7 +2396,7 @@ static void cros_ec_proto_test_check_features_not_cached(struct kunit *test)
+ 	struct cros_ec_device *ec_dev = &priv->ec_dev;
+ 	struct ec_xfer_mock *mock;
+ 	int ret, i;
+-	struct cros_ec_dev ec;
++	static struct cros_ec_dev ec;
+ 
+ 	ec_dev->max_request = 0xff;
+ 	ec_dev->max_response = 0xee;
+@@ -2449,7 +2449,7 @@ static void cros_ec_proto_test_get_sensor_count_normal(struct kunit *test)
+ 	struct cros_ec_device *ec_dev = &priv->ec_dev;
+ 	struct ec_xfer_mock *mock;
+ 	int ret;
+-	struct cros_ec_dev ec;
++	static struct cros_ec_dev ec;
+ 
+ 	ec_dev->max_request = 0xff;
+ 	ec_dev->max_response = 0xee;
+@@ -2494,7 +2494,7 @@ static void cros_ec_proto_test_get_sensor_count_xfer_error(struct kunit *test)
+ 	struct cros_ec_device *ec_dev = &priv->ec_dev;
+ 	struct ec_xfer_mock *mock;
+ 	int ret;
+-	struct cros_ec_dev ec;
++	static struct cros_ec_dev ec;
+ 
+ 	ec_dev->max_request = 0xff;
+ 	ec_dev->max_response = 0xee;
+@@ -2534,7 +2534,7 @@ static void cros_ec_proto_test_get_sensor_count_legacy(struct kunit *test)
+ 	struct cros_ec_device *ec_dev = &priv->ec_dev;
+ 	struct ec_xfer_mock *mock;
+ 	int ret, i;
+-	struct cros_ec_dev ec;
++	static struct cros_ec_dev ec;
+ 	struct {
+ 		u8 readmem_data;
+ 		int expected_result;
+-- 
+cgit 
+
+
+From 13aba1e532f047459a683f76439ad90fb29eab05 Mon Sep 17 00:00:00 2001
+From: Victor Ding <victording@chromium.org>
+Date: Tue, 24 Jan 2023 07:56:32 +0000
+Subject: platform/chrome: cros_ec_typec: allow deferred probe of switch
+ handles
+
+`fwnode_typec_{retimer,mux,switch}_get()` could return `-EPROBE_DEFER`,
+which is called from `cros_typec_get_switch_handles`. When this happens,
+it does not indicate absence of switches; instead, it only hints that
+probing of switches should occur at a later time.
+
+Progagate `-EPROBE_DEFER` to upper layer logic so that they can re-try
+probing switches as a better time.
+
+Signed-off-by: Victor Ding <victording@chromium.org>
+Reviewed-by: Benson Leung <bleung@chromium.org>
+Reviewed-by: Guenter Roeck <groeck@chromium.org>
+Reviewed-by: Heikki Krogerus <heikki.krogerus@linux.intel.com>
+Link: https://lore.kernel.org/r/20230124075555.v3.1.I6c0a089123fdf143f94ef4cca8677639031856cf@changeid
+Signed-off-by: Prashant Malani <pmalani@chromium.org>
+---
+ drivers/platform/chrome/cros_ec_typec.c | 24 ++++++++++++++++--------
+ 1 file changed, 16 insertions(+), 8 deletions(-)
+
+diff --git a/drivers/platform/chrome/cros_ec_typec.c b/drivers/platform/chrome/cros_ec_typec.c
+index e02107a6870a6..1abb471840d52 100644
+--- a/drivers/platform/chrome/cros_ec_typec.c
++++ b/drivers/platform/chrome/cros_ec_typec.c
+@@ -75,27 +75,33 @@ static int cros_typec_get_switch_handles(struct cros_typec_port *port,
+ 					 struct fwnode_handle *fwnode,
+ 					 struct device *dev)
+ {
++	int ret = 0;
++
+ 	port->mux = fwnode_typec_mux_get(fwnode, NULL);
+ 	if (IS_ERR(port->mux)) {
+-		dev_dbg(dev, "Mux handle not found.\n");
++		ret = PTR_ERR(port->mux);
++		dev_dbg(dev, "Mux handle not found: %d.\n", ret);
+ 		goto mux_err;
+ 	}
+ 
+ 	port->retimer = fwnode_typec_retimer_get(fwnode);
+ 	if (IS_ERR(port->retimer)) {
+-		dev_dbg(dev, "Retimer handle not found.\n");
++		ret = PTR_ERR(port->retimer);
++		dev_dbg(dev, "Retimer handle not found: %d.\n", ret);
+ 		goto retimer_sw_err;
+ 	}
+ 
+ 	port->ori_sw = fwnode_typec_switch_get(fwnode);
+ 	if (IS_ERR(port->ori_sw)) {
+-		dev_dbg(dev, "Orientation switch handle not found.\n");
++		ret = PTR_ERR(port->ori_sw);
++		dev_dbg(dev, "Orientation switch handle not found: %d\n", ret);
+ 		goto ori_sw_err;
+ 	}
+ 
+ 	port->role_sw = fwnode_usb_role_switch_get(fwnode);
+ 	if (IS_ERR(port->role_sw)) {
+-		dev_dbg(dev, "USB role switch handle not found.\n");
++		ret = PTR_ERR(port->role_sw);
++		dev_dbg(dev, "USB role switch handle not found: %d\n", ret);
+ 		goto role_sw_err;
+ 	}
+ 
+@@ -111,7 +117,7 @@ retimer_sw_err:
+ 	typec_mux_put(port->mux);
+ 	port->mux = NULL;
+ mux_err:
+-	return -ENODEV;
++	return ret;
+ }
+ 
+ static int cros_typec_add_partner(struct cros_typec_data *typec, int port_num,
+@@ -359,9 +365,11 @@ static int cros_typec_init_ports(struct cros_typec_data *typec)
+ 		}
+ 
+ 		ret = cros_typec_get_switch_handles(cros_port, fwnode, dev);
+-		if (ret)
+-			dev_dbg(dev, "No switch control for port %d\n",
+-				port_num);
++		if (ret) {
++			dev_dbg(dev, "No switch control for port %d, err: %d\n", port_num, ret);
++			if (ret == -EPROBE_DEFER)
++				goto unregister_ports;
++		}
+ 
+ 		ret = cros_typec_register_port_altmodes(typec, port_num);
+ 		if (ret) {
+-- 
+cgit 
+
+
+From 478f32ab4daae8a9bae3723d1040c6e4e3a09bc5 Mon Sep 17 00:00:00 2001
+From: Prashant Malani <pmalani@chromium.org>
+Date: Fri, 13 Jan 2023 18:26:26 +0000
+Subject: platform/chrome: cros_typec_vdm: Fix VDO copy
+
+The usage of memcpy() affects the representation of the VDOs as they are
+copied to the EC Host Command buffer. Specifically, all higher order
+bits get dropped (for example: a VDO of 0x406 just gets copied as 0x6).
+
+Avoid this by explicitly copying each VDO in the array. The number of
+VDOs generated by alternate mode drivers in their VDMs is almost always
+just 1 (apart from the header) so this doesn't affect performance in a
+meaningful way).
+
+Fixes: 40a9b13a09ef ("platform/chrome: cros_typec_vdm: Add VDM send support")
+Signed-off-by: Prashant Malani <pmalani@chromium.org>
+Reviewed-by: Benson Leung <bleung@chromium.org>
+Link: https://lore.kernel.org/r/20230113182626.1149539-1-pmalani@chromium.org
+Signed-off-by: Prashant Malani <pmalani@chromium.org>
+---
+ drivers/platform/chrome/cros_typec_vdm.c | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/platform/chrome/cros_typec_vdm.c b/drivers/platform/chrome/cros_typec_vdm.c
+index aca9d337118ef..06f4a55999c55 100644
+--- a/drivers/platform/chrome/cros_typec_vdm.c
++++ b/drivers/platform/chrome/cros_typec_vdm.c
+@@ -86,10 +86,12 @@ static int cros_typec_port_amode_vdm(struct typec_altmode *amode, const u32 hdr,
+ 		.command = TYPEC_CONTROL_COMMAND_SEND_VDM_REQ,
+ 	};
+ 	struct typec_vdm_req vdm_req = {};
++	int i;
+ 
+ 	vdm_req.vdm_data[0] = hdr;
+ 	vdm_req.vdm_data_objects = cnt;
+-	memcpy(&vdm_req.vdm_data[1], vdo, cnt - 1);
++	for (i = 1; i < cnt; i++)
++		vdm_req.vdm_data[i] = vdo[i-1];
+ 	vdm_req.partner_type = TYPEC_PARTNER_SOP;
+ 	req.vdm_req_params = vdm_req;
+ 
+-- 
+cgit 
+
+
+From 4b1936cd081496865151eaab539f767240952306 Mon Sep 17 00:00:00 2001
+From: Prashant Malani <pmalani@chromium.org>
+Date: Thu, 26 Jan 2023 20:55:45 +0000
+Subject: platform/chrome: cros_ec: Add VDM attention headers
+
+Incorporate updates to the EC headers to support the retrieval of VDM
+Attention messages from port partners. These headers are already present
+in the ChromeOS EC codebase. [1]
+
+[1] https://source.chromium.org/chromium/chromiumos/platform/ec/+/main:include/ec_commands.h
+
+Signed-off-by: Prashant Malani <pmalani@chromium.org>
+[pmalani: Removed extra tab in header #define]
+Reviewed-by: Benson Leung <bleung@chromium.org>
+Reviewed-by: Tzung-Bi Shih <tzungbi@kernel.org>
+Link: https://lore.kernel.org/r/20230126205620.3714994-1-pmalani@chromium.org
+---
+ include/linux/platform_data/cros_ec_commands.h | 16 +++++++++++++---
+ 1 file changed, 13 insertions(+), 3 deletions(-)
+
+diff --git a/include/linux/platform_data/cros_ec_commands.h b/include/linux/platform_data/cros_ec_commands.h
+index b9c4a39642477..b3b3df163efc5 100644
+--- a/include/linux/platform_data/cros_ec_commands.h
++++ b/include/linux/platform_data/cros_ec_commands.h
+@@ -5862,6 +5862,7 @@ enum tcpc_cc_polarity {
+ #define PD_STATUS_EVENT_MUX_1_SET_DONE		BIT(5)
+ #define PD_STATUS_EVENT_VDM_REQ_REPLY		BIT(6)
+ #define PD_STATUS_EVENT_VDM_REQ_FAILED		BIT(7)
++#define PD_STATUS_EVENT_VDM_ATTENTION		BIT(8)
+ 
+ struct ec_params_typec_status {
+ 	uint8_t port;
+@@ -5906,7 +5907,8 @@ struct ec_response_typec_status {
+ } __ec_align1;
+ 
+ /*
+- * Gather the response to the most recent VDM REQ from the AP
++ * Gather the response to the most recent VDM REQ from the AP, as well
++ * as popping the oldest VDM:Attention from the DPM queue
+  */
+ #define EC_CMD_TYPEC_VDM_RESPONSE 0x013C
+ 
+@@ -5919,10 +5921,18 @@ struct ec_response_typec_vdm_response {
+ 	uint8_t vdm_data_objects;
+ 	/* Partner to address - see enum typec_partner_type */
+ 	uint8_t partner_type;
+-	/* Reserved */
+-	uint16_t reserved;
++	/* enum ec_status describing VDM response */
++	uint16_t vdm_response_err;
+ 	/* VDM data, including VDM header */
+ 	uint32_t vdm_response[VDO_MAX_SIZE];
++	/* Number of 32-bit Attention fields filled in */
++	uint8_t vdm_attention_objects;
++	/* Number of remaining messages to consume */
++	uint8_t vdm_attention_left;
++	/* Reserved */
++	uint16_t reserved1;
++	/* VDM:Attention contents */
++	uint32_t vdm_attention[2];
+ } __ec_align1;
+ 
+ #undef VDO_MAX_SIZE
+-- 
+cgit 
+
+
+From f54c013e7eef2962e610c9223e13659e65dfb550 Mon Sep 17 00:00:00 2001
+From: Prashant Malani <pmalani@chromium.org>
+Date: Thu, 26 Jan 2023 20:55:46 +0000
+Subject: platform/chrome: cros_typec_vdm: Add Attention support
+
+Add support to retrieve VDM attention messages and forward them to the
+appropriate alt mode driver.
+
+Signed-off-by: Prashant Malani <pmalani@chromium.org>
+Reviewed-by: Benson Leung <bleung@chromium.org>
+Reviewed-by: Heikki Krogerus <heikki.krogerus@linux.intel.com>
+Link: https://lore.kernel.org/r/20230126205620.3714994-2-pmalani@chromium.org
+---
+ drivers/platform/chrome/cros_ec_typec.c  |  8 +++++++
+ drivers/platform/chrome/cros_typec_vdm.c | 40 ++++++++++++++++++++++++++++++++
+ drivers/platform/chrome/cros_typec_vdm.h |  1 +
+ 3 files changed, 49 insertions(+)
+
+diff --git a/drivers/platform/chrome/cros_ec_typec.c b/drivers/platform/chrome/cros_ec_typec.c
+index 1abb471840d52..71f5d7d8e055b 100644
+--- a/drivers/platform/chrome/cros_ec_typec.c
++++ b/drivers/platform/chrome/cros_ec_typec.c
+@@ -1015,6 +1015,14 @@ static void cros_typec_handle_status(struct cros_typec_data *typec, int port_num
+ 		if (ret < 0)
+ 			dev_warn(typec->dev, "Failed VDM Reply event clear, port: %d\n", port_num);
+ 	}
++
++	if (resp.events & PD_STATUS_EVENT_VDM_ATTENTION) {
++		cros_typec_handle_vdm_attention(typec, port_num);
++		ret = cros_typec_send_clear_event(typec, port_num, PD_STATUS_EVENT_VDM_ATTENTION);
++		if (ret < 0)
++			dev_warn(typec->dev, "Failed VDM Attenetion event clear, port: %d\n",
++				 port_num);
++	}
+ }
+ 
+ static int cros_typec_port_update(struct cros_typec_data *typec, int port_num)
+diff --git a/drivers/platform/chrome/cros_typec_vdm.c b/drivers/platform/chrome/cros_typec_vdm.c
+index 06f4a55999c55..20515ee0a20e4 100644
+--- a/drivers/platform/chrome/cros_typec_vdm.c
++++ b/drivers/platform/chrome/cros_typec_vdm.c
+@@ -13,6 +13,46 @@
+ #include "cros_ec_typec.h"
+ #include "cros_typec_vdm.h"
+ 
++/*
++ * Retrieves pending VDM attention messages from the EC and forwards them to the altmode driver
++ * based on SVID.
++ */
++void cros_typec_handle_vdm_attention(struct cros_typec_data *typec, int port_num)
++{
++	struct ec_response_typec_vdm_response resp;
++	struct ec_params_typec_vdm_response req = {
++		.port = port_num,
++	};
++	struct typec_altmode *amode;
++	u16 svid;
++	u32 hdr;
++	int ret;
++
++	do {
++		ret = cros_ec_cmd(typec->ec, 0, EC_CMD_TYPEC_VDM_RESPONSE, &req,
++				sizeof(req), &resp, sizeof(resp));
++		if (ret < 0) {
++			dev_warn(typec->dev, "Failed VDM response fetch, port: %d\n", port_num);
++			return;
++		}
++
++		hdr = resp.vdm_response[0];
++		svid = PD_VDO_VID(hdr);
++		dev_dbg(typec->dev, "Received VDM Attention header: %x, port: %d\n", hdr, port_num);
++
++		amode = typec_match_altmode(typec->ports[port_num]->port_altmode,
++					    CROS_EC_ALTMODE_MAX, svid, PD_VDO_OPOS(hdr));
++		if (!amode) {
++			dev_err(typec->dev,
++				"Received VDM for unregistered altmode (SVID:%x), port: %d\n",
++				svid, port_num);
++			return;
++		}
++
++		typec_altmode_attention(amode, resp.vdm_attention[1]);
++	} while (resp.vdm_attention_left);
++}
++
+ /*
+  * Retrieves a VDM response from the EC and forwards it to the altmode driver based on SVID.
+  */
+diff --git a/drivers/platform/chrome/cros_typec_vdm.h b/drivers/platform/chrome/cros_typec_vdm.h
+index 003587525554c..95a6a75d32b6b 100644
+--- a/drivers/platform/chrome/cros_typec_vdm.h
++++ b/drivers/platform/chrome/cros_typec_vdm.h
+@@ -7,6 +7,7 @@
+ 
+ extern struct typec_altmode_ops port_amode_ops;
+ 
++void cros_typec_handle_vdm_attention(struct cros_typec_data *typec, int port_num);
+ void cros_typec_handle_vdm_response(struct cros_typec_data *typec, int port_num);
+ 
+ #endif /*  __CROS_TYPEC_VDM__ */
+-- 
+cgit 
+
+
+From b0d8a67715dae445c065c83a40a581d6563a341f Mon Sep 17 00:00:00 2001
+From: Colin Ian King <colin.i.king@gmail.com>
+Date: Tue, 7 Feb 2023 09:14:43 +0000
+Subject: platform/chrome: cros_ec_typec: Fix spelling mistake
+
+There is a spelling mistake in a dev_warn message, make it lower case
+and fix the spelling.
+
+Signed-off-by: Colin Ian King <colin.i.king@gmail.com>
+Reviewed-by: Tzung-Bi Shih <tzungbi@kernel.org>
+Reviewed-by: Guenter Roeck <groeck@chromium.org>
+Link: https://lore.kernel.org/r/20230207091443.143995-1-colin.i.king@gmail.com
+Signed-off-by: Prashant Malani <pmalani@chromium.org>
+[pmalani fixed up commit message based on tzungbi comment]
+---
+ drivers/platform/chrome/cros_ec_typec.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/platform/chrome/cros_ec_typec.c b/drivers/platform/chrome/cros_ec_typec.c
+index 71f5d7d8e055b..a673c33424706 100644
+--- a/drivers/platform/chrome/cros_ec_typec.c
++++ b/drivers/platform/chrome/cros_ec_typec.c
+@@ -1020,7 +1020,7 @@ static void cros_typec_handle_status(struct cros_typec_data *typec, int port_num
+ 		cros_typec_handle_vdm_attention(typec, port_num);
+ 		ret = cros_typec_send_clear_event(typec, port_num, PD_STATUS_EVENT_VDM_ATTENTION);
+ 		if (ret < 0)
+-			dev_warn(typec->dev, "Failed VDM Attenetion event clear, port: %d\n",
++			dev_warn(typec->dev, "Failed VDM attention event clear, port: %d\n",
+ 				 port_num);
+ 	}
+ }
+-- 
+cgit 
+

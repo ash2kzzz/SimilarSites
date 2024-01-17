@@ -1,0 +1,43 @@
+From 7096deb7b5387e7899655213b7430ab043ddda4f Mon Sep 17 00:00:00 2001
+From: Andrew Donnellan <ajd@linux.ibm.com>
+Date: Thu, 16 Feb 2023 18:09:03 +1100
+Subject: powerpc/pseries: Fix endianness issue when parsing PLPKS secvar flags
+
+When a user updates a variable through the PLPKS secvar interface, we take
+the first 8 bytes of the data written to the update attribute to pass
+through to the H_PKS_SIGNED_UPDATE hcall as flags. These bytes are always
+written in big-endian format.
+
+Currently, the flags bytes are memcpy()ed into a u64, which is then loaded
+into a register to pass as part of the hcall. This means that on LE
+systems, the bytes are in the wrong order.
+
+Use be64_to_cpup() instead, to ensure the flags bytes are byteswapped if
+necessary.
+
+Reported-by: Stefan Berger <stefanb@linux.ibm.com>
+Fixes: ccadf154cb00 ("powerpc/pseries: Implement secvars for dynamic secure boot")
+Signed-off-by: Andrew Donnellan <ajd@linux.ibm.com>
+Signed-off-by: Michael Ellerman <mpe@ellerman.id.au>
+Link: https://lore.kernel.org/r/20230216070903.355091-1-ajd@linux.ibm.com
+---
+ arch/powerpc/platforms/pseries/plpks-secvar.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/arch/powerpc/platforms/pseries/plpks-secvar.c b/arch/powerpc/platforms/pseries/plpks-secvar.c
+index f6c8888f40766..257fd1f8bc191 100644
+--- a/arch/powerpc/platforms/pseries/plpks-secvar.c
++++ b/arch/powerpc/platforms/pseries/plpks-secvar.c
+@@ -135,7 +135,8 @@ static int plpks_set_variable(const char *key, u64 key_len, u8 *data,
+ 		goto err;
+ 	var.namelen = rc * 2;
+ 
+-	memcpy(&flags, data, sizeof(flags));
++	// Flags are contained in the first 8 bytes of the buffer, and are always big-endian
++	flags = be64_to_cpup((__be64 *)data);
+ 
+ 	var.datalen = data_size - sizeof(flags);
+ 	var.data = data + sizeof(flags);
+-- 
+cgit 
+

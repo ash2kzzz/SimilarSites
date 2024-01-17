@@ -1,0 +1,41 @@
+From 61d7dddf46caa1c6dd869385a275e4d2931e7090 Mon Sep 17 00:00:00 2001
+From: Miquel Raynal <miquel.raynal@bootlin.com>
+Date: Tue, 14 Feb 2023 14:50:34 +0100
+Subject: mac802154: Fix an always true condition
+
+At this stage we simply do not care about the delayed work value,
+because active scan is not yet supported, so we can blindly queue
+another work once a beacon has been sent.
+
+It fixes a smatch warning:
+    mac802154_beacon_worker() warn: always true condition
+    '(local->beacon_interval >= 0) => (0-u32max >= 0)'
+
+Fixes: 3accf4762734 ("mac802154: Handle basic beaconing")
+Reported-by: kernel test robot <lkp@intel.com>
+Signed-off-by: Miquel Raynal <miquel.raynal@bootlin.com>
+Link: https://lore.kernel.org/r/20230214135035.1202471-6-miquel.raynal@bootlin.com
+Signed-off-by: Stefan Schmidt <stefan@datenfreihafen.org>
+---
+ net/mac802154/scan.c | 5 ++---
+ 1 file changed, 2 insertions(+), 3 deletions(-)
+
+diff --git a/net/mac802154/scan.c b/net/mac802154/scan.c
+index fff41e59099eb..9b0933a185ebc 100644
+--- a/net/mac802154/scan.c
++++ b/net/mac802154/scan.c
+@@ -383,9 +383,8 @@ void mac802154_beacon_worker(struct work_struct *work)
+ 		dev_err(&sdata->dev->dev,
+ 			"Beacon could not be transmitted (%d)\n", ret);
+ 
+-	if (local->beacon_interval >= 0)
+-		queue_delayed_work(local->mac_wq, &local->beacon_work,
+-				   local->beacon_interval);
++	queue_delayed_work(local->mac_wq, &local->beacon_work,
++			   local->beacon_interval);
+ }
+ 
+ int mac802154_stop_beacons_locked(struct ieee802154_local *local,
+-- 
+cgit 
+

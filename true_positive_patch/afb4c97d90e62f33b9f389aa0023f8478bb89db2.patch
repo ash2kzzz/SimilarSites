@@ -1,0 +1,35 @@
+From afb4c97d90e62f33b9f389aa0023f8478bb89db2 Mon Sep 17 00:00:00 2001
+From: Haishuang Yan <yanhaishuang@cmss.chinamobile.com>
+Date: Wed, 20 Dec 2017 10:07:01 +0800
+Subject: ip6_gre: fix potential memory leak in ip6erspan_rcv
+
+If md is NULL, tun_dst must be freed, otherwise it will cause memory
+leak.
+
+Fixes: ef7baf5e083c ("ip6_gre: add ip6 erspan collect_md mode")
+Cc: William Tu <u9012063@gmail.com>
+Signed-off-by: Haishuang Yan <yanhaishuang@cmss.chinamobile.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ net/ipv6/ip6_gre.c | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/net/ipv6/ip6_gre.c b/net/ipv6/ip6_gre.c
+index b7a79ddcf8516..8451d00b210bc 100644
+--- a/net/ipv6/ip6_gre.c
++++ b/net/ipv6/ip6_gre.c
+@@ -550,8 +550,10 @@ static int ip6erspan_rcv(struct sk_buff *skb, int gre_hdr_len,
+ 
+ 			info = &tun_dst->u.tun_info;
+ 			md = ip_tunnel_info_opts(info);
+-			if (!md)
++			if (!md) {
++				dst_release((struct dst_entry *)tun_dst);
+ 				return PACKET_REJECT;
++			}
+ 
+ 			memcpy(md, pkt_md, sizeof(*md));
+ 			md->version = ver;
+-- 
+cgit 
+

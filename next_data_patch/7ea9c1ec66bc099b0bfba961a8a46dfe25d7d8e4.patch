@@ -1,0 +1,43 @@
+From 7ea9c1ec66bc099b0bfba961a8a46dfe25d7d8e4 Mon Sep 17 00:00:00 2001
+From: Chuck Lever <chuck.lever@oracle.com>
+Date: Thu, 11 May 2023 11:47:40 -0400
+Subject: net/handshake: Fix handshake_dup() ref counting
+
+If get_unused_fd_flags() fails, we ended up calling fput(sock->file)
+twice.
+
+Reported-by: Dan Carpenter <dan.carpenter@linaro.org>
+Suggested-by: Paolo Abeni <pabeni@redhat.com>
+Fixes: 3b3009ea8abb ("net/handshake: Create a NETLINK service for handling handshake requests")
+Signed-off-by: Chuck Lever <chuck.lever@oracle.com>
+Signed-off-by: Jakub Kicinski <kuba@kernel.org>
+---
+ net/handshake/netlink.c | 5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/net/handshake/netlink.c b/net/handshake/netlink.c
+index 7ec8a76c3c8a7..f5dc170689d9c 100644
+--- a/net/handshake/netlink.c
++++ b/net/handshake/netlink.c
+@@ -139,15 +139,16 @@ int handshake_nl_accept_doit(struct sk_buff *skb, struct genl_info *info)
+ 		goto out_complete;
+ 	}
+ 	err = req->hr_proto->hp_accept(req, info, fd);
+-	if (err)
++	if (err) {
++		fput(sock->file);
+ 		goto out_complete;
++	}
+ 
+ 	trace_handshake_cmd_accept(net, req, req->hr_sk, fd);
+ 	return 0;
+ 
+ out_complete:
+ 	handshake_complete(req, -EIO, NULL);
+-	fput(sock->file);
+ out_status:
+ 	trace_handshake_cmd_accept_err(net, req, NULL, err);
+ 	return err;
+-- 
+cgit 
+

@@ -1,0 +1,2406 @@
+From d8960dfb9d6dd940265cd48d7de6ad7060aa6963 Mon Sep 17 00:00:00 2001
+From: Hui Wang <hui.wang@canonical.com>
+Date: Tue, 20 Dec 2022 15:33:35 +0800
+Subject: leds: pwm: Clear the led structure before parsing each child node
+
+I defined 2 leds in the device tree, in the 1st led node, the
+max-brightness is set to 248, while in the 2nd led node, I
+mis-spelled the max-brightness to max-brighttness, but the driver
+is still able to get the max-brightness 248 for the 2nd node,  that
+is because the led structure is not cleared before parsing each child
+node.
+
+	pwmleds {
+		compatible = "pwm-leds";
+
+		pwm-green {
+			...
+			max-brightness = <248>;
+		};
+
+		pwm-red {
+		        ...
+			max-brighttness = <128>;
+		};
+
+Signed-off-by: Hui Wang <hui.wang@canonical.com>
+Signed-off-by: Lee Jones <lee@kernel.org>
+Link: https://lore.kernel.org/r/20221220073335.393489-1-hui.wang@canonical.com
+---
+ drivers/leds/leds-pwm.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/leds/leds-pwm.c b/drivers/leds/leds-pwm.c
+index 6832180c1c54f..29194cc382afb 100644
+--- a/drivers/leds/leds-pwm.c
++++ b/drivers/leds/leds-pwm.c
+@@ -138,9 +138,9 @@ static int led_pwm_create_fwnode(struct device *dev, struct led_pwm_priv *priv)
+ 	struct led_pwm led;
+ 	int ret;
+ 
+-	memset(&led, 0, sizeof(led));
+-
+ 	device_for_each_child_node(dev, fwnode) {
++		memset(&led, 0, sizeof(led));
++
+ 		ret = fwnode_property_read_string(fwnode, "label", &led.name);
+ 		if (ret && is_of_node(fwnode))
+ 			led.name = to_of_node(fwnode)->name;
+-- 
+cgit 
+
+
+From da1afe8e6099980fe1e2fd7436dca284af9d3f29 Mon Sep 17 00:00:00 2001
+From: Miaoqian Lin <linmq006@gmail.com>
+Date: Tue, 20 Dec 2022 16:18:07 +0400
+Subject: leds: led-core: Fix refcount leak in of_led_get()
+
+class_find_device_by_of_node() calls class_find_device(), it will take
+the reference, use the put_device() to drop the reference when not need
+anymore.
+
+Fixes: 699a8c7c4bd3 ("leds: Add of_led_get() and led_put()")
+Signed-off-by: Miaoqian Lin <linmq006@gmail.com>
+Signed-off-by: Lee Jones <lee@kernel.org>
+Link: https://lore.kernel.org/r/20221220121807.1543790-1-linmq006@gmail.com
+---
+ drivers/leds/led-class.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/drivers/leds/led-class.c b/drivers/leds/led-class.c
+index 0c4b8d8d2b4fe..a6b3adcd044a0 100644
+--- a/drivers/leds/led-class.c
++++ b/drivers/leds/led-class.c
+@@ -253,6 +253,7 @@ struct led_classdev *of_led_get(struct device_node *np, int index)
+ 
+ 	led_dev = class_find_device_by_of_node(leds_class, led_node);
+ 	of_node_put(led_node);
++	put_device(led_dev);
+ 
+ 	return led_module_get(led_dev);
+ }
+-- 
+cgit 
+
+
+From 6900cd261b4d3d81f326c82a8b032d0f78a2030c Mon Sep 17 00:00:00 2001
+From: Uwe Kleine-König <u.kleine-koenig@pengutronix.de>
+Date: Fri, 18 Nov 2022 23:40:02 +0100
+Subject: leds: bd2802: Convert to i2c's .probe_new()
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+The probe function doesn't make use of the i2c_device_id * parameter so it
+can be trivially converted.
+
+Signed-off-by: Uwe Kleine-König <u.kleine-koenig@pengutronix.de>
+Signed-off-by: Lee Jones <lee@kernel.org>
+Link: https://lore.kernel.org/r/20221118224540.619276-269-uwe@kleine-koenig.org
+---
+ drivers/leds/leds-bd2802.c | 5 ++---
+ 1 file changed, 2 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/leds/leds-bd2802.c b/drivers/leds/leds-bd2802.c
+index 2b6678f6bd565..601185ddabcc2 100644
+--- a/drivers/leds/leds-bd2802.c
++++ b/drivers/leds/leds-bd2802.c
+@@ -656,8 +656,7 @@ static void bd2802_unregister_led_classdev(struct bd2802_led *led)
+ 	led_classdev_unregister(&led->cdev_led1r);
+ }
+ 
+-static int bd2802_probe(struct i2c_client *client,
+-			const struct i2c_device_id *id)
++static int bd2802_probe(struct i2c_client *client)
+ {
+ 	struct bd2802_led *led;
+ 	int ret, i;
+@@ -787,7 +786,7 @@ static struct i2c_driver bd2802_i2c_driver = {
+ 		.name	= "BD2802",
+ 		.pm	= &bd2802_pm,
+ 	},
+-	.probe		= bd2802_probe,
++	.probe_new	= bd2802_probe,
+ 	.remove		= bd2802_remove,
+ 	.id_table	= bd2802_id,
+ };
+-- 
+cgit 
+
+
+From 65c084d848cd717d5913032dfa9e9c62ed33babd Mon Sep 17 00:00:00 2001
+From: Uwe Kleine-König <u.kleine-koenig@pengutronix.de>
+Date: Fri, 18 Nov 2022 23:40:03 +0100
+Subject: leds: blinkm: Convert to i2c's .probe_new()
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+The probe function doesn't make use of the i2c_device_id * parameter so it
+can be trivially converted.
+
+Signed-off-by: Uwe Kleine-König <u.kleine-koenig@pengutronix.de>
+Signed-off-by: Lee Jones <lee@kernel.org>
+Link: https://lore.kernel.org/r/20221118224540.619276-270-uwe@kleine-koenig.org
+---
+ drivers/leds/leds-blinkm.c | 5 ++---
+ 1 file changed, 2 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/leds/leds-blinkm.c b/drivers/leds/leds-blinkm.c
+index e19cc8a7b7cac..37f2f32ae42d7 100644
+--- a/drivers/leds/leds-blinkm.c
++++ b/drivers/leds/leds-blinkm.c
+@@ -565,8 +565,7 @@ static int blinkm_detect(struct i2c_client *client, struct i2c_board_info *info)
+ 	return 0;
+ }
+ 
+-static int blinkm_probe(struct i2c_client *client,
+-			const struct i2c_device_id *id)
++static int blinkm_probe(struct i2c_client *client)
+ {
+ 	struct blinkm_data *data;
+ 	struct blinkm_led *led[3];
+@@ -731,7 +730,7 @@ static struct i2c_driver blinkm_driver = {
+ 	.driver = {
+ 		   .name = "blinkm",
+ 		   },
+-	.probe = blinkm_probe,
++	.probe_new = blinkm_probe,
+ 	.remove = blinkm_remove,
+ 	.id_table = blinkm_id,
+ 	.detect = blinkm_detect,
+-- 
+cgit 
+
+
+From 7d24e11b1de7fc9b5425101ebfec653326eba66b Mon Sep 17 00:00:00 2001
+From: Uwe Kleine-König <u.kleine-koenig@pengutronix.de>
+Date: Fri, 18 Nov 2022 23:40:04 +0100
+Subject: leds: is31fl32xx: Convert to i2c's .probe_new()
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+The probe function doesn't make use of the i2c_device_id * parameter so it
+can be trivially converted.
+
+Signed-off-by: Uwe Kleine-König <u.kleine-koenig@pengutronix.de>
+Signed-off-by: Lee Jones <lee@kernel.org>
+Link: https://lore.kernel.org/r/20221118224540.619276-271-uwe@kleine-koenig.org
+---
+ drivers/leds/leds-is31fl32xx.c | 5 ++---
+ 1 file changed, 2 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/leds/leds-is31fl32xx.c b/drivers/leds/leds-is31fl32xx.c
+index 0d219c1ac3b54..799191859ce07 100644
+--- a/drivers/leds/leds-is31fl32xx.c
++++ b/drivers/leds/leds-is31fl32xx.c
+@@ -422,8 +422,7 @@ static const struct of_device_id of_is31fl32xx_match[] = {
+ 
+ MODULE_DEVICE_TABLE(of, of_is31fl32xx_match);
+ 
+-static int is31fl32xx_probe(struct i2c_client *client,
+-			    const struct i2c_device_id *id)
++static int is31fl32xx_probe(struct i2c_client *client)
+ {
+ 	const struct is31fl32xx_chipdef *cdef;
+ 	struct device *dev = &client->dev;
+@@ -489,7 +488,7 @@ static struct i2c_driver is31fl32xx_driver = {
+ 		.name	= "is31fl32xx",
+ 		.of_match_table = of_is31fl32xx_match,
+ 	},
+-	.probe		= is31fl32xx_probe,
++	.probe_new	= is31fl32xx_probe,
+ 	.remove		= is31fl32xx_remove,
+ 	.id_table	= is31fl32xx_id,
+ };
+-- 
+cgit 
+
+
+From 5d080668ba3ad5a7e68a4cb1c0709ae279d1a1d3 Mon Sep 17 00:00:00 2001
+From: Uwe Kleine-König <u.kleine-koenig@pengutronix.de>
+Date: Fri, 18 Nov 2022 23:40:05 +0100
+Subject: leds: lm3530: Convert to i2c's .probe_new()
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+The probe function doesn't make use of the i2c_device_id * parameter so it
+can be trivially converted.
+
+Signed-off-by: Uwe Kleine-König <u.kleine-koenig@pengutronix.de>
+Signed-off-by: Lee Jones <lee@kernel.org>
+Link: https://lore.kernel.org/r/20221118224540.619276-272-uwe@kleine-koenig.org
+---
+ drivers/leds/leds-lm3530.c | 5 ++---
+ 1 file changed, 2 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/leds/leds-lm3530.c b/drivers/leds/leds-lm3530.c
+index ba906c253c7f4..a9a2018592ffc 100644
+--- a/drivers/leds/leds-lm3530.c
++++ b/drivers/leds/leds-lm3530.c
+@@ -405,8 +405,7 @@ static struct attribute *lm3530_attrs[] = {
+ };
+ ATTRIBUTE_GROUPS(lm3530);
+ 
+-static int lm3530_probe(struct i2c_client *client,
+-			   const struct i2c_device_id *id)
++static int lm3530_probe(struct i2c_client *client)
+ {
+ 	struct lm3530_platform_data *pdata = dev_get_platdata(&client->dev);
+ 	struct lm3530_data *drvdata;
+@@ -485,7 +484,7 @@ static const struct i2c_device_id lm3530_id[] = {
+ MODULE_DEVICE_TABLE(i2c, lm3530_id);
+ 
+ static struct i2c_driver lm3530_i2c_driver = {
+-	.probe = lm3530_probe,
++	.probe_new = lm3530_probe,
+ 	.remove = lm3530_remove,
+ 	.id_table = lm3530_id,
+ 	.driver = {
+-- 
+cgit 
+
+
+From 912bcc8af39c4d5313d8dd16ebb9066579502197 Mon Sep 17 00:00:00 2001
+From: Uwe Kleine-König <u.kleine-koenig@pengutronix.de>
+Date: Fri, 18 Nov 2022 23:40:06 +0100
+Subject: leds: lm3532: Convert to i2c's .probe_new()
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+The probe function doesn't make use of the i2c_device_id * parameter so it
+can be trivially converted.
+
+Signed-off-by: Uwe Kleine-König <u.kleine-koenig@pengutronix.de>
+Signed-off-by: Lee Jones <lee@kernel.org>
+Link: https://lore.kernel.org/r/20221118224540.619276-273-uwe@kleine-koenig.org
+---
+ drivers/leds/leds-lm3532.c | 5 ++---
+ 1 file changed, 2 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/leds/leds-lm3532.c b/drivers/leds/leds-lm3532.c
+index db64d44bcbbfb..a08c09129a68b 100644
+--- a/drivers/leds/leds-lm3532.c
++++ b/drivers/leds/leds-lm3532.c
+@@ -663,8 +663,7 @@ child_out:
+ 	return ret;
+ }
+ 
+-static int lm3532_probe(struct i2c_client *client,
+-			   const struct i2c_device_id *id)
++static int lm3532_probe(struct i2c_client *client)
+ {
+ 	struct lm3532_data *drvdata;
+ 	int ret = 0;
+@@ -727,7 +726,7 @@ static const struct i2c_device_id lm3532_id[] = {
+ MODULE_DEVICE_TABLE(i2c, lm3532_id);
+ 
+ static struct i2c_driver lm3532_i2c_driver = {
+-	.probe = lm3532_probe,
++	.probe_new = lm3532_probe,
+ 	.remove = lm3532_remove,
+ 	.id_table = lm3532_id,
+ 	.driver = {
+-- 
+cgit 
+
+
+From 0712cb933631c196264b4526e4e9b2d1d022cafa Mon Sep 17 00:00:00 2001
+From: Uwe Kleine-König <u.kleine-koenig@pengutronix.de>
+Date: Fri, 18 Nov 2022 23:40:07 +0100
+Subject: leds: lm355x: Convert to i2c's .probe_new()
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+.probe_new() doesn't get the i2c_device_id * parameter, so determine
+that explicitly in the probe function.
+
+Signed-off-by: Uwe Kleine-König <u.kleine-koenig@pengutronix.de>
+Signed-off-by: Lee Jones <lee@kernel.org>
+Link: https://lore.kernel.org/r/20221118224540.619276-274-uwe@kleine-koenig.org
+---
+ drivers/leds/leds-lm355x.c | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/leds/leds-lm355x.c b/drivers/leds/leds-lm355x.c
+index daa35927b3019..612873070ca48 100644
+--- a/drivers/leds/leds-lm355x.c
++++ b/drivers/leds/leds-lm355x.c
+@@ -396,9 +396,9 @@ static const struct regmap_config lm355x_regmap = {
+ };
+ 
+ /* module initialize */
+-static int lm355x_probe(struct i2c_client *client,
+-				  const struct i2c_device_id *id)
++static int lm355x_probe(struct i2c_client *client)
+ {
++	const struct i2c_device_id *id = i2c_client_get_device_id(client);
+ 	struct lm355x_platform_data *pdata = dev_get_platdata(&client->dev);
+ 	struct lm355x_chip_data *chip;
+ 
+@@ -516,7 +516,7 @@ static struct i2c_driver lm355x_i2c_driver = {
+ 		   .name = LM355x_NAME,
+ 		   .pm = NULL,
+ 		   },
+-	.probe = lm355x_probe,
++	.probe_new = lm355x_probe,
+ 	.remove = lm355x_remove,
+ 	.id_table = lm355x_id,
+ };
+-- 
+cgit 
+
+
+From dc01357c5cf04eb95b742f10a2e9e05146c59a8a Mon Sep 17 00:00:00 2001
+From: Uwe Kleine-König <u.kleine-koenig@pengutronix.de>
+Date: Fri, 18 Nov 2022 23:40:08 +0100
+Subject: leds: lm3642: Convert to i2c's .probe_new()
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+The probe function doesn't make use of the i2c_device_id * parameter so it
+can be trivially converted.
+
+Signed-off-by: Uwe Kleine-König <u.kleine-koenig@pengutronix.de>
+Signed-off-by: Lee Jones <lee@kernel.org>
+Link: https://lore.kernel.org/r/20221118224540.619276-275-uwe@kleine-koenig.org
+---
+ drivers/leds/leds-lm3642.c | 5 ++---
+ 1 file changed, 2 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/leds/leds-lm3642.c b/drivers/leds/leds-lm3642.c
+index 428a5d9281504..b75ee3546c2ec 100644
+--- a/drivers/leds/leds-lm3642.c
++++ b/drivers/leds/leds-lm3642.c
+@@ -289,8 +289,7 @@ static struct attribute *lm3642_torch_attrs[] = {
+ };
+ ATTRIBUTE_GROUPS(lm3642_torch);
+ 
+-static int lm3642_probe(struct i2c_client *client,
+-				  const struct i2c_device_id *id)
++static int lm3642_probe(struct i2c_client *client)
+ {
+ 	struct lm3642_platform_data *pdata = dev_get_platdata(&client->dev);
+ 	struct lm3642_chip_data *chip;
+@@ -402,7 +401,7 @@ static struct i2c_driver lm3642_i2c_driver = {
+ 		   .name = LM3642_NAME,
+ 		   .pm = NULL,
+ 		   },
+-	.probe = lm3642_probe,
++	.probe_new = lm3642_probe,
+ 	.remove = lm3642_remove,
+ 	.id_table = lm3642_id,
+ };
+-- 
+cgit 
+
+
+From 4d7b4def01c3d14119e5ef0524f4f726803c034b Mon Sep 17 00:00:00 2001
+From: Uwe Kleine-König <u.kleine-koenig@pengutronix.de>
+Date: Fri, 18 Nov 2022 23:40:09 +0100
+Subject: leds: lm3692x: Convert to i2c's .probe_new()
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+.probe_new() doesn't get the i2c_device_id * parameter, so determine
+that explicitly in the probe function.
+
+Signed-off-by: Uwe Kleine-König <u.kleine-koenig@pengutronix.de>
+Signed-off-by: Lee Jones <lee@kernel.org>
+Link: https://lore.kernel.org/r/20221118224540.619276-276-uwe@kleine-koenig.org
+---
+ drivers/leds/leds-lm3692x.c | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/leds/leds-lm3692x.c b/drivers/leds/leds-lm3692x.c
+index 54b4662bff41e..66126d0666f5b 100644
+--- a/drivers/leds/leds-lm3692x.c
++++ b/drivers/leds/leds-lm3692x.c
+@@ -456,9 +456,9 @@ static int lm3692x_probe_dt(struct lm3692x_led *led)
+ 	return ret;
+ }
+ 
+-static int lm3692x_probe(struct i2c_client *client,
+-			const struct i2c_device_id *id)
++static int lm3692x_probe(struct i2c_client *client)
+ {
++	const struct i2c_device_id *id = i2c_client_get_device_id(client);
+ 	struct lm3692x_led *led;
+ 	int ret;
+ 
+@@ -518,7 +518,7 @@ static struct i2c_driver lm3692x_driver = {
+ 		.name	= "lm3692x",
+ 		.of_match_table = of_lm3692x_leds_match,
+ 	},
+-	.probe		= lm3692x_probe,
++	.probe_new	= lm3692x_probe,
+ 	.remove		= lm3692x_remove,
+ 	.id_table	= lm3692x_id,
+ };
+-- 
+cgit 
+
+
+From 90955588fff6a56152943831c3c70446b6b907fb Mon Sep 17 00:00:00 2001
+From: Uwe Kleine-König <u.kleine-koenig@pengutronix.de>
+Date: Fri, 18 Nov 2022 23:40:10 +0100
+Subject: leds: lm3697: Convert to i2c's .probe_new()
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+The probe function doesn't make use of the i2c_device_id * parameter so it
+can be trivially converted.
+
+Signed-off-by: Uwe Kleine-König <u.kleine-koenig@pengutronix.de>
+Signed-off-by: Lee Jones <lee@kernel.org>
+Link: https://lore.kernel.org/r/20221118224540.619276-277-uwe@kleine-koenig.org
+---
+ drivers/leds/leds-lm3697.c | 5 ++---
+ 1 file changed, 2 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/leds/leds-lm3697.c b/drivers/leds/leds-lm3697.c
+index 71231a60eebce..10e904bf40a04 100644
+--- a/drivers/leds/leds-lm3697.c
++++ b/drivers/leds/leds-lm3697.c
+@@ -299,8 +299,7 @@ child_out:
+ 	return ret;
+ }
+ 
+-static int lm3697_probe(struct i2c_client *client,
+-			const struct i2c_device_id *id)
++static int lm3697_probe(struct i2c_client *client)
+ {
+ 	struct device *dev = &client->dev;
+ 	struct lm3697 *led;
+@@ -377,7 +376,7 @@ static struct i2c_driver lm3697_driver = {
+ 		.name	= "lm3697",
+ 		.of_match_table = of_lm3697_leds_match,
+ 	},
+-	.probe		= lm3697_probe,
++	.probe_new	= lm3697_probe,
+ 	.remove		= lm3697_remove,
+ 	.id_table	= lm3697_id,
+ };
+-- 
+cgit 
+
+
+From 1ba5916064e70095604832f9ed8a9fe9701c2dd5 Mon Sep 17 00:00:00 2001
+From: Uwe Kleine-König <u.kleine-koenig@pengutronix.de>
+Date: Fri, 18 Nov 2022 23:40:11 +0100
+Subject: leds: lp3944: Convert to i2c's .probe_new()
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+The probe function doesn't make use of the i2c_device_id * parameter so it
+can be trivially converted.
+
+Signed-off-by: Uwe Kleine-König <u.kleine-koenig@pengutronix.de>
+Signed-off-by: Lee Jones <lee@kernel.org>
+Link: https://lore.kernel.org/r/20221118224540.619276-278-uwe@kleine-koenig.org
+---
+ drivers/leds/leds-lp3944.c | 5 ++---
+ 1 file changed, 2 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/leds/leds-lp3944.c b/drivers/leds/leds-lp3944.c
+index 673ad8c04f415..be47c66b2e00b 100644
+--- a/drivers/leds/leds-lp3944.c
++++ b/drivers/leds/leds-lp3944.c
+@@ -359,8 +359,7 @@ exit:
+ 	return err;
+ }
+ 
+-static int lp3944_probe(struct i2c_client *client,
+-				  const struct i2c_device_id *id)
++static int lp3944_probe(struct i2c_client *client)
+ {
+ 	struct lp3944_platform_data *lp3944_pdata =
+ 			dev_get_platdata(&client->dev);
+@@ -428,7 +427,7 @@ static struct i2c_driver lp3944_driver = {
+ 	.driver   = {
+ 		   .name = "lp3944",
+ 	},
+-	.probe    = lp3944_probe,
++	.probe_new = lp3944_probe,
+ 	.remove   = lp3944_remove,
+ 	.id_table = lp3944_id,
+ };
+-- 
+cgit 
+
+
+From 1fd9dadcb1c39465b4c5ff45fa1f666a24c3e86f Mon Sep 17 00:00:00 2001
+From: Uwe Kleine-König <u.kleine-koenig@pengutronix.de>
+Date: Fri, 18 Nov 2022 23:40:12 +0100
+Subject: leds: lp3952: Convert to i2c's .probe_new()
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+The probe function doesn't make use of the i2c_device_id * parameter so it
+can be trivially converted.
+
+Signed-off-by: Uwe Kleine-König <u.kleine-koenig@pengutronix.de>
+Signed-off-by: Lee Jones <lee@kernel.org>
+Link: https://lore.kernel.org/r/20221118224540.619276-279-uwe@kleine-koenig.org
+---
+ drivers/leds/leds-lp3952.c | 5 ++---
+ 1 file changed, 2 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/leds/leds-lp3952.c b/drivers/leds/leds-lp3952.c
+index bf0ad1b5ce249..24b2e0f9080d9 100644
+--- a/drivers/leds/leds-lp3952.c
++++ b/drivers/leds/leds-lp3952.c
+@@ -207,8 +207,7 @@ static const struct regmap_config lp3952_regmap = {
+ 	.cache_type = REGCACHE_RBTREE,
+ };
+ 
+-static int lp3952_probe(struct i2c_client *client,
+-			const struct i2c_device_id *id)
++static int lp3952_probe(struct i2c_client *client)
+ {
+ 	int status;
+ 	struct lp3952_led_array *priv;
+@@ -274,7 +273,7 @@ static struct i2c_driver lp3952_i2c_driver = {
+ 	.driver = {
+ 			.name = LP3952_NAME,
+ 	},
+-	.probe = lp3952_probe,
++	.probe_new = lp3952_probe,
+ 	.remove = lp3952_remove,
+ 	.id_table = lp3952_id,
+ };
+-- 
+cgit 
+
+
+From 4a37cff204945e837da4f76652285cc1c4ced400 Mon Sep 17 00:00:00 2001
+From: Uwe Kleine-König <u.kleine-koenig@pengutronix.de>
+Date: Fri, 18 Nov 2022 23:40:13 +0100
+Subject: leds: lp5521: Convert to i2c's .probe_new()
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+.probe_new() doesn't get the i2c_device_id * parameter, so determine
+that explicitly in the probe function.
+
+Signed-off-by: Uwe Kleine-König <u.kleine-koenig@pengutronix.de>
+Signed-off-by: Lee Jones <lee@kernel.org>
+Link: https://lore.kernel.org/r/20221118224540.619276-280-uwe@kleine-koenig.org
+---
+ drivers/leds/leds-lp5521.c | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/leds/leds-lp5521.c b/drivers/leds/leds-lp5521.c
+index 19478d9c19a70..a004af8e22c74 100644
+--- a/drivers/leds/leds-lp5521.c
++++ b/drivers/leds/leds-lp5521.c
+@@ -516,9 +516,9 @@ static struct lp55xx_device_config lp5521_cfg = {
+ 	.dev_attr_group     = &lp5521_group,
+ };
+ 
+-static int lp5521_probe(struct i2c_client *client,
+-			const struct i2c_device_id *id)
++static int lp5521_probe(struct i2c_client *client)
+ {
++	const struct i2c_device_id *id = i2c_client_get_device_id(client);
+ 	int ret;
+ 	struct lp55xx_chip *chip;
+ 	struct lp55xx_led *led;
+@@ -608,7 +608,7 @@ static struct i2c_driver lp5521_driver = {
+ 		.name	= "lp5521",
+ 		.of_match_table = of_match_ptr(of_lp5521_leds_match),
+ 	},
+-	.probe		= lp5521_probe,
++	.probe_new	= lp5521_probe,
+ 	.remove		= lp5521_remove,
+ 	.id_table	= lp5521_id,
+ };
+-- 
+cgit 
+
+
+From 69674a710c1e222679560debf65df3632576857a Mon Sep 17 00:00:00 2001
+From: Uwe Kleine-König <u.kleine-koenig@pengutronix.de>
+Date: Fri, 18 Nov 2022 23:40:14 +0100
+Subject: leds: lp5523: Convert to i2c's .probe_new()
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+.probe_new() doesn't get the i2c_device_id * parameter, so determine
+that explicitly in the probe function.
+
+Signed-off-by: Uwe Kleine-König <u.kleine-koenig@pengutronix.de>
+Signed-off-by: Lee Jones <lee@kernel.org>
+Link: https://lore.kernel.org/r/20221118224540.619276-281-uwe@kleine-koenig.org
+---
+ drivers/leds/leds-lp5523.c | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/leds/leds-lp5523.c b/drivers/leds/leds-lp5523.c
+index e08e3de1428df..55da914b8e5ca 100644
+--- a/drivers/leds/leds-lp5523.c
++++ b/drivers/leds/leds-lp5523.c
+@@ -887,9 +887,9 @@ static struct lp55xx_device_config lp5523_cfg = {
+ 	.dev_attr_group     = &lp5523_group,
+ };
+ 
+-static int lp5523_probe(struct i2c_client *client,
+-			const struct i2c_device_id *id)
++static int lp5523_probe(struct i2c_client *client)
+ {
++	const struct i2c_device_id *id = i2c_client_get_device_id(client);
+ 	int ret;
+ 	struct lp55xx_chip *chip;
+ 	struct lp55xx_led *led;
+@@ -983,7 +983,7 @@ static struct i2c_driver lp5523_driver = {
+ 		.name	= "lp5523x",
+ 		.of_match_table = of_match_ptr(of_lp5523_leds_match),
+ 	},
+-	.probe		= lp5523_probe,
++	.probe_new	= lp5523_probe,
+ 	.remove		= lp5523_remove,
+ 	.id_table	= lp5523_id,
+ };
+-- 
+cgit 
+
+
+From 6231f926c9ae8fc4895e82119762121060c77542 Mon Sep 17 00:00:00 2001
+From: Uwe Kleine-König <u.kleine-koenig@pengutronix.de>
+Date: Fri, 18 Nov 2022 23:40:15 +0100
+Subject: leds: lp5562: Convert to i2c's .probe_new()
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+The probe function doesn't make use of the i2c_device_id * parameter so it
+can be trivially converted.
+
+Signed-off-by: Uwe Kleine-König <u.kleine-koenig@pengutronix.de>
+Signed-off-by: Lee Jones <lee@kernel.org>
+Link: https://lore.kernel.org/r/20221118224540.619276-282-uwe@kleine-koenig.org
+---
+ drivers/leds/leds-lp5562.c | 5 ++---
+ 1 file changed, 2 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/leds/leds-lp5562.c b/drivers/leds/leds-lp5562.c
+index 0e490085ff358..b5d877faf6d73 100644
+--- a/drivers/leds/leds-lp5562.c
++++ b/drivers/leds/leds-lp5562.c
+@@ -511,8 +511,7 @@ static struct lp55xx_device_config lp5562_cfg = {
+ 	.dev_attr_group     = &lp5562_group,
+ };
+ 
+-static int lp5562_probe(struct i2c_client *client,
+-			const struct i2c_device_id *id)
++static int lp5562_probe(struct i2c_client *client)
+ {
+ 	int ret;
+ 	struct lp55xx_chip *chip;
+@@ -604,7 +603,7 @@ static struct i2c_driver lp5562_driver = {
+ 		.name	= "lp5562",
+ 		.of_match_table = of_match_ptr(of_lp5562_leds_match),
+ 	},
+-	.probe		= lp5562_probe,
++	.probe_new	= lp5562_probe,
+ 	.remove		= lp5562_remove,
+ 	.id_table	= lp5562_id,
+ };
+-- 
+cgit 
+
+
+From bc14a85ec88d62b7bb3ec779a25e6965c354c5d4 Mon Sep 17 00:00:00 2001
+From: Uwe Kleine-König <u.kleine-koenig@pengutronix.de>
+Date: Fri, 18 Nov 2022 23:40:16 +0100
+Subject: leds: lp8501: Convert to i2c's .probe_new()
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+.probe_new() doesn't get the i2c_device_id * parameter, so determine
+that explicitly in the probe function.
+
+Signed-off-by: Uwe Kleine-König <u.kleine-koenig@pengutronix.de>
+Signed-off-by: Lee Jones <lee@kernel.org>
+Link: https://lore.kernel.org/r/20221118224540.619276-283-uwe@kleine-koenig.org
+---
+ drivers/leds/leds-lp8501.c | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/leds/leds-lp8501.c b/drivers/leds/leds-lp8501.c
+index ae11a02c0ab23..165d6423a928d 100644
+--- a/drivers/leds/leds-lp8501.c
++++ b/drivers/leds/leds-lp8501.c
+@@ -299,9 +299,9 @@ static struct lp55xx_device_config lp8501_cfg = {
+ 	.run_engine         = lp8501_run_engine,
+ };
+ 
+-static int lp8501_probe(struct i2c_client *client,
+-			const struct i2c_device_id *id)
++static int lp8501_probe(struct i2c_client *client)
+ {
++	const struct i2c_device_id *id = i2c_client_get_device_id(client);
+ 	int ret;
+ 	struct lp55xx_chip *chip;
+ 	struct lp55xx_led *led;
+@@ -392,7 +392,7 @@ static struct i2c_driver lp8501_driver = {
+ 		.name	= "lp8501",
+ 		.of_match_table = of_match_ptr(of_lp8501_leds_match),
+ 	},
+-	.probe		= lp8501_probe,
++	.probe_new	= lp8501_probe,
+ 	.remove		= lp8501_remove,
+ 	.id_table	= lp8501_id,
+ };
+-- 
+cgit 
+
+
+From c3dab3a932bd982db791d1f7e09e7dcf5db4dbcd Mon Sep 17 00:00:00 2001
+From: Uwe Kleine-König <u.kleine-koenig@pengutronix.de>
+Date: Fri, 18 Nov 2022 23:40:17 +0100
+Subject: leds: lp8860: Convert to i2c's .probe_new()
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+The probe function doesn't make use of the i2c_device_id * parameter so it
+can be trivially converted.
+
+Signed-off-by: Uwe Kleine-König <u.kleine-koenig@pengutronix.de>
+Signed-off-by: Lee Jones <lee@kernel.org>
+Link: https://lore.kernel.org/r/20221118224540.619276-284-uwe@kleine-koenig.org
+---
+ drivers/leds/leds-lp8860.c | 5 ++---
+ 1 file changed, 2 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/leds/leds-lp8860.c b/drivers/leds/leds-lp8860.c
+index e2b36d3187eb6..b66ed5ac1aa54 100644
+--- a/drivers/leds/leds-lp8860.c
++++ b/drivers/leds/leds-lp8860.c
+@@ -375,8 +375,7 @@ static const struct regmap_config lp8860_eeprom_regmap_config = {
+ 	.cache_type = REGCACHE_NONE,
+ };
+ 
+-static int lp8860_probe(struct i2c_client *client,
+-			const struct i2c_device_id *id)
++static int lp8860_probe(struct i2c_client *client)
+ {
+ 	int ret;
+ 	struct lp8860_led *led;
+@@ -480,7 +479,7 @@ static struct i2c_driver lp8860_driver = {
+ 		.name	= "lp8860",
+ 		.of_match_table = of_lp8860_leds_match,
+ 	},
+-	.probe		= lp8860_probe,
++	.probe_new	= lp8860_probe,
+ 	.remove		= lp8860_remove,
+ 	.id_table	= lp8860_id,
+ };
+-- 
+cgit 
+
+
+From 1e1e667fe3871bd52b2c8e6104fec9301a14aeee Mon Sep 17 00:00:00 2001
+From: Uwe Kleine-König <u.kleine-koenig@pengutronix.de>
+Date: Fri, 18 Nov 2022 23:40:18 +0100
+Subject: leds: pca9532: Convert to i2c's .probe_new()
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+.probe_new() doesn't get the i2c_device_id * parameter, so determine
+that explicitly in the probe function.
+
+Signed-off-by: Uwe Kleine-König <u.kleine-koenig@pengutronix.de>
+Signed-off-by: Lee Jones <lee@kernel.org>
+Link: https://lore.kernel.org/r/20221118224540.619276-285-uwe@kleine-koenig.org
+---
+ drivers/leds/leds-pca9532.c | 9 ++++-----
+ 1 file changed, 4 insertions(+), 5 deletions(-)
+
+diff --git a/drivers/leds/leds-pca9532.c b/drivers/leds/leds-pca9532.c
+index df83d97cb4796..15b1acfa442e7 100644
+--- a/drivers/leds/leds-pca9532.c
++++ b/drivers/leds/leds-pca9532.c
+@@ -50,8 +50,7 @@ struct pca9532_data {
+ 	u8 psc[2];
+ };
+ 
+-static int pca9532_probe(struct i2c_client *client,
+-	const struct i2c_device_id *id);
++static int pca9532_probe(struct i2c_client *client);
+ static void pca9532_remove(struct i2c_client *client);
+ 
+ enum {
+@@ -103,7 +102,7 @@ static struct i2c_driver pca9532_driver = {
+ 		.name = "leds-pca953x",
+ 		.of_match_table = of_match_ptr(of_pca9532_leds_match),
+ 	},
+-	.probe = pca9532_probe,
++	.probe_new = pca9532_probe,
+ 	.remove = pca9532_remove,
+ 	.id_table = pca9532_id,
+ };
+@@ -504,9 +503,9 @@ pca9532_of_populate_pdata(struct device *dev, struct device_node *np)
+ 	return pdata;
+ }
+ 
+-static int pca9532_probe(struct i2c_client *client,
+-	const struct i2c_device_id *id)
++static int pca9532_probe(struct i2c_client *client)
+ {
++	const struct i2c_device_id *id = i2c_client_get_device_id(client);
+ 	int devid;
+ 	struct pca9532_data *data = i2c_get_clientdata(client);
+ 	struct pca9532_platform_data *pca9532_pdata =
+-- 
+cgit 
+
+
+From 2c6aaf88a265c44d094ab1edd07d2f6b003f5d1b Mon Sep 17 00:00:00 2001
+From: Uwe Kleine-König <u.kleine-koenig@pengutronix.de>
+Date: Fri, 18 Nov 2022 23:40:19 +0100
+Subject: leds: pca963x: Convert to i2c's .probe_new()
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+.probe_new() doesn't get the i2c_device_id * parameter, so determine
+that explicitly in the probe function.
+
+Signed-off-by: Uwe Kleine-König <u.kleine-koenig@pengutronix.de>
+Signed-off-by: Lee Jones <lee@kernel.org>
+Link: https://lore.kernel.org/r/20221118224540.619276-286-uwe@kleine-koenig.org
+---
+ drivers/leds/leds-pca963x.c | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/leds/leds-pca963x.c b/drivers/leds/leds-pca963x.c
+index a7e052c1db531..9cd476db601f2 100644
+--- a/drivers/leds/leds-pca963x.c
++++ b/drivers/leds/leds-pca963x.c
+@@ -389,9 +389,9 @@ static const struct of_device_id of_pca963x_match[] = {
+ };
+ MODULE_DEVICE_TABLE(of, of_pca963x_match);
+ 
+-static int pca963x_probe(struct i2c_client *client,
+-			 const struct i2c_device_id *id)
++static int pca963x_probe(struct i2c_client *client)
+ {
++	const struct i2c_device_id *id = i2c_client_get_device_id(client);
+ 	struct device *dev = &client->dev;
+ 	struct pca963x_chipdef *chipdef;
+ 	struct pca963x *chip;
+@@ -431,7 +431,7 @@ static struct i2c_driver pca963x_driver = {
+ 		.name	= "leds-pca963x",
+ 		.of_match_table = of_pca963x_match,
+ 	},
+-	.probe	= pca963x_probe,
++	.probe_new = pca963x_probe,
+ 	.id_table = pca963x_id,
+ };
+ 
+-- 
+cgit 
+
+
+From e916e052ac81558592c881296298d6c54bb5af63 Mon Sep 17 00:00:00 2001
+From: Uwe Kleine-König <u.kleine-koenig@pengutronix.de>
+Date: Fri, 18 Nov 2022 23:40:20 +0100
+Subject: leds: tca6507: Convert to i2c's .probe_new()
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+The probe function doesn't make use of the i2c_device_id * parameter so it
+can be trivially converted.
+
+Signed-off-by: Uwe Kleine-König <u.kleine-koenig@pengutronix.de>
+Signed-off-by: Lee Jones <lee@kernel.org>
+Link: https://lore.kernel.org/r/20221118224540.619276-287-uwe@kleine-koenig.org
+---
+ drivers/leds/leds-tca6507.c | 5 ++---
+ 1 file changed, 2 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/leds/leds-tca6507.c b/drivers/leds/leds-tca6507.c
+index 161bef65c6b7b..46e76b8946519 100644
+--- a/drivers/leds/leds-tca6507.c
++++ b/drivers/leds/leds-tca6507.c
+@@ -728,8 +728,7 @@ static const struct of_device_id __maybe_unused of_tca6507_leds_match[] = {
+ };
+ MODULE_DEVICE_TABLE(of, of_tca6507_leds_match);
+ 
+-static int tca6507_probe(struct i2c_client *client,
+-		const struct i2c_device_id *id)
++static int tca6507_probe(struct i2c_client *client)
+ {
+ 	struct device *dev = &client->dev;
+ 	struct i2c_adapter *adapter;
+@@ -809,7 +808,7 @@ static struct i2c_driver tca6507_driver = {
+ 		.name    = "leds-tca6507",
+ 		.of_match_table = of_match_ptr(of_tca6507_leds_match),
+ 	},
+-	.probe    = tca6507_probe,
++	.probe_new = tca6507_probe,
+ 	.remove   = tca6507_remove,
+ 	.id_table = tca6507_id,
+ };
+-- 
+cgit 
+
+
+From cef9efd5b4674e46a6dac4c1685ab4d5cb0d1893 Mon Sep 17 00:00:00 2001
+From: Uwe Kleine-König <u.kleine-koenig@pengutronix.de>
+Date: Fri, 18 Nov 2022 23:40:21 +0100
+Subject: leds: tlc591xx: Convert to i2c's .probe_new()
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+The probe function doesn't make use of the i2c_device_id * parameter so it
+can be trivially converted.
+
+Signed-off-by: Uwe Kleine-König <u.kleine-koenig@pengutronix.de>
+Signed-off-by: Lee Jones <lee@kernel.org>
+Link: https://lore.kernel.org/r/20221118224540.619276-288-uwe@kleine-koenig.org
+---
+ drivers/leds/leds-tlc591xx.c | 5 ++---
+ 1 file changed, 2 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/leds/leds-tlc591xx.c b/drivers/leds/leds-tlc591xx.c
+index cb7bd1353f9f0..ec25e0c16bea3 100644
+--- a/drivers/leds/leds-tlc591xx.c
++++ b/drivers/leds/leds-tlc591xx.c
+@@ -145,8 +145,7 @@ static const struct of_device_id of_tlc591xx_leds_match[] = {
+ MODULE_DEVICE_TABLE(of, of_tlc591xx_leds_match);
+ 
+ static int
+-tlc591xx_probe(struct i2c_client *client,
+-	       const struct i2c_device_id *id)
++tlc591xx_probe(struct i2c_client *client)
+ {
+ 	struct device_node *np, *child;
+ 	struct device *dev = &client->dev;
+@@ -231,7 +230,7 @@ static struct i2c_driver tlc591xx_driver = {
+ 		.name = "tlc591xx",
+ 		.of_match_table = of_match_ptr(of_tlc591xx_leds_match),
+ 	},
+-	.probe = tlc591xx_probe,
++	.probe_new = tlc591xx_probe,
+ 	.id_table = tlc591xx_id,
+ };
+ 
+-- 
+cgit 
+
+
+From 4934630409cb6042621d760210bbd3d734daba5d Mon Sep 17 00:00:00 2001
+From: Uwe Kleine-König <u.kleine-koenig@pengutronix.de>
+Date: Fri, 18 Nov 2022 23:40:22 +0100
+Subject: leds: turris-omnia: Convert to i2c's .probe_new()
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+The probe function doesn't make use of the i2c_device_id * parameter so it
+can be trivially converted.
+
+Signed-off-by: Uwe Kleine-König <u.kleine-koenig@pengutronix.de>
+Reviewed-by: Marek Behún <kabel@kernel.org>
+Signed-off-by: Lee Jones <lee@kernel.org>
+Link: https://lore.kernel.org/r/20221118224540.619276-289-uwe@kleine-koenig.org
+---
+ drivers/leds/leds-turris-omnia.c | 5 ++---
+ 1 file changed, 2 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/leds/leds-turris-omnia.c b/drivers/leds/leds-turris-omnia.c
+index c7c9851c894a9..013f551b32b27 100644
+--- a/drivers/leds/leds-turris-omnia.c
++++ b/drivers/leds/leds-turris-omnia.c
+@@ -201,8 +201,7 @@ static struct attribute *omnia_led_controller_attrs[] = {
+ };
+ ATTRIBUTE_GROUPS(omnia_led_controller);
+ 
+-static int omnia_leds_probe(struct i2c_client *client,
+-			    const struct i2c_device_id *id)
++static int omnia_leds_probe(struct i2c_client *client)
+ {
+ 	struct device *dev = &client->dev;
+ 	struct device_node *np = dev_of_node(dev), *child;
+@@ -272,7 +271,7 @@ static const struct i2c_device_id omnia_id[] = {
+ MODULE_DEVICE_TABLE(i2c, omnia_id);
+ 
+ static struct i2c_driver omnia_leds_driver = {
+-	.probe		= omnia_leds_probe,
++	.probe_new	= omnia_leds_probe,
+ 	.remove		= omnia_leds_remove,
+ 	.id_table	= omnia_id,
+ 	.driver		= {
+-- 
+cgit 
+
+
+From a82c7cf803d98751cd3ddb35828faad925d71982 Mon Sep 17 00:00:00 2001
+From: Andy Shevchenko <andriy.shevchenko@linux.intel.com>
+Date: Wed, 28 Dec 2022 11:32:38 +0200
+Subject: leds: is31fl319x: Wrap mutex_destroy() for devm_add_action_or_rest()
+
+Clang complains that devm_add_action() takes a parameter with a wrong type:
+
+warning: cast from 'void (*)(struct mutex *)' to 'void (*)(void *)' converts to incompatible function type [-Wcast-function-type-strict]
+    err = devm_add_action(dev, (void (*)(void *))mutex_destroy, &is31->lock);
+                               ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    1 warning generated.
+
+It appears that the commit e1af5c815586 ("leds: is31fl319x: Fix devm vs.
+non-devm ordering") missed two things:
+
+- whilst the commit mentions devm_add_action_or_reset() the actual change
+  utilised devm_add_action() call by mistake
+- strictly speaking the parameter is not compatible by type
+
+Fix both issues by switching to devm_add_action_or_reset() and adding a
+wrapper for mutex_destroy() call.
+
+Reported-by: kernel test robot <lkp@intel.com>
+Fixes: e1af5c815586 ("leds: is31fl319x: Fix devm vs. non-devm ordering")
+Signed-off-by: Andy Shevchenko <andriy.shevchenko@linux.intel.com>
+Tested-by: Vincent Knecht <vincent.knecht@mailoo.org>
+Signed-off-by: Lee Jones <lee@kernel.org>
+Link: https://lore.kernel.org/r/20221228093238.82713-1-andriy.shevchenko@linux.intel.com
+---
+ drivers/leds/leds-is31fl319x.c | 7 ++++++-
+ 1 file changed, 6 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/leds/leds-is31fl319x.c b/drivers/leds/leds-is31fl319x.c
+index b2f4c4ec7c567..7c908414ac7e0 100644
+--- a/drivers/leds/leds-is31fl319x.c
++++ b/drivers/leds/leds-is31fl319x.c
+@@ -495,6 +495,11 @@ static inline int is31fl3196_db_to_gain(u32 dezibel)
+ 	return dezibel / IS31FL3196_AUDIO_GAIN_DB_STEP;
+ }
+ 
++static void is31f1319x_mutex_destroy(void *lock)
++{
++	mutex_destroy(lock);
++}
++
+ static int is31fl319x_probe(struct i2c_client *client)
+ {
+ 	struct is31fl319x_chip *is31;
+@@ -511,7 +516,7 @@ static int is31fl319x_probe(struct i2c_client *client)
+ 		return -ENOMEM;
+ 
+ 	mutex_init(&is31->lock);
+-	err = devm_add_action(dev, (void (*)(void *))mutex_destroy, &is31->lock);
++	err = devm_add_action_or_reset(dev, is31f1319x_mutex_destroy, &is31->lock);
+ 	if (err)
+ 		return err;
+ 
+-- 
+cgit 
+
+
+From d35d0c9de762e003129dfc1240df7152a4bc31e8 Mon Sep 17 00:00:00 2001
+From: Andy Shevchenko <andriy.shevchenko@linux.intel.com>
+Date: Tue, 3 Jan 2023 15:12:46 +0200
+Subject: leds: Add missing includes and forward declarations in leds.h
+
+Add missing includes and forward declarations to leds.h. While at it,
+replace headers by forward declarations and vise versa.
+
+Signed-off-by: Andy Shevchenko <andriy.shevchenko@linux.intel.com>
+Signed-off-by: Lee Jones <lee@kernel.org>
+Link: https://lore.kernel.org/r/20230103131256.33894-2-andriy.shevchenko@linux.intel.com
+---
+ include/linux/leds.h | 13 ++++++++-----
+ 1 file changed, 8 insertions(+), 5 deletions(-)
+
+diff --git a/include/linux/leds.h b/include/linux/leds.h
+index 31cb74b90ffcd..4df46a85e5c29 100644
+--- a/include/linux/leds.h
++++ b/include/linux/leds.h
+@@ -10,17 +10,21 @@
+ 
+ #include <dt-bindings/leds/common.h>
+ #include <linux/device.h>
+-#include <linux/kernfs.h>
+-#include <linux/list.h>
+ #include <linux/mutex.h>
+ #include <linux/rwsem.h>
+ #include <linux/spinlock.h>
+ #include <linux/timer.h>
++#include <linux/types.h>
+ #include <linux/workqueue.h>
+ 
+-struct device;
+-struct led_pattern;
++struct attribute_group;
+ struct device_node;
++struct fwnode_handle;
++struct gpio_desc;
++struct kernfs_node;
++struct led_pattern;
++struct platform_device;
++
+ /*
+  * LED Core
+  */
+@@ -529,7 +533,6 @@ struct led_properties {
+ 	const char	*label;
+ };
+ 
+-struct gpio_desc;
+ typedef int (*gpio_blink_set_t)(struct gpio_desc *desc, int state,
+ 				unsigned long *delay_on,
+ 				unsigned long *delay_off);
+-- 
+cgit 
+
+
+From 156a5bb89ca6f3edd2be0bfd0de15e575442927e Mon Sep 17 00:00:00 2001
+From: Andy Shevchenko <andriy.shevchenko@linux.intel.com>
+Date: Tue, 3 Jan 2023 15:12:47 +0200
+Subject: leds: Move led_init_default_state_get() to the global header
+
+There are users inside and outside LED framework that have implemented
+a local copy of led_init_default_state_get(). In order to deduplicate
+that, as the first step move the declaration from LED header to the
+global one.
+
+Signed-off-by: Andy Shevchenko <andriy.shevchenko@linux.intel.com>
+Signed-off-by: Lee Jones <lee@kernel.org>
+Link: https://lore.kernel.org/r/20230103131256.33894-3-andriy.shevchenko@linux.intel.com
+---
+ drivers/leds/leds.h  | 1 -
+ include/linux/leds.h | 2 ++
+ 2 files changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/leds/leds.h b/drivers/leds/leds.h
+index aa64757a4d894..345062ccabdaa 100644
+--- a/drivers/leds/leds.h
++++ b/drivers/leds/leds.h
+@@ -27,7 +27,6 @@ ssize_t led_trigger_read(struct file *filp, struct kobject *kobj,
+ ssize_t led_trigger_write(struct file *filp, struct kobject *kobj,
+ 			struct bin_attribute *bin_attr, char *buf,
+ 			loff_t pos, size_t count);
+-enum led_default_state led_init_default_state_get(struct fwnode_handle *fwnode);
+ 
+ extern struct rw_semaphore leds_list_lock;
+ extern struct list_head leds_list;
+diff --git a/include/linux/leds.h b/include/linux/leds.h
+index 4df46a85e5c29..d71201a968b66 100644
+--- a/include/linux/leds.h
++++ b/include/linux/leds.h
+@@ -82,6 +82,8 @@ struct led_init_data {
+ 	bool devname_mandatory;
+ };
+ 
++enum led_default_state led_init_default_state_get(struct fwnode_handle *fwnode);
++
+ struct led_hw_trigger_type {
+ 	int dummy;
+ };
+-- 
+cgit 
+
+
+From 5ff422a77d1a4e7ec7de063bfd3dabe3b1a70510 Mon Sep 17 00:00:00 2001
+From: Andy Shevchenko <andriy.shevchenko@linux.intel.com>
+Date: Tue, 3 Jan 2023 15:12:48 +0200
+Subject: leds: an30259a: Get rid of custom led_init_default_state_get()
+
+LED core provides a helper to parse default state from firmware node.
+Use it instead of custom implementation.
+
+Signed-off-by: Andy Shevchenko <andriy.shevchenko@linux.intel.com>
+Signed-off-by: Lee Jones <lee@kernel.org>
+Link: https://lore.kernel.org/r/20230103131256.33894-4-andriy.shevchenko@linux.intel.com
+---
+ drivers/leds/leds-an30259a.c | 21 ++++-----------------
+ 1 file changed, 4 insertions(+), 17 deletions(-)
+
+diff --git a/drivers/leds/leds-an30259a.c b/drivers/leds/leds-an30259a.c
+index e072ee5409f7e..89df267853a91 100644
+--- a/drivers/leds/leds-an30259a.c
++++ b/drivers/leds/leds-an30259a.c
+@@ -55,10 +55,6 @@
+ 
+ #define AN30259A_NAME "an30259a"
+ 
+-#define STATE_OFF 0
+-#define STATE_KEEP 1
+-#define STATE_ON 2
+-
+ struct an30259a;
+ 
+ struct an30259a_led {
+@@ -66,7 +62,7 @@ struct an30259a_led {
+ 	struct fwnode_handle *fwnode;
+ 	struct led_classdev cdev;
+ 	u32 num;
+-	u32 default_state;
++	enum led_default_state default_state;
+ 	bool sloping;
+ };
+ 
+@@ -205,7 +201,6 @@ static int an30259a_dt_init(struct i2c_client *client,
+ 	struct device_node *np = dev_of_node(&client->dev), *child;
+ 	int count, ret;
+ 	int i = 0;
+-	const char *str;
+ 	struct an30259a_led *led;
+ 
+ 	count = of_get_available_child_count(np);
+@@ -228,15 +223,7 @@ static int an30259a_dt_init(struct i2c_client *client,
+ 		led->num = source;
+ 		led->chip = chip;
+ 		led->fwnode = of_fwnode_handle(child);
+-
+-		if (!of_property_read_string(child, "default-state", &str)) {
+-			if (!strcmp(str, "on"))
+-				led->default_state = STATE_ON;
+-			else if (!strcmp(str, "keep"))
+-				led->default_state = STATE_KEEP;
+-			else
+-				led->default_state = STATE_OFF;
+-		}
++		led->default_state = led_init_default_state_get(led->fwnode);
+ 
+ 		i++;
+ 	}
+@@ -261,10 +248,10 @@ static void an30259a_init_default_state(struct an30259a_led *led)
+ 	int led_on, err;
+ 
+ 	switch (led->default_state) {
+-	case STATE_ON:
++	case LEDS_DEFSTATE_ON:
+ 		led->cdev.brightness = LED_FULL;
+ 		break;
+-	case STATE_KEEP:
++	case LEDS_DEFSTATE_KEEP:
+ 		err = regmap_read(chip->regmap, AN30259A_REG_LED_ON, &led_on);
+ 		if (err)
+ 			break;
+-- 
+cgit 
+
+
+From 67d162e8bf48733c72d0e0cff305c24b8f341b8a Mon Sep 17 00:00:00 2001
+From: Andy Shevchenko <andriy.shevchenko@linux.intel.com>
+Date: Tue, 3 Jan 2023 15:12:49 +0200
+Subject: leds: bcm6328: Get rid of custom led_init_default_state_get()
+
+LED core provides a helper to parse default state from firmware node.
+Use it instead of custom implementation.
+
+Signed-off-by: Andy Shevchenko <andriy.shevchenko@linux.intel.com>
+Reviewed-by: Florian Fainelli <f.fainelli@gmail.com>
+Signed-off-by: Lee Jones <lee@kernel.org>
+Link: https://lore.kernel.org/r/20230103131256.33894-5-andriy.shevchenko@linux.intel.com
+---
+ drivers/leds/leds-bcm6328.c | 49 ++++++++++++++++++++++-----------------------
+ 1 file changed, 24 insertions(+), 25 deletions(-)
+
+diff --git a/drivers/leds/leds-bcm6328.c b/drivers/leds/leds-bcm6328.c
+index 2d4d87957a300..246f1296ab092 100644
+--- a/drivers/leds/leds-bcm6328.c
++++ b/drivers/leds/leds-bcm6328.c
+@@ -330,7 +330,9 @@ static int bcm6328_led(struct device *dev, struct device_node *nc, u32 reg,
+ {
+ 	struct led_init_data init_data = {};
+ 	struct bcm6328_led *led;
+-	const char *state;
++	enum led_default_state state;
++	unsigned long val, shift;
++	void __iomem *mode;
+ 	int rc;
+ 
+ 	led = devm_kzalloc(dev, sizeof(*led), GFP_KERNEL);
+@@ -346,31 +348,29 @@ static int bcm6328_led(struct device *dev, struct device_node *nc, u32 reg,
+ 	if (of_property_read_bool(nc, "active-low"))
+ 		led->active_low = true;
+ 
+-	if (!of_property_read_string(nc, "default-state", &state)) {
+-		if (!strcmp(state, "on")) {
++	init_data.fwnode = of_fwnode_handle(nc);
++
++	state = led_init_default_state_get(init_data.fwnode);
++	switch (state) {
++	case LEDS_DEFSTATE_ON:
++		led->cdev.brightness = LED_FULL;
++		break;
++	case LEDS_DEFSTATE_KEEP:
++		shift = bcm6328_pin2shift(led->pin);
++		if (shift / 16)
++			mode = mem + BCM6328_REG_MODE_HI;
++		else
++			mode = mem + BCM6328_REG_MODE_LO;
++
++		val = bcm6328_led_read(mode) >> BCM6328_LED_SHIFT(shift % 16);
++		val &= BCM6328_LED_MODE_MASK;
++		if ((led->active_low && val == BCM6328_LED_MODE_OFF) ||
++		    (!led->active_low && val == BCM6328_LED_MODE_ON))
+ 			led->cdev.brightness = LED_FULL;
+-		} else if (!strcmp(state, "keep")) {
+-			void __iomem *mode;
+-			unsigned long val, shift;
+-
+-			shift = bcm6328_pin2shift(led->pin);
+-			if (shift / 16)
+-				mode = mem + BCM6328_REG_MODE_HI;
+-			else
+-				mode = mem + BCM6328_REG_MODE_LO;
+-
+-			val = bcm6328_led_read(mode) >>
+-			      BCM6328_LED_SHIFT(shift % 16);
+-			val &= BCM6328_LED_MODE_MASK;
+-			if ((led->active_low && val == BCM6328_LED_MODE_OFF) ||
+-			    (!led->active_low && val == BCM6328_LED_MODE_ON))
+-				led->cdev.brightness = LED_FULL;
+-			else
+-				led->cdev.brightness = LED_OFF;
+-		} else {
++		else
+ 			led->cdev.brightness = LED_OFF;
+-		}
+-	} else {
++		break;
++	default:
+ 		led->cdev.brightness = LED_OFF;
+ 	}
+ 
+@@ -378,7 +378,6 @@ static int bcm6328_led(struct device *dev, struct device_node *nc, u32 reg,
+ 
+ 	led->cdev.brightness_set = bcm6328_led_set;
+ 	led->cdev.blink_set = bcm6328_blink_set;
+-	init_data.fwnode = of_fwnode_handle(nc);
+ 
+ 	rc = devm_led_classdev_register_ext(dev, &led->cdev, &init_data);
+ 	if (rc < 0)
+-- 
+cgit 
+
+
+From e41ff817670edc5a71001352c9cbfdce43aa3bc4 Mon Sep 17 00:00:00 2001
+From: Andy Shevchenko <andriy.shevchenko@linux.intel.com>
+Date: Tue, 3 Jan 2023 15:12:50 +0200
+Subject: leds: bcm6358: Get rid of custom led_init_default_state_get()
+
+LED core provides a helper to parse default state from firmware node.
+Use it instead of custom implementation.
+
+Signed-off-by: Andy Shevchenko <andriy.shevchenko@linux.intel.com>
+Reviewed-by: Florian Fainelli <f.fainelli@gmail.com>
+Signed-off-by: Lee Jones <lee@kernel.org>
+Link: https://lore.kernel.org/r/20230103131256.33894-6-andriy.shevchenko@linux.intel.com
+---
+ drivers/leds/leds-bcm6358.c | 32 ++++++++++++++++----------------
+ 1 file changed, 16 insertions(+), 16 deletions(-)
+
+diff --git a/drivers/leds/leds-bcm6358.c b/drivers/leds/leds-bcm6358.c
+index 9d2e487fa08a3..86e51d44a5a74 100644
+--- a/drivers/leds/leds-bcm6358.c
++++ b/drivers/leds/leds-bcm6358.c
+@@ -96,7 +96,8 @@ static int bcm6358_led(struct device *dev, struct device_node *nc, u32 reg,
+ {
+ 	struct led_init_data init_data = {};
+ 	struct bcm6358_led *led;
+-	const char *state;
++	enum led_default_state state;
++	unsigned long val;
+ 	int rc;
+ 
+ 	led = devm_kzalloc(dev, sizeof(*led), GFP_KERNEL);
+@@ -110,29 +111,28 @@ static int bcm6358_led(struct device *dev, struct device_node *nc, u32 reg,
+ 	if (of_property_read_bool(nc, "active-low"))
+ 		led->active_low = true;
+ 
+-	if (!of_property_read_string(nc, "default-state", &state)) {
+-		if (!strcmp(state, "on")) {
++	init_data.fwnode = of_fwnode_handle(nc);
++
++	state = led_init_default_state_get(init_data.fwnode);
++	switch (state) {
++	case LEDS_DEFSTATE_ON:
++		led->cdev.brightness = LED_FULL;
++		break;
++	case LEDS_DEFSTATE_KEEP:
++		val = bcm6358_led_read(led->mem + BCM6358_REG_MODE);
++		val &= BIT(led->pin);
++		if ((led->active_low && !val) || (!led->active_low && val))
+ 			led->cdev.brightness = LED_FULL;
+-		} else if (!strcmp(state, "keep")) {
+-			unsigned long val;
+-			val = bcm6358_led_read(led->mem + BCM6358_REG_MODE);
+-			val &= BIT(led->pin);
+-			if ((led->active_low && !val) ||
+-			    (!led->active_low && val))
+-				led->cdev.brightness = LED_FULL;
+-			else
+-				led->cdev.brightness = LED_OFF;
+-		} else {
++		else
+ 			led->cdev.brightness = LED_OFF;
+-		}
+-	} else {
++		break;
++	default:
+ 		led->cdev.brightness = LED_OFF;
+ 	}
+ 
+ 	bcm6358_led_set(&led->cdev, led->cdev.brightness);
+ 
+ 	led->cdev.brightness_set = bcm6358_led_set;
+-	init_data.fwnode = of_fwnode_handle(nc);
+ 
+ 	rc = devm_led_classdev_register_ext(dev, &led->cdev, &init_data);
+ 	if (rc < 0)
+-- 
+cgit 
+
+
+From 99cade83477852e4785524a6914e8a534f6d89b0 Mon Sep 17 00:00:00 2001
+From: Andy Shevchenko <andriy.shevchenko@linux.intel.com>
+Date: Tue, 3 Jan 2023 15:12:51 +0200
+Subject: leds: mt6323: Get rid of custom led_init_default_state_get()
+
+LED core provides a helper to parse default state from firmware node.
+Use it instead of custom implementation.
+
+Signed-off-by: Andy Shevchenko <andriy.shevchenko@linux.intel.com>
+Reviewed-by: AngeloGioacchino Del Regno <angelogioacchino.delregno@collabora.com>
+Signed-off-by: Lee Jones <lee@kernel.org>
+Link: https://lore.kernel.org/r/20230103131256.33894-7-andriy.shevchenko@linux.intel.com
+---
+ drivers/leds/leds-mt6323.c | 30 +++++++++++++++---------------
+ 1 file changed, 15 insertions(+), 15 deletions(-)
+
+diff --git a/drivers/leds/leds-mt6323.c b/drivers/leds/leds-mt6323.c
+index f59e0e8bda8bb..17ee88043f529 100644
+--- a/drivers/leds/leds-mt6323.c
++++ b/drivers/leds/leds-mt6323.c
+@@ -339,23 +339,23 @@ static int mt6323_led_set_dt_default(struct led_classdev *cdev,
+ 				     struct device_node *np)
+ {
+ 	struct mt6323_led *led = container_of(cdev, struct mt6323_led, cdev);
+-	const char *state;
++	enum led_default_state state;
+ 	int ret = 0;
+ 
+-	state = of_get_property(np, "default-state", NULL);
+-	if (state) {
+-		if (!strcmp(state, "keep")) {
+-			ret = mt6323_get_led_hw_brightness(cdev);
+-			if (ret < 0)
+-				return ret;
+-			led->current_brightness = ret;
+-			ret = 0;
+-		} else if (!strcmp(state, "on")) {
+-			ret =
+-			mt6323_led_set_brightness(cdev, cdev->max_brightness);
+-		} else  {
+-			ret = mt6323_led_set_brightness(cdev, LED_OFF);
+-		}
++	state = led_init_default_state_get(of_fwnode_handle(np));
++	switch (state) {
++	case LEDS_DEFSTATE_ON:
++		ret = mt6323_led_set_brightness(cdev, cdev->max_brightness);
++		break;
++	case LEDS_DEFSTATE_KEEP:
++		ret = mt6323_get_led_hw_brightness(cdev);
++		if (ret < 0)
++			return ret;
++		led->current_brightness = ret;
++		ret = 0;
++		break;
++	default:
++		ret = mt6323_led_set_brightness(cdev, LED_OFF);
+ 	}
+ 
+ 	return ret;
+-- 
+cgit 
+
+
+From 43ee1e3fbaa0b815c63409a8bc95cabc07086b8d Mon Sep 17 00:00:00 2001
+From: Andy Shevchenko <andriy.shevchenko@linux.intel.com>
+Date: Tue, 3 Jan 2023 15:12:52 +0200
+Subject: leds: mt6360: Get rid of custom led_init_default_state_get()
+
+LED core provides a helper to parse default state from firmware node.
+Use it instead of custom implementation.
+
+Signed-off-by: Andy Shevchenko <andriy.shevchenko@linux.intel.com>
+Reviewed-by: Matthias Brugger <matthias.bgg@gmail.com>
+Reviewed-by: AngeloGioacchino Del Regno <angelogioacchino.delregno@collabora.com>
+Signed-off-by: Lee Jones <lee@kernel.org>
+Link: https://lore.kernel.org/r/20230103131256.33894-8-andriy.shevchenko@linux.intel.com
+---
+ drivers/leds/flash/leds-mt6360.c | 38 ++++++--------------------------------
+ 1 file changed, 6 insertions(+), 32 deletions(-)
+
+diff --git a/drivers/leds/flash/leds-mt6360.c b/drivers/leds/flash/leds-mt6360.c
+index e1066a52d2d21..1af6c58983434 100644
+--- a/drivers/leds/flash/leds-mt6360.c
++++ b/drivers/leds/flash/leds-mt6360.c
+@@ -71,10 +71,6 @@ enum {
+ #define MT6360_STRBTO_STEPUS		32000
+ #define MT6360_STRBTO_MAXUS		2432000
+ 
+-#define STATE_OFF			0
+-#define STATE_KEEP			1
+-#define STATE_ON			2
+-
+ struct mt6360_led {
+ 	union {
+ 		struct led_classdev isnk;
+@@ -84,7 +80,7 @@ struct mt6360_led {
+ 	struct v4l2_flash *v4l2_flash;
+ 	struct mt6360_priv *priv;
+ 	u32 led_no;
+-	u32 default_state;
++	enum led_default_state default_state;
+ };
+ 
+ struct mt6360_priv {
+@@ -405,10 +401,10 @@ static int mt6360_isnk_init_default_state(struct mt6360_led *led)
+ 		level = LED_OFF;
+ 
+ 	switch (led->default_state) {
+-	case STATE_ON:
++	case LEDS_DEFSTATE_ON:
+ 		led->isnk.brightness = led->isnk.max_brightness;
+ 		break;
+-	case STATE_KEEP:
++	case LEDS_DEFSTATE_KEEP:
+ 		led->isnk.brightness = min(level, led->isnk.max_brightness);
+ 		break;
+ 	default:
+@@ -443,10 +439,10 @@ static int mt6360_flash_init_default_state(struct mt6360_led *led)
+ 		level = LED_OFF;
+ 
+ 	switch (led->default_state) {
+-	case STATE_ON:
++	case LEDS_DEFSTATE_ON:
+ 		flash->led_cdev.brightness = flash->led_cdev.max_brightness;
+ 		break;
+-	case STATE_KEEP:
++	case LEDS_DEFSTATE_KEEP:
+ 		flash->led_cdev.brightness =
+ 			min(level, flash->led_cdev.max_brightness);
+ 		break;
+@@ -760,25 +756,6 @@ static int mt6360_init_flash_properties(struct mt6360_led *led,
+ 	return 0;
+ }
+ 
+-static int mt6360_init_common_properties(struct mt6360_led *led,
+-					 struct led_init_data *init_data)
+-{
+-	const char *const states[] = { "off", "keep", "on" };
+-	const char *str;
+-	int ret;
+-
+-	if (!fwnode_property_read_string(init_data->fwnode,
+-					 "default-state", &str)) {
+-		ret = match_string(states, ARRAY_SIZE(states), str);
+-		if (ret < 0)
+-			ret = STATE_OFF;
+-
+-		led->default_state = ret;
+-	}
+-
+-	return 0;
+-}
+-
+ static void mt6360_v4l2_flash_release(struct mt6360_priv *priv)
+ {
+ 	int i;
+@@ -852,10 +829,7 @@ static int mt6360_led_probe(struct platform_device *pdev)
+ 
+ 		led->led_no = reg;
+ 		led->priv = priv;
+-
+-		ret = mt6360_init_common_properties(led, &init_data);
+-		if (ret)
+-			goto out_flash_release;
++		led->default_state = led_init_default_state_get(child);
+ 
+ 		if (reg == MT6360_VIRTUAL_MULTICOLOR ||
+ 		    reg <= MT6360_LED_ISNKML)
+-- 
+cgit 
+
+
+From 0dd37b1cf51e567b63d632dc47efb5de18bd03bf Mon Sep 17 00:00:00 2001
+From: Andy Shevchenko <andriy.shevchenko@linux.intel.com>
+Date: Tue, 3 Jan 2023 15:12:53 +0200
+Subject: leds: pca955x: Get rid of custom led_init_default_state_get()
+
+LED core provides a helper to parse default state from firmware node.
+Use it instead of custom implementation.
+
+Signed-off-by: Andy Shevchenko <andriy.shevchenko@linux.intel.com>
+Signed-off-by: Lee Jones <lee@kernel.org>
+Link: https://lore.kernel.org/r/20230103131256.33894-9-andriy.shevchenko@linux.intel.com
+---
+ drivers/leds/leds-pca955x.c | 26 ++++++--------------------
+ 1 file changed, 6 insertions(+), 20 deletions(-)
+
+diff --git a/drivers/leds/leds-pca955x.c b/drivers/leds/leds-pca955x.c
+index 33ec4543fb4f8..1edd092e78947 100644
+--- a/drivers/leds/leds-pca955x.c
++++ b/drivers/leds/leds-pca955x.c
+@@ -130,7 +130,7 @@ struct pca955x_led {
+ 	struct led_classdev	led_cdev;
+ 	int			led_num;	/* 0 .. 15 potentially */
+ 	u32			type;
+-	int			default_state;
++	enum led_default_state	default_state;
+ 	struct fwnode_handle	*fwnode;
+ };
+ 
+@@ -437,7 +437,6 @@ pca955x_get_pdata(struct i2c_client *client, struct pca955x_chipdef *chip)
+ 		return ERR_PTR(-ENOMEM);
+ 
+ 	device_for_each_child_node(&client->dev, child) {
+-		const char *state;
+ 		u32 reg;
+ 		int res;
+ 
+@@ -448,19 +447,9 @@ pca955x_get_pdata(struct i2c_client *client, struct pca955x_chipdef *chip)
+ 		led = &pdata->leds[reg];
+ 		led->type = PCA955X_TYPE_LED;
+ 		led->fwnode = child;
+-		fwnode_property_read_u32(child, "type", &led->type);
++		led->default_state = led_init_default_state_get(child);
+ 
+-		if (!fwnode_property_read_string(child, "default-state",
+-						 &state)) {
+-			if (!strcmp(state, "keep"))
+-				led->default_state = LEDS_GPIO_DEFSTATE_KEEP;
+-			else if (!strcmp(state, "on"))
+-				led->default_state = LEDS_GPIO_DEFSTATE_ON;
+-			else
+-				led->default_state = LEDS_GPIO_DEFSTATE_OFF;
+-		} else {
+-			led->default_state = LEDS_GPIO_DEFSTATE_OFF;
+-		}
++		fwnode_property_read_u32(child, "type", &led->type);
+ 	}
+ 
+ 	pdata->num_leds = chip->bits;
+@@ -572,13 +561,11 @@ static int pca955x_probe(struct i2c_client *client)
+ 			led->brightness_set_blocking = pca955x_led_set;
+ 			led->brightness_get = pca955x_led_get;
+ 
+-			if (pdata->leds[i].default_state ==
+-			    LEDS_GPIO_DEFSTATE_OFF) {
++			if (pdata->leds[i].default_state == LEDS_DEFSTATE_OFF) {
+ 				err = pca955x_led_set(led, LED_OFF);
+ 				if (err)
+ 					return err;
+-			} else if (pdata->leds[i].default_state ==
+-				   LEDS_GPIO_DEFSTATE_ON) {
++			} else if (pdata->leds[i].default_state == LEDS_DEFSTATE_ON) {
+ 				err = pca955x_led_set(led, LED_FULL);
+ 				if (err)
+ 					return err;
+@@ -617,8 +604,7 @@ static int pca955x_probe(struct i2c_client *client)
+ 			 * brightness to see if it's using PWM1. If so, PWM1
+ 			 * should not be written below.
+ 			 */
+-			if (pdata->leds[i].default_state ==
+-			    LEDS_GPIO_DEFSTATE_KEEP) {
++			if (pdata->leds[i].default_state == LEDS_DEFSTATE_KEEP) {
+ 				if (led->brightness != LED_FULL &&
+ 				    led->brightness != LED_OFF &&
+ 				    led->brightness != LED_HALF)
+-- 
+cgit 
+
+
+From bf8a9a7684460b1a39bfcf0f45eb758fa367b088 Mon Sep 17 00:00:00 2001
+From: Andy Shevchenko <andriy.shevchenko@linux.intel.com>
+Date: Tue, 3 Jan 2023 15:12:54 +0200
+Subject: leds: pm8058: Get rid of custom led_init_default_state_get()
+
+LED core provides a helper to parse default state from firmware node.
+Use it instead of custom implementation.
+
+Signed-off-by: Andy Shevchenko <andriy.shevchenko@linux.intel.com>
+Signed-off-by: Lee Jones <lee@kernel.org>
+Link: https://lore.kernel.org/r/20230103131256.33894-10-andriy.shevchenko@linux.intel.com
+---
+ drivers/leds/leds-pm8058.c | 29 +++++++++++++++--------------
+ 1 file changed, 15 insertions(+), 14 deletions(-)
+
+diff --git a/drivers/leds/leds-pm8058.c b/drivers/leds/leds-pm8058.c
+index fb2ab72c0c40c..b9233f14b6467 100644
+--- a/drivers/leds/leds-pm8058.c
++++ b/drivers/leds/leds-pm8058.c
+@@ -93,8 +93,8 @@ static int pm8058_led_probe(struct platform_device *pdev)
+ 	struct device_node *np;
+ 	int ret;
+ 	struct regmap *map;
+-	const char *state;
+ 	enum led_brightness maxbright;
++	enum led_default_state state;
+ 
+ 	led = devm_kzalloc(dev, sizeof(*led), GFP_KERNEL);
+ 	if (!led)
+@@ -125,25 +125,26 @@ static int pm8058_led_probe(struct platform_device *pdev)
+ 		maxbright = 15; /* 4 bits */
+ 	led->cdev.max_brightness = maxbright;
+ 
+-	state = of_get_property(np, "default-state", NULL);
+-	if (state) {
+-		if (!strcmp(state, "keep")) {
+-			led->cdev.brightness = pm8058_led_get(&led->cdev);
+-		} else if (!strcmp(state, "on")) {
+-			led->cdev.brightness = maxbright;
+-			pm8058_led_set(&led->cdev, maxbright);
+-		} else {
+-			led->cdev.brightness = LED_OFF;
+-			pm8058_led_set(&led->cdev, LED_OFF);
+-		}
++	init_data.fwnode = of_fwnode_handle(np);
++
++	state = led_init_default_state_get(init_data.fwnode);
++	switch (state) {
++	case LEDS_DEFSTATE_ON:
++		led->cdev.brightness = maxbright;
++		pm8058_led_set(&led->cdev, maxbright);
++		break;
++	case LEDS_DEFSTATE_KEEP:
++		led->cdev.brightness = pm8058_led_get(&led->cdev);
++		break;
++	default:
++		led->cdev.brightness = LED_OFF;
++		pm8058_led_set(&led->cdev, LED_OFF);
+ 	}
+ 
+ 	if (led->ledtype == PM8058_LED_TYPE_KEYPAD ||
+ 	    led->ledtype == PM8058_LED_TYPE_FLASH)
+ 		led->cdev.flags	= LED_CORE_SUSPENDRESUME;
+ 
+-	init_data.fwnode = of_fwnode_handle(np);
+-
+ 	ret = devm_led_classdev_register_ext(dev, &led->cdev, &init_data);
+ 	if (ret)
+ 		dev_err(dev, "Failed to register LED for %pOF\n", np);
+-- 
+cgit 
+
+
+From 265d313ee6072e26f55bb1b5455f6e92424a7989 Mon Sep 17 00:00:00 2001
+From: Andy Shevchenko <andriy.shevchenko@linux.intel.com>
+Date: Tue, 3 Jan 2023 15:12:55 +0200
+Subject: leds: syscon: Get rid of custom led_init_default_state_get()
+
+LED core provides a helper to parse default state from firmware node.
+Use it instead of custom implementation.
+
+Signed-off-by: Andy Shevchenko <andriy.shevchenko@linux.intel.com>
+Signed-off-by: Lee Jones <lee@kernel.org>
+Link: https://lore.kernel.org/r/20230103131256.33894-11-andriy.shevchenko@linux.intel.com
+---
+ drivers/leds/leds-syscon.c | 49 ++++++++++++++++++++++------------------------
+ 1 file changed, 23 insertions(+), 26 deletions(-)
+
+diff --git a/drivers/leds/leds-syscon.c b/drivers/leds/leds-syscon.c
+index 7eddb8ecb44ec..e38abb5e60c1b 100644
+--- a/drivers/leds/leds-syscon.c
++++ b/drivers/leds/leds-syscon.c
+@@ -61,7 +61,8 @@ static int syscon_led_probe(struct platform_device *pdev)
+ 	struct device *parent;
+ 	struct regmap *map;
+ 	struct syscon_led *sled;
+-	const char *state;
++	enum led_default_state state;
++	u32 value;
+ 	int ret;
+ 
+ 	parent = dev->parent;
+@@ -86,34 +87,30 @@ static int syscon_led_probe(struct platform_device *pdev)
+ 	if (of_property_read_u32(np, "mask", &sled->mask))
+ 		return -EINVAL;
+ 
+-	state = of_get_property(np, "default-state", NULL);
+-	if (state) {
+-		if (!strcmp(state, "keep")) {
+-			u32 val;
+-
+-			ret = regmap_read(map, sled->offset, &val);
+-			if (ret < 0)
+-				return ret;
+-			sled->state = !!(val & sled->mask);
+-		} else if (!strcmp(state, "on")) {
+-			sled->state = true;
+-			ret = regmap_update_bits(map, sled->offset,
+-						 sled->mask,
+-						 sled->mask);
+-			if (ret < 0)
+-				return ret;
+-		} else {
+-			sled->state = false;
+-			ret = regmap_update_bits(map, sled->offset,
+-						 sled->mask, 0);
+-			if (ret < 0)
+-				return ret;
+-		}
++	init_data.fwnode = of_fwnode_handle(np);
++
++	state = led_init_default_state_get(init_data.fwnode);
++	switch (state) {
++	case LEDS_DEFSTATE_ON:
++		ret = regmap_update_bits(map, sled->offset, sled->mask, sled->mask);
++		if (ret < 0)
++			return ret;
++		sled->state = true;
++		break;
++	case LEDS_DEFSTATE_KEEP:
++		ret = regmap_read(map, sled->offset, &value);
++		if (ret < 0)
++			return ret;
++		sled->state = !!(value & sled->mask);
++		break;
++	default:
++		ret = regmap_update_bits(map, sled->offset, sled->mask, 0);
++		if (ret < 0)
++			return ret;
++		sled->state = false;
+ 	}
+ 	sled->cdev.brightness_set = syscon_led_set;
+ 
+-	init_data.fwnode = of_fwnode_handle(np);
+-
+ 	ret = devm_led_classdev_register_ext(dev, &sled->cdev, &init_data);
+ 	if (ret < 0)
+ 		return ret;
+-- 
+cgit 
+
+
+From 8f47707acd0b65a9e797bc7288a9183131d5ce74 Mon Sep 17 00:00:00 2001
+From: Andy Shevchenko <andriy.shevchenko@linux.intel.com>
+Date: Thu, 19 Jan 2023 19:51:50 +0200
+Subject: leds: tca6507: Convert to use fwnode_device_is_compatible()
+
+Replace open coded fwnode_device_is_compatible() in the driver.
+
+Signed-off-by: Andy Shevchenko <andriy.shevchenko@linux.intel.com>
+Signed-off-by: Lee Jones <lee@kernel.org>
+Link: https://lore.kernel.org/r/20230119175150.77250-1-andriy.shevchenko@linux.intel.com
+---
+ drivers/leds/leds-tca6507.c | 3 +--
+ 1 file changed, 1 insertion(+), 2 deletions(-)
+
+diff --git a/drivers/leds/leds-tca6507.c b/drivers/leds/leds-tca6507.c
+index 46e76b8946519..07dd12686a696 100644
+--- a/drivers/leds/leds-tca6507.c
++++ b/drivers/leds/leds-tca6507.c
+@@ -695,8 +695,7 @@ tca6507_led_dt_init(struct device *dev)
+ 					    &led.default_trigger);
+ 
+ 		led.flags = 0;
+-		if (fwnode_property_match_string(child, "compatible",
+-						 "gpio") >= 0)
++		if (fwnode_device_is_compatible(child, "gpio"))
+ 			led.flags |= TCA6507_MAKE_GPIO;
+ 
+ 		ret = fwnode_property_read_u32(child, "reg", &reg);
+-- 
+cgit 
+
+
+From c64964ebee2a415384385205950ee7a05f78451e Mon Sep 17 00:00:00 2001
+From: Henning Schild <henning.schild@siemens.com>
+Date: Fri, 7 Oct 2022 17:33:23 +0200
+Subject: leds: simatic-ipc-leds-gpio: Make sure we have the GPIO providing
+ driver
+
+If we register a "leds-gpio" platform device for GPIO pins that do not
+exist we get a -EPROBE_DEFER and the probe will be tried again later.
+If there is no driver to provide that pin we will poll forever and also
+create a lot of log messages.
+
+So check if that GPIO driver is configured, if so it will come up
+eventually. If not, we exit our probe function early and do not even
+bother registering the "leds-gpio". This method was chosen over "Kconfig
+depends" since this way we can add support for more devices and GPIO
+backends more easily without "depends":ing on all GPIO backends.
+
+Fixes: a6c80bec3c93 ("leds: simatic-ipc-leds-gpio: Add GPIO version of Siemens driver")
+Signed-off-by: Henning Schild <henning.schild@siemens.com>
+Reviewed-by: Andy Shevchenko <andy.shevchenko@gmail.com>
+Signed-off-by: Lee Jones <lee@kernel.org>
+Link: https://lore.kernel.org/r/20221007153323.1326-1-henning.schild@siemens.com
+---
+ drivers/leds/simple/simatic-ipc-leds-gpio.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/drivers/leds/simple/simatic-ipc-leds-gpio.c b/drivers/leds/simple/simatic-ipc-leds-gpio.c
+index 07f0d79d604d4..e8d329b5a68c3 100644
+--- a/drivers/leds/simple/simatic-ipc-leds-gpio.c
++++ b/drivers/leds/simple/simatic-ipc-leds-gpio.c
+@@ -77,6 +77,8 @@ static int simatic_ipc_leds_gpio_probe(struct platform_device *pdev)
+ 
+ 	switch (plat->devmode) {
+ 	case SIMATIC_IPC_DEVICE_127E:
++		if (!IS_ENABLED(CONFIG_PINCTRL_BROXTON))
++			return -ENODEV;
+ 		simatic_ipc_led_gpio_table = &simatic_ipc_led_gpio_table_127e;
+ 		break;
+ 	case SIMATIC_IPC_DEVICE_227G:
+-- 
+cgit 
+
+
+From 0ca222c81977c2622ca4ab6ddceeb85a414e1155 Mon Sep 17 00:00:00 2001
+From: Arnd Bergmann <arnd@arndb.de>
+Date: Thu, 5 Jan 2023 14:46:19 +0100
+Subject: leds: Remove asic3 driver
+
+Since ASIC3 MFD driver is removed, the LED support is also
+obsolete.
+
+Signed-off-by: Arnd Bergmann <arnd@arndb.de>
+Signed-off-by: Lee Jones <lee@kernel.org>
+Link: https://lore.kernel.org/r/20230105134622.254560-25-arnd@kernel.org
+---
+ drivers/leds/Kconfig      |  11 ---
+ drivers/leds/Makefile     |   1 -
+ drivers/leds/leds-asic3.c | 177 ----------------------------------------------
+ 3 files changed, 189 deletions(-)
+ delete mode 100644 drivers/leds/leds-asic3.c
+
+diff --git a/drivers/leds/Kconfig b/drivers/leds/Kconfig
+index 499d0f215a8bf..3642ed8a75b46 100644
+--- a/drivers/leds/Kconfig
++++ b/drivers/leds/Kconfig
+@@ -631,17 +631,6 @@ config LEDS_NETXBIG
+ 	  and 5Big Network v2 boards. The LEDs are wired to a CPLD and are
+ 	  controlled through a GPIO extension bus.
+ 
+-config LEDS_ASIC3
+-	bool "LED support for the HTC ASIC3"
+-	depends on LEDS_CLASS=y
+-	depends on MFD_ASIC3
+-	default y
+-	help
+-	  This option enables support for the LEDs on the HTC ASIC3. The HTC
+-	  ASIC3 LED GPIOs are inputs, not outputs, thus the leds-gpio driver
+-	  cannot be used. This driver supports hardware blinking with an on+off
+-	  period from 62ms to 125s. Say Y to enable LEDs on the HP iPAQ hx4700.
+-
+ config LEDS_TCA6507
+ 	tristate "LED Support for TCA6507 I2C chip"
+ 	depends on LEDS_CLASS && I2C
+diff --git a/drivers/leds/Makefile b/drivers/leds/Makefile
+index 4fd2f92cd1981..0c1543a4a7a84 100644
+--- a/drivers/leds/Makefile
++++ b/drivers/leds/Makefile
+@@ -14,7 +14,6 @@ obj-$(CONFIG_LEDS_ADP5520)		+= leds-adp5520.o
+ obj-$(CONFIG_LEDS_AN30259A)		+= leds-an30259a.o
+ obj-$(CONFIG_LEDS_APU)			+= leds-apu.o
+ obj-$(CONFIG_LEDS_ARIEL)		+= leds-ariel.o
+-obj-$(CONFIG_LEDS_ASIC3)		+= leds-asic3.o
+ obj-$(CONFIG_LEDS_AW2013)		+= leds-aw2013.o
+ obj-$(CONFIG_LEDS_BCM6328)		+= leds-bcm6328.o
+ obj-$(CONFIG_LEDS_BCM6358)		+= leds-bcm6358.o
+diff --git a/drivers/leds/leds-asic3.c b/drivers/leds/leds-asic3.c
+deleted file mode 100644
+index 8cbc1b8bafa5a..0000000000000
+--- a/drivers/leds/leds-asic3.c
++++ /dev/null
+@@ -1,177 +0,0 @@
+-// SPDX-License-Identifier: GPL-2.0-only
+-/*
+- *  Copyright (C) 2011 Paul Parsons <lost.distance@yahoo.com>
+- */
+-
+-#include <linux/kernel.h>
+-#include <linux/platform_device.h>
+-#include <linux/leds.h>
+-#include <linux/slab.h>
+-
+-#include <linux/mfd/asic3.h>
+-#include <linux/mfd/core.h>
+-#include <linux/module.h>
+-
+-/*
+- *	The HTC ASIC3 LED GPIOs are inputs, not outputs.
+- *	Hence we turn the LEDs on/off via the TimeBase register.
+- */
+-
+-/*
+- *	When TimeBase is 4 the clock resolution is about 32Hz.
+- *	This driver supports hardware blinking with an on+off
+- *	period from 62ms (2 clocks) to 125s (4000 clocks).
+- */
+-#define MS_TO_CLK(ms)	DIV_ROUND_CLOSEST(((ms)*1024), 32000)
+-#define CLK_TO_MS(clk)	(((clk)*32000)/1024)
+-#define MAX_CLK		4000            /* Fits into 12-bit Time registers */
+-#define MAX_MS		CLK_TO_MS(MAX_CLK)
+-
+-static const unsigned int led_n_base[ASIC3_NUM_LEDS] = {
+-	[0] = ASIC3_LED_0_Base,
+-	[1] = ASIC3_LED_1_Base,
+-	[2] = ASIC3_LED_2_Base,
+-};
+-
+-static void brightness_set(struct led_classdev *cdev,
+-	enum led_brightness value)
+-{
+-	struct platform_device *pdev = to_platform_device(cdev->dev->parent);
+-	const struct mfd_cell *cell = mfd_get_cell(pdev);
+-	struct asic3 *asic = dev_get_drvdata(pdev->dev.parent);
+-	u32 timebase;
+-	unsigned int base;
+-
+-	timebase = (value == LED_OFF) ? 0 : (LED_EN|0x4);
+-
+-	base = led_n_base[cell->id];
+-	asic3_write_register(asic, (base + ASIC3_LED_PeriodTime), 32);
+-	asic3_write_register(asic, (base + ASIC3_LED_DutyTime), 32);
+-	asic3_write_register(asic, (base + ASIC3_LED_AutoStopCount), 0);
+-	asic3_write_register(asic, (base + ASIC3_LED_TimeBase), timebase);
+-}
+-
+-static int blink_set(struct led_classdev *cdev,
+-	unsigned long *delay_on,
+-	unsigned long *delay_off)
+-{
+-	struct platform_device *pdev = to_platform_device(cdev->dev->parent);
+-	const struct mfd_cell *cell = mfd_get_cell(pdev);
+-	struct asic3 *asic = dev_get_drvdata(pdev->dev.parent);
+-	u32 on;
+-	u32 off;
+-	unsigned int base;
+-
+-	if (*delay_on > MAX_MS || *delay_off > MAX_MS)
+-		return -EINVAL;
+-
+-	if (*delay_on == 0 && *delay_off == 0) {
+-		/* If both are zero then a sensible default should be chosen */
+-		on = MS_TO_CLK(500);
+-		off = MS_TO_CLK(500);
+-	} else {
+-		on = MS_TO_CLK(*delay_on);
+-		off = MS_TO_CLK(*delay_off);
+-		if ((on + off) > MAX_CLK)
+-			return -EINVAL;
+-	}
+-
+-	base = led_n_base[cell->id];
+-	asic3_write_register(asic, (base + ASIC3_LED_PeriodTime), (on + off));
+-	asic3_write_register(asic, (base + ASIC3_LED_DutyTime), on);
+-	asic3_write_register(asic, (base + ASIC3_LED_AutoStopCount), 0);
+-	asic3_write_register(asic, (base + ASIC3_LED_TimeBase), (LED_EN|0x4));
+-
+-	*delay_on = CLK_TO_MS(on);
+-	*delay_off = CLK_TO_MS(off);
+-
+-	return 0;
+-}
+-
+-static int asic3_led_probe(struct platform_device *pdev)
+-{
+-	struct asic3_led *led = dev_get_platdata(&pdev->dev);
+-	int ret;
+-
+-	ret = mfd_cell_enable(pdev);
+-	if (ret < 0)
+-		return ret;
+-
+-	led->cdev = devm_kzalloc(&pdev->dev, sizeof(struct led_classdev),
+-				GFP_KERNEL);
+-	if (!led->cdev) {
+-		ret = -ENOMEM;
+-		goto out;
+-	}
+-
+-	led->cdev->name = led->name;
+-	led->cdev->flags = LED_CORE_SUSPENDRESUME;
+-	led->cdev->brightness_set = brightness_set;
+-	led->cdev->blink_set = blink_set;
+-	led->cdev->default_trigger = led->default_trigger;
+-
+-	ret = led_classdev_register(&pdev->dev, led->cdev);
+-	if (ret < 0)
+-		goto out;
+-
+-	return 0;
+-
+-out:
+-	(void) mfd_cell_disable(pdev);
+-	return ret;
+-}
+-
+-static int asic3_led_remove(struct platform_device *pdev)
+-{
+-	struct asic3_led *led = dev_get_platdata(&pdev->dev);
+-
+-	led_classdev_unregister(led->cdev);
+-
+-	return mfd_cell_disable(pdev);
+-}
+-
+-#ifdef CONFIG_PM_SLEEP
+-static int asic3_led_suspend(struct device *dev)
+-{
+-	struct platform_device *pdev = to_platform_device(dev);
+-	const struct mfd_cell *cell = mfd_get_cell(pdev);
+-	int ret;
+-
+-	ret = 0;
+-	if (cell->suspend)
+-		ret = (*cell->suspend)(pdev);
+-
+-	return ret;
+-}
+-
+-static int asic3_led_resume(struct device *dev)
+-{
+-	struct platform_device *pdev = to_platform_device(dev);
+-	const struct mfd_cell *cell = mfd_get_cell(pdev);
+-	int ret;
+-
+-	ret = 0;
+-	if (cell->resume)
+-		ret = (*cell->resume)(pdev);
+-
+-	return ret;
+-}
+-#endif
+-
+-static SIMPLE_DEV_PM_OPS(asic3_led_pm_ops, asic3_led_suspend, asic3_led_resume);
+-
+-static struct platform_driver asic3_led_driver = {
+-	.probe		= asic3_led_probe,
+-	.remove		= asic3_led_remove,
+-	.driver		= {
+-		.name	= "leds-asic3",
+-		.pm	= &asic3_led_pm_ops,
+-	},
+-};
+-
+-module_platform_driver(asic3_led_driver);
+-
+-MODULE_AUTHOR("Paul Parsons <lost.distance@yahoo.com>");
+-MODULE_DESCRIPTION("HTC ASIC3 LED driver");
+-MODULE_LICENSE("GPL");
+-MODULE_ALIAS("platform:leds-asic3");
+-- 
+cgit 
+
+
+From 227e9611cd740ebf2b547ebb2b3b8a7ac80829be Mon Sep 17 00:00:00 2001
+From: Geert Uytterhoeven <geert+renesas@glider.be>
+Date: Sun, 22 Jan 2023 11:47:27 +0100
+Subject: dt-bindings: leds: Document Bluetooth and WLAN triggers
+
+Add the missing trigger patterns for Bluetooth and WLAN activity, which
+are already in active use.
+
+While at it, move the mmc pattern comment where it belongs, and restore
+alphabetical sort order.
+
+Signed-off-by: Geert Uytterhoeven <geert+renesas@glider.be>
+Reviewed-by: Rob Herring <robh@kernel.org>
+Signed-off-by: Lee Jones <lee@kernel.org>
+Link: https://lore.kernel.org/r/0d0de1bc949d24e08174205c13c0b59bd73c1ea8.1674384302.git.geert+renesas@glider.be
+---
+ Documentation/devicetree/bindings/leds/common.yaml | 8 ++++++--
+ 1 file changed, 6 insertions(+), 2 deletions(-)
+
+diff --git a/Documentation/devicetree/bindings/leds/common.yaml b/Documentation/devicetree/bindings/leds/common.yaml
+index f5c57a580078e..d34bb58c00371 100644
+--- a/Documentation/devicetree/bindings/leds/common.yaml
++++ b/Documentation/devicetree/bindings/leds/common.yaml
+@@ -98,9 +98,13 @@ properties:
+             # LED alters the brightness for the specified duration with one software
+             # timer (requires "led-pattern" property)
+           - pattern
+-        # LED is triggered by SD/MMC activity
+-      - pattern: "^mmc[0-9]+$"
+       - pattern: "^cpu[0-9]*$"
++      - pattern: "^hci[0-9]+-power$"
++        # LED is triggered by Bluetooth activity
++      - pattern: "^mmc[0-9]+$"
++        # LED is triggered by SD/MMC activity
++      - pattern: "^phy[0-9]+tx$"
++        # LED is triggered by WLAN activity
+ 
+   led-pattern:
+     description: |
+-- 
+cgit 
+
+
+From 4aea8f30475f472047d2b877e985b343ddc6882f Mon Sep 17 00:00:00 2001
+From: Randy Dunlap <rdunlap@infradead.org>
+Date: Thu, 26 Jan 2023 22:39:44 -0800
+Subject: Documentation: leds: Correct spelling
+
+Correct spelling problems for Documentation/leds/ as reported
+by codespell.
+
+Signed-off-by: Randy Dunlap <rdunlap@infradead.org>
+Signed-off-by: Lee Jones <lee@kernel.org>
+Link: https://lore.kernel.org/r/20230127064005.1558-15-rdunlap@infradead.org
+---
+ Documentation/leds/leds-qcom-lpg.rst | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/Documentation/leds/leds-qcom-lpg.rst b/Documentation/leds/leds-qcom-lpg.rst
+index de7ceead93371..d6a76c38c581a 100644
+--- a/Documentation/leds/leds-qcom-lpg.rst
++++ b/Documentation/leds/leds-qcom-lpg.rst
+@@ -34,7 +34,7 @@ Specify a hardware pattern for a Qualcomm LPG LED.
+ 
+ The pattern is a series of brightness and hold-time pairs, with the hold-time
+ expressed in milliseconds. The hold time is a property of the pattern and must
+-therefor be identical for each element in the pattern (except for the pauses
++therefore be identical for each element in the pattern (except for the pauses
+ described below). As the LPG hardware is not able to perform the linear
+ transitions expected by the leds-trigger-pattern format, each entry in the
+ pattern must be followed a zero-length entry of the same brightness.
+@@ -66,7 +66,7 @@ Low-pause pattern::
+         +----------------------------->
+         0    5   10   15  20   25   time (100ms)
+ 
+-Similarily, the last entry can be stretched by using a higher hold-time on the
++Similarly, the last entry can be stretched by using a higher hold-time on the
+ last entry.
+ 
+ In order to save space in the shared lookup table the LPG supports "ping-pong"
+-- 
+cgit 
+
+
+From d8fe820b989b733470d0193bf7a71d8e1eb4ca50 Mon Sep 17 00:00:00 2001
+From: Corentin Labbe <clabbe@baylibre.com>
+Date: Tue, 31 Jan 2023 14:03:03 +0000
+Subject: dt-bindings: leds: Add disk write/read and usb-host/usb-gadget
+
+The triggers enum misses 3 cases used by gemini DT.
+usb-host was added via commit 0cfbd328d60f ("usb: Add LED triggers for USB activity")
+so we add also as valid trigger usb-gadget which was added along in this
+commit.
+
+disk-read/disk-write were added by commit d1ed7c558612 ("leds: Extends disk trigger for reads and writes")
+Reviewed-by: Linus Walleij <linus.walleij@linaro.org>
+Acked-by: Rob Herring <robh@kernel.org>
+
+Signed-off-by: Corentin Labbe <clabbe@baylibre.com>
+Signed-off-by: Lee Jones <lee@kernel.org>
+Link: https://lore.kernel.org/r/20230131140304.626779-1-clabbe@baylibre.com
+---
+ Documentation/devicetree/bindings/leds/common.yaml | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/Documentation/devicetree/bindings/leds/common.yaml b/Documentation/devicetree/bindings/leds/common.yaml
+index d34bb58c00371..60c8611c6611b 100644
+--- a/Documentation/devicetree/bindings/leds/common.yaml
++++ b/Documentation/devicetree/bindings/leds/common.yaml
+@@ -90,6 +90,8 @@ properties:
+           - heartbeat
+             # LED indicates disk activity
+           - disk-activity
++          - disk-read
++          - disk-write
+             # LED indicates IDE disk activity (deprecated), in new implementations
+             # use "disk-activity"
+           - ide-disk
+@@ -98,6 +100,8 @@ properties:
+             # LED alters the brightness for the specified duration with one software
+             # timer (requires "led-pattern" property)
+           - pattern
++          - usb-gadget
++          - usb-host
+       - pattern: "^cpu[0-9]*$"
+       - pattern: "^hci[0-9]+-power$"
+         # LED is triggered by Bluetooth activity
+-- 
+cgit 
+
+
+From 056f65c3938bfa40141669b974d441348af3ee54 Mon Sep 17 00:00:00 2001
+From: Corentin Labbe <clabbe@baylibre.com>
+Date: Tue, 31 Jan 2023 14:03:04 +0000
+Subject: leds: Remove ide-disk trigger
+
+No user of ide-disk remains, so remove this deprecated trigger.
+Only a few platforms used this and were fixed in 2016.
+
+Signed-off-by: Corentin Labbe <clabbe@baylibre.com>
+Acked-by: Rob Herring <robh@kernel.org>
+Reviewed-by: Linus Walleij <linus.walleij@linaro.org>
+Signed-off-by: Lee Jones <lee@kernel.org>
+Link: https://lore.kernel.org/r/20230131140304.626779-2-clabbe@baylibre.com
+---
+ Documentation/devicetree/bindings/leds/common.yaml | 3 ---
+ drivers/leds/trigger/ledtrig-disk.c                | 4 ----
+ 2 files changed, 7 deletions(-)
+
+diff --git a/Documentation/devicetree/bindings/leds/common.yaml b/Documentation/devicetree/bindings/leds/common.yaml
+index 60c8611c6611b..15e3f6645682e 100644
+--- a/Documentation/devicetree/bindings/leds/common.yaml
++++ b/Documentation/devicetree/bindings/leds/common.yaml
+@@ -92,9 +92,6 @@ properties:
+           - disk-activity
+           - disk-read
+           - disk-write
+-            # LED indicates IDE disk activity (deprecated), in new implementations
+-            # use "disk-activity"
+-          - ide-disk
+             # LED flashes at a fixed, configurable rate
+           - timer
+             # LED alters the brightness for the specified duration with one software
+diff --git a/drivers/leds/trigger/ledtrig-disk.c b/drivers/leds/trigger/ledtrig-disk.c
+index 0741910785bbb..0b7dfbd042733 100644
+--- a/drivers/leds/trigger/ledtrig-disk.c
++++ b/drivers/leds/trigger/ledtrig-disk.c
+@@ -16,7 +16,6 @@
+ DEFINE_LED_TRIGGER(ledtrig_disk);
+ DEFINE_LED_TRIGGER(ledtrig_disk_read);
+ DEFINE_LED_TRIGGER(ledtrig_disk_write);
+-DEFINE_LED_TRIGGER(ledtrig_ide);
+ 
+ void ledtrig_disk_activity(bool write)
+ {
+@@ -24,8 +23,6 @@ void ledtrig_disk_activity(bool write)
+ 
+ 	led_trigger_blink_oneshot(ledtrig_disk,
+ 				  &blink_delay, &blink_delay, 0);
+-	led_trigger_blink_oneshot(ledtrig_ide,
+-				  &blink_delay, &blink_delay, 0);
+ 	if (write)
+ 		led_trigger_blink_oneshot(ledtrig_disk_write,
+ 					  &blink_delay, &blink_delay, 0);
+@@ -40,7 +37,6 @@ static int __init ledtrig_disk_init(void)
+ 	led_trigger_register_simple("disk-activity", &ledtrig_disk);
+ 	led_trigger_register_simple("disk-read", &ledtrig_disk_read);
+ 	led_trigger_register_simple("disk-write", &ledtrig_disk_write);
+-	led_trigger_register_simple("ide-disk", &ledtrig_ide);
+ 
+ 	return 0;
+ }
+-- 
+cgit 
+

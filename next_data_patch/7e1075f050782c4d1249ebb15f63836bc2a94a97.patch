@@ -1,0 +1,56 @@
+From 7e1075f050782c4d1249ebb15f63836bc2a94a97 Mon Sep 17 00:00:00 2001
+From: Aaron Lewis <aaronlewis@google.com>
+Date: Tue, 21 Feb 2023 16:36:51 +0000
+Subject: KVM: selftests: Assert that XTILE is XSAVE-enabled
+
+Assert that XTILE is XSAVE-enabled. check_xsave_supports_xtile() doesn't
+actually check anything since its return value is not used. Add the
+intended assert.
+
+Opportunistically, move the assert to a more appropriate location:
+immediately after XSETBV and remove check_xsave_supports_xtile().
+
+Fixes: 5dc19f1c7dd3 ("KVM: selftests: Convert AMX test to use X86_PROPRETY_XXX")
+Signed-off-by: Aaron Lewis <aaronlewis@google.com>
+Signed-off-by: Mingwei Zhang <mizhang@google.com>
+Link: https://lore.kernel.org/r/20230221163655.920289-10-mizhang@google.com
+Signed-off-by: Sean Christopherson <seanjc@google.com>
+---
+ tools/testing/selftests/kvm/x86_64/amx_test.c | 7 +------
+ 1 file changed, 1 insertion(+), 6 deletions(-)
+
+diff --git a/tools/testing/selftests/kvm/x86_64/amx_test.c b/tools/testing/selftests/kvm/x86_64/amx_test.c
+index e6bc6cd108dc0..6f788e6d8a8da 100644
+--- a/tools/testing/selftests/kvm/x86_64/amx_test.c
++++ b/tools/testing/selftests/kvm/x86_64/amx_test.c
+@@ -115,11 +115,6 @@ static inline void check_cpuid_xsave(void)
+ 	GUEST_ASSERT(this_cpu_has(X86_FEATURE_OSXSAVE));
+ }
+ 
+-static bool check_xsave_supports_xtile(void)
+-{
+-	return __xgetbv(0) & XFEATURE_MASK_XTILE;
+-}
+-
+ static void check_xtile_info(void)
+ {
+ 	GUEST_ASSERT(this_cpu_has_p(X86_PROPERTY_XSTATE_MAX_SIZE_XCR0));
+@@ -166,6 +161,7 @@ static void init_regs(void)
+ 	xcr0 = __xgetbv(0);
+ 	xcr0 |= XFEATURE_MASK_XTILE;
+ 	__xsetbv(0x0, xcr0);
++	GUEST_ASSERT(__xgetbv(0) & XFEATURE_MASK_XTILE);
+ }
+ 
+ static void __attribute__((__flatten__)) guest_code(struct tile_config *amx_cfg,
+@@ -174,7 +170,6 @@ static void __attribute__((__flatten__)) guest_code(struct tile_config *amx_cfg,
+ {
+ 	init_regs();
+ 	check_cpuid_xsave();
+-	check_xsave_supports_xtile();
+ 	check_xtile_info();
+ 	GUEST_SYNC(1);
+ 
+-- 
+cgit 
+

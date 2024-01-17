@@ -1,0 +1,51 @@
+From 0a3a58de319552525507a3497da86df039a5e4e0 Mon Sep 17 00:00:00 2001
+From: David Woodhouse <dwmw2@infradead.org>
+Date: Sun, 15 Jan 2023 22:14:19 +0000
+Subject: x86/pci/xen: Set MSI_FLAG_PCI_MSIX support in Xen MSI domain
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+The Xen MSI → PIRQ magic does support MSI-X, so advertise it.
+
+(In fact it's better off with MSI-X than MSI, because it's actually
+broken by design for 32-bit MSI, since it puts the high bits of the
+PIRQ# into the high 32 bits of the MSI message address, instead of the
+Extended Destination ID field which is in bits 4-11.
+
+Strictly speaking, this really fixes a much older commit 2e4386eba0c0
+("x86/xen: Wrap XEN MSI management into irqdomain") which failed to set
+the flag. But that never really mattered until __pci_enable_msix_range()
+started to check and bail out early. So in 6.2-rc we see failures e.g.
+to bring up networking on an Amazon EC2 m4.16xlarge instance:
+
+[   41.498694] ena 0000:00:03.0 (unnamed net_device) (uninitialized): Failed to enable MSI-X. irq_cnt -524
+[   41.498705] ena 0000:00:03.0: Can not reserve msix vectors
+[   41.498712] ena 0000:00:03.0: Failed to enable and set the admin interrupts
+
+Side note: This is the first bug found, and first patch tested, by running
+Xen guests under QEMU/KVM instead of running under actual Xen.
+
+Fixes: 99f3d2797657 ("PCI/MSI: Reject MSI-X early")
+Signed-off-by: David Woodhouse <dwmw@amazon.co.uk>
+Signed-off-by: Thomas Gleixner <tglx@linutronix.de>
+Link: https://lore.kernel.org/r/4bffa69a949bfdc92c4a18e5a1c3cbb3b94a0d32.camel@infradead.org
+---
+ arch/x86/pci/xen.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/arch/x86/pci/xen.c b/arch/x86/pci/xen.c
+index b94f727251b64..790550479831f 100644
+--- a/arch/x86/pci/xen.c
++++ b/arch/x86/pci/xen.c
+@@ -433,6 +433,7 @@ static struct msi_domain_ops xen_pci_msi_domain_ops = {
+ };
+ 
+ static struct msi_domain_info xen_pci_msi_domain_info = {
++	.flags			= MSI_FLAG_PCI_MSIX,
+ 	.ops			= &xen_pci_msi_domain_ops,
+ };
+ 
+-- 
+cgit 
+

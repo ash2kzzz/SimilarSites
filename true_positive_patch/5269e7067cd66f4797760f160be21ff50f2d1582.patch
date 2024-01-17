@@ -1,0 +1,40 @@
+From 5269e7067cd66f4797760f160be21ff50f2d1582 Mon Sep 17 00:00:00 2001
+From: Guenter Roeck <linux@roeck-us.net>
+Date: Thu, 3 Sep 2015 08:20:58 -0700
+Subject: cpufreq: Add ARM_MT8173_CPUFREQ dependency on THERMAL
+
+If ARM_MT8173_CPUFREQ is configured, and THERMAL is configured as module,
+the following build error is seen for arm:allmodconfig and
+arm64:allmodconfig.
+
+drivers/built-in.o: In function `mtk_cpufreq_ready':
+:(.text+0x32a20c): undefined reference to `of_cpufreq_cooling_register'
+drivers/built-in.o: In function `mtk_cpufreq_exit':
+:(.text+0x32a420): undefined reference to `cpufreq_cooling_unregister'
+
+The fix is similar to CPUFREQ_DT, but more restrictive since
+ARM_MT8173_CPUFREQ can not be built as module.
+
+Fixes: 1453863fb02a ("cpufreq: mediatek: Add MT8173 cpufreq driver")
+Signed-off-by: Guenter Roeck <linux@roeck-us.net>
+Acked-by: Viresh Kumar <viresh.kumar@linaro.org>
+Signed-off-by: Rafael J. Wysocki <rafael.j.wysocki@intel.com>
+---
+ drivers/cpufreq/Kconfig.arm | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/drivers/cpufreq/Kconfig.arm b/drivers/cpufreq/Kconfig.arm
+index 2bacf24a19a92..360c5df552076 100644
+--- a/drivers/cpufreq/Kconfig.arm
++++ b/drivers/cpufreq/Kconfig.arm
+@@ -133,6 +133,7 @@ config ARM_KIRKWOOD_CPUFREQ
+ config ARM_MT8173_CPUFREQ
+ 	bool "Mediatek MT8173 CPUFreq support"
+ 	depends on ARCH_MEDIATEK && REGULATOR
++	depends on !CPU_THERMAL || THERMAL=y
+ 	select PM_OPP
+ 	help
+ 	  This adds the CPUFreq driver support for Mediatek MT8173 SoC.
+-- 
+cgit 
+

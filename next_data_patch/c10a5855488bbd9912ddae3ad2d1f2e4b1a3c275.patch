@@ -1,0 +1,30 @@
+From c10a5855488bbd9912ddae3ad2d1f2e4b1a3c275 Mon Sep 17 00:00:00 2001
+From: Marek Vasut <marex@denx.de>
+Date: Fri, 16 Dec 2022 01:05:26 +0100
+Subject: arm64: dts: imx8mm: Drop xtal clock specifier from eDM SBC
+
+The clk_xtal32k have clock-cells = <0>, drop the bogus specifier.
+
+Fixes: 9509593f327a ("arm64: dts: imx8mm: Model PMIC to SNVS RTC clock path on Data Modul i.MX8M Mini eDM SBC")
+Signed-off-by: Marek Vasut <marex@denx.de>
+Signed-off-by: Shawn Guo <shawnguo@kernel.org>
+---
+ arch/arm64/boot/dts/freescale/imx8mm-data-modul-edm-sbc.dts | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/arch/arm64/boot/dts/freescale/imx8mm-data-modul-edm-sbc.dts b/arch/arm64/boot/dts/freescale/imx8mm-data-modul-edm-sbc.dts
+index 24f61db33eba2..752f409a30b16 100644
+--- a/arch/arm64/boot/dts/freescale/imx8mm-data-modul-edm-sbc.dts
++++ b/arch/arm64/boot/dts/freescale/imx8mm-data-modul-edm-sbc.dts
+@@ -275,7 +275,7 @@
+ 		compatible = "rohm,bd71847";
+ 		reg = <0x4b>;
+ 		#clock-cells = <0>;
+-		clocks = <&clk_xtal32k 0>;
++		clocks = <&clk_xtal32k>;
+ 		clock-output-names = "clk-32k-out";
+ 		pinctrl-names = "default";
+ 		pinctrl-0 = <&pinctrl_pmic>;
+-- 
+cgit 
+

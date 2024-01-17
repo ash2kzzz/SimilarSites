@@ -1,0 +1,52 @@
+From cea23efb4de2d31e72a576026b213e15d6792976 Mon Sep 17 00:00:00 2001
+From: Kees Cook <keescook@chromium.org>
+Date: Thu, 2 Jan 2020 12:29:17 -0800
+Subject: lkdtm/bugs: Make double-fault test always available
+
+Adjust the DOUBLE_FAULT test to always be available (so test harnesses
+don't have to make exceptions more missing tests), and for the
+arch-specific tests to "XFAIL" so that test harnesses can reason about
+expected vs unexpected failures.
+
+Fixes: b09511c253e5 ("lkdtm: Add a DOUBLE_FAULT crash type on x86")
+Signed-off-by: Kees Cook <keescook@chromium.org>
+Link: https://lore.kernel.org/r/202001021226.751D3F869D@keescook
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+---
+ drivers/misc/lkdtm/bugs.c | 10 ++++++----
+ 1 file changed, 6 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/misc/lkdtm/bugs.c b/drivers/misc/lkdtm/bugs.c
+index a4fdad04809a9..9eda771d3a373 100644
+--- a/drivers/misc/lkdtm/bugs.c
++++ b/drivers/misc/lkdtm/bugs.c
+@@ -338,13 +338,13 @@ void lkdtm_UNSET_SMEP(void)
+ 		native_write_cr4(cr4);
+ 	}
+ #else
+-	pr_err("FAIL: this test is x86_64-only\n");
++	pr_err("XFAIL: this test is x86_64-only\n");
+ #endif
+ }
+ 
+-#ifdef CONFIG_X86_32
+ void lkdtm_DOUBLE_FAULT(void)
+ {
++#ifdef CONFIG_X86_32
+ 	/*
+ 	 * Trigger #DF by setting the stack limit to zero.  This clobbers
+ 	 * a GDT TLS slot, which is okay because the current task will die
+@@ -373,6 +373,8 @@ void lkdtm_DOUBLE_FAULT(void)
+ 	asm volatile ("movw %0, %%ss; addl $0, (%%esp)" ::
+ 		      "r" ((unsigned short)(GDT_ENTRY_TLS_MIN << 3)));
+ 
+-	panic("tried to double fault but didn't die\n");
+-}
++	pr_err("FAIL: tried to double fault but didn't die\n");
++#else
++	pr_err("XFAIL: this test is ia32-only\n");
+ #endif
++}
+-- 
+cgit 
+

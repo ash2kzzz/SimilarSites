@@ -1,0 +1,33 @@
+From 4eb7c2f3a3d7cd6c50f391ac555b50c3fc5b3799 Mon Sep 17 00:00:00 2001
+From: Zhang Rui <rui.zhang@intel.com>
+Date: Wed, 29 Mar 2023 17:00:55 +0800
+Subject: thermal: thermal_hwmon: Fix a kernel NULL pointer dereference
+
+When the hwmon device node of a thermal zone device is not found,
+using hwmon->device causes a kernel NULL pointer dereference.
+
+Fixes: dec07d399cc8 ("thermal: Don't use 'device' internal thermal zone structure field")
+Reported-by: Preble Adam C <adam.c.preble@intel.com>
+Signed-off-by: Zhang Rui <rui.zhang@intel.com>
+Acked-by: Daniel Lezcano <daniel.lezcano@linaro.org>
+Signed-off-by: Rafael J. Wysocki <rafael.j.wysocki@intel.com>
+---
+ drivers/thermal/thermal_hwmon.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/thermal/thermal_hwmon.c b/drivers/thermal/thermal_hwmon.c
+index c59db17dddd67..261743f461bed 100644
+--- a/drivers/thermal/thermal_hwmon.c
++++ b/drivers/thermal/thermal_hwmon.c
+@@ -229,7 +229,7 @@ void thermal_remove_hwmon_sysfs(struct thermal_zone_device *tz)
+ 	hwmon = thermal_hwmon_lookup_by_type(tz);
+ 	if (unlikely(!hwmon)) {
+ 		/* Should never happen... */
+-		dev_dbg(hwmon->device, "hwmon device lookup failed!\n");
++		dev_dbg(&tz->device, "hwmon device lookup failed!\n");
+ 		return;
+ 	}
+ 
+-- 
+cgit 
+

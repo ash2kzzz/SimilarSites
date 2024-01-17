@@ -1,0 +1,41 @@
+From bbf860ed710bacc0279c4cda2817f70e1200d04b Mon Sep 17 00:00:00 2001
+From: Andy Shevchenko <andriy.shevchenko@linux.intel.com>
+Date: Mon, 13 Mar 2023 17:45:22 +0200
+Subject: usb: gadget: Use correct endianness of the wLength field for WebUSB
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+WebUSB code uses wLength directly without proper endianness conversion.
+Update it to use already prepared temporary variable w_length instead.
+
+Fixes: 93c473948c58 ("usb: gadget: add WebUSB landing page support")
+Signed-off-by: Andy Shevchenko <andriy.shevchenko@linux.intel.com>
+Tested-By: Jó Ágila Bitsch <jgilab@gmail.com>
+Link: https://lore.kernel.org/r/20230313154522.52684-1-andriy.shevchenko@linux.intel.com
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+---
+ drivers/usb/gadget/composite.c | 7 +++----
+ 1 file changed, 3 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/usb/gadget/composite.c b/drivers/usb/gadget/composite.c
+index fa7dd6cf014d7..5377d873c08eb 100644
+--- a/drivers/usb/gadget/composite.c
++++ b/drivers/usb/gadget/composite.c
+@@ -2079,10 +2079,9 @@ unknown:
+ 				sizeof(url_descriptor->URL)
+ 				- WEBUSB_URL_DESCRIPTOR_HEADER_LENGTH + landing_page_offset);
+ 
+-			if (ctrl->wLength < WEBUSB_URL_DESCRIPTOR_HEADER_LENGTH
+-					    + landing_page_length)
+-				landing_page_length = ctrl->wLength
+-					- WEBUSB_URL_DESCRIPTOR_HEADER_LENGTH + landing_page_offset;
++			if (w_length < WEBUSB_URL_DESCRIPTOR_HEADER_LENGTH + landing_page_length)
++				landing_page_length = w_length
++				- WEBUSB_URL_DESCRIPTOR_HEADER_LENGTH + landing_page_offset;
+ 
+ 			memcpy(url_descriptor->URL,
+ 				cdev->landing_page + landing_page_offset,
+-- 
+cgit 
+

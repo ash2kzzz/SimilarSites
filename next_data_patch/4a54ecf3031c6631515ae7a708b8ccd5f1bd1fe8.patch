@@ -1,0 +1,45 @@
+From 4a54ecf3031c6631515ae7a708b8ccd5f1bd1fe8 Mon Sep 17 00:00:00 2001
+From: Randy Dunlap <rdunlap@infradead.org>
+Date: Thu, 9 Feb 2023 09:23:59 -0800
+Subject: soc: sunxi: SUN20I_PPU should depend on PM
+
+An $ARCH or a platform should select PM. Single device drivers
+should only depend on PM, not select it.
+
+Having SUN20I_PPU depend on PM removes a kconfig warning:
+
+WARNING: unmet direct dependencies detected for PM
+  Depends on [n]: !MMU [=y]
+  Selected by [y]:
+  - SUN20I_PPU [=y] && (ARCH_SUNXI || COMPILE_TEST [=y])
+
+Fixes: 0ad2185dcb5e ("soc: sunxi: select CONFIG_PM")
+Signed-off-by: Randy Dunlap <rdunlap@infradead.org>
+Cc: Chen-Yu Tsai <wens@csie.org>
+Cc: Jernej Skrabec <jernej.skrabec@gmail.com>
+Cc: Samuel Holland <samuel@sholland.org>
+Cc: linux-arm-kernel@lists.infradead.org
+Cc: linux-sunxi@lists.linux.dev
+Cc: Arnd Bergmann <arnd@arndb.de>
+Cc: Geert Uytterhoeven <geert@linux-m68k.org>
+Signed-off-by: Arnd Bergmann <arnd@arndb.de>
+---
+ drivers/soc/sunxi/Kconfig | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/soc/sunxi/Kconfig b/drivers/soc/sunxi/Kconfig
+index 02d0b338feb3c..c5070914fc6aa 100644
+--- a/drivers/soc/sunxi/Kconfig
++++ b/drivers/soc/sunxi/Kconfig
+@@ -23,7 +23,7 @@ config SUNXI_SRAM
+ config SUN20I_PPU
+ 	bool "Allwinner D1 PPU power domain driver"
+ 	depends on ARCH_SUNXI || COMPILE_TEST
+-	select PM
++	depends on PM
+ 	select PM_GENERIC_DOMAINS
+ 	help
+ 	  Say y to enable the PPU power domain driver. This saves power
+-- 
+cgit 
+

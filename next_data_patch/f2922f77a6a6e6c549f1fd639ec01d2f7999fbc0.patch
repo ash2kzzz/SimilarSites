@@ -1,0 +1,37 @@
+From f2922f77a6a6e6c549f1fd639ec01d2f7999fbc0 Mon Sep 17 00:00:00 2001
+From: Jesper Dangaard Brouer <brouer@redhat.com>
+Date: Wed, 1 Feb 2023 19:12:54 +0100
+Subject: selftests/bpf: Fix unmap bug in prog_tests/xdp_metadata.c
+
+The function close_xsk() unmap via munmap() the wrong memory pointer.
+The call xsk_umem__delete(xsk->umem) have already freed xsk->umem.
+Thus the call to munmap(xsk->umem, UMEM_SIZE) will have unpredictable
+behavior that can lead to Segmentation fault elsewhere, as man page
+explain subsequent references to these pages will generate SIGSEGV.
+
+Fixes: e2a46d54d7a1 ("selftests/bpf: Verify xdp_metadata xdp->af_xdp path")
+Reported-by: Martin KaFai Lau <martin.lau@kernel.org>
+Signed-off-by: Jesper Dangaard Brouer <brouer@redhat.com>
+Signed-off-by: Daniel Borkmann <daniel@iogearbox.net>
+Acked-by: Stanislav Fomichev <sdf@google.com>
+Link: https://lore.kernel.org/bpf/167527517464.938135.13750760520577765269.stgit@firesoul
+---
+ tools/testing/selftests/bpf/prog_tests/xdp_metadata.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/tools/testing/selftests/bpf/prog_tests/xdp_metadata.c b/tools/testing/selftests/bpf/prog_tests/xdp_metadata.c
+index e033d48288c03..241909d71c7e3 100644
+--- a/tools/testing/selftests/bpf/prog_tests/xdp_metadata.c
++++ b/tools/testing/selftests/bpf/prog_tests/xdp_metadata.c
+@@ -121,7 +121,7 @@ static void close_xsk(struct xsk *xsk)
+ 		xsk_umem__delete(xsk->umem);
+ 	if (xsk->socket)
+ 		xsk_socket__delete(xsk->socket);
+-	munmap(xsk->umem, UMEM_SIZE);
++	munmap(xsk->umem_area, UMEM_SIZE);
+ }
+ 
+ static void ip_csum(struct iphdr *iph)
+-- 
+cgit 
+

@@ -1,0 +1,122 @@
+From f84df2a6f268de584a201e8911384a2d244876e3 Mon Sep 17 00:00:00 2001
+From: "Eric W. Biederman" <ebiederm@xmission.com>
+Date: Wed, 16 Nov 2016 22:06:51 -0600
+Subject: exec: Ensure mm->user_ns contains the execed files
+
+When the user namespace support was merged the need to prevent
+ptrace from revealing the contents of an unreadable executable
+was overlooked.
+
+Correct this oversight by ensuring that the executed file
+or files are in mm->user_ns, by adjusting mm->user_ns.
+
+Use the new function privileged_wrt_inode_uidgid to see if
+the executable is a member of the user namespace, and as such
+if having CAP_SYS_PTRACE in the user namespace should allow
+tracing the executable.  If not update mm->user_ns to
+the parent user namespace until an appropriate parent is found.
+
+Cc: stable@vger.kernel.org
+Reported-by: Jann Horn <jann@thejh.net>
+Fixes: 9e4a36ece652 ("userns: Fail exec for suid and sgid binaries with ids outside our user namespace.")
+Signed-off-by: "Eric W. Biederman" <ebiederm@xmission.com>
+---
+ fs/exec.c                  | 19 +++++++++++++++++--
+ include/linux/capability.h |  1 +
+ kernel/capability.c        | 16 ++++++++++++++--
+ 3 files changed, 32 insertions(+), 4 deletions(-)
+
+diff --git a/fs/exec.c b/fs/exec.c
+index 3cf2cfced97a3..fdf53f0c421b8 100644
+--- a/fs/exec.c
++++ b/fs/exec.c
+@@ -1275,8 +1275,22 @@ EXPORT_SYMBOL(flush_old_exec);
+ 
+ void would_dump(struct linux_binprm *bprm, struct file *file)
+ {
+-	if (inode_permission(file_inode(file), MAY_READ) < 0)
++	struct inode *inode = file_inode(file);
++	if (inode_permission(inode, MAY_READ) < 0) {
++		struct user_namespace *old, *user_ns;
+ 		bprm->interp_flags |= BINPRM_FLAGS_ENFORCE_NONDUMP;
++
++		/* Ensure mm->user_ns contains the executable */
++		user_ns = old = bprm->mm->user_ns;
++		while ((user_ns != &init_user_ns) &&
++		       !privileged_wrt_inode_uidgid(user_ns, inode))
++			user_ns = user_ns->parent;
++
++		if (old != user_ns) {
++			bprm->mm->user_ns = get_user_ns(user_ns);
++			put_user_ns(old);
++		}
++	}
+ }
+ EXPORT_SYMBOL(would_dump);
+ 
+@@ -1306,7 +1320,6 @@ void setup_new_exec(struct linux_binprm * bprm)
+ 	    !gid_eq(bprm->cred->gid, current_egid())) {
+ 		current->pdeath_signal = 0;
+ 	} else {
+-		would_dump(bprm, bprm->file);
+ 		if (bprm->interp_flags & BINPRM_FLAGS_ENFORCE_NONDUMP)
+ 			set_dumpable(current->mm, suid_dumpable);
+ 	}
+@@ -1741,6 +1754,8 @@ static int do_execveat_common(int fd, struct filename *filename,
+ 	if (retval < 0)
+ 		goto out;
+ 
++	would_dump(bprm, bprm->file);
++
+ 	retval = exec_binprm(bprm);
+ 	if (retval < 0)
+ 		goto out;
+diff --git a/include/linux/capability.h b/include/linux/capability.h
+index d6088e2a76688..6ffb67e10c060 100644
+--- a/include/linux/capability.h
++++ b/include/linux/capability.h
+@@ -240,6 +240,7 @@ static inline bool ns_capable_noaudit(struct user_namespace *ns, int cap)
+ 	return true;
+ }
+ #endif /* CONFIG_MULTIUSER */
++extern bool privileged_wrt_inode_uidgid(struct user_namespace *ns, const struct inode *inode);
+ extern bool capable_wrt_inode_uidgid(const struct inode *inode, int cap);
+ extern bool file_ns_capable(const struct file *file, struct user_namespace *ns, int cap);
+ extern bool ptracer_capable(struct task_struct *tsk, struct user_namespace *ns);
+diff --git a/kernel/capability.c b/kernel/capability.c
+index dfa0e4528b0b6..4984e1f552ebf 100644
+--- a/kernel/capability.c
++++ b/kernel/capability.c
+@@ -456,6 +456,19 @@ bool file_ns_capable(const struct file *file, struct user_namespace *ns,
+ }
+ EXPORT_SYMBOL(file_ns_capable);
+ 
++/**
++ * privileged_wrt_inode_uidgid - Do capabilities in the namespace work over the inode?
++ * @ns: The user namespace in question
++ * @inode: The inode in question
++ *
++ * Return true if the inode uid and gid are within the namespace.
++ */
++bool privileged_wrt_inode_uidgid(struct user_namespace *ns, const struct inode *inode)
++{
++	return kuid_has_mapping(ns, inode->i_uid) &&
++		kgid_has_mapping(ns, inode->i_gid);
++}
++
+ /**
+  * capable_wrt_inode_uidgid - Check nsown_capable and uid and gid mapped
+  * @inode: The inode in question
+@@ -469,8 +482,7 @@ bool capable_wrt_inode_uidgid(const struct inode *inode, int cap)
+ {
+ 	struct user_namespace *ns = current_user_ns();
+ 
+-	return ns_capable(ns, cap) && kuid_has_mapping(ns, inode->i_uid) &&
+-		kgid_has_mapping(ns, inode->i_gid);
++	return ns_capable(ns, cap) && privileged_wrt_inode_uidgid(ns, inode);
+ }
+ EXPORT_SYMBOL(capable_wrt_inode_uidgid);
+ 
+-- 
+cgit 
+

@@ -1,0 +1,39 @@
+From 37386669887d3f2ccf021322c5558353d20f2387 Mon Sep 17 00:00:00 2001
+From: Basavaraj Natikar <Basavaraj.Natikar@amd.com>
+Date: Mon, 24 Apr 2023 21:34:06 +0530
+Subject: HID: amd_sfh: Fix max supported HID devices
+
+commit 4bd763568dbd ("HID: amd_sfh: Support for additional light sensor")
+adds additional sensor devices, but forgets to add the number of HID
+devices to match. Thus, the number of HID devices does not match the
+actual number of sensors.
+
+In order to prevent corruption and system hangs when more than the
+allowed number of HID devices are accessed, the number of HID devices is
+increased accordingly.
+
+Fixes: 4bd763568dbd ("HID: amd_sfh: Support for additional light sensor")
+Link: https://bugzilla.kernel.org/show_bug.cgi?id=217354
+Signed-off-by: Basavaraj Natikar <Basavaraj.Natikar@amd.com>
+Link: https://lore.kernel.org/r/20230424160406.2579888-1-Basavaraj.Natikar@amd.com
+Signed-off-by: Benjamin Tissoires <benjamin.tissoires@redhat.com>
+---
+ drivers/hid/amd-sfh-hid/amd_sfh_hid.h | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/hid/amd-sfh-hid/amd_sfh_hid.h b/drivers/hid/amd-sfh-hid/amd_sfh_hid.h
+index 528036892c9d2..97296f587bc72 100644
+--- a/drivers/hid/amd-sfh-hid/amd_sfh_hid.h
++++ b/drivers/hid/amd-sfh-hid/amd_sfh_hid.h
+@@ -11,7 +11,7 @@
+ #ifndef AMDSFH_HID_H
+ #define AMDSFH_HID_H
+ 
+-#define MAX_HID_DEVICES		5
++#define MAX_HID_DEVICES		6
+ #define AMD_SFH_HID_VENDOR	0x1022
+ #define AMD_SFH_HID_PRODUCT	0x0001
+ 
+-- 
+cgit 
+

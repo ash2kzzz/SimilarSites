@@ -1,0 +1,113 @@
+From 6be73cecb5a241309008d7fc4c47749e5324bfb0 Mon Sep 17 00:00:00 2001
+From: "Darrick J. Wong" <djwong@kernel.org>
+Date: Mon, 5 Jun 2023 14:48:12 +1000
+Subject: xfs: fix broken logic when detecting mergeable bmap records
+
+Commit 6bc6c99a944c was a well-intentioned effort to initiate
+consolidation of adjacent bmbt mapping records by setting the PREEN
+flag.  Consolidation can only happen if the length of the combined
+record doesn't overflow the 21-bit blockcount field of the bmbt
+recordset.  Unfortunately, the length test is inverted, leading to it
+triggering on data forks like these:
+
+ EXT: FILE-OFFSET           BLOCK-RANGE        AG AG-OFFSET               TOTAL
+   0: [0..16777207]:        76110848..92888055  0 (76110848..92888055) 16777208
+   1: [16777208..20639743]: 92888056..96750591  0 (92888056..96750591)  3862536
+
+Note that record 0 has a length of 16777208 512b blocks.  This
+corresponds to 2097151 4k fsblocks, which is the maximum.  Hence the two
+records cannot be merged.
+
+However, the logic is still wrong even if we change the in-loop
+comparison, because the scope of our examination isn't broad enough
+inside the loop to detect mappings like this:
+
+   0: [0..9]:               76110838..76110847  0 (76110838..76110847)       10
+   1: [10..16777217]:       76110848..92888055  0 (76110848..92888055) 16777208
+   2: [16777218..20639753]: 92888056..96750591  0 (92888056..96750591)  3862536
+
+These three records could be merged into two, but one cannot determine
+this purely from looking at records 0-1 or 1-2 in isolation.
+
+Hoist the mergability detection outside the loop, and base its decision
+making on whether or not a merged mapping could be expressed in fewer
+bmbt records.  While we're at it, fix the incorrect return type of the
+iter function.
+
+Fixes: 336642f79283 ("xfs: alert the user about data/attr fork mappings that could be merged")
+Signed-off-by: Darrick J. Wong <djwong@kernel.org>
+Reviewed-by: Dave Chinner <dchinner@redhat.com>
+Signed-off-by: Dave Chinner <david@fromorbit.com>
+---
+ fs/xfs/scrub/bmap.c | 25 +++++++++++++------------
+ 1 file changed, 13 insertions(+), 12 deletions(-)
+
+diff --git a/fs/xfs/scrub/bmap.c b/fs/xfs/scrub/bmap.c
+index 69bc89d0fc68d..5bf4326e97836 100644
+--- a/fs/xfs/scrub/bmap.c
++++ b/fs/xfs/scrub/bmap.c
+@@ -769,14 +769,14 @@ xchk_are_bmaps_contiguous(
+  * mapping or false if there are no more mappings.  Caller must ensure that
+  * @info.icur is zeroed before the first call.
+  */
+-static int
++static bool
+ xchk_bmap_iext_iter(
+ 	struct xchk_bmap_info	*info,
+ 	struct xfs_bmbt_irec	*irec)
+ {
+ 	struct xfs_bmbt_irec	got;
+ 	struct xfs_ifork	*ifp;
+-	xfs_filblks_t		prev_len;
++	unsigned int		nr = 0;
+ 
+ 	ifp = xfs_ifork_ptr(info->sc->ip, info->whichfork);
+ 
+@@ -790,12 +790,12 @@ xchk_bmap_iext_iter(
+ 				irec->br_startoff);
+ 		return false;
+ 	}
++	nr++;
+ 
+ 	/*
+ 	 * Iterate subsequent iextent records and merge them with the one
+ 	 * that we just read, if possible.
+ 	 */
+-	prev_len = irec->br_blockcount;
+ 	while (xfs_iext_peek_next_extent(ifp, &info->icur, &got)) {
+ 		if (!xchk_are_bmaps_contiguous(irec, &got))
+ 			break;
+@@ -805,20 +805,21 @@ xchk_bmap_iext_iter(
+ 					got.br_startoff);
+ 			return false;
+ 		}
+-
+-		/*
+-		 * Notify the user of mergeable records in the data or attr
+-		 * forks.  CoW forks only exist in memory so we ignore them.
+-		 */
+-		if (info->whichfork != XFS_COW_FORK &&
+-		    prev_len + got.br_blockcount > BMBT_BLOCKCOUNT_MASK)
+-			xchk_ino_set_preen(info->sc, info->sc->ip->i_ino);
++		nr++;
+ 
+ 		irec->br_blockcount += got.br_blockcount;
+-		prev_len = got.br_blockcount;
+ 		xfs_iext_next(ifp, &info->icur);
+ 	}
+ 
++	/*
++	 * If the merged mapping could be expressed with fewer bmbt records
++	 * than we actually found, notify the user that this fork could be
++	 * optimized.  CoW forks only exist in memory so we ignore them.
++	 */
++	if (nr > 1 && info->whichfork != XFS_COW_FORK &&
++	    howmany_64(irec->br_blockcount, XFS_MAX_BMBT_EXTLEN) < nr)
++		xchk_ino_set_preen(info->sc, info->sc->ip->i_ino);
++
+ 	return true;
+ }
+ 
+-- 
+cgit 
+

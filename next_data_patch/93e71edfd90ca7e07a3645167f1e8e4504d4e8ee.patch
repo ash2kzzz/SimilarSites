@@ -1,0 +1,98 @@
+From 93e71edfd90ca7e07a3645167f1e8e4504d4e8ee Mon Sep 17 00:00:00 2001
+From: Jakub Kicinski <kuba@kernel.org>
+Date: Tue, 10 Jan 2023 20:29:08 -0800
+Subject: devlink: keep the instance mutex alive until references are gone
+
+The reference needs to keep the instance memory around, but also
+the instance lock must remain valid. Users will take the lock,
+check registration status and release the lock. mutex_destroy()
+etc. belong in the same place as the freeing of the memory.
+
+Unfortunately lockdep_unregister_key() sleeps so we need
+to switch the an rcu_work.
+
+Note that the problem is a bit hard to repro, because
+devlink_pernet_pre_exit() iterates over registered instances.
+AFAIU the instances must get devlink_free()d concurrently with
+the namespace getting deleted for the problem to occur.
+
+Reported-by: syzbot+d94d214ea473e218fc89@syzkaller.appspotmail.com
+Reported-by: syzbot+9f0dd863b87113935acf@syzkaller.appspotmail.com
+Fixes: 9053637e0da7 ("devlink: remove the registration guarantee of references")
+Reviewed-by: Jiri Pirko <jiri@nvidia.com>
+Reviewed-by: Jacob Keller <jacob.e.keller@intel.com>
+Link: https://lore.kernel.org/r/20230111042908.988199-1-kuba@kernel.org
+Signed-off-by: Jakub Kicinski <kuba@kernel.org>
+---
+ net/devlink/core.c          | 16 +++++++++++++---
+ net/devlink/devl_internal.h |  3 ++-
+ 2 files changed, 15 insertions(+), 4 deletions(-)
+
+diff --git a/net/devlink/core.c b/net/devlink/core.c
+index a31a317626d75..60beca2df7ccb 100644
+--- a/net/devlink/core.c
++++ b/net/devlink/core.c
+@@ -83,10 +83,21 @@ struct devlink *__must_check devlink_try_get(struct devlink *devlink)
+ 	return NULL;
+ }
+ 
++static void devlink_release(struct work_struct *work)
++{
++	struct devlink *devlink;
++
++	devlink = container_of(to_rcu_work(work), struct devlink, rwork);
++
++	mutex_destroy(&devlink->lock);
++	lockdep_unregister_key(&devlink->lock_key);
++	kfree(devlink);
++}
++
+ void devlink_put(struct devlink *devlink)
+ {
+ 	if (refcount_dec_and_test(&devlink->refcount))
+-		kfree_rcu(devlink, rcu);
++		queue_rcu_work(system_wq, &devlink->rwork);
+ }
+ 
+ struct devlink *devlinks_xa_find_get(struct net *net, unsigned long *indexp)
+@@ -231,6 +242,7 @@ struct devlink *devlink_alloc_ns(const struct devlink_ops *ops,
+ 	INIT_LIST_HEAD(&devlink->trap_list);
+ 	INIT_LIST_HEAD(&devlink->trap_group_list);
+ 	INIT_LIST_HEAD(&devlink->trap_policer_list);
++	INIT_RCU_WORK(&devlink->rwork, devlink_release);
+ 	lockdep_register_key(&devlink->lock_key);
+ 	mutex_init(&devlink->lock);
+ 	lockdep_set_class(&devlink->lock, &devlink->lock_key);
+@@ -259,8 +271,6 @@ void devlink_free(struct devlink *devlink)
+ 
+ 	mutex_destroy(&devlink->linecards_lock);
+ 	mutex_destroy(&devlink->reporters_lock);
+-	mutex_destroy(&devlink->lock);
+-	lockdep_unregister_key(&devlink->lock_key);
+ 	WARN_ON(!list_empty(&devlink->trap_policer_list));
+ 	WARN_ON(!list_empty(&devlink->trap_group_list));
+ 	WARN_ON(!list_empty(&devlink->trap_list));
+diff --git a/net/devlink/devl_internal.h b/net/devlink/devl_internal.h
+index 5d2bbe2956596..e724e4c2a4ffd 100644
+--- a/net/devlink/devl_internal.h
++++ b/net/devlink/devl_internal.h
+@@ -7,6 +7,7 @@
+ #include <linux/netdevice.h>
+ #include <linux/notifier.h>
+ #include <linux/types.h>
++#include <linux/workqueue.h>
+ #include <linux/xarray.h>
+ #include <net/devlink.h>
+ #include <net/net_namespace.h>
+@@ -51,7 +52,7 @@ struct devlink {
+ 	struct lock_class_key lock_key;
+ 	u8 reload_failed:1;
+ 	refcount_t refcount;
+-	struct rcu_head rcu;
++	struct rcu_work rwork;
+ 	struct notifier_block netdevice_nb;
+ 	char priv[] __aligned(NETDEV_ALIGN);
+ };
+-- 
+cgit 
+

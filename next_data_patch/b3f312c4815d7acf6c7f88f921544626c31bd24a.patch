@@ -1,0 +1,55 @@
+From b3f312c4815d7acf6c7f88f921544626c31bd24a Mon Sep 17 00:00:00 2001
+From: Arnd Bergmann <arnd@arndb.de>
+Date: Wed, 29 Mar 2023 10:02:41 +0200
+Subject: mm: compaction: remove incorrect #ifdef checks
+
+Without CONFIG_SYSCTL, the compiler warns about a few unused functions:
+
+mm/compaction.c:3076:12: error: 'proc_dointvec_minmax_warn_RT_change' defined but not used [-Werror=unused-function]
+mm/compaction.c:2780:12: error: 'sysctl_compaction_handler' defined but not used [-Werror=unused-function]
+mm/compaction.c:2750:12: error: 'compaction_proactiveness_sysctl_handler' defined but not used [-Werror=unused-function]
+
+The #ifdef is actually not necessary here, as the alternative
+register_sysctl_init() stub function does not use its argument, which
+lets the compiler drop the rest implicitly, while avoiding the warning.
+
+Fixes: c521126610c3 ("mm: compaction: move compaction sysctl to its own file")
+Signed-off-by: Arnd Bergmann <arnd@arndb.de>
+Signed-off-by: Luis Chamberlain <mcgrof@kernel.org>
+---
+ mm/compaction.c | 4 ----
+ 1 file changed, 4 deletions(-)
+
+diff --git a/mm/compaction.c b/mm/compaction.c
+index f2ddfb1140e27..9ff71239b1fcd 100644
+--- a/mm/compaction.c
++++ b/mm/compaction.c
+@@ -3080,7 +3080,6 @@ static int proc_dointvec_minmax_warn_RT_change(struct ctl_table *table,
+ 	return ret;
+ }
+ 
+-#ifdef CONFIG_SYSCTL
+ static struct ctl_table vm_compaction[] = {
+ 	{
+ 		.procname	= "compact_memory",
+@@ -3118,7 +3117,6 @@ static struct ctl_table vm_compaction[] = {
+ 	},
+ 	{ }
+ };
+-#endif
+ 
+ static int __init kcompactd_init(void)
+ {
+@@ -3135,9 +3133,7 @@ static int __init kcompactd_init(void)
+ 
+ 	for_each_node_state(nid, N_MEMORY)
+ 		kcompactd_run(nid);
+-#ifdef CONFIG_SYSCTL
+ 	register_sysctl_init("vm", vm_compaction);
+-#endif
+ 	return 0;
+ }
+ subsys_initcall(kcompactd_init)
+-- 
+cgit 
+

@@ -1,0 +1,68 @@
+From c79493c3ccf06a3aeb72017a96ca3dfd166bc16b Mon Sep 17 00:00:00 2001
+From: Vladimir Oltean <vladimir.oltean@nxp.com>
+Date: Wed, 22 Mar 2023 01:28:31 +0200
+Subject: net: enetc: fix aggregate RMON counters not showing the ranges
+
+When running "ethtool -S eno0 --groups rmon" without an explicit "--src
+emac|pmac" argument, the kernel will not report
+rx-rmon-etherStatsPkts64to64Octets, rx-rmon-etherStatsPkts65to127Octets,
+etc. This is because on ETHTOOL_MAC_STATS_SRC_AGGREGATE, we do not
+populate the "ranges" argument.
+
+ocelot_port_get_rmon_stats() does things differently and things work
+there. I had forgotten to make sure that the code is structured the same
+way in both drivers, so do that now.
+
+Fixes: cf52bd238b75 ("net: enetc: add support for MAC Merge statistics counters")
+Signed-off-by: Vladimir Oltean <vladimir.oltean@nxp.com>
+Reviewed-by: Simon Horman <simon.horman@corigine.com>
+Link: https://lore.kernel.org/r/20230321232831.1200905-1-vladimir.oltean@nxp.com
+Signed-off-by: Jakub Kicinski <kuba@kernel.org>
+---
+ drivers/net/ethernet/freescale/enetc/enetc_ethtool.c | 11 +++++------
+ 1 file changed, 5 insertions(+), 6 deletions(-)
+
+diff --git a/drivers/net/ethernet/freescale/enetc/enetc_ethtool.c b/drivers/net/ethernet/freescale/enetc/enetc_ethtool.c
+index bca68edfbe9cd..da9d4b310fcdd 100644
+--- a/drivers/net/ethernet/freescale/enetc/enetc_ethtool.c
++++ b/drivers/net/ethernet/freescale/enetc/enetc_ethtool.c
+@@ -370,8 +370,7 @@ static const struct ethtool_rmon_hist_range enetc_rmon_ranges[] = {
+ };
+ 
+ static void enetc_rmon_stats(struct enetc_hw *hw, int mac,
+-			     struct ethtool_rmon_stats *s,
+-			     const struct ethtool_rmon_hist_range **ranges)
++			     struct ethtool_rmon_stats *s)
+ {
+ 	s->undersize_pkts = enetc_port_rd(hw, ENETC_PM_RUND(mac));
+ 	s->oversize_pkts = enetc_port_rd(hw, ENETC_PM_ROVR(mac));
+@@ -393,8 +392,6 @@ static void enetc_rmon_stats(struct enetc_hw *hw, int mac,
+ 	s->hist_tx[4] = enetc_port_rd(hw, ENETC_PM_T1023(mac));
+ 	s->hist_tx[5] = enetc_port_rd(hw, ENETC_PM_T1522(mac));
+ 	s->hist_tx[6] = enetc_port_rd(hw, ENETC_PM_T1523X(mac));
+-
+-	*ranges = enetc_rmon_ranges;
+ }
+ 
+ static void enetc_get_eth_mac_stats(struct net_device *ndev,
+@@ -447,13 +444,15 @@ static void enetc_get_rmon_stats(struct net_device *ndev,
+ 	struct enetc_hw *hw = &priv->si->hw;
+ 	struct enetc_si *si = priv->si;
+ 
++	*ranges = enetc_rmon_ranges;
++
+ 	switch (rmon_stats->src) {
+ 	case ETHTOOL_MAC_STATS_SRC_EMAC:
+-		enetc_rmon_stats(hw, 0, rmon_stats, ranges);
++		enetc_rmon_stats(hw, 0, rmon_stats);
+ 		break;
+ 	case ETHTOOL_MAC_STATS_SRC_PMAC:
+ 		if (si->hw_features & ENETC_SI_F_QBU)
+-			enetc_rmon_stats(hw, 1, rmon_stats, ranges);
++			enetc_rmon_stats(hw, 1, rmon_stats);
+ 		break;
+ 	case ETHTOOL_MAC_STATS_SRC_AGGREGATE:
+ 		ethtool_aggregate_rmon_stats(ndev, rmon_stats);
+-- 
+cgit 
+

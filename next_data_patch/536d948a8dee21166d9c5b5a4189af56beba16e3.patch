@@ -1,0 +1,55 @@
+From 536d948a8dee21166d9c5b5a4189af56beba16e3 Mon Sep 17 00:00:00 2001
+From: Randy Dunlap <rdunlap@infradead.org>
+Date: Fri, 28 Apr 2023 21:35:19 -0700
+Subject: powerpc/fsl_uli1575: fix kconfig warnings and build errors
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Neither FSL_SOC_BOOKE nor PPC_86xx enables CONFIG_PCI by
+default, so it may be unset in some randconfigs.
+When that happens, FSL_ULI1575 may be set when it should not be
+since it is a PCI driver. When it is set, there are 3 kconfig
+warnings and a slew of build errors
+
+WARNING: unmet direct dependencies detected for PCI_QUIRKS
+  Depends on [n]: PCI [=n]
+  Selected by [y]:
+  - FSL_PCI [=y]
+
+WARNING: unmet direct dependencies detected for GENERIC_ISA_DMA
+  Depends on [n]: ISA_DMA_API [=n]
+  Selected by [y]:
+  - FSL_ULI1575 [=y] && (FSL_SOC_BOOKE [=n] || PPC_86xx [=y])
+
+WARNING: unmet direct dependencies detected for PPC_INDIRECT_PCI
+  Depends on [n]: PCI [=n]
+  Selected by [y]:
+  - FSL_PCI [=y]
+
+and 30+ build errors.
+
+Fixes: 22fdf79171e8 ("powerpc/fsl_uli1575: Allow to disable FSL_ULI1575 support")
+Signed-off-by: Randy Dunlap <rdunlap@infradead.org>
+Reviewed-by: Pali Rohár <pali@kernel.org>
+Signed-off-by: Michael Ellerman <mpe@ellerman.id.au>
+Link: https://msgid.link/20230429043519.19807-1-rdunlap@infradead.org
+---
+ arch/powerpc/platforms/Kconfig | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/arch/powerpc/platforms/Kconfig b/arch/powerpc/platforms/Kconfig
+index 0d9b7609c7d56..3e2e252016f7a 100644
+--- a/arch/powerpc/platforms/Kconfig
++++ b/arch/powerpc/platforms/Kconfig
+@@ -265,6 +265,7 @@ config CPM2
+ config FSL_ULI1575
+ 	bool "ULI1575 PCIe south bridge support"
+ 	depends on FSL_SOC_BOOKE || PPC_86xx
++	depends on PCI
+ 	select FSL_PCI
+ 	select GENERIC_ISA_DMA
+ 	help
+-- 
+cgit 
+

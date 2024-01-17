@@ -1,0 +1,43 @@
+From 50f9a76ef127367847cf62999c79304e48018cfa Mon Sep 17 00:00:00 2001
+From: Josh Poimboeuf <jpoimboe@kernel.org>
+Date: Wed, 12 Apr 2023 10:46:48 -0600
+Subject: iov_iter: Mark copy_compat_iovec_from_user() noinline
+
+After commit 6376ce56feb6 ("iov_iter: import single vector iovecs as
+ITER_UBUF"), GCC does an inter-procedural compiler optimization which
+moves the user_access_begin() out of copy_compat_iovec_from_user() and
+into its callers:
+
+  lib/iov_iter.o: warning: objtool: .altinstr_replacement+0x0: redundant UACCESS disable
+  lib/iov_iter.o: warning: objtool: iovec_from_user.part.0+0xc7: call to copy_compat_iovec_from_user.part.0() with UACCESS enabled
+  lib/iov_iter.o: warning: objtool: __import_iovec+0x21d: call to copy_compat_iovec_from_user.part.0() with UACCESS enabled
+
+Enforce the "no UACCESS enable across function boundaries" rule by
+disabling cloning for copy_compat_iovec_from_user().
+
+Fixes: 6376ce56feb6 ("iov_iter: import single vector iovecs as ITER_UBUF")
+Reported-by: Stephen Rothwell <sfr@canb.auug.org.au>
+https://lkml.kernel.org/lkml/20230327120017.6bb826d7@canb.auug.org.au
+Signed-off-by: Josh Poimboeuf <jpoimboe@kernel.org>
+Tested-by: Jens Axboe <axboe@kernel.dk>
+Signed-off-by: Jens Axboe <axboe@kernel.dk>
+---
+ lib/iov_iter.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/lib/iov_iter.c b/lib/iov_iter.c
+index 3e6c9bcfa612c..86a066aa9bcc9 100644
+--- a/lib/iov_iter.c
++++ b/lib/iov_iter.c
+@@ -1702,7 +1702,7 @@ const void *dup_iter(struct iov_iter *new, struct iov_iter *old, gfp_t flags)
+ }
+ EXPORT_SYMBOL(dup_iter);
+ 
+-static int copy_compat_iovec_from_user(struct iovec *iov,
++static __noclone int copy_compat_iovec_from_user(struct iovec *iov,
+ 		const struct iovec __user *uvec, unsigned long nr_segs)
+ {
+ 	const struct compat_iovec __user *uiov =
+-- 
+cgit 
+

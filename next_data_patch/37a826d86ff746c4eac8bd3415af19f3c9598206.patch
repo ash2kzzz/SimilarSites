@@ -1,0 +1,38 @@
+From 37a826d86ff746c4eac8bd3415af19f3c9598206 Mon Sep 17 00:00:00 2001
+From: Arnd Bergmann <arnd@arndb.de>
+Date: Thu, 1 Jun 2023 23:31:04 +0200
+Subject: net: dsa: qca8k: add CONFIG_LEDS_TRIGGERS dependency
+
+Without LED triggers, the driver now fails to build:
+
+drivers/net/dsa/qca/qca8k-leds.c: In function 'qca8k_parse_port_leds':
+drivers/net/dsa/qca/qca8k-leds.c:403:31: error: 'struct led_classdev' has no member named 'hw_control_is_supported'
+  403 |                 port_led->cdev.hw_control_is_supported = qca8k_cled_hw_control_is_supported;
+      |                               ^
+
+There is a mix of 'depends on' and 'select' for LEDS_TRIGGERS, so it's
+not clear what we should use here, but in general using 'depends on'
+causes fewer problems, so use that.
+
+Fixes: e0256648c831a ("net: dsa: qca8k: implement hw_control ops")
+Signed-off-by: Arnd Bergmann <arnd@arndb.de>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ drivers/net/dsa/qca/Kconfig | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/drivers/net/dsa/qca/Kconfig b/drivers/net/dsa/qca/Kconfig
+index 4347b42c50fd2..de9da469908bc 100644
+--- a/drivers/net/dsa/qca/Kconfig
++++ b/drivers/net/dsa/qca/Kconfig
+@@ -20,6 +20,7 @@ config NET_DSA_QCA8K_LEDS_SUPPORT
+ 	bool "Qualcomm Atheros QCA8K Ethernet switch family LEDs support"
+ 	depends on NET_DSA_QCA8K
+ 	depends on LEDS_CLASS=y || LEDS_CLASS=NET_DSA_QCA8K
++	depends on LEDS_TRIGGERS
+ 	help
+ 	  This enabled support for LEDs present on the Qualcomm Atheros
+ 	  QCA8K Ethernet switch chips.
+-- 
+cgit 
+

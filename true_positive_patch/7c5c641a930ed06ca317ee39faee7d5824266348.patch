@@ -1,0 +1,87 @@
+From 7c5c641a930ed06ca317ee39faee7d5824266348 Mon Sep 17 00:00:00 2001
+From: José Roberto de Souza <jose.souza@intel.com>
+Date: Mon, 3 Dec 2018 16:33:55 -0800
+Subject: drm/i915: Disable PSR in Apple panels
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+i915 yet don't support PSR in Apple panels, so lets keep it disabled
+while we work on that.
+
+v2: Renamed DP_DPCD_QUIRK_PSR_NOT_CURRENTLY_SUPPORTED to
+DP_DPCD_QUIRK_NO_PSR (Ville)
+
+v3:
+Adding documentation to DP_DPCD_QUIRK_NO_PSR(Dhinakaran and Jani)
+Fixed typo in comment of the new quirk entry(Jani)
+
+Fixes: 598c6cfe0690 (drm/i915/psr: Enable PSR1 on gen-9+ HW)
+Cc: Jani Nikula <jani.nikula@intel.com>
+Cc: Ville Syrjälä <ville.syrjala@linux.intel.com>
+Cc: Rodrigo Vivi <rodrigo.vivi@intel.com>
+Cc: Dhinakaran Pandiyan <dhinakaran.pandiyan@intel.com>
+Reviewed-by: Dhinakaran Pandiyan <dhinakaran.pandiyan@intel.com>
+Signed-off-by: José Roberto de Souza <jose.souza@intel.com>
+Link: https://patchwork.freedesktop.org/patch/msgid/20181204003403.23361-1-jose.souza@intel.com
+---
+ drivers/gpu/drm/drm_dp_helper.c  | 2 ++
+ drivers/gpu/drm/i915/intel_psr.c | 6 ++++++
+ include/drm/drm_dp_helper.h      | 7 +++++++
+ 3 files changed, 15 insertions(+)
+
+diff --git a/drivers/gpu/drm/drm_dp_helper.c b/drivers/gpu/drm/drm_dp_helper.c
+index 2d6c491a0542e..516e82d0ed506 100644
+--- a/drivers/gpu/drm/drm_dp_helper.c
++++ b/drivers/gpu/drm/drm_dp_helper.c
+@@ -1273,6 +1273,8 @@ static const struct dpcd_quirk dpcd_quirk_list[] = {
+ 	{ OUI(0x00, 0x22, 0xb9), DEVICE_ID_ANY, true, BIT(DP_DPCD_QUIRK_CONSTANT_N) },
+ 	/* LG LP140WF6-SPM1 eDP panel */
+ 	{ OUI(0x00, 0x22, 0xb9), DEVICE_ID('s', 'i', 'v', 'a', 'r', 'T'), false, BIT(DP_DPCD_QUIRK_CONSTANT_N) },
++	/* Apple panels need some additional handling to support PSR */
++	{ OUI(0x00, 0x10, 0xfa), DEVICE_ID_ANY, false, BIT(DP_DPCD_QUIRK_NO_PSR) }
+ };
+ 
+ #undef OUI
+diff --git a/drivers/gpu/drm/i915/intel_psr.c b/drivers/gpu/drm/i915/intel_psr.c
+index 419e563425239..f71970df9936e 100644
+--- a/drivers/gpu/drm/i915/intel_psr.c
++++ b/drivers/gpu/drm/i915/intel_psr.c
+@@ -274,10 +274,16 @@ void intel_psr_init_dpcd(struct intel_dp *intel_dp)
+ 	DRM_DEBUG_KMS("eDP panel supports PSR version %x\n",
+ 		      intel_dp->psr_dpcd[0]);
+ 
++	if (drm_dp_has_quirk(&intel_dp->desc, DP_DPCD_QUIRK_NO_PSR)) {
++		DRM_DEBUG_KMS("PSR support not currently available for this panel\n");
++		return;
++	}
++
+ 	if (!(intel_dp->edp_dpcd[1] & DP_EDP_SET_POWER_CAP)) {
+ 		DRM_DEBUG_KMS("Panel lacks power state control, PSR cannot be enabled\n");
+ 		return;
+ 	}
++
+ 	dev_priv->psr.sink_support = true;
+ 	dev_priv->psr.sink_sync_latency =
+ 		intel_dp_get_sink_sync_latency(intel_dp);
+diff --git a/include/drm/drm_dp_helper.h b/include/drm/drm_dp_helper.h
+index 5736c942c85b7..c33e89c51d9f4 100644
+--- a/include/drm/drm_dp_helper.h
++++ b/include/drm/drm_dp_helper.h
+@@ -1365,6 +1365,13 @@ enum drm_dp_quirk {
+ 	 * to 16 bits. So will give a constant value (0x8000) for compatability.
+ 	 */
+ 	DP_DPCD_QUIRK_CONSTANT_N,
++	/**
++	 * @DP_DPCD_QUIRK_NO_PSR
++	 *
++	 * The device does not support PSR even if reports that it supports or
++	 * driver still need to implement proper handling for such device.
++	 */
++	DP_DPCD_QUIRK_NO_PSR,
+ };
+ 
+ /**
+-- 
+cgit 
+

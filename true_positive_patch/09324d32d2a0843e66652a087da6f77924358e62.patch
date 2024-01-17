@@ -1,0 +1,53 @@
+From 09324d32d2a0843e66652a087da6f77924358e62 Mon Sep 17 00:00:00 2001
+From: Christoph Hellwig <hch@lst.de>
+Date: Tue, 21 May 2019 09:01:41 +0200
+Subject: block: force an unlimited segment size on queues with a virt boundary
+
+We currently fail to update the front/back segment size in the bio when
+deciding to allow an otherwise gappy segement to a device with a
+virt boundary.  The reason why this did not cause problems is that
+devices with a virt boundary fundamentally don't use segments as we
+know it and thus don't care.  Make that assumption formal by forcing
+an unlimited segement size in this case.
+
+Fixes: f6970f83ef79 ("block: don't check if adjacent bvecs in one bio can be mergeable")
+Signed-off-by: Christoph Hellwig <hch@lst.de>
+Reviewed-by: Ming Lei <ming.lei@redhat.com>
+Reviewed-by: Hannes Reinecke <hare@suse.com>
+Signed-off-by: Jens Axboe <axboe@kernel.dk>
+---
+ block/blk-settings.c | 11 +++++++++++
+ 1 file changed, 11 insertions(+)
+
+diff --git a/block/blk-settings.c b/block/blk-settings.c
+index 3facc41476bea..2ae348c101a05 100644
+--- a/block/blk-settings.c
++++ b/block/blk-settings.c
+@@ -310,6 +310,9 @@ void blk_queue_max_segment_size(struct request_queue *q, unsigned int max_size)
+ 		       __func__, max_size);
+ 	}
+ 
++	/* see blk_queue_virt_boundary() for the explanation */
++	WARN_ON_ONCE(q->limits.virt_boundary_mask);
++
+ 	q->limits.max_segment_size = max_size;
+ }
+ EXPORT_SYMBOL(blk_queue_max_segment_size);
+@@ -742,6 +745,14 @@ EXPORT_SYMBOL(blk_queue_segment_boundary);
+ void blk_queue_virt_boundary(struct request_queue *q, unsigned long mask)
+ {
+ 	q->limits.virt_boundary_mask = mask;
++
++	/*
++	 * Devices that require a virtual boundary do not support scatter/gather
++	 * I/O natively, but instead require a descriptor list entry for each
++	 * page (which might not be idential to the Linux PAGE_SIZE).  Because
++	 * of that they are not limited by our notion of "segment size".
++	 */
++	q->limits.max_segment_size = UINT_MAX;
+ }
+ EXPORT_SYMBOL(blk_queue_virt_boundary);
+ 
+-- 
+cgit 
+

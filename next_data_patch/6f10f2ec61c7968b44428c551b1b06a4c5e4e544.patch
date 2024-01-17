@@ -1,0 +1,33 @@
+From 6f10f2ec61c7968b44428c551b1b06a4c5e4e544 Mon Sep 17 00:00:00 2001
+From: Quentin Perret <qperret@google.com>
+Date: Wed, 1 Feb 2023 10:37:54 +0000
+Subject: KVM: arm64: Finalise EL2 state from pKVM PSCI relay
+
+The EL2 state is not initialised correctly when a CPU comes out of
+CPU_{SUSPEND,OFF} as the finalise_el2 function is not being called.
+Let's directly call finalise_el2_state from this path to solve the
+issue.
+
+Fixes: 504ee23611c4 ("arm64: Add the arm64.nosve command line option")
+Signed-off-by: Quentin Perret <qperret@google.com>
+Link: https://lore.kernel.org/r/20230201103755.1398086-5-qperret@google.com
+Signed-off-by: Oliver Upton <oliver.upton@linux.dev>
+---
+ arch/arm64/kvm/hyp/nvhe/hyp-init.S | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/arch/arm64/kvm/hyp/nvhe/hyp-init.S b/arch/arm64/kvm/hyp/nvhe/hyp-init.S
+index c953fb4b9a137..a6d67c2bb5ae9 100644
+--- a/arch/arm64/kvm/hyp/nvhe/hyp-init.S
++++ b/arch/arm64/kvm/hyp/nvhe/hyp-init.S
+@@ -183,6 +183,7 @@ SYM_CODE_START_LOCAL(__kvm_hyp_init_cpu)
+ 
+ 	/* Initialize EL2 CPU state to sane values. */
+ 	init_el2_state				// Clobbers x0..x2
++	finalise_el2_state
+ 
+ 	/* Enable MMU, set vectors and stack. */
+ 	mov	x0, x28
+-- 
+cgit 
+

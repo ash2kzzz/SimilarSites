@@ -1,0 +1,37 @@
+From 8e85d550c127d8c559d94c8a2bb7b48e1d75432d Mon Sep 17 00:00:00 2001
+From: Geert Uytterhoeven <geert+renesas@glider.be>
+Date: Wed, 29 Mar 2023 08:40:55 +0200
+Subject: can: rcar_canfd: rcar_canfd_probe(): fix plain integer in
+ transceivers[] init
+
+Fix the following compile warning with C=1:
+
+| drivers/net/can/rcar/rcar_canfd.c:1852:59: warning: Using plain integer as NULL pointer
+
+Fixes: a0340df7eca4f28e ("can: rcar_canfd: Add transceiver support")
+Reported-by: Jakub Kicinski <kuba@kernel.org>
+Link: https://lore.kernel.org/r/20230328145658.7fdbc394@kernel.org
+Signed-off-by: Geert Uytterhoeven <geert+renesas@glider.be>
+Reviewed-by: Steen Hegelund <Steen.Hegelund@microchip.com>
+Link: https://lore.kernel.org/all/7f7b0dde0caa2d2977b4fb5b65b63036e75f5022.1680071972.git.geert+renesas@glider.be
+Signed-off-by: Marc Kleine-Budde <mkl@pengutronix.de>
+---
+ drivers/net/can/rcar/rcar_canfd.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/net/can/rcar/rcar_canfd.c b/drivers/net/can/rcar/rcar_canfd.c
+index 701311dabab36..963c42f437559 100644
+--- a/drivers/net/can/rcar/rcar_canfd.c
++++ b/drivers/net/can/rcar/rcar_canfd.c
+@@ -1848,7 +1848,7 @@ static void rcar_canfd_channel_remove(struct rcar_canfd_global *gpriv, u32 ch)
+ 
+ static int rcar_canfd_probe(struct platform_device *pdev)
+ {
+-	struct phy *transceivers[RCANFD_NUM_CHANNELS] = { 0, };
++	struct phy *transceivers[RCANFD_NUM_CHANNELS] = { NULL, };
+ 	const struct rcar_canfd_hw_info *info;
+ 	struct device *dev = &pdev->dev;
+ 	void __iomem *addr;
+-- 
+cgit 
+

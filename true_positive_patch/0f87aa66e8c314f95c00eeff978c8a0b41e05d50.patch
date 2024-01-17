@@ -1,0 +1,44 @@
+From 0f87aa66e8c314f95c00eeff978c8a0b41e05d50 Mon Sep 17 00:00:00 2001
+From: Andy Shevchenko <andriy.shevchenko@linux.intel.com>
+Date: Thu, 2 Apr 2020 20:20:26 +0300
+Subject: serial: sunhv: Initialize lock for non-registered console
+
+The commit a3cb39d258ef
+("serial: core: Allow detach and attach serial device for console")
+changed a bit logic behind lock initialization since for most of the console
+driver it's supposed to have lock already initialized even if console is not
+enabled. However, it's not the case for Sparc HV console.
+
+Initialize lock explicitly in the ->probe().
+
+Note, there is still an open question should or shouldn't not this driver
+register console properly.
+
+Fixes: a3cb39d258ef ("serial: core: Allow detach and attach serial device for console")
+Reported-by: Anatoly Pugachev <matorola@gmail.com>
+Cc: David Miller <davem@davemloft.net>
+Signed-off-by: Andy Shevchenko <andriy.shevchenko@linux.intel.com>
+Tested-by: Anatoly Pugachev <matorola@gmail.com>
+Link: https://lore.kernel.org/r/20200402172026.79478-1-andriy.shevchenko@linux.intel.com
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+---
+ drivers/tty/serial/sunhv.c | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/drivers/tty/serial/sunhv.c b/drivers/tty/serial/sunhv.c
+index eafada8fb6fad..e35073e93a5b4 100644
+--- a/drivers/tty/serial/sunhv.c
++++ b/drivers/tty/serial/sunhv.c
+@@ -567,6 +567,9 @@ static int hv_probe(struct platform_device *op)
+ 	sunserial_console_match(&sunhv_console, op->dev.of_node,
+ 				&sunhv_reg, port->line, false);
+ 
++	/* We need to initialize lock even for non-registered console */
++	spin_lock_init(&port->lock);
++
+ 	err = uart_add_one_port(&sunhv_reg, port);
+ 	if (err)
+ 		goto out_unregister_driver;
+-- 
+cgit 
+

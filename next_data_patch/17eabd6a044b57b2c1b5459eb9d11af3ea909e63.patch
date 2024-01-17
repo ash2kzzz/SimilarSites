@@ -1,0 +1,36 @@
+From 17eabd6a044b57b2c1b5459eb9d11af3ea909e63 Mon Sep 17 00:00:00 2001
+From: Bob Pearson <rpearsonhpe@gmail.com>
+Date: Mon, 15 May 2023 15:10:57 -0500
+Subject: RDMA/rxe: Fix double unlock in rxe_qp.c
+
+A recent patch can cause a double spin_unlock_bh() in rxe_qp_to_attr() at
+line 715 in rxe_qp.c. Move the 2nd unlock into the if statement.
+
+Fixes: f605f26ea196 ("RDMA/rxe: Protect QP state with qp->state_lock")
+Link: https://lore.kernel.org/r/20230515201056.1591140-1-rpearsonhpe@gmail.com
+Reported-by: Dan Carpenter <dan.carpenter@linaro.org>
+Closes: https://lore.kernel.org/r/27773078-40ce-414f-8b97-781954da9f25@kili.mountain
+Signed-off-by: Bob Pearson <rpearsonhpe@gmail.com>
+Signed-off-by: Jason Gunthorpe <jgg@nvidia.com>
+---
+ drivers/infiniband/sw/rxe/rxe_qp.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/infiniband/sw/rxe/rxe_qp.c b/drivers/infiniband/sw/rxe/rxe_qp.c
+index c5451a4488ca3..245dd36638c73 100644
+--- a/drivers/infiniband/sw/rxe/rxe_qp.c
++++ b/drivers/infiniband/sw/rxe/rxe_qp.c
+@@ -712,8 +712,9 @@ int rxe_qp_to_attr(struct rxe_qp *qp, struct ib_qp_attr *attr, int mask)
+ 	if (qp->attr.sq_draining) {
+ 		spin_unlock_bh(&qp->state_lock);
+ 		cond_resched();
++	} else {
++		spin_unlock_bh(&qp->state_lock);
+ 	}
+-	spin_unlock_bh(&qp->state_lock);
+ 
+ 	return 0;
+ }
+-- 
+cgit 
+

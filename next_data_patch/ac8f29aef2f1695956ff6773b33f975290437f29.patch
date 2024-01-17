@@ -1,0 +1,92 @@
+From ac8f29aef2f1695956ff6773b33f975290437f29 Mon Sep 17 00:00:00 2001
+From: Jason Gunthorpe <jgg@nvidia.com>
+Date: Tue, 17 Jan 2023 15:16:17 -0400
+Subject: genirq/msi: Free the fwnode created by msi_create_device_irq_domain()
+
+msi_create_device_irq_domain() creates a firmware node for the new domain,
+which is never freed. kmemleak reports:
+
+unreferenced object 0xffff888120ba9a00 (size 96):
+  comm "systemd-modules", pid 221, jiffies 4294893411 (age 635.732s)
+  hex dump (first 32 bytes):
+    00 00 00 00 00 00 00 00 e0 19 8b 83 ff ff ff ff  ................
+    00 00 00 00 00 00 00 00 18 9a ba 20 81 88 ff ff  ........... ....
+  backtrace:
+    [<000000008cdbc98d>] __irq_domain_alloc_fwnode+0x51/0x2b0
+    [<00000000c57acf9d>] msi_create_device_irq_domain+0x283/0x670
+    [<000000009b567982>] __pci_enable_msix_range+0x49e/0xdb0
+    [<0000000077cc1445>] pci_alloc_irq_vectors_affinity+0x11f/0x1c0
+    [<00000000532e9ef5>] mlx5_irq_table_create+0x24c/0x940 [mlx5_core]
+    [<00000000fabd2b80>] mlx5_load+0x1fa/0x680 [mlx5_core]
+    [<000000006bb22ae4>] mlx5_init_one+0x485/0x670 [mlx5_core]
+    [<00000000eaa5e1ad>] probe_one+0x4c2/0x720 [mlx5_core]
+    [<00000000df8efb43>] local_pci_probe+0xd6/0x170
+    [<0000000085cb9924>] pci_device_probe+0x231/0x6e0
+
+Use the proper free operation for the firmware wnode so the name is freed
+during error unwind of msi_create_device_irq_domain() and also free the
+node in msi_remove_device_irq_domain() if it was automatically allocated.
+
+To avoid extra NULL pointer checks make irq_domain_free_fwnode() tolerant
+of NULL.
+
+Fixes: 27a6dea3ebaa ("genirq/msi: Provide msi_create/free_device_irq_domain()")
+Reported-by: Omri Barazi <obarazi@nvidia.com>
+Signed-off-by: Jason Gunthorpe <jgg@nvidia.com>
+Signed-off-by: Thomas Gleixner <tglx@linutronix.de>
+Tested-by: Kalle Valo <kvalo@kernel.org>
+Tested-by: Leon Romanovsky <leonro@nvidia.com>
+Link: https://lore.kernel.org/r/0-v2-24af6665e2da+c9-msi_leak_jgg@nvidia.com
+---
+ kernel/irq/irqdomain.c | 2 +-
+ kernel/irq/msi.c       | 6 +++++-
+ 2 files changed, 6 insertions(+), 2 deletions(-)
+
+diff --git a/kernel/irq/irqdomain.c b/kernel/irq/irqdomain.c
+index 8fe1da9614ee8..5c3fb6168eef2 100644
+--- a/kernel/irq/irqdomain.c
++++ b/kernel/irq/irqdomain.c
+@@ -114,7 +114,7 @@ void irq_domain_free_fwnode(struct fwnode_handle *fwnode)
+ {
+ 	struct irqchip_fwid *fwid;
+ 
+-	if (WARN_ON(!is_fwnode_irqchip(fwnode)))
++	if (!fwnode || WARN_ON(!is_fwnode_irqchip(fwnode)))
+ 		return;
+ 
+ 	fwid = container_of(fwnode, struct irqchip_fwid, fwnode);
+diff --git a/kernel/irq/msi.c b/kernel/irq/msi.c
+index 955267bbc2be6..783a3e6a0b107 100644
+--- a/kernel/irq/msi.c
++++ b/kernel/irq/msi.c
+@@ -1000,7 +1000,7 @@ bool msi_create_device_irq_domain(struct device *dev, unsigned int domid,
+ fail:
+ 	msi_unlock_descs(dev);
+ free_fwnode:
+-	kfree(fwnode);
++	irq_domain_free_fwnode(fwnode);
+ free_bundle:
+ 	kfree(bundle);
+ 	return false;
+@@ -1013,6 +1013,7 @@ free_bundle:
+  */
+ void msi_remove_device_irq_domain(struct device *dev, unsigned int domid)
+ {
++	struct fwnode_handle *fwnode = NULL;
+ 	struct msi_domain_info *info;
+ 	struct irq_domain *domain;
+ 
+@@ -1025,7 +1026,10 @@ void msi_remove_device_irq_domain(struct device *dev, unsigned int domid)
+ 
+ 	dev->msi.data->__domains[domid].domain = NULL;
+ 	info = domain->host_data;
++	if (irq_domain_is_msi_device(domain))
++		fwnode = domain->fwnode;
+ 	irq_domain_remove(domain);
++	irq_domain_free_fwnode(fwnode);
+ 	kfree(container_of(info, struct msi_domain_template, info));
+ 
+ unlock:
+-- 
+cgit 
+

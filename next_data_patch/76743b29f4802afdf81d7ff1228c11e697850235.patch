@@ -1,0 +1,40 @@
+From 76743b29f4802afdf81d7ff1228c11e697850235 Mon Sep 17 00:00:00 2001
+From: Yassine Oudjana <y.oudjana@protonmail.com>
+Date: Wed, 3 May 2023 08:53:40 +0100
+Subject: media: camss: camss-video: Don't zero subdev format again after
+ initialization
+
+In an earlier commit, setting the which field of the subdev format struct
+in video_get_subdev_format was moved to a designated initializer that also
+zeroes all other fields. However, the memset call that was zeroing the
+fields earlier was left in place, causing the which field to be cleared
+after being set in the initializer.
+
+Remove the memset call from video_get_subdev_format to avoid clearing the
+initialized which field.
+
+Fixes: ecefa105cc44 ("media: Zero-initialize all structures passed to subdev pad operations")
+Signed-off-by: Yassine Oudjana <y.oudjana@protonmail.com>
+Acked-by: Bryan O'Donoghue <bryan.odonoghue@linaro.org>
+Tested-by: Andrey Konovalov <andrey.konovalov@linaro.org>
+Signed-off-by: Hans Verkuil <hverkuil-cisco@xs4all.nl>
+Signed-off-by: Mauro Carvalho Chehab <mchehab@kernel.org>
+---
+ drivers/media/platform/qcom/camss/camss-video.c | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/drivers/media/platform/qcom/camss/camss-video.c b/drivers/media/platform/qcom/camss/camss-video.c
+index 898f32177b12a..8640db3060268 100644
+--- a/drivers/media/platform/qcom/camss/camss-video.c
++++ b/drivers/media/platform/qcom/camss/camss-video.c
+@@ -353,7 +353,6 @@ static int video_get_subdev_format(struct camss_video *video,
+ 	if (subdev == NULL)
+ 		return -EPIPE;
+ 
+-	memset(&fmt, 0, sizeof(fmt));
+ 	fmt.pad = pad;
+ 
+ 	ret = v4l2_subdev_call(subdev, pad, get_fmt, NULL, &fmt);
+-- 
+cgit 
+

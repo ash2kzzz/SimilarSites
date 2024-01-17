@@ -1,0 +1,74 @@
+From e57d06527738798039b8e91af762fbd33881b34d Mon Sep 17 00:00:00 2001
+From: Chuck Lever <chuck.lever@oracle.com>
+Date: Wed, 8 Mar 2023 09:45:09 -0500
+Subject: NFS & NFSD: Update GSS dependencies
+
+Geert reports that:
+> On v6.2, "make ARCH=m68k defconfig" gives you
+> CONFIG_RPCSEC_GSS_KRB5=m
+> On v6.3, it became builtin, due to dropping the dependencies on
+> the individual crypto modules.
+>
+> $ grep -E "CRYPTO_(MD5|DES|CBC|CTS|ECB|HMAC|SHA1|AES)" .config
+> CONFIG_CRYPTO_AES=y
+> CONFIG_CRYPTO_AES_TI=m
+> CONFIG_CRYPTO_DES=m
+> CONFIG_CRYPTO_CBC=m
+> CONFIG_CRYPTO_CTS=m
+> CONFIG_CRYPTO_ECB=m
+> CONFIG_CRYPTO_HMAC=m
+> CONFIG_CRYPTO_MD5=m
+> CONFIG_CRYPTO_SHA1=m
+
+This behavior is triggered by the "default y" in the definition of
+RPCSEC_GSS.
+
+The "default y" was added in 2010 by commit df486a25900f ("NFS: Fix
+the selection of security flavours in Kconfig"). However,
+svc_gss_principal was removed in 2012 by commit 03a4e1f6ddf2
+("nfsd4: move principal name into svc_cred"), so the 2010 fix is
+no longer necessary. We can safely change the NFS_V4 and NFSD_V4
+dependencies back to RPCSEC_GSS_KRB5 to get the nicer v6.2
+behavior back.
+
+Selecting KRB5 symbolically represents the true requirement here:
+that all spec-compliant NFSv4 implementations must have Kerberos
+available to use.
+
+Reported-by: Geert Uytterhoeven <geert@linux-m68k.org>
+Fixes: dfe9a123451a ("SUNRPC: Enable rpcsec_gss_krb5.ko to be built without CRYPTO_DES")
+Signed-off-by: Chuck Lever <chuck.lever@oracle.com>
+---
+ fs/nfs/Kconfig  | 2 +-
+ fs/nfsd/Kconfig | 2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/fs/nfs/Kconfig b/fs/nfs/Kconfig
+index 14a72224b6571..450d6c3bc05e2 100644
+--- a/fs/nfs/Kconfig
++++ b/fs/nfs/Kconfig
+@@ -75,7 +75,7 @@ config NFS_V3_ACL
+ config NFS_V4
+ 	tristate "NFS client support for NFS version 4"
+ 	depends on NFS_FS
+-	select SUNRPC_GSS
++	select RPCSEC_GSS_KRB5
+ 	select KEYS
+ 	help
+ 	  This option enables support for version 4 of the NFS protocol
+diff --git a/fs/nfsd/Kconfig b/fs/nfsd/Kconfig
+index 7c441f2bd4440..43b88eaf0673a 100644
+--- a/fs/nfsd/Kconfig
++++ b/fs/nfsd/Kconfig
+@@ -73,7 +73,7 @@ config NFSD_V4
+ 	bool "NFS server support for NFS version 4"
+ 	depends on NFSD && PROC_FS
+ 	select FS_POSIX_ACL
+-	select SUNRPC_GSS
++	select RPCSEC_GSS_KRB5
+ 	select CRYPTO
+ 	select CRYPTO_MD5
+ 	select CRYPTO_SHA256
+-- 
+cgit 
+

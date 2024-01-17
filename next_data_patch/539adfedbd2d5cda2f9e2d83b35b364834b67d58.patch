@@ -1,0 +1,65 @@
+From 539adfedbd2d5cda2f9e2d83b35b364834b67d58 Mon Sep 17 00:00:00 2001
+From: Bastien Nocera <hadess@hadess.net>
+Date: Wed, 5 Apr 2023 11:27:54 +0200
+Subject: USB: core: Fix docs warning caused by wireless_status feature
+
+Fix wrongly named 'dev' parameter in doc block, should have been iface:
+drivers/usb/core/message.c:1939: warning: Function parameter or member 'iface' not described in 'usb_set_wireless_status'
+drivers/usb/core/message.c:1939: warning: Excess function parameter 'dev' description in 'usb_set_wireless_status'
+
+And fix missing struct member doc in kernel API, and reorder to
+match struct:
+include/linux/usb.h:270: warning: Function parameter or member 'wireless_status_work' not described in 'usb_interface'
+
+Reported-by: Stephen Rothwell <sfr@canb.auug.org.au>
+Link: https://lore.kernel.org/linux-next/20230405114807.5a57bf46@canb.auug.org.au/T/#t
+Fixes: 0a4db185f078 ("USB: core: Add API to change the wireless_status")
+Signed-off-by: Bastien Nocera <hadess@hadess.net>
+Acked-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+Link: https://lore.kernel.org/r/20230405092754.36579-1-hadess@hadess.net
+[bentiss: fix checkpatch warning]
+Signed-off-by: Benjamin Tissoires <benjamin.tissoires@redhat.com>
+---
+ drivers/usb/core/message.c | 2 +-
+ include/linux/usb.h        | 6 ++++--
+ 2 files changed, 5 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/usb/core/message.c b/drivers/usb/core/message.c
+index 33392a6f4972e..b5811620f1de1 100644
+--- a/drivers/usb/core/message.c
++++ b/drivers/usb/core/message.c
+@@ -1926,7 +1926,7 @@ static void __usb_wireless_status_intf(struct work_struct *ws)
+ 
+ /**
+  * usb_set_wireless_status - sets the wireless_status struct member
+- * @dev: the device to modify
++ * @iface: the interface to modify
+  * @status: the new wireless status
+  *
+  * Set the wireless_status struct member to the new value, and emit
+diff --git a/include/linux/usb.h b/include/linux/usb.h
+index 6dfd59d3d695e..0a81e0f5beb4b 100644
+--- a/include/linux/usb.h
++++ b/include/linux/usb.h
+@@ -203,14 +203,16 @@ enum usb_wireless_status {
+  *	following a reset or suspend operation it doesn't support.
+  * @authorized: This allows to (de)authorize individual interfaces instead
+  *	a whole device in contrast to the device authorization.
++ * @wireless_status: if the USB device uses a receiver/emitter combo, whether
++ *	the emitter is connected.
++ * @wireless_status_work: Used for scheduling wireless status changes
++ *	from atomic context.
+  * @dev: driver model's view of this device
+  * @usb_dev: if an interface is bound to the USB major, this will point
+  *	to the sysfs representation for that device.
+  * @reset_ws: Used for scheduling resets from atomic context.
+  * @resetting_device: USB core reset the device, so use alt setting 0 as
+  *	current; needs bandwidth alloc after reset.
+- * @wireless_status: if the USB device uses a receiver/emitter combo, whether
+- *	the emitter is connected.
+  *
+  * USB device drivers attach to interfaces on a physical device.  Each
+  * interface encapsulates a single high level function, such as feeding
+-- 
+cgit 
+

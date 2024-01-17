@@ -1,0 +1,64 @@
+From 601c3c29dbeb049862faa00917f2daf094a71028 Mon Sep 17 00:00:00 2001
+From: Suren Baghdasaryan <surenb@google.com>
+Date: Tue, 31 Jan 2023 16:01:16 -0800
+Subject: mm: introduce vm_flags_reset_once to replace WRITE_ONCE vm_flags
+ updates
+
+Provide vm_flags_reset_once() and replace the vm_flags updates which used
+WRITE_ONCE() to prevent compiler optimizations.
+
+Link: https://lkml.kernel.org/r/20230201000116.1333160-1-surenb@google.com
+Fixes: 0cce31a0aa0e ("mm: replace vma->vm_flags direct modifications with modifier calls")
+Signed-off-by: Suren Baghdasaryan <surenb@google.com>
+Reported-by: Hyeonggon Yoo <42.hyeyoo@gmail.com>
+Reviewed-by: Hyeonggon Yoo <42.hyeyoo@gmail.com>
+Acked-by: Michal Hocko <mhocko@suse.com>
+Signed-off-by: Andrew Morton <akpm@linux-foundation.org>
+---
+ include/linux/mm.h | 7 +++++++
+ mm/mlock.c         | 4 ++--
+ 2 files changed, 9 insertions(+), 2 deletions(-)
+
+diff --git a/include/linux/mm.h b/include/linux/mm.h
+index 27b34f7730e7d..0ed0cb2401f59 100644
+--- a/include/linux/mm.h
++++ b/include/linux/mm.h
+@@ -642,6 +642,13 @@ static inline void vm_flags_reset(struct vm_area_struct *vma,
+ 	vm_flags_init(vma, flags);
+ }
+ 
++static inline void vm_flags_reset_once(struct vm_area_struct *vma,
++				       vm_flags_t flags)
++{
++	mmap_assert_write_locked(vma->vm_mm);
++	WRITE_ONCE(ACCESS_PRIVATE(vma, __vm_flags), flags);
++}
++
+ static inline void vm_flags_set(struct vm_area_struct *vma,
+ 				vm_flags_t flags)
+ {
+diff --git a/mm/mlock.c b/mm/mlock.c
+index ed49459e343e5..617469fce96d2 100644
+--- a/mm/mlock.c
++++ b/mm/mlock.c
+@@ -380,7 +380,7 @@ static void mlock_vma_pages_range(struct vm_area_struct *vma,
+ 	 */
+ 	if (newflags & VM_LOCKED)
+ 		newflags |= VM_IO;
+-	vm_flags_reset(vma, newflags);
++	vm_flags_reset_once(vma, newflags);
+ 
+ 	lru_add_drain();
+ 	walk_page_range(vma->vm_mm, start, end, &mlock_walk_ops, NULL);
+@@ -388,7 +388,7 @@ static void mlock_vma_pages_range(struct vm_area_struct *vma,
+ 
+ 	if (newflags & VM_IO) {
+ 		newflags &= ~VM_IO;
+-		vm_flags_reset(vma, newflags);
++		vm_flags_reset_once(vma, newflags);
+ 	}
+ }
+ 
+-- 
+cgit 
+

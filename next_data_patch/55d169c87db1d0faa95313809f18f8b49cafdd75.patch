@@ -1,0 +1,36 @@
+From 55d169c87db1d0faa95313809f18f8b49cafdd75 Mon Sep 17 00:00:00 2001
+From: Heiko Carstens <hca@linux.ibm.com>
+Date: Fri, 10 Feb 2023 14:09:38 +0100
+Subject: s390/vx: remove __uint128_t type from __vector128 struct again
+
+The __uint128_t member was only added for future convenience to the
+__vector128 struct. However this is a uapi header file, 31/32 bit (aka
+compat layer) is still supported, but doesn't know anything about this
+type:
+
+/usr/include/asm/types.h:27:17: error: unknown type name __uint128_t
+   27 |                 __uint128_t v;
+
+Therefore remove it again.
+
+Fixes: b0b7b43fcc46 ("s390/vx: add 64 and 128 bit members to __vector128 struct")
+Signed-off-by: Heiko Carstens <hca@linux.ibm.com>
+---
+ arch/s390/include/uapi/asm/types.h | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/arch/s390/include/uapi/asm/types.h b/arch/s390/include/uapi/asm/types.h
+index 57139590eb6b0..805fccbe00403 100644
+--- a/arch/s390/include/uapi/asm/types.h
++++ b/arch/s390/include/uapi/asm/types.h
+@@ -24,7 +24,6 @@ typedef struct {
+ 			__u64 high;
+ 			__u64 low;
+ 		};
+-		__uint128_t v;
+ 		__u32 u[4];
+ 	};
+ } __attribute__((packed, aligned(4))) __vector128;
+-- 
+cgit 
+

@@ -1,0 +1,35 @@
+From 424cdc14138088ada1b0e407a2195b2783c6e5ef Mon Sep 17 00:00:00 2001
+From: Shaohua Li <shli@fb.com>
+Date: Thu, 15 Oct 2015 15:28:29 -0700
+Subject: memcg: convert threshold to bytes
+
+page_counter_memparse() returns pages for the threshold, while
+mem_cgroup_usage() returns bytes for memory usage.  Convert the
+threshold to bytes.
+
+Fixes: 3e32cb2e0a12b6915 ("memcg: rename cgroup_event to mem_cgroup_event").
+Signed-off-by: Shaohua Li <shli@fb.com>
+Cc: Johannes Weiner <hannes@cmpxchg.org>
+Acked-by: Michal Hocko <mhocko@suse.com>
+Cc: <stable@vger.kernel.org>
+Signed-off-by: Andrew Morton <akpm@linux-foundation.org>
+Signed-off-by: Linus Torvalds <torvalds@linux-foundation.org>
+---
+ mm/memcontrol.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/mm/memcontrol.c b/mm/memcontrol.c
+index 1fedbde68f595..d9b5c817dce8e 100644
+--- a/mm/memcontrol.c
++++ b/mm/memcontrol.c
+@@ -3387,6 +3387,7 @@ static int __mem_cgroup_usage_register_event(struct mem_cgroup *memcg,
+ 	ret = page_counter_memparse(args, "-1", &threshold);
+ 	if (ret)
+ 		return ret;
++	threshold <<= PAGE_SHIFT;
+ 
+ 	mutex_lock(&memcg->thresholds_lock);
+ 
+-- 
+cgit 
+

@@ -1,0 +1,35 @@
+From 1edecbd0bd45c9c899e0f82b123342f28423468c Mon Sep 17 00:00:00 2001
+From: Miquel Raynal <miquel.raynal@bootlin.com>
+Date: Tue, 14 Feb 2023 14:50:32 +0100
+Subject: ieee802154: Change error code on monitor scan netlink request
+
+Returning EPERM gives the impression that "right now" it is not
+possible, but "later" it could be, while what we want to express is the
+fact that this is not currently supported at all (might change in the
+future). So let's return EOPNOTSUPP instead.
+
+Fixes: ed3557c947e1 ("ieee802154: Add support for user scanning requests")
+Suggested-by: Alexander Aring <aahringo@redhat.com>
+Signed-off-by: Miquel Raynal <miquel.raynal@bootlin.com>
+Link: https://lore.kernel.org/r/20230214135035.1202471-4-miquel.raynal@bootlin.com
+Signed-off-by: Stefan Schmidt <stefan@datenfreihafen.org>
+---
+ net/ieee802154/nl802154.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/net/ieee802154/nl802154.c b/net/ieee802154/nl802154.c
+index 12ca84e1724da..f4a5070a9faf5 100644
+--- a/net/ieee802154/nl802154.c
++++ b/net/ieee802154/nl802154.c
+@@ -1409,7 +1409,7 @@ static int nl802154_trigger_scan(struct sk_buff *skb, struct genl_info *info)
+ 
+ 	if (wpan_dev->iftype == NL802154_IFTYPE_MONITOR) {
+ 		NL_SET_ERR_MSG(info->extack, "Monitors are not allowed to perform scans");
+-		return -EPERM;
++		return -EOPNOTSUPP;
+ 	}
+ 
+ 	if (!nla_get_u8(info->attrs[NL802154_ATTR_SCAN_TYPE])) {
+-- 
+cgit 
+

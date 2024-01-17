@@ -1,0 +1,63 @@
+From 562c65486cf197f28f84283979c076601eb50042 Mon Sep 17 00:00:00 2001
+From: Arnd Bergmann <arnd@arndb.de>
+Date: Mon, 30 Jan 2023 14:17:51 +0100
+Subject: net: dsa: microchip: ptp: fix up PTP dependency
+
+When NET_DSA_MICROCHIP_KSZ_COMMON is built-in but PTP is a loadable
+module, the ksz_ptp support still causes a link failure:
+
+ld.lld-16: error: undefined symbol: ptp_clock_index
+>>> referenced by ksz_ptp.c
+>>>               drivers/net/dsa/microchip/ksz_ptp.o:(ksz_get_ts_info) in archive vmlinux.a
+
+This can happen if NET_DSA_MICROCHIP_KSZ8863_SMI is enabled, or
+even if none of the KSZ9477_I2C/KSZ_SPI/KSZ8863_SMI ones are active
+but only the common module is.
+
+The most straightforward way to address this is to move the
+dependency to NET_DSA_MICROCHIP_KSZ_PTP itself, which can now
+only be enabled if both PTP_1588_CLOCK support is reachable
+from NET_DSA_MICROCHIP_KSZ_COMMON. Alternatively, one could make
+NET_DSA_MICROCHIP_KSZ_COMMON a hidden Kconfig symbol and extend the
+PTP_1588_CLOCK_OPTIONAL dependency to NET_DSA_MICROCHIP_KSZ8863_SMI as
+well, but that is a little more fragile.
+
+Fixes: eac1ea20261e ("net: dsa: microchip: ptp: add the posix clock support")
+Signed-off-by: Arnd Bergmann <arnd@arndb.de>
+Link: https://lore.kernel.org/r/20230130131808.1084796-1-arnd@kernel.org
+Signed-off-by: Paolo Abeni <pabeni@redhat.com>
+---
+ drivers/net/dsa/microchip/Kconfig | 3 +--
+ 1 file changed, 1 insertion(+), 2 deletions(-)
+
+diff --git a/drivers/net/dsa/microchip/Kconfig b/drivers/net/dsa/microchip/Kconfig
+index 0546c573668a6..394ca8678d2ba 100644
+--- a/drivers/net/dsa/microchip/Kconfig
++++ b/drivers/net/dsa/microchip/Kconfig
+@@ -11,7 +11,6 @@ menuconfig NET_DSA_MICROCHIP_KSZ_COMMON
+ config NET_DSA_MICROCHIP_KSZ9477_I2C
+ 	tristate "KSZ series I2C connected switch driver"
+ 	depends on NET_DSA_MICROCHIP_KSZ_COMMON && I2C
+-	depends on PTP_1588_CLOCK_OPTIONAL
+ 	select REGMAP_I2C
+ 	help
+ 	  Select to enable support for registering switches configured through I2C.
+@@ -19,7 +18,6 @@ config NET_DSA_MICROCHIP_KSZ9477_I2C
+ config NET_DSA_MICROCHIP_KSZ_SPI
+ 	tristate "KSZ series SPI connected switch driver"
+ 	depends on NET_DSA_MICROCHIP_KSZ_COMMON && SPI
+-	depends on PTP_1588_CLOCK_OPTIONAL
+ 	select REGMAP_SPI
+ 	help
+ 	  Select to enable support for registering switches configured through SPI.
+@@ -27,6 +25,7 @@ config NET_DSA_MICROCHIP_KSZ_SPI
+ config NET_DSA_MICROCHIP_KSZ_PTP
+ 	bool "Support for the PTP clock on the KSZ9563/LAN937x Ethernet Switch"
+ 	depends on NET_DSA_MICROCHIP_KSZ_COMMON && PTP_1588_CLOCK
++	depends on NET_DSA_MICROCHIP_KSZ_COMMON=m || PTP_1588_CLOCK=y
+ 	help
+ 	  Select to enable support for timestamping & PTP clock manipulation in
+ 	  KSZ8563/KSZ9563/LAN937x series of switches. KSZ9563/KSZ8563 supports
+-- 
+cgit 
+

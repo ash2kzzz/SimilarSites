@@ -1,0 +1,50 @@
+From 5b524e4d16685a548ba143551709ded609d8ee05 Mon Sep 17 00:00:00 2001
+From: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+Date: Sun, 2 Apr 2023 11:05:45 +0200
+Subject: MIPS: vpe-cmp: remove module owner pointer from struct class usage.
+
+In commit 6e30a66433af ("driver core: class: remove struct module owner
+out of struct class"), the module owner pointer was removed from struct
+class, but this was missed for the mips vpe-cmp code due to lack of
+build testing (and it being burried under a very unused config
+settings.)  Fix this up by removing the module pointer to resolve the
+build error.
+
+Note, there are other problems with the driver model usage in this file
+(static struct device usage, empty device release function, etc.), so it
+probably could use some good cleaning up, but odds are this driver
+really isn't used so hopefully it will just be removed entirely someday
+soon as part of the general "remove unused arches" cleanup that is
+slowly happening.
+
+Cc: Dengcheng Zhu <dzhu@wavecomp.com>
+Cc: John Crispin <blogic@openwrt.org>
+Cc: Qais Yousef <Qais.Yousef@imgtec.com>
+Cc: Steven J. Hill <Steven.Hill@imgtec.com>
+Cc: Yang Yingliang <yangyingliang@huawei.com>
+Cc: linux-mips@vger.kernel.org
+Reported-by: kernel test robot <lkp@intel.com>
+Link: https://lore.kernel.org/oe-kbuild-all/202304020802.xbRTJKjW-lkp@intel.com/
+Fixes: 6e30a66433af ("driver core: class: remove struct module owner out of struct class")
+Acked-by: Thomas Bogendoerfer <tsbogend@alpha.franken.de>
+Link: https://lore.kernel.org/r/2023040242-pursuable-frown-48d8@gregkh
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+---
+ arch/mips/kernel/vpe-cmp.c | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/arch/mips/kernel/vpe-cmp.c b/arch/mips/kernel/vpe-cmp.c
+index 92140edb3ce3e..4ef7f49a4c6d3 100644
+--- a/arch/mips/kernel/vpe-cmp.c
++++ b/arch/mips/kernel/vpe-cmp.c
+@@ -79,7 +79,6 @@ static void vpe_device_release(struct device *cd)
+ 
+ static struct class vpe_class = {
+ 	.name = "vpe",
+-	.owner = THIS_MODULE,
+ 	.dev_release = vpe_device_release,
+ 	.dev_groups = vpe_groups,
+ };
+-- 
+cgit 
+

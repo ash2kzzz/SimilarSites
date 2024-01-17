@@ -1,0 +1,64 @@
+From 859d880cf544dbe095ce97534ef04cd88ba2f2b4 Mon Sep 17 00:00:00 2001
+From: "Eric W. Biederman" <ebiederm@xmission.com>
+Date: Tue, 6 Mar 2018 00:20:25 -0600
+Subject: signal: Correct the offset of si_pkey in struct siginfo
+
+The change moving addr_lsb into the _sigfault union failed to take
+into account that _sigfault._addr_bnd._lower being a pointer forced
+the entire union to have pointer alignment.  In practice this only
+mattered for the offset of si_pkey which is why this has taken so long
+to discover.
+
+To correct this change _dummy_pkey and _dummy_bnd to have pointer type.
+
+Reported-by: kernel test robot <shun.hao@intel.com>
+Fixes: b68a68d3dcc1 ("signal: Move addr_lsb into the _sigfault union for clarity")
+Signed-off-by: "Eric W. Biederman" <ebiederm@xmission.com>
+---
+ include/linux/compat.h             | 4 ++--
+ include/uapi/asm-generic/siginfo.h | 4 ++--
+ 2 files changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/include/linux/compat.h b/include/linux/compat.h
+index 8a9643857c4a1..e16d07eb08cfa 100644
+--- a/include/linux/compat.h
++++ b/include/linux/compat.h
+@@ -229,13 +229,13 @@ typedef struct compat_siginfo {
+ 				short int _addr_lsb;	/* Valid LSB of the reported address. */
+ 				/* used when si_code=SEGV_BNDERR */
+ 				struct {
+-					short _dummy_bnd;
++					compat_uptr_t _dummy_bnd;
+ 					compat_uptr_t _lower;
+ 					compat_uptr_t _upper;
+ 				} _addr_bnd;
+ 				/* used when si_code=SEGV_PKUERR */
+ 				struct {
+-					short _dummy_pkey;
++					compat_uptr_t _dummy_pkey;
+ 					u32 _pkey;
+ 				} _addr_pkey;
+ 			};
+diff --git a/include/uapi/asm-generic/siginfo.h b/include/uapi/asm-generic/siginfo.h
+index 85dc965afd892..99c902e460c25 100644
+--- a/include/uapi/asm-generic/siginfo.h
++++ b/include/uapi/asm-generic/siginfo.h
+@@ -102,13 +102,13 @@ typedef struct siginfo {
+ 				short _addr_lsb; /* LSB of the reported address */
+ 				/* used when si_code=SEGV_BNDERR */
+ 				struct {
+-					short _dummy_bnd;
++					void *_dummy_bnd;
+ 					void __user *_lower;
+ 					void __user *_upper;
+ 				} _addr_bnd;
+ 				/* used when si_code=SEGV_PKUERR */
+ 				struct {
+-					short _dummy_pkey;
++					void *_dummy_pkey;
+ 					__u32 _pkey;
+ 				} _addr_pkey;
+ 			};
+-- 
+cgit 
+

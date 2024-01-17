@@ -1,0 +1,34 @@
+From 0c993300d52bf5ce9b951c3b6b25d0d14acc49a9 Mon Sep 17 00:00:00 2001
+From: Nicholas Piggin <npiggin@gmail.com>
+Date: Wed, 26 Apr 2023 15:58:38 +1000
+Subject: powerpc: Fix merge conflict between pcrel and copy_thread changes
+
+Fix a conflict between commit 4e991e3c16a35 ("powerpc: add CFUNC
+assembly label annotation") and commit b504b6aade040 ("powerpc:
+differentiate kthread from user kernel thread start").
+
+Fixes: 4e991e3c16a35 ("powerpc: add CFUNC assembly label annotation")
+Fixes: b504b6aade040 ("powerpc: differentiate kthread from user kernel thread start")
+Signed-off-by: Nicholas Piggin <npiggin@gmail.com>
+Signed-off-by: Michael Ellerman <mpe@ellerman.id.au>
+Link: https://msgid.link/20230426055848.402993-2-npiggin@gmail.com
+---
+ arch/powerpc/kernel/interrupt_64.S | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/arch/powerpc/kernel/interrupt_64.S b/arch/powerpc/kernel/interrupt_64.S
+index 6730d676284c4..bd863702d8121 100644
+--- a/arch/powerpc/kernel/interrupt_64.S
++++ b/arch/powerpc/kernel/interrupt_64.S
+@@ -756,7 +756,7 @@ _GLOBAL(ret_from_kernel_user_thread)
+ 	b	.Lsyscall_exit
+ 
+ _GLOBAL(start_kernel_thread)
+-	bl	schedule_tail
++	bl	CFUNC(schedule_tail)
+ 	mtctr	r14
+ 	mr	r3,r15
+ #ifdef CONFIG_PPC64_ELF_ABI_V2
+-- 
+cgit 
+

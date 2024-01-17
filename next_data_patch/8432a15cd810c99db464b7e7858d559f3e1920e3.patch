@@ -1,0 +1,37 @@
+From 8432a15cd810c99db464b7e7858d559f3e1920e3 Mon Sep 17 00:00:00 2001
+From: Jó Ágila Bitsch <jgilab@gmail.com>
+Date: Sat, 22 Apr 2023 18:05:32 +0200
+Subject: usb: gadget: drop superfluous ':' in doc string
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+There was one superfluous ':' that kernel-doc complained about.
+
+Reported-by: Randy Dunlap <rdunlap@infradead.org>
+Closes: https://lore.kernel.org/all/c718a490-028d-2682-9ad7-8256d16504bf@infradead.org/
+Fixes: fb6211f1584a ("usb: gadget: add doc to struct usb_composite_dev")
+Signed-off-by: Jó Ágila Bitsch <jgilab@gmail.com>
+Reviewed-by: Randy Dunlap <rdunlap@infradead.org>
+Link: https://lore.kernel.org/r/ZEQFzMntIrwvZl4+@jo-einhundert
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+---
+ include/linux/usb/composite.h | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/include/linux/usb/composite.h b/include/linux/usb/composite.h
+index a2448e98854f6..07531c4f43504 100644
+--- a/include/linux/usb/composite.h
++++ b/include/linux/usb/composite.h
+@@ -443,7 +443,7 @@ static inline struct usb_composite_driver *to_cdriver(
+  * @bcd_webusb_version: 0x0100 by default, WebUSB specification version
+  * @b_webusb_vendor_code: 0x0 by default, vendor code for WebUSB
+  * @landing_page: empty by default, landing page to announce in WebUSB
+- * @use_webusb:: false by default, interested gadgets set it
++ * @use_webusb: false by default, interested gadgets set it
+  * @os_desc_config: the configuration to be used with OS descriptors
+  * @setup_pending: true when setup request is queued but not completed
+  * @os_desc_pending: true when os_desc request is queued but not completed
+-- 
+cgit 
+

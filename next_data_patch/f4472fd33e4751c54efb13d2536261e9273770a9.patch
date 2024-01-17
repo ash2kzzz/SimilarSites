@@ -1,0 +1,35 @@
+From f4472fd33e4751c54efb13d2536261e9273770a9 Mon Sep 17 00:00:00 2001
+From: Johan Hovold <johan+linaro@kernel.org>
+Date: Wed, 22 Mar 2023 12:33:14 +0100
+Subject: arm64: dts: qcom: sc8280xp-x13s: mark s10b regulator as always-on
+
+The s10b supply is used by several components that are not (yet)
+described in devicetree (e.g. ram, charger, ec) and must not be
+disabled.
+
+Mark the regulator as always-on.
+
+Fixes: f29077d86652 ("arm64: dts: qcom: sc8280xp-x13s: Add soundcard support")
+Cc: Srinivas Kandagatla <srinivas.kandagatla@linaro.org>
+Signed-off-by: Johan Hovold <johan+linaro@kernel.org>
+Signed-off-by: Bjorn Andersson <andersson@kernel.org>
+Link: https://lore.kernel.org/r/20230322113318.17908-3-johan+linaro@kernel.org
+---
+ arch/arm64/boot/dts/qcom/sc8280xp-lenovo-thinkpad-x13s.dts | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/arch/arm64/boot/dts/qcom/sc8280xp-lenovo-thinkpad-x13s.dts b/arch/arm64/boot/dts/qcom/sc8280xp-lenovo-thinkpad-x13s.dts
+index 532859363a226..d6f6feee635ec 100644
+--- a/arch/arm64/boot/dts/qcom/sc8280xp-lenovo-thinkpad-x13s.dts
++++ b/arch/arm64/boot/dts/qcom/sc8280xp-lenovo-thinkpad-x13s.dts
+@@ -370,6 +370,7 @@
+ 			regulator-min-microvolt = <1800000>;
+ 			regulator-max-microvolt = <1800000>;
+ 			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
++			regulator-always-on;
+ 		};
+ 
+ 		vreg_s11b: smps11 {
+-- 
+cgit 
+

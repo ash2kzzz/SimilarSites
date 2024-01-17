@@ -1,0 +1,122 @@
+From 9425c591e06a9ab27a145ba655fb50532cf0bcc9 Mon Sep 17 00:00:00 2001
+From: Mike Kravetz <mike.kravetz@oracle.com>
+Date: Fri, 2 Jun 2023 15:57:47 -0700
+Subject: page cache: fix page_cache_next/prev_miss off by one
+
+Ackerley Tng reported an issue with hugetlbfs fallocate here[1].  The
+issue showed up after the conversion of hugetlb page cache lookup code to
+use page_cache_next_miss.  Code in hugetlb fallocate, userfaultfd and GUP
+is now using page_cache_next_miss to determine if a page is present the
+page cache.  The following statement is used.
+
+	present = page_cache_next_miss(mapping, index, 1) != index;
+
+There are two issues with page_cache_next_miss when used in this way.
+1) If the passed value for index is equal to the 'wrap-around' value,
+   the same index will always be returned.  This wrap-around value is 0,
+   so 0 will be returned even if page is present at index 0.
+2) If there is no gap in the range passed, the last index in the range
+   will be returned.  When passed a range of 1 as above, the passed
+   index value will be returned even if the page is present.
+The end result is the statement above will NEVER indicate a page is
+present in the cache, even if it is.
+
+As noted by Ackerley in [1], users can see this by hugetlb fallocate
+incorrectly returning EEXIST if pages are already present in the file.  In
+addition, hugetlb pages will not be included in core dumps if they need to
+be brought in via GUP.  userfaultfd UFFDIO_COPY also uses this code and
+will not notice pages already present in the cache.  It may try to
+allocate a new page and potentially return ENOMEM as opposed to EEXIST.
+
+Both page_cache_next_miss and page_cache_prev_miss have similar issues.
+Fix by:
+- Check for index equal to 'wrap-around' value and do not exit early.
+- If no gap is found in range, return index outside range.
+- Update function description to say 'wrap-around' value could be
+  returned if passed as index.
+
+[1] https://lore.kernel.org/linux-mm/cover.1683069252.git.ackerleytng@google.com/
+
+Link: https://lkml.kernel.org/r/20230602225747.103865-2-mike.kravetz@oracle.com
+Fixes: d0ce0e47b323 ("mm/hugetlb: convert hugetlb fault paths to use alloc_hugetlb_folio()")
+Signed-off-by: Mike Kravetz <mike.kravetz@oracle.com>
+Reported-by: Ackerley Tng <ackerleytng@google.com>
+Reviewed-by: Ackerley Tng <ackerleytng@google.com>
+Tested-by: Ackerley Tng <ackerleytng@google.com>
+Cc: Erdem Aktas <erdemaktas@google.com>
+Cc: Matthew Wilcox (Oracle) <willy@infradead.org>
+Cc: Mike Kravetz <mike.kravetz@oracle.com>
+Cc: Muchun Song <songmuchun@bytedance.com>
+Cc: Sidhartha Kumar <sidhartha.kumar@oracle.com>
+Cc: Vishal Annapurve <vannapurve@google.com>
+Cc: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+Signed-off-by: Andrew Morton <akpm@linux-foundation.org>
+---
+ mm/filemap.c | 26 ++++++++++++++++----------
+ 1 file changed, 16 insertions(+), 10 deletions(-)
+
+diff --git a/mm/filemap.c b/mm/filemap.c
+index b4c9bd368b7e5..83dda76d1fc36 100644
+--- a/mm/filemap.c
++++ b/mm/filemap.c
+@@ -1760,7 +1760,9 @@ bool __folio_lock_or_retry(struct folio *folio, struct mm_struct *mm,
+  *
+  * Return: The index of the gap if found, otherwise an index outside the
+  * range specified (in which case 'return - index >= max_scan' will be true).
+- * In the rare case of index wrap-around, 0 will be returned.
++ * In the rare case of index wrap-around, 0 will be returned.  0 will also
++ * be returned if index == 0 and there is a gap at the index.  We can not
++ * wrap-around if passed index == 0.
+  */
+ pgoff_t page_cache_next_miss(struct address_space *mapping,
+ 			     pgoff_t index, unsigned long max_scan)
+@@ -1770,12 +1772,13 @@ pgoff_t page_cache_next_miss(struct address_space *mapping,
+ 	while (max_scan--) {
+ 		void *entry = xas_next(&xas);
+ 		if (!entry || xa_is_value(entry))
+-			break;
+-		if (xas.xa_index == 0)
+-			break;
++			return xas.xa_index;
++		if (xas.xa_index == 0 && index != 0)
++			return xas.xa_index;
+ 	}
+ 
+-	return xas.xa_index;
++	/* No gaps in range and no wrap-around, return index beyond range */
++	return xas.xa_index + 1;
+ }
+ EXPORT_SYMBOL(page_cache_next_miss);
+ 
+@@ -1796,7 +1799,9 @@ EXPORT_SYMBOL(page_cache_next_miss);
+  *
+  * Return: The index of the gap if found, otherwise an index outside the
+  * range specified (in which case 'index - return >= max_scan' will be true).
+- * In the rare case of wrap-around, ULONG_MAX will be returned.
++ * In the rare case of wrap-around, ULONG_MAX will be returned.  ULONG_MAX
++ * will also be returned if index == ULONG_MAX and there is a gap at the
++ * index.  We can not wrap-around if passed index == ULONG_MAX.
+  */
+ pgoff_t page_cache_prev_miss(struct address_space *mapping,
+ 			     pgoff_t index, unsigned long max_scan)
+@@ -1806,12 +1811,13 @@ pgoff_t page_cache_prev_miss(struct address_space *mapping,
+ 	while (max_scan--) {
+ 		void *entry = xas_prev(&xas);
+ 		if (!entry || xa_is_value(entry))
+-			break;
+-		if (xas.xa_index == ULONG_MAX)
+-			break;
++			return xas.xa_index;
++		if (xas.xa_index == ULONG_MAX && index != ULONG_MAX)
++			return xas.xa_index;
+ 	}
+ 
+-	return xas.xa_index;
++	/* No gaps in range and no wrap-around, return index beyond range */
++	return xas.xa_index - 1;
+ }
+ EXPORT_SYMBOL(page_cache_prev_miss);
+ 
+-- 
+cgit 
+

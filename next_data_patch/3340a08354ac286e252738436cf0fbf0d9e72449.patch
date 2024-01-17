@@ -1,0 +1,97 @@
+From 3340a08354ac286e252738436cf0fbf0d9e72449 Mon Sep 17 00:00:00 2001
+From: Ian Rogers <irogers@google.com>
+Date: Thu, 26 Jan 2023 15:36:42 -0800
+Subject: perf pmu-events: Fix testing with JEVENTS_ARCH=all
+
+The #slots literal will return NAN when not on ARM64 which causes a
+perf test failure when not on an ARM64 for a JEVENTS_ARCH=all build:
+..
+ 10.4: Parsing of PMU event table metrics with fake PMUs             : FAILED!
+..
+Add an is_test boolean so that the failure can be avoided when running
+as a test.
+
+Fixes: acef233b7ca749fd ("perf pmu: Add #slots literal support for arm64")
+Reviewed-by: John Garry <john.g.garry@oracle.com>
+Reviewed-by: Kajol Jain <kjain@linux.ibm.com>
+Signed-off-by: Ian Rogers <irogers@google.com>
+Cc: Adrian Hunter <adrian.hunter@intel.com>
+Cc: Alexander Shishkin <alexander.shishkin@linux.intel.com>
+Cc: Caleb Biggers <caleb.biggers@intel.com>
+Cc: Florian Fischer <florian.fischer@muhq.space>
+Cc: Ian Rogers <irogers@google.com>
+Cc: Ingo Molnar <mingo@redhat.com>
+Cc: James Clark <james.clark@arm.com>
+Cc: Jing Zhang <renyu.zj@linux.alibaba.com>
+Cc: Jiri Olsa <jolsa@kernel.org>
+Cc: Kan Liang <kan.liang@linux.intel.com>
+Cc: Kang Minchul <tegongkang@gmail.com>
+Cc: Kim Phillips <kim.phillips@amd.com>
+Cc: Leo Yan <leo.yan@linaro.org>
+Cc: Mark Rutland <mark.rutland@arm.com>
+Cc: Mike Leach <mike.leach@linaro.org>
+Cc: Namhyung Kim <namhyung@kernel.org>
+Cc: Perry Taylor <perry.taylor@intel.com>
+Cc: Peter Zijlstra <peterz@infradead.org>
+Cc: Ravi Bangoria <ravi.bangoria@amd.com>
+Cc: Rob Herring <robh@kernel.org>
+Cc: Sandipan Das <sandipan.das@amd.com>
+Cc: Stephane Eranian <eranian@google.com>
+Cc: Will Deacon <will@kernel.org>
+Cc: Xing Zhengjun <zhengjun.xing@linux.intel.com>
+Cc: linux-arm-kernel@lists.infradead.org
+Cc: linuxppc-dev@lists.ozlabs.org
+Link: https://lore.kernel.org/r/20230126233645.200509-13-irogers@google.com
+Signed-off-by: Arnaldo Carvalho de Melo <acme@redhat.com>
+---
+ tools/perf/tests/pmu-events.c | 1 +
+ tools/perf/util/expr.h        | 1 +
+ tools/perf/util/expr.l        | 8 +++++---
+ 3 files changed, 7 insertions(+), 3 deletions(-)
+
+diff --git a/tools/perf/tests/pmu-events.c b/tools/perf/tests/pmu-events.c
+index 962c3c0d53ba4..accf44b3d968d 100644
+--- a/tools/perf/tests/pmu-events.c
++++ b/tools/perf/tests/pmu-events.c
+@@ -950,6 +950,7 @@ static int metric_parse_fake(const char *metric_name, const char *str)
+ 		pr_debug("expr__ctx_new failed");
+ 		return TEST_FAIL;
+ 	}
++	ctx->sctx.is_test = true;
+ 	if (expr__find_ids(str, NULL, ctx) < 0) {
+ 		pr_err("expr__find_ids failed\n");
+ 		return -1;
+diff --git a/tools/perf/util/expr.h b/tools/perf/util/expr.h
+index 029271540fb0d..eaa44b24c5558 100644
+--- a/tools/perf/util/expr.h
++++ b/tools/perf/util/expr.h
+@@ -9,6 +9,7 @@ struct expr_scanner_ctx {
+ 	char *user_requested_cpu_list;
+ 	int runtime;
+ 	bool system_wide;
++	bool is_test;
+ };
+ 
+ struct expr_parse_ctx {
+diff --git a/tools/perf/util/expr.l b/tools/perf/util/expr.l
+index d47de5f270a8e..4fbf353e78e71 100644
+--- a/tools/perf/util/expr.l
++++ b/tools/perf/util/expr.l
+@@ -87,9 +87,11 @@ static int literal(yyscan_t scanner, const struct expr_scanner_ctx *sctx)
+ 	YYSTYPE *yylval = expr_get_lval(scanner);
+ 
+ 	yylval->num = expr__get_literal(expr_get_text(scanner), sctx);
+-	if (isnan(yylval->num))
+-		return EXPR_ERROR;
+-
++	if (isnan(yylval->num)) {
++		if (!sctx->is_test)
++			return EXPR_ERROR;
++		yylval->num = 1;
++	}
+ 	return LITERAL;
+ }
+ %}
+-- 
+cgit 
+

@@ -1,0 +1,37 @@
+From 10fd5f70c397782a97f411f25bfb312ea92b55bc Mon Sep 17 00:00:00 2001
+From: Alexei Starovoitov <ast@kernel.org>
+Date: Wed, 12 Apr 2023 10:12:52 -0700
+Subject: bpf: Handle NULL in bpf_local_storage_free.
+
+During OOM bpf_local_storage_alloc() may fail to allocate 'storage' and
+call to bpf_local_storage_free() with NULL pointer will cause a crash like:
+[ 271718.917646] BUG: kernel NULL pointer dereference, address: 00000000000000a0
+[ 271719.019620] RIP: 0010:call_rcu+0x2d/0x240
+[ 271719.216274]  bpf_local_storage_alloc+0x19e/0x1e0
+[ 271719.250121]  bpf_local_storage_update+0x33b/0x740
+
+Fixes: 7e30a8477b0b ("bpf: Add bpf_local_storage_free()")
+Signed-off-by: Alexei Starovoitov <ast@kernel.org>
+Signed-off-by: Andrii Nakryiko <andrii@kernel.org>
+Link: https://lore.kernel.org/bpf/20230412171252.15635-1-alexei.starovoitov@gmail.com
+---
+ kernel/bpf/bpf_local_storage.c | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/kernel/bpf/bpf_local_storage.c b/kernel/bpf/bpf_local_storage.c
+index dab2ff4c99d95..47d9948d768f0 100644
+--- a/kernel/bpf/bpf_local_storage.c
++++ b/kernel/bpf/bpf_local_storage.c
+@@ -157,6 +157,9 @@ static void bpf_local_storage_free(struct bpf_local_storage *local_storage,
+ 				   struct bpf_local_storage_map *smap,
+ 				   bool bpf_ma, bool reuse_now)
+ {
++	if (!local_storage)
++		return;
++
+ 	if (!bpf_ma) {
+ 		__bpf_local_storage_free(local_storage, reuse_now);
+ 		return;
+-- 
+cgit 
+

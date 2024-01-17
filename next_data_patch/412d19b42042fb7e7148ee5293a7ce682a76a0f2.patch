@@ -1,0 +1,54 @@
+From 412d19b42042fb7e7148ee5293a7ce682a76a0f2 Mon Sep 17 00:00:00 2001
+From: Lorenzo Bianconi <lorenzo@kernel.org>
+Date: Tue, 17 Jan 2023 14:53:14 +0100
+Subject: wifi: mt76: mt7915: fix memory leak in mt7915_mmio_wed_init_rx_buf
+
+Free mt76_txwi_cache pointer in mt7915_mmio_wed_init_rx_buf routine in
+case of failure.
+
+Fixes: 4f831d18d12d ("wifi: mt76: mt7915: enable WED RX support")
+Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
+Signed-off-by: Felix Fietkau <nbd@nbd.name>
+---
+ drivers/net/wireless/mediatek/mt76/mt7915/mmio.c | 9 ++++++++-
+ 1 file changed, 8 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/net/wireless/mediatek/mt76/mt7915/mmio.c b/drivers/net/wireless/mediatek/mt76/mt7915/mmio.c
+index b9e8cfd926c9b..65b5f3c4a05ee 100644
+--- a/drivers/net/wireless/mediatek/mt76/mt7915/mmio.c
++++ b/drivers/net/wireless/mediatek/mt76/mt7915/mmio.c
+@@ -635,9 +635,14 @@ static u32 mt7915_mmio_wed_init_rx_buf(struct mtk_wed_device *wed, int size)
+ 		int token;
+ 		void *ptr;
+ 
++		if (!t)
++			goto unmap;
++
+ 		page = __dev_alloc_pages(GFP_KERNEL, get_order(length));
+-		if (!page)
++		if (!page) {
++			mt76_put_rxwi(&dev->mt76, t);
+ 			goto unmap;
++		}
+ 
+ 		ptr = page_address(page);
+ 		phy_addr = dma_map_single(dev->mt76.dma_dev, ptr,
+@@ -645,6 +650,7 @@ static u32 mt7915_mmio_wed_init_rx_buf(struct mtk_wed_device *wed, int size)
+ 					  DMA_TO_DEVICE);
+ 		if (unlikely(dma_mapping_error(dev->mt76.dev, phy_addr))) {
+ 			__free_pages(page, get_order(length));
++			mt76_put_rxwi(&dev->mt76, t);
+ 			goto unmap;
+ 		}
+ 
+@@ -654,6 +660,7 @@ static u32 mt7915_mmio_wed_init_rx_buf(struct mtk_wed_device *wed, int size)
+ 			dma_unmap_single(dev->mt76.dma_dev, phy_addr,
+ 					 wed->wlan.rx_size, DMA_TO_DEVICE);
+ 			__free_pages(page, get_order(length));
++			mt76_put_rxwi(&dev->mt76, t);
+ 			goto unmap;
+ 		}
+ 
+-- 
+cgit 
+

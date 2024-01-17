@@ -1,0 +1,44 @@
+From cd4f186dc110a0f0b3484048b8ecd42ee006ca6d Mon Sep 17 00:00:00 2001
+From: Shay Drory <shayd@nvidia.com>
+Date: Thu, 15 Dec 2022 15:33:38 +0200
+Subject: net/mlx5: E-switch, Coverity: overlapping copy
+
+When a capability is set via port function caps callbacks, a memcpy() is
+performed in which the source and the target are the same address, e.g.:
+the copy is redundant. Hence, Remove it.
+Discovered by Coverity.
+
+Fixes: 7db98396ef45 ("net/mlx5: E-Switch, Implement devlink port function cmds to control RoCE")
+Fixes: e5b9642a33be ("net/mlx5: E-Switch, Implement devlink port function cmds to control migratable")
+Signed-off-by: Shay Drory <shayd@nvidia.com>
+Reviewed-by: Mark Bloch <mbloch@nvidia.com>
+Signed-off-by: Saeed Mahameed <saeedm@nvidia.com>
+---
+ drivers/net/ethernet/mellanox/mlx5/core/eswitch_offloads.c | 4 ----
+ 1 file changed, 4 deletions(-)
+
+diff --git a/drivers/net/ethernet/mellanox/mlx5/core/eswitch_offloads.c b/drivers/net/ethernet/mellanox/mlx5/core/eswitch_offloads.c
+index 75b77dd2392b1..c981fa77f4398 100644
+--- a/drivers/net/ethernet/mellanox/mlx5/core/eswitch_offloads.c
++++ b/drivers/net/ethernet/mellanox/mlx5/core/eswitch_offloads.c
+@@ -4143,8 +4143,6 @@ int mlx5_devlink_port_fn_migratable_set(struct devlink_port *port, bool enable,
+ 	}
+ 
+ 	hca_caps = MLX5_ADDR_OF(query_hca_cap_out, query_ctx, capability);
+-	memcpy(hca_caps, MLX5_ADDR_OF(query_hca_cap_out, query_ctx, capability),
+-	       MLX5_UN_SZ_BYTES(hca_cap_union));
+ 	MLX5_SET(cmd_hca_cap_2, hca_caps, migratable, 1);
+ 
+ 	err = mlx5_vport_set_other_func_cap(esw->dev, hca_caps, vport->vport,
+@@ -4236,8 +4234,6 @@ int mlx5_devlink_port_fn_roce_set(struct devlink_port *port, bool enable,
+ 	}
+ 
+ 	hca_caps = MLX5_ADDR_OF(query_hca_cap_out, query_ctx, capability);
+-	memcpy(hca_caps, MLX5_ADDR_OF(query_hca_cap_out, query_ctx, capability),
+-	       MLX5_UN_SZ_BYTES(hca_cap_union));
+ 	MLX5_SET(cmd_hca_cap, hca_caps, roce, enable);
+ 
+ 	err = mlx5_vport_set_other_func_cap(esw->dev, hca_caps, vport_num,
+-- 
+cgit 
+

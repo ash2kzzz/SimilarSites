@@ -1,0 +1,69 @@
+From 783336b05f06821c9af3b057ecd5a7aa082ed973 Mon Sep 17 00:00:00 2001
+From: Johannes Berg <johannes.berg@intel.com>
+Date: Sun, 14 May 2023 12:15:44 +0300
+Subject: wifi: iwlwifi: mvm: always free dup_data
+
+There are some assertions in the STA removal code that can
+fail, and in that case we may leak memory since we skip
+the freeing.
+
+Fix this by freeing the dup_data earlier in the function,
+we already have a check for when we free the station, and
+this we don't need to do it with and without MLD API, so
+it's a win all around.
+
+Fixes: a571f5f635ef ("iwlwifi: mvm: add duplicate packet detection per rx queue")
+Signed-off-by: Johannes Berg <johannes.berg@intel.com>
+Signed-off-by: Gregory Greenman <gregory.greenman@intel.com>
+Link: https://lore.kernel.org/r/20230514120631.173938681d72.Iff4b55fc52943825d6e3e28d78a24b155ea5cd22@changeid
+Signed-off-by: Johannes Berg <johannes.berg@intel.com>
+---
+ drivers/net/wireless/intel/iwlwifi/mvm/mac80211.c | 3 +++
+ drivers/net/wireless/intel/iwlwifi/mvm/mld-sta.c  | 2 --
+ drivers/net/wireless/intel/iwlwifi/mvm/sta.c      | 3 ---
+ 3 files changed, 3 insertions(+), 5 deletions(-)
+
+diff --git a/drivers/net/wireless/intel/iwlwifi/mvm/mac80211.c b/drivers/net/wireless/intel/iwlwifi/mvm/mac80211.c
+index 0f01b62357c6f..1c96cf020801f 100644
+--- a/drivers/net/wireless/intel/iwlwifi/mvm/mac80211.c
++++ b/drivers/net/wireless/intel/iwlwifi/mvm/mac80211.c
+@@ -3889,6 +3889,9 @@ int iwl_mvm_mac_sta_state_common(struct ieee80211_hw *hw,
+ 		 * from the AP now.
+ 		 */
+ 		iwl_mvm_reset_cca_40mhz_workaround(mvm, vif);
++
++		/* Also free dup data just in case any assertions below fail */
++		kfree(mvm_sta->dup_data);
+ 	}
+ 
+ 	mutex_lock(&mvm->mutex);
+diff --git a/drivers/net/wireless/intel/iwlwifi/mvm/mld-sta.c b/drivers/net/wireless/intel/iwlwifi/mvm/mld-sta.c
+index 0bfdf44627550..f877be8505896 100644
+--- a/drivers/net/wireless/intel/iwlwifi/mvm/mld-sta.c
++++ b/drivers/net/wireless/intel/iwlwifi/mvm/mld-sta.c
+@@ -791,8 +791,6 @@ int iwl_mvm_mld_rm_sta(struct iwl_mvm *mvm, struct ieee80211_vif *vif,
+ 
+ 	lockdep_assert_held(&mvm->mutex);
+ 
+-	kfree(mvm_sta->dup_data);
+-
+ 	/* flush its queues here since we are freeing mvm_sta */
+ 	for_each_sta_active_link(vif, sta, link_sta, link_id) {
+ 		struct iwl_mvm_link_sta *mvm_link_sta =
+diff --git a/drivers/net/wireless/intel/iwlwifi/mvm/sta.c b/drivers/net/wireless/intel/iwlwifi/mvm/sta.c
+index 5469d634e2899..1e8592d3bcd6a 100644
+--- a/drivers/net/wireless/intel/iwlwifi/mvm/sta.c
++++ b/drivers/net/wireless/intel/iwlwifi/mvm/sta.c
+@@ -2089,9 +2089,6 @@ int iwl_mvm_rm_sta(struct iwl_mvm *mvm,
+ 
+ 	lockdep_assert_held(&mvm->mutex);
+ 
+-	if (iwl_mvm_has_new_rx_api(mvm))
+-		kfree(mvm_sta->dup_data);
+-
+ 	ret = iwl_mvm_drain_sta(mvm, mvm_sta, true);
+ 	if (ret)
+ 		return ret;
+-- 
+cgit 
+

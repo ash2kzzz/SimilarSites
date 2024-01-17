@@ -1,0 +1,66 @@
+From 6754172c208d9d3dae208c6494611ac167d56688 Mon Sep 17 00:00:00 2001
+From: Alexei Starovoitov <ast@kernel.org>
+Date: Wed, 21 Aug 2019 14:07:10 -0700
+Subject: bpf: fix precision tracking in presence of bpf2bpf calls
+
+While adding extra tests for precision tracking and extra infra
+to adjust verifier heuristics the existing test
+"calls: cross frame pruning - liveness propagation" started to fail.
+The root cause is the same as described in verifer.c comment:
+
+ * Also if parent's curframe > frame where backtracking started,
+ * the verifier need to mark registers in both frames, otherwise callees
+ * may incorrectly prune callers. This is similar to
+ * commit 7640ead93924 ("bpf: verifier: make sure callees don't prune with caller differences")
+ * For now backtracking falls back into conservative marking.
+
+Turned out though that returning -ENOTSUPP from backtrack_insn() and
+doing mark_all_scalars_precise() in the current parentage chain is not enough.
+Depending on how is_state_visited() heuristic is creating parentage chain
+it's possible that callee will incorrectly prune caller.
+Fix the issue by setting precise=true earlier and more aggressively.
+Before this fix the precision tracking _within_ functions that don't do
+bpf2bpf calls would still work. Whereas now precision tracking is completely
+disabled when bpf2bpf calls are present anywhere in the program.
+
+No difference in cilium tests (they don't have bpf2bpf calls).
+No difference in test_progs though some of them have bpf2bpf calls,
+but precision tracking wasn't effective there.
+
+Fixes: b5dc0163d8fd ("bpf: precise scalar_value tracking")
+Signed-off-by: Alexei Starovoitov <ast@kernel.org>
+Signed-off-by: Daniel Borkmann <daniel@iogearbox.net>
+---
+ kernel/bpf/verifier.c | 9 +++++----
+ 1 file changed, 5 insertions(+), 4 deletions(-)
+
+diff --git a/kernel/bpf/verifier.c b/kernel/bpf/verifier.c
+index c84d83f86141f..b5c14c9d7b987 100644
+--- a/kernel/bpf/verifier.c
++++ b/kernel/bpf/verifier.c
+@@ -985,9 +985,6 @@ static void __mark_reg_unbounded(struct bpf_reg_state *reg)
+ 	reg->smax_value = S64_MAX;
+ 	reg->umin_value = 0;
+ 	reg->umax_value = U64_MAX;
+-
+-	/* constant backtracking is enabled for root only for now */
+-	reg->precise = capable(CAP_SYS_ADMIN) ? false : true;
+ }
+ 
+ /* Mark a register as having a completely unknown (scalar) value. */
+@@ -1014,7 +1011,11 @@ static void mark_reg_unknown(struct bpf_verifier_env *env,
+ 			__mark_reg_not_init(regs + regno);
+ 		return;
+ 	}
+-	__mark_reg_unknown(regs + regno);
++	regs += regno;
++	__mark_reg_unknown(regs);
++	/* constant backtracking is enabled for root without bpf2bpf calls */
++	regs->precise = env->subprog_cnt > 1 || !env->allow_ptr_leaks ?
++			true : false;
+ }
+ 
+ static void __mark_reg_not_init(struct bpf_reg_state *reg)
+-- 
+cgit 
+

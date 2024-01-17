@@ -1,0 +1,53 @@
+From 0411d6ee50e3b74a793848e4f41f45860163f5cc Mon Sep 17 00:00:00 2001
+From: SeongJae Park <sj@kernel.org>
+Date: Fri, 6 Jan 2023 20:33:31 +0000
+Subject: include/linux/mm: fix release_pages_arg kernel doc comment
+
+Commit 449c796768c9 ("mm: teach release_pages() to take an array of
+encoded page pointers too") added the kernel doc comment for
+release_pages() on top of 'union release_pages_arg', so making 'make
+htmldocs' complains as below:
+
+    ./include/linux/mm.h:1268: warning: cannot understand function prototype: 'typedef union '
+
+The kernel doc comment for the function is already on top of the
+function's definition in mm/swap.c, and the new comment is actually not
+for the function but indeed release_pages_arg.  Fixing the comment to
+reflect the intent would be one option.  But, kernel doc cannot parse
+the union as below due to the attribute.
+
+    ./include/linux/mm.h:1272: error: Cannot parse struct or union!
+
+Modify the comment to reflect the intent but do not mark it as a kernel
+doc comment.
+
+Link: https://lkml.kernel.org/r/20230106203331.127532-1-sj@kernel.org
+Fixes: 449c796768c9 ("mm: teach release_pages() to take an array of encoded page pointers too")
+Signed-off-by: SeongJae Park <sj@kernel.org>
+Acked-by: Randy Dunlap <rdunlap@infradead.org>
+Signed-off-by: Andrew Morton <akpm@linux-foundation.org>
+---
+ include/linux/mm.h | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/include/linux/mm.h b/include/linux/mm.h
+index f3f196e4d66d6..8f857163ac89c 100644
+--- a/include/linux/mm.h
++++ b/include/linux/mm.h
+@@ -1270,10 +1270,10 @@ static inline void folio_put_refs(struct folio *folio, int refs)
+ 		__folio_put(folio);
+ }
+ 
+-/**
+- * release_pages - release an array of pages or folios
++/*
++ * union release_pages_arg - an array of pages or folios
+  *
+- * This just releases a simple array of multiple pages, and
++ * release_pages() releases a simple array of multiple pages, and
+  * accepts various different forms of said page array: either
+  * a regular old boring array of pages, an array of folios, or
+  * an array of encoded page pointers.
+-- 
+cgit 
+

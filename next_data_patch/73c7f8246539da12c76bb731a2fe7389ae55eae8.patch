@@ -1,0 +1,62 @@
+From 73c7f8246539da12c76bb731a2fe7389ae55eae8 Mon Sep 17 00:00:00 2001
+From: Petr Pavlu <petr.pavlu@suse.com>
+Date: Thu, 11 May 2023 14:53:12 +0200
+Subject: cpufreq: ACPI: Prevent a warning when another frequency driver is
+ loaded
+
+The recent change to use platform devices to load ACPI PPC and PCC
+drivers caused that a misleading warning is reported when a respective
+module cannot be loaded because another CPU frequency driver is already
+registered:
+
+kernel: acpi-cpufreq: probe of acpi-cpufreq failed with error -17
+
+Address it by changing the return code in acpi-cpufreq and pcc-cpufreq
+for this case from -EEXIST to -ENODEV which silences the warning in
+call_driver_probe().
+
+The change has also a benefit for users of init_module() as this return
+code is propagated out from the syscall. The previous -EEXIST code made
+the callers, such as kmod, wrongly believe that the module was already
+loaded instead of that it failed to load.
+
+Fixes: 691a63712347 ("ACPI: cpufreq: Use platform devices to load ACPI PPC and PCC drivers")
+Reported-by: Kevin Locke <kevin@kevinlocke.name>
+Link: https://lore.kernel.org/lkml/ZFreh8SDMX67EaB6@kevinlocke.name/
+Signed-off-by: Petr Pavlu <petr.pavlu@suse.com>
+Tested-by: Kevin Locke <kevin@kevinlocke.name>
+Signed-off-by: Rafael J. Wysocki <rafael.j.wysocki@intel.com>
+---
+ drivers/cpufreq/acpi-cpufreq.c | 2 +-
+ drivers/cpufreq/pcc-cpufreq.c  | 2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/cpufreq/acpi-cpufreq.c b/drivers/cpufreq/acpi-cpufreq.c
+index 29904395e95f9..b2f05d27167e3 100644
+--- a/drivers/cpufreq/acpi-cpufreq.c
++++ b/drivers/cpufreq/acpi-cpufreq.c
+@@ -975,7 +975,7 @@ static int __init acpi_cpufreq_probe(struct platform_device *pdev)
+ 
+ 	/* don't keep reloading if cpufreq_driver exists */
+ 	if (cpufreq_get_current_driver())
+-		return -EEXIST;
++		return -ENODEV;
+ 
+ 	pr_debug("%s\n", __func__);
+ 
+diff --git a/drivers/cpufreq/pcc-cpufreq.c b/drivers/cpufreq/pcc-cpufreq.c
+index 1d2cfea9858af..73efbcf5513b2 100644
+--- a/drivers/cpufreq/pcc-cpufreq.c
++++ b/drivers/cpufreq/pcc-cpufreq.c
+@@ -583,7 +583,7 @@ static int __init pcc_cpufreq_probe(struct platform_device *pdev)
+ 
+ 	/* Skip initialization if another cpufreq driver is there. */
+ 	if (cpufreq_get_current_driver())
+-		return -EEXIST;
++		return -ENODEV;
+ 
+ 	if (acpi_disabled)
+ 		return -ENODEV;
+-- 
+cgit 
+

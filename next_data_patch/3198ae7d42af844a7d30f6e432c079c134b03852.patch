@@ -1,0 +1,33 @@
+From 3198ae7d42af844a7d30f6e432c079c134b03852 Mon Sep 17 00:00:00 2001
+From: Leon Romanovsky <leonro@nvidia.com>
+Date: Thu, 20 Apr 2023 11:02:49 +0300
+Subject: net/mlx5e: Compare all fields in IPv6 address
+
+Fix size argument in memcmp to compare whole IPv6 address.
+
+Fixes: b3beba1fb404 ("net/mlx5e: Allow policies with reqid 0, to support IKE policy holes")
+Reviewed-by: Raed Salem <raeds@nvidia.com>
+Reviewed-by: Emeel Hakim <ehakim@nvidia.com>
+Signed-off-by: Leon Romanovsky <leonro@nvidia.com>
+Reviewed-by: Simon Horman <simon.horman@corigine.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ drivers/net/ethernet/mellanox/mlx5/core/en_accel/ipsec.h | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/net/ethernet/mellanox/mlx5/core/en_accel/ipsec.h b/drivers/net/ethernet/mellanox/mlx5/core/en_accel/ipsec.h
+index f7f7c09d2b322..4e98871715086 100644
+--- a/drivers/net/ethernet/mellanox/mlx5/core/en_accel/ipsec.h
++++ b/drivers/net/ethernet/mellanox/mlx5/core/en_accel/ipsec.h
+@@ -287,7 +287,7 @@ static inline bool addr6_all_zero(__be32 *addr6)
+ {
+ 	static const __be32 zaddr6[4] = {};
+ 
+-	return !memcmp(addr6, zaddr6, sizeof(*zaddr6));
++	return !memcmp(addr6, zaddr6, sizeof(zaddr6));
+ }
+ #else
+ static inline void mlx5e_ipsec_init(struct mlx5e_priv *priv)
+-- 
+cgit 
+

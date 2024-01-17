@@ -1,0 +1,54 @@
+From 1c06b6a599b5b7be74a6baffafa00b0f70cbe523 Mon Sep 17 00:00:00 2001
+From: Baolin Wang <baolin.wang@linux.alibaba.com>
+Date: Thu, 16 Mar 2023 19:06:47 +0800
+Subject: mm: compaction: fix the possible deadlock when isolating hugetlb
+ pages
+
+When trying to isolate a migratable pageblock, it can contain several
+normal pages or several hugetlb pages (e.g. CONT-PTE 64K hugetlb on arm64)
+in a pageblock. That means we may hold the lru lock of a normal page to
+continue to isolate the next hugetlb page by isolate_or_dissolve_huge_page()
+in the same migratable pageblock.
+
+However in the isolate_or_dissolve_huge_page(), it may allocate a new hugetlb
+page and dissolve the old one by alloc_and_dissolve_hugetlb_folio() if the
+hugetlb's refcount is zero. That means we can still enter the direct compaction
+path to allocate a new hugetlb page under the current lru lock, which
+may cause possible deadlock.
+
+To avoid this possible deadlock, we should release the lru lock when
+trying to isolate a hugetbl page.  Moreover it does not make sense to take
+the lru lock to isolate a hugetlb, which is not in the lru list.
+
+Link: https://lkml.kernel.org/r/7ab3bffebe59fb419234a68dec1e4572a2518563.1678962352.git.baolin.wang@linux.alibaba.com
+Fixes: 369fa227c219 ("mm: make alloc_contig_range handle free hugetlb pages")
+Signed-off-by: Baolin Wang <baolin.wang@linux.alibaba.com>
+Reviewed-by: Vlastimil Babka <vbabka@suse.cz>
+Reviewed-by: Mike Kravetz <mike.kravetz@oracle.com>
+Acked-by: Mel Gorman <mgorman@techsingularity.net>
+Cc: Oscar Salvador <osalvador@suse.de>
+Cc: William Lam <william.lam@bytedance.com>
+Signed-off-by: Andrew Morton <akpm@linux-foundation.org>
+---
+ mm/compaction.c | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/mm/compaction.c b/mm/compaction.c
+index 0bddf869bbeba..e689d66cedf48 100644
+--- a/mm/compaction.c
++++ b/mm/compaction.c
+@@ -894,6 +894,11 @@ isolate_migratepages_block(struct compact_control *cc, unsigned long low_pfn,
+ 		}
+ 
+ 		if (PageHuge(page) && cc->alloc_contig) {
++			if (locked) {
++				unlock_page_lruvec_irqrestore(locked, flags);
++				locked = NULL;
++			}
++
+ 			ret = isolate_or_dissolve_huge_page(page, &cc->migratepages);
+ 
+ 			/*
+-- 
+cgit 
+

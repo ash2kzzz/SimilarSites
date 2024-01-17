@@ -1,0 +1,39 @@
+From 47820d3263a4a7ba258fe2efe26ae5afb5b83036 Mon Sep 17 00:00:00 2001
+From: Abel Vesa <abel.vesa@linaro.org>
+Date: Tue, 16 May 2023 11:28:56 +0300
+Subject: soc: qcom: Rename ice to qcom_ice to avoid module name conflict
+
+The following error was reported when building x86_64 allmodconfig:
+
+error: the following would cause module name conflict:
+  drivers/soc/qcom/ice.ko
+  drivers/net/ethernet/intel/ice/ice.ko
+
+Seems the 'ice' module name is already used by some Intel ethernet
+driver, so lets rename the Qualcomm Inline Crypto Engine (ICE) module
+from 'ice' to 'qcom_ice' to avoid any kind of errors/confusions.
+
+Reported-by: Stephen Rothwell <sfr@canb.auug.org.au>
+Fixes: 2afbf43a4aec ("soc: qcom: Make the Qualcomm UFS/SDCC ICE a dedicated driver")
+Acked-by: Mukesh Ojha <quic_mojha@quicinc.com>
+Signed-off-by: Abel Vesa <abel.vesa@linaro.org>
+Signed-off-by: Bjorn Andersson <andersson@kernel.org>
+Link: https://lore.kernel.org/r/20230516082856.150214-1-abel.vesa@linaro.org
+---
+ drivers/soc/qcom/Makefile | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/soc/qcom/Makefile b/drivers/soc/qcom/Makefile
+index 0f43a88b4894e..89b775512befa 100644
+--- a/drivers/soc/qcom/Makefile
++++ b/drivers/soc/qcom/Makefile
+@@ -32,4 +32,5 @@ obj-$(CONFIG_QCOM_RPMHPD) += rpmhpd.o
+ obj-$(CONFIG_QCOM_RPMPD) += rpmpd.o
+ obj-$(CONFIG_QCOM_KRYO_L2_ACCESSORS) +=	kryo-l2-accessors.o
+ obj-$(CONFIG_QCOM_ICC_BWMON)	+= icc-bwmon.o
+-obj-$(CONFIG_QCOM_INLINE_CRYPTO_ENGINE)	+= ice.o
++qcom_ice-objs			+= ice.o
++obj-$(CONFIG_QCOM_INLINE_CRYPTO_ENGINE)	+= qcom_ice.o
+-- 
+cgit 
+

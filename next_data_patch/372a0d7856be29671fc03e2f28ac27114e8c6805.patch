@@ -1,0 +1,51 @@
+From 372a0d7856be29671fc03e2f28ac27114e8c6805 Mon Sep 17 00:00:00 2001
+From: Miquel Raynal <miquel.raynal@bootlin.com>
+Date: Mon, 30 Jan 2023 17:29:24 +0100
+Subject: ALSA: doc: Fix PCM interface section typos
+
+Fix two mistakes in the PCM interface section:
+1/ Members of the snd_pcm_hardware structure are channels_{min,max}
+   and not channel_{min,max} (mind the 's').
+2/ Another sentence is incomplete as the reference to one structure
+   member (period_bytes_max) is missing.
+
+There is no relevant 'Fixes:' tag to apply as both typos predate the
+Git era.
+
+Signed-off-by: Miquel Raynal <miquel.raynal@bootlin.com>
+Reviewed-by: Takashi Sakamoto <o-takashi@sakamocchi.jp>
+Link: https://lore.kernel.org/r/20230130162924.119389-1-miquel.raynal@bootlin.com
+Signed-off-by: Takashi Iwai <tiwai@suse.de>
+---
+ Documentation/sound/kernel-api/writing-an-alsa-driver.rst | 10 +++++-----
+ 1 file changed, 5 insertions(+), 5 deletions(-)
+
+diff --git a/Documentation/sound/kernel-api/writing-an-alsa-driver.rst b/Documentation/sound/kernel-api/writing-an-alsa-driver.rst
+index 07a620c5ca745..5c9523b7d55cd 100644
+--- a/Documentation/sound/kernel-api/writing-an-alsa-driver.rst
++++ b/Documentation/sound/kernel-api/writing-an-alsa-driver.rst
+@@ -1720,16 +1720,16 @@ Typically, you'll have a hardware descriptor as below:
+ -  ``rate_min`` and ``rate_max`` define the minimum and maximum sample
+    rate. This should correspond somehow to ``rates`` bits.
+ 
+--  ``channel_min`` and ``channel_max`` define, as you might already
++-  ``channels_min`` and ``channels_max`` define, as you might already
+    expected, the minimum and maximum number of channels.
+ 
+ -  ``buffer_bytes_max`` defines the maximum buffer size in
+    bytes. There is no ``buffer_bytes_min`` field, since it can be
+    calculated from the minimum period size and the minimum number of
+-   periods. Meanwhile, ``period_bytes_min`` and define the minimum and
+-   maximum size of the period in bytes. ``periods_max`` and
+-   ``periods_min`` define the maximum and minimum number of periods in
+-   the buffer.
++   periods. Meanwhile, ``period_bytes_min`` and ``period_bytes_max``
++   define the minimum and maximum size of the period in bytes.
++   ``periods_max`` and ``periods_min`` define the maximum and minimum
++   number of periods in the buffer.
+ 
+    The “period” is a term that corresponds to a fragment in the OSS
+    world. The period defines the size at which a PCM interrupt is
+-- 
+cgit 
+

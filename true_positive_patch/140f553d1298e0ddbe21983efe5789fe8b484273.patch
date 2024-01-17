@@ -1,0 +1,48 @@
+From 140f553d1298e0ddbe21983efe5789fe8b484273 Mon Sep 17 00:00:00 2001
+From: Kai Vehmanen <kai.vehmanen@linux.intel.com>
+Date: Mon, 15 Feb 2021 00:04:14 +0200
+Subject: ASoC: soc-pcm: fix hwparams min/max init for dpcm
+
+When runtime is initialized with dpcm_init_runtime_hw(), some of the
+min/max calculations assume that defaults are set. For example
+calculation of channel min/max values may be done using zero-initialized
+data and soc_pcm_hw_update_chan() will always return max-channels of 0
+in this case. This will result in failure to open the PCM at all.
+
+Fix the issue by calling soc_pcm_hw_init() before calling any
+soc_pcm_hw_update_*() functions.
+
+Remove the conditional code on runtime->hw.formats as this field
+is anyways set in soc_pcm_hw_init().
+
+Fixes: 6cb56a4549e9 ("ASoC: soc-pcm: add soc_pcm_hw_update_chan()")
+Reported-by: Pierre-Louis Bossart <pierre-louis.bossart@linux.intel.com>
+Signed-off-by: Kai Vehmanen <kai.vehmanen@linux.intel.com>
+Link: https://lore.kernel.org/r/20210214220414.2876690-1-kai.vehmanen@linux.intel.com
+Signed-off-by: Mark Brown <broonie@kernel.org>
+---
+ sound/soc/soc-pcm.c | 6 ++----
+ 1 file changed, 2 insertions(+), 4 deletions(-)
+
+diff --git a/sound/soc/soc-pcm.c b/sound/soc/soc-pcm.c
+index b7c90da1820e9..37094aeff4403 100644
+--- a/sound/soc/soc-pcm.c
++++ b/sound/soc/soc-pcm.c
+@@ -1531,12 +1531,10 @@ static void dpcm_init_runtime_hw(struct snd_pcm_runtime *runtime,
+ {
+ 	struct snd_pcm_hardware *hw = &runtime->hw;
+ 
++	soc_pcm_hw_init(hw);
+ 	soc_pcm_hw_update_rate(hw, stream);
+ 	soc_pcm_hw_update_chan(hw, stream);
+-	if (runtime->hw.formats)
+-		runtime->hw.formats &= stream->formats;
+-	else
+-		runtime->hw.formats = stream->formats;
++	soc_pcm_hw_update_format(hw, stream);
+ }
+ 
+ static void dpcm_runtime_merge_format(struct snd_pcm_substream *substream,
+-- 
+cgit 
+

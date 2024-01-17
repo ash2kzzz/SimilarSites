@@ -1,0 +1,101 @@
+From 42f07816ac0cc797928119cc039c414ae2b95d34 Mon Sep 17 00:00:00 2001
+From: Jim Cromie <jim.cromie@gmail.com>
+Date: Mon, 31 Aug 2020 12:22:10 -0600
+Subject: dyndbg: fix problem parsing format="foo bar"
+
+commit 14775b049642 ("dyndbg: accept query terms like file=bar and
+module=foo") added the combined keyword=value parsing poorly; revert
+most of it, keeping the keyword & arg change.
+
+Instead, fix the tokenizer for the new input, by terminating the
+keyword (an unquoted word) on '=' as well as space, thus letting the
+tokenizer work on the quoted argument, like it would have previously.
+
+Also add a few debug-prints to show more parsing context, into
+tokenizer and parse-query, and use "keyword, value" in others.
+
+Fixes: 14775b049642 ("dyndbg: accept query terms like file=bar and module=foo")
+Signed-off-by: Jim Cromie <jim.cromie@gmail.com>
+Link: https://lore.kernel.org/r/20200831182210.850852-4-jim.cromie@gmail.com
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+---
+ lib/dynamic_debug.c | 38 +++++++++++++++++---------------------
+ 1 file changed, 17 insertions(+), 21 deletions(-)
+
+diff --git a/lib/dynamic_debug.c b/lib/dynamic_debug.c
+index 08e4b057514c9..04f4c80b0d162 100644
+--- a/lib/dynamic_debug.c
++++ b/lib/dynamic_debug.c
+@@ -237,6 +237,7 @@ static int ddebug_tokenize(char *buf, char *words[], int maxwords)
+ {
+ 	int nwords = 0;
+ 
++	vpr_info("entry, buf:'%s'\n", buf);
+ 	while (*buf) {
+ 		char *end;
+ 
+@@ -247,6 +248,8 @@ static int ddebug_tokenize(char *buf, char *words[], int maxwords)
+ 		if (*buf == '#')
+ 			break;	/* token starts comment, skip rest of line */
+ 
++		vpr_info("start-of-word:%d '%s'\n", nwords, buf);
++
+ 		/* find `end' of word, whitespace separated or quoted */
+ 		if (*buf == '"' || *buf == '\'') {
+ 			int quote = *buf++;
+@@ -257,7 +260,9 @@ static int ddebug_tokenize(char *buf, char *words[], int maxwords)
+ 				return -EINVAL;	/* unclosed quote */
+ 			}
+ 		} else {
+-			for (end = buf; *end && !isspace(*end); end++)
++			for (end = buf;
++			     *end && *end != '=' && !isspace(*end);
++			     end++)
+ 				;
+ 			BUG_ON(end == buf);
+ 		}
+@@ -373,30 +378,21 @@ static int ddebug_parse_query(char *words[], int nwords,
+ 	unsigned int i;
+ 	int rc = 0;
+ 	char *fline;
+-	char *keyword, *arg;
+ 
+-	if (modname)
++	if (nwords % 2 != 0) {
++		pr_err("expecting pairs of match-spec <value>\n");
++		return -EINVAL;
++	}
++	if (modname) {
+ 		/* support $modname.dyndbg=<multiple queries> */
++		vpr_info("module:%s queries:'%s'\n", modname);
+ 		query->module = modname;
++	}
++	for (i = 0; i < nwords; i += 2) {
++		char *keyword = words[i];
++		char *arg = words[i+1];
+ 
+-	for (i = 0; i < nwords; i++) {
+-		/* accept keyword=arg */
+-		vpr_info("%d w:%s\n", i, words[i]);
+-
+-		keyword = words[i];
+-		arg = strchr(keyword, '=');
+-		if (arg) {
+-			*arg++ = '\0';
+-		} else {
+-			i++; /* next word is arg */
+-			if (!(i < nwords)) {
+-				pr_err("missing arg to keyword: %s\n", keyword);
+-				return -EINVAL;
+-			}
+-			arg = words[i];
+-		}
+-		vpr_info("%d key:%s arg:%s\n", i, keyword, arg);
+-
++		vpr_info("keyword:'%s' value:'%s'\n", keyword, arg);
+ 		if (!strcmp(keyword, "func")) {
+ 			rc = check_set(&query->function, arg, "func");
+ 		} else if (!strcmp(keyword, "file")) {
+-- 
+cgit 
+

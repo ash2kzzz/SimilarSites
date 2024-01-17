@@ -1,0 +1,32 @@
+From 078bdea856bf533f3163eeb0870e22a717f4eaa7 Mon Sep 17 00:00:00 2001
+From: Wang Yong <yongw.kernel@gmail.com>
+Date: Thu, 8 Dec 2022 08:33:53 +0000
+Subject: docs/zh_CN: fix a typo in howto
+
+Fix a typo in Chinese translation of howto.rst
+
+Fixes: 40d93e496180 ("docs/zh_CN: update howto.rst to latest version")
+Signed-off-by: Wang Yong <yongw.kernel@gmail.com>
+Reviewed-by: Yanteng Si <siyanteng@loongson.cn>
+Link: https://lore.kernel.org/r/20221208083353.160152-1-yongw.kernel@gmail.com
+Signed-off-by: Jonathan Corbet <corbet@lwn.net>
+---
+ Documentation/translations/zh_CN/process/howto.rst | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/Documentation/translations/zh_CN/process/howto.rst b/Documentation/translations/zh_CN/process/howto.rst
+index 888978a62db3b..10254751df6a2 100644
+--- a/Documentation/translations/zh_CN/process/howto.rst
++++ b/Documentation/translations/zh_CN/process/howto.rst
+@@ -254,7 +254,7 @@ Linux-next 集成测试树
+         https://git.kernel.org/?p=linux/kernel/git/next/linux-next.git
+ 
+ 通过这种方式，Linux-next 对下一个合并阶段将进入主线内核的内容给出了一个概要
+-展望。非常欢冒险的测试者运行测试Linux-next。
++展望。非常欢迎冒险的测试者运行测试Linux-next。
+ 
+ 多个主要版本的稳定版内核树
+ -----------------------------------
+-- 
+cgit 
+

@@ -1,0 +1,121 @@
+From dd64572490c3d7aab04083db8791fab157a941ed Mon Sep 17 00:00:00 2001
+From: Gal Pressman <gal@nvidia.com>
+Date: Tue, 24 Jan 2023 17:34:32 +0200
+Subject: net/mlx5e: kTLS, Fix missing error unwind on unsupported cipher type
+
+Do proper error unwinding when adding an unsupported TX/RX cipher type.
+Move the switch case prior to key creation so there's less to unwind,
+and change the goto label name to describe the action performed instead
+of what failed.
+
+Fixes: 4960c414db35 ("net/mlx5e: Support 256 bit keys with kTLS device offload")
+Signed-off-by: Gal Pressman <gal@nvidia.com>
+Reviewed-by: Tariq Toukan <tariqt@nvidia.com>
+Signed-off-by: Saeed Mahameed <saeedm@nvidia.com>
+---
+ .../ethernet/mellanox/mlx5/core/en_accel/ktls_rx.c | 24 ++++++++++++----------
+ .../ethernet/mellanox/mlx5/core/en_accel/ktls_tx.c | 22 +++++++++++---------
+ 2 files changed, 25 insertions(+), 21 deletions(-)
+
+diff --git a/drivers/net/ethernet/mellanox/mlx5/core/en_accel/ktls_rx.c b/drivers/net/ethernet/mellanox/mlx5/core/en_accel/ktls_rx.c
+index 4be770443b0cd..9b597cb245985 100644
+--- a/drivers/net/ethernet/mellanox/mlx5/core/en_accel/ktls_rx.c
++++ b/drivers/net/ethernet/mellanox/mlx5/core/en_accel/ktls_rx.c
+@@ -621,15 +621,6 @@ int mlx5e_ktls_add_rx(struct net_device *netdev, struct sock *sk,
+ 	if (unlikely(!priv_rx))
+ 		return -ENOMEM;
+ 
+-	dek = mlx5_ktls_create_key(priv->tls->dek_pool, crypto_info);
+-	if (IS_ERR(dek)) {
+-		err = PTR_ERR(dek);
+-		goto err_create_key;
+-	}
+-	priv_rx->dek = dek;
+-
+-	INIT_LIST_HEAD(&priv_rx->list);
+-	spin_lock_init(&priv_rx->lock);
+ 	switch (crypto_info->cipher_type) {
+ 	case TLS_CIPHER_AES_GCM_128:
+ 		priv_rx->crypto_info.crypto_info_128 =
+@@ -642,9 +633,20 @@ int mlx5e_ktls_add_rx(struct net_device *netdev, struct sock *sk,
+ 	default:
+ 		WARN_ONCE(1, "Unsupported cipher type %u\n",
+ 			  crypto_info->cipher_type);
+-		return -EOPNOTSUPP;
++		err = -EOPNOTSUPP;
++		goto err_cipher_type;
+ 	}
+ 
++	dek = mlx5_ktls_create_key(priv->tls->dek_pool, crypto_info);
++	if (IS_ERR(dek)) {
++		err = PTR_ERR(dek);
++		goto err_cipher_type;
++	}
++	priv_rx->dek = dek;
++
++	INIT_LIST_HEAD(&priv_rx->list);
++	spin_lock_init(&priv_rx->lock);
++
+ 	rxq = mlx5e_ktls_sk_get_rxq(sk);
+ 	priv_rx->rxq = rxq;
+ 	priv_rx->sk = sk;
+@@ -677,7 +679,7 @@ err_post_wqes:
+ 	mlx5e_tir_destroy(&priv_rx->tir);
+ err_create_tir:
+ 	mlx5_ktls_destroy_key(priv->tls->dek_pool, priv_rx->dek);
+-err_create_key:
++err_cipher_type:
+ 	kfree(priv_rx);
+ 	return err;
+ }
+diff --git a/drivers/net/ethernet/mellanox/mlx5/core/en_accel/ktls_tx.c b/drivers/net/ethernet/mellanox/mlx5/core/en_accel/ktls_tx.c
+index 60b3e08a10286..0e4c0a093293a 100644
+--- a/drivers/net/ethernet/mellanox/mlx5/core/en_accel/ktls_tx.c
++++ b/drivers/net/ethernet/mellanox/mlx5/core/en_accel/ktls_tx.c
+@@ -469,14 +469,6 @@ int mlx5e_ktls_add_tx(struct net_device *netdev, struct sock *sk,
+ 	if (IS_ERR(priv_tx))
+ 		return PTR_ERR(priv_tx);
+ 
+-	dek = mlx5_ktls_create_key(priv->tls->dek_pool, crypto_info);
+-	if (IS_ERR(dek)) {
+-		err = PTR_ERR(dek);
+-		goto err_create_key;
+-	}
+-	priv_tx->dek = dek;
+-
+-	priv_tx->expected_seq = start_offload_tcp_sn;
+ 	switch (crypto_info->cipher_type) {
+ 	case TLS_CIPHER_AES_GCM_128:
+ 		priv_tx->crypto_info.crypto_info_128 =
+@@ -489,8 +481,18 @@ int mlx5e_ktls_add_tx(struct net_device *netdev, struct sock *sk,
+ 	default:
+ 		WARN_ONCE(1, "Unsupported cipher type %u\n",
+ 			  crypto_info->cipher_type);
+-		return -EOPNOTSUPP;
++		err = -EOPNOTSUPP;
++		goto err_pool_push;
+ 	}
++
++	dek = mlx5_ktls_create_key(priv->tls->dek_pool, crypto_info);
++	if (IS_ERR(dek)) {
++		err = PTR_ERR(dek);
++		goto err_pool_push;
++	}
++
++	priv_tx->dek = dek;
++	priv_tx->expected_seq = start_offload_tcp_sn;
+ 	priv_tx->tx_ctx = tls_offload_ctx_tx(tls_ctx);
+ 
+ 	mlx5e_set_ktls_tx_priv_ctx(tls_ctx, priv_tx);
+@@ -500,7 +502,7 @@ int mlx5e_ktls_add_tx(struct net_device *netdev, struct sock *sk,
+ 
+ 	return 0;
+ 
+-err_create_key:
++err_pool_push:
+ 	pool_push(pool, priv_tx);
+ 	return err;
+ }
+-- 
+cgit 
+

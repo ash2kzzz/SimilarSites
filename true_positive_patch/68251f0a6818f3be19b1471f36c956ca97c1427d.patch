@@ -1,0 +1,354 @@
+From 68251f0a6818f3be19b1471f36c956ca97c1427d Mon Sep 17 00:00:00 2001
+From: David Howells <dhowells@redhat.com>
+Date: Sat, 12 May 2018 22:31:33 +0100
+Subject: afs: Fix whole-volume callback handling
+
+It's possible for an AFS file server to issue a whole-volume notification
+that callbacks on all the vnodes in the file have been broken.  This is
+done for R/O and backup volumes (which don't have per-file callbacks) and
+for things like a volume being taken offline.
+
+Fix callback handling to detect whole-volume notifications, to track it
+across operations and to check it during inode validation.
+
+Fixes: c435ee34551e ("afs: Overhaul the callback handling")
+Signed-off-by: David Howells <dhowells@redhat.com>
+---
+ fs/afs/callback.c | 28 +++++++++++++++++++++-------
+ fs/afs/dir.c      | 18 +++++++++---------
+ fs/afs/file.c     |  2 +-
+ fs/afs/flock.c    |  6 +++---
+ fs/afs/fsclient.c |  2 +-
+ fs/afs/inode.c    | 13 ++++++++-----
+ fs/afs/internal.h | 15 +++++++++++++++
+ fs/afs/security.c |  7 +++----
+ fs/afs/super.c    |  2 +-
+ fs/afs/write.c    |  2 +-
+ 10 files changed, 63 insertions(+), 32 deletions(-)
+
+diff --git a/fs/afs/callback.c b/fs/afs/callback.c
+index 09332945d3222..571437dcb2528 100644
+--- a/fs/afs/callback.c
++++ b/fs/afs/callback.c
+@@ -113,6 +113,7 @@ again:
+ 	old = vnode->cb_interest;
+ 	vnode->cb_interest = cbi;
+ 	vnode->cb_s_break = cbi->server->cb_s_break;
++	vnode->cb_v_break = vnode->volume->cb_v_break;
+ 	clear_bit(AFS_VNODE_CB_PROMISED, &vnode->flags);
+ 
+ 	write_sequnlock(&vnode->cb_lock);
+@@ -195,13 +196,24 @@ static void afs_break_one_callback(struct afs_server *server,
+ 		if (cbi->vid != fid->vid)
+ 			continue;
+ 
+-		data.volume = NULL;
+-		data.fid = *fid;
+-		inode = ilookup5_nowait(cbi->sb, fid->vnode, afs_iget5_test, &data);
+-		if (inode) {
+-			vnode = AFS_FS_I(inode);
+-			afs_break_callback(vnode);
+-			iput(inode);
++		if (fid->vnode == 0 && fid->unique == 0) {
++			/* The callback break applies to an entire volume. */
++			struct afs_super_info *as = AFS_FS_S(cbi->sb);
++			struct afs_volume *volume = as->volume;
++
++			write_lock(&volume->cb_break_lock);
++			volume->cb_v_break++;
++			write_unlock(&volume->cb_break_lock);
++		} else {
++			data.volume = NULL;
++			data.fid = *fid;
++			inode = ilookup5_nowait(cbi->sb, fid->vnode,
++						afs_iget5_test, &data);
++			if (inode) {
++				vnode = AFS_FS_I(inode);
++				afs_break_callback(vnode);
++				iput(inode);
++			}
+ 		}
+ 	}
+ 
+@@ -219,6 +231,8 @@ void afs_break_callbacks(struct afs_server *server, size_t count,
+ 	ASSERT(server != NULL);
+ 	ASSERTCMP(count, <=, AFSCBMAX);
+ 
++	/* TODO: Sort the callback break list by volume ID */
++
+ 	for (; count > 0; callbacks++, count--) {
+ 		_debug("- Fid { vl=%08x n=%u u=%u }  CB { v=%u x=%u t=%u }",
+ 		       callbacks->fid.vid,
+diff --git a/fs/afs/dir.c b/fs/afs/dir.c
+index 2853acd644828..7d623008157ff 100644
+--- a/fs/afs/dir.c
++++ b/fs/afs/dir.c
+@@ -1141,7 +1141,7 @@ static int afs_mkdir(struct inode *dir, struct dentry *dentry, umode_t mode)
+ 	ret = -ERESTARTSYS;
+ 	if (afs_begin_vnode_operation(&fc, dvnode, key)) {
+ 		while (afs_select_fileserver(&fc)) {
+-			fc.cb_break = dvnode->cb_break + dvnode->cb_s_break;
++			fc.cb_break = afs_calc_vnode_cb_break(dvnode);
+ 			afs_fs_create(&fc, dentry->d_name.name, mode, data_version,
+ 				      &newfid, &newstatus, &newcb);
+ 		}
+@@ -1211,7 +1211,7 @@ static int afs_rmdir(struct inode *dir, struct dentry *dentry)
+ 	ret = -ERESTARTSYS;
+ 	if (afs_begin_vnode_operation(&fc, dvnode, key)) {
+ 		while (afs_select_fileserver(&fc)) {
+-			fc.cb_break = dvnode->cb_break + dvnode->cb_s_break;
++			fc.cb_break = afs_calc_vnode_cb_break(dvnode);
+ 			afs_fs_remove(&fc, dentry->d_name.name, true,
+ 				      data_version);
+ 		}
+@@ -1314,7 +1314,7 @@ static int afs_unlink(struct inode *dir, struct dentry *dentry)
+ 	ret = -ERESTARTSYS;
+ 	if (afs_begin_vnode_operation(&fc, dvnode, key)) {
+ 		while (afs_select_fileserver(&fc)) {
+-			fc.cb_break = dvnode->cb_break + dvnode->cb_s_break;
++			fc.cb_break = afs_calc_vnode_cb_break(dvnode);
+ 			afs_fs_remove(&fc, dentry->d_name.name, false,
+ 				      data_version);
+ 		}
+@@ -1371,7 +1371,7 @@ static int afs_create(struct inode *dir, struct dentry *dentry, umode_t mode,
+ 	ret = -ERESTARTSYS;
+ 	if (afs_begin_vnode_operation(&fc, dvnode, key)) {
+ 		while (afs_select_fileserver(&fc)) {
+-			fc.cb_break = dvnode->cb_break + dvnode->cb_s_break;
++			fc.cb_break = afs_calc_vnode_cb_break(dvnode);
+ 			afs_fs_create(&fc, dentry->d_name.name, mode, data_version,
+ 				      &newfid, &newstatus, &newcb);
+ 		}
+@@ -1441,8 +1441,8 @@ static int afs_link(struct dentry *from, struct inode *dir,
+ 		}
+ 
+ 		while (afs_select_fileserver(&fc)) {
+-			fc.cb_break = dvnode->cb_break + dvnode->cb_s_break;
+-			fc.cb_break_2 = vnode->cb_break + vnode->cb_s_break;
++			fc.cb_break = afs_calc_vnode_cb_break(dvnode);
++			fc.cb_break_2 = afs_calc_vnode_cb_break(vnode);
+ 			afs_fs_link(&fc, vnode, dentry->d_name.name, data_version);
+ 		}
+ 
+@@ -1510,7 +1510,7 @@ static int afs_symlink(struct inode *dir, struct dentry *dentry,
+ 	ret = -ERESTARTSYS;
+ 	if (afs_begin_vnode_operation(&fc, dvnode, key)) {
+ 		while (afs_select_fileserver(&fc)) {
+-			fc.cb_break = dvnode->cb_break + dvnode->cb_s_break;
++			fc.cb_break = afs_calc_vnode_cb_break(dvnode);
+ 			afs_fs_symlink(&fc, dentry->d_name.name,
+ 				       content, data_version,
+ 				       &newfid, &newstatus);
+@@ -1586,8 +1586,8 @@ static int afs_rename(struct inode *old_dir, struct dentry *old_dentry,
+ 			}
+ 		}
+ 		while (afs_select_fileserver(&fc)) {
+-			fc.cb_break = orig_dvnode->cb_break + orig_dvnode->cb_s_break;
+-			fc.cb_break_2 = new_dvnode->cb_break + new_dvnode->cb_s_break;
++			fc.cb_break = afs_calc_vnode_cb_break(orig_dvnode);
++			fc.cb_break_2 = afs_calc_vnode_cb_break(new_dvnode);
+ 			afs_fs_rename(&fc, old_dentry->d_name.name,
+ 				      new_dvnode, new_dentry->d_name.name,
+ 				      orig_data_version, new_data_version);
+diff --git a/fs/afs/file.c b/fs/afs/file.c
+index c24c08016dd96..7d4f26198573d 100644
+--- a/fs/afs/file.c
++++ b/fs/afs/file.c
+@@ -238,7 +238,7 @@ int afs_fetch_data(struct afs_vnode *vnode, struct key *key, struct afs_read *de
+ 	ret = -ERESTARTSYS;
+ 	if (afs_begin_vnode_operation(&fc, vnode, key)) {
+ 		while (afs_select_fileserver(&fc)) {
+-			fc.cb_break = vnode->cb_break + vnode->cb_s_break;
++			fc.cb_break = afs_calc_vnode_cb_break(vnode);
+ 			afs_fs_fetch_data(&fc, desc);
+ 		}
+ 
+diff --git a/fs/afs/flock.c b/fs/afs/flock.c
+index 7a0e017070ece..dc62d15a964b8 100644
+--- a/fs/afs/flock.c
++++ b/fs/afs/flock.c
+@@ -86,7 +86,7 @@ static int afs_set_lock(struct afs_vnode *vnode, struct key *key,
+ 	ret = -ERESTARTSYS;
+ 	if (afs_begin_vnode_operation(&fc, vnode, key)) {
+ 		while (afs_select_fileserver(&fc)) {
+-			fc.cb_break = vnode->cb_break + vnode->cb_s_break;
++			fc.cb_break = afs_calc_vnode_cb_break(vnode);
+ 			afs_fs_set_lock(&fc, type);
+ 		}
+ 
+@@ -117,7 +117,7 @@ static int afs_extend_lock(struct afs_vnode *vnode, struct key *key)
+ 	ret = -ERESTARTSYS;
+ 	if (afs_begin_vnode_operation(&fc, vnode, key)) {
+ 		while (afs_select_current_fileserver(&fc)) {
+-			fc.cb_break = vnode->cb_break + vnode->cb_s_break;
++			fc.cb_break = afs_calc_vnode_cb_break(vnode);
+ 			afs_fs_extend_lock(&fc);
+ 		}
+ 
+@@ -148,7 +148,7 @@ static int afs_release_lock(struct afs_vnode *vnode, struct key *key)
+ 	ret = -ERESTARTSYS;
+ 	if (afs_begin_vnode_operation(&fc, vnode, key)) {
+ 		while (afs_select_current_fileserver(&fc)) {
+-			fc.cb_break = vnode->cb_break + vnode->cb_s_break;
++			fc.cb_break = afs_calc_vnode_cb_break(vnode);
+ 			afs_fs_release_lock(&fc);
+ 		}
+ 
+diff --git a/fs/afs/fsclient.c b/fs/afs/fsclient.c
+index d16f26c6cdbe5..b273e1d60478c 100644
+--- a/fs/afs/fsclient.c
++++ b/fs/afs/fsclient.c
+@@ -261,7 +261,7 @@ static void xdr_decode_AFSCallBack(struct afs_call *call,
+ 
+ 	write_seqlock(&vnode->cb_lock);
+ 
+-	if (call->cb_break == (vnode->cb_break + cbi->server->cb_s_break)) {
++	if (call->cb_break == afs_cb_break_sum(vnode, cbi)) {
+ 		vnode->cb_version	= ntohl(*bp++);
+ 		cb_expiry		= ntohl(*bp++);
+ 		vnode->cb_type		= ntohl(*bp++);
+diff --git a/fs/afs/inode.c b/fs/afs/inode.c
+index e855c6e5cf285..479b7fdda1244 100644
+--- a/fs/afs/inode.c
++++ b/fs/afs/inode.c
+@@ -108,7 +108,7 @@ int afs_fetch_status(struct afs_vnode *vnode, struct key *key, bool new_inode)
+ 	ret = -ERESTARTSYS;
+ 	if (afs_begin_vnode_operation(&fc, vnode, key)) {
+ 		while (afs_select_fileserver(&fc)) {
+-			fc.cb_break = vnode->cb_break + vnode->cb_s_break;
++			fc.cb_break = afs_calc_vnode_cb_break(vnode);
+ 			afs_fs_fetch_file_status(&fc, NULL, new_inode);
+ 		}
+ 
+@@ -393,15 +393,18 @@ int afs_validate(struct afs_vnode *vnode, struct key *key)
+ 	read_seqlock_excl(&vnode->cb_lock);
+ 
+ 	if (test_bit(AFS_VNODE_CB_PROMISED, &vnode->flags)) {
+-		if (vnode->cb_s_break != vnode->cb_interest->server->cb_s_break) {
++		if (vnode->cb_s_break != vnode->cb_interest->server->cb_s_break ||
++		    vnode->cb_v_break != vnode->volume->cb_v_break) {
+ 			vnode->cb_s_break = vnode->cb_interest->server->cb_s_break;
++			vnode->cb_v_break = vnode->volume->cb_v_break;
++			valid = false;
+ 		} else if (vnode->status.type == AFS_FTYPE_DIR &&
+ 			   test_bit(AFS_VNODE_DIR_VALID, &vnode->flags) &&
+ 			   vnode->cb_expires_at - 10 > now) {
+-				valid = true;
++			valid = true;
+ 		} else if (!test_bit(AFS_VNODE_ZAP_DATA, &vnode->flags) &&
+ 			   vnode->cb_expires_at - 10 > now) {
+-				valid = true;
++			valid = true;
+ 		}
+ 	} else if (test_bit(AFS_VNODE_DELETED, &vnode->flags)) {
+ 		valid = true;
+@@ -574,7 +577,7 @@ int afs_setattr(struct dentry *dentry, struct iattr *attr)
+ 	ret = -ERESTARTSYS;
+ 	if (afs_begin_vnode_operation(&fc, vnode, key)) {
+ 		while (afs_select_fileserver(&fc)) {
+-			fc.cb_break = vnode->cb_break + vnode->cb_s_break;
++			fc.cb_break = afs_calc_vnode_cb_break(vnode);
+ 			afs_fs_setattr(&fc, attr);
+ 		}
+ 
+diff --git a/fs/afs/internal.h b/fs/afs/internal.h
+index e75e57e133201..e3f8a46663dba 100644
+--- a/fs/afs/internal.h
++++ b/fs/afs/internal.h
+@@ -461,6 +461,9 @@ struct afs_volume {
+ 	rwlock_t		servers_lock;	/* Lock for ->servers */
+ 	unsigned int		servers_seq;	/* Incremented each time ->servers changes */
+ 
++	unsigned		cb_v_break;	/* Break-everything counter. */
++	rwlock_t		cb_break_lock;
++
+ 	afs_voltype_t		type;		/* type of volume */
+ 	short			error;
+ 	char			type_force;	/* force volume type (suppress R/O -> R/W) */
+@@ -521,6 +524,7 @@ struct afs_vnode {
+ 	/* outstanding callback notification on this file */
+ 	struct afs_cb_interest	*cb_interest;	/* Server on which this resides */
+ 	unsigned int		cb_s_break;	/* Mass break counter on ->server */
++	unsigned int		cb_v_break;	/* Mass break counter on ->volume */
+ 	unsigned int		cb_break;	/* Break counter on vnode */
+ 	seqlock_t		cb_lock;	/* Lock for ->cb_interest, ->status, ->cb_*break */
+ 
+@@ -662,6 +666,17 @@ static inline struct afs_cb_interest *afs_get_cb_interest(struct afs_cb_interest
+ 	return cbi;
+ }
+ 
++static inline unsigned int afs_calc_vnode_cb_break(struct afs_vnode *vnode)
++{
++	return vnode->cb_break + vnode->cb_s_break + vnode->cb_v_break;
++}
++
++static inline unsigned int afs_cb_break_sum(struct afs_vnode *vnode,
++					    struct afs_cb_interest *cbi)
++{
++	return vnode->cb_break + cbi->server->cb_s_break + vnode->volume->cb_v_break;
++}
++
+ /*
+  * cell.c
+  */
+diff --git a/fs/afs/security.c b/fs/afs/security.c
+index cea2fff313dc6..1992b0ffa5437 100644
+--- a/fs/afs/security.c
++++ b/fs/afs/security.c
+@@ -147,8 +147,7 @@ void afs_cache_permit(struct afs_vnode *vnode, struct key *key,
+ 					break;
+ 				}
+ 
+-				if (cb_break != (vnode->cb_break +
+-						 vnode->cb_interest->server->cb_s_break)) {
++				if (cb_break != afs_cb_break_sum(vnode, vnode->cb_interest)) {
+ 					changed = true;
+ 					break;
+ 				}
+@@ -178,7 +177,7 @@ void afs_cache_permit(struct afs_vnode *vnode, struct key *key,
+ 		}
+ 	}
+ 
+-	if (cb_break != (vnode->cb_break + vnode->cb_interest->server->cb_s_break))
++	if (cb_break != afs_cb_break_sum(vnode, vnode->cb_interest))
+ 		goto someone_else_changed_it;
+ 
+ 	/* We need a ref on any permits list we want to copy as we'll have to
+@@ -257,7 +256,7 @@ found:
+ 
+ 	spin_lock(&vnode->lock);
+ 	zap = rcu_access_pointer(vnode->permit_cache);
+-	if (cb_break == (vnode->cb_break + vnode->cb_interest->server->cb_s_break) &&
++	if (cb_break == afs_cb_break_sum(vnode, vnode->cb_interest) &&
+ 	    zap == permits)
+ 		rcu_assign_pointer(vnode->permit_cache, replacement);
+ 	else
+diff --git a/fs/afs/super.c b/fs/afs/super.c
+index b02838cd95259..9e5d7966621c4 100644
+--- a/fs/afs/super.c
++++ b/fs/afs/super.c
+@@ -688,7 +688,7 @@ static int afs_statfs(struct dentry *dentry, struct kstatfs *buf)
+ 	if (afs_begin_vnode_operation(&fc, vnode, key)) {
+ 		fc.flags |= AFS_FS_CURSOR_NO_VSLEEP;
+ 		while (afs_select_fileserver(&fc)) {
+-			fc.cb_break = vnode->cb_break + vnode->cb_s_break;
++			fc.cb_break = afs_calc_vnode_cb_break(vnode);
+ 			afs_fs_get_volume_status(&fc, &vs);
+ 		}
+ 
+diff --git a/fs/afs/write.c b/fs/afs/write.c
+index c164698dc3048..8b39e6ebb40bc 100644
+--- a/fs/afs/write.c
++++ b/fs/afs/write.c
+@@ -351,7 +351,7 @@ found_key:
+ 	ret = -ERESTARTSYS;
+ 	if (afs_begin_vnode_operation(&fc, vnode, wbk->key)) {
+ 		while (afs_select_fileserver(&fc)) {
+-			fc.cb_break = vnode->cb_break + vnode->cb_s_break;
++			fc.cb_break = afs_calc_vnode_cb_break(vnode);
+ 			afs_fs_store_data(&fc, mapping, first, last, offset, to);
+ 		}
+ 
+-- 
+cgit 
+

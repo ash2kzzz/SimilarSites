@@ -1,0 +1,43 @@
+From 9e69b1b27b13eb4eb85405900e290c0d539454bf Mon Sep 17 00:00:00 2001
+From: Marek Szyprowski <m.szyprowski@samsung.com>
+Date: Tue, 10 Jan 2023 23:10:33 +0100
+Subject: platform/chrome: cros_ec: Fix panic notifier registration
+
+Initialize panic notifier to avoid the following lockdep warning:
+
+INFO: trying to register non-static key.
+The code is fine but needs lockdep annotation, or maybe
+you didn't initialize this object before use?
+turning off the locking correctness validator.
+[...]
+Hardware name: Samsung Exynos (Flattened Device Tree)
+Workqueue: events_unbound async_run_entry_fn
+ unwind_backtrace from show_stack
+[...]
+ blocking_notifier_chain_register from cros_ec_debugfs_probe
+ cros_ec_debugfs_probe from platform_probe
+
+Fixes: d90fa2c64d59 ("platform/chrome: cros_ec: Poll EC log on EC panic")
+Signed-off-by: Marek Szyprowski <m.szyprowski@samsung.com>
+[tzungbi: trimmed the stack trace in commit message.]
+Signed-off-by: Tzung-Bi Shih <tzungbi@kernel.org>
+Link: https://lore.kernel.org/r/20230110221033.7441-1-m.szyprowski@samsung.com
+---
+ drivers/platform/chrome/cros_ec.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/drivers/platform/chrome/cros_ec.c b/drivers/platform/chrome/cros_ec.c
+index ec733f683f34f..c4345dafec576 100644
+--- a/drivers/platform/chrome/cros_ec.c
++++ b/drivers/platform/chrome/cros_ec.c
+@@ -182,6 +182,7 @@ int cros_ec_register(struct cros_ec_device *ec_dev)
+ 	int err = 0;
+ 
+ 	BLOCKING_INIT_NOTIFIER_HEAD(&ec_dev->event_notifier);
++	BLOCKING_INIT_NOTIFIER_HEAD(&ec_dev->panic_notifier);
+ 
+ 	ec_dev->max_request = sizeof(struct ec_params_hello);
+ 	ec_dev->max_response = sizeof(struct ec_response_get_protocol_info);
+-- 
+cgit 
+

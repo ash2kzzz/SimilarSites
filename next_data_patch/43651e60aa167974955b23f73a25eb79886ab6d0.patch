@@ -1,0 +1,36 @@
+From 43651e60aa167974955b23f73a25eb79886ab6d0 Mon Sep 17 00:00:00 2001
+From: Miquel Raynal <miquel.raynal@bootlin.com>
+Date: Mon, 16 Jan 2023 10:47:35 +0100
+Subject: mtd: rawnand: Fix nand_chip kdoc
+
+Describe the continuous read nand_chip fields to avoid the following
+htmldocs warning:
+include/linux/mtd/rawnand.h:1325: warning: Function parameter or member
+'cont_read' not described in 'nand_chip'
+
+Reported-by: Stephen Rothwell <sfr@canb.auug.org.au>
+Fixes: 003fe4b9545b ("mtd: rawnand: Support for sequential cache reads")
+Signed-off-by: Miquel Raynal <miquel.raynal@bootlin.com>
+Link: https://lore.kernel.org/linux-mtd/20230116094735.11483-1-miquel.raynal@bootlin.com
+---
+ include/linux/mtd/rawnand.h | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/include/linux/mtd/rawnand.h b/include/linux/mtd/rawnand.h
+index 1b0936fe3c6ee..f8d4be9c587ac 100644
+--- a/include/linux/mtd/rawnand.h
++++ b/include/linux/mtd/rawnand.h
+@@ -1260,6 +1260,10 @@ struct nand_secure_region {
+  * @read_retries: The number of read retry modes supported
+  * @secure_regions: Structure containing the secure regions info
+  * @nr_secure_regions: Number of secure regions
++ * @cont_read: Sequential page read internals
++ * @cont_read.ongoing: Whether a continuous read is ongoing or not
++ * @cont_read.first_page: Start of the continuous read operation
++ * @cont_read.last_page: End of the continuous read operation
+  * @controller: The hardware controller	structure which is shared among multiple
+  *              independent devices
+  * @ecc: The ECC controller structure
+-- 
+cgit 
+

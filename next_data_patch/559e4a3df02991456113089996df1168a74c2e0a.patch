@@ -1,0 +1,32 @@
+From 559e4a3df02991456113089996df1168a74c2e0a Mon Sep 17 00:00:00 2001
+From: Andy Shevchenko <andriy.shevchenko@linux.intel.com>
+Date: Thu, 23 Mar 2023 16:18:19 +0200
+Subject: powerpc/40x: Add missing select OF_GPIO_MM_GPIOCHIP
+
+Since the split of the legacy of_mm_gpio_chip to a separate
+file and a specific build configuration option, the users
+must select it when needed. The PowerPC 40x code misses this,
+so we have to add the select here.
+
+Fixes: a99cc66807d6 ("gpiolib: split of_mm_gpio_chip out of linux/of_gpio.h")
+Reported-by: kernel test robot <lkp@intel.com>
+Signed-off-by: Andy Shevchenko <andriy.shevchenko@linux.intel.com>
+---
+ arch/powerpc/platforms/40x/Kconfig | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/arch/powerpc/platforms/40x/Kconfig b/arch/powerpc/platforms/40x/Kconfig
+index 614ea6dc994c0..b3c466c505353 100644
+--- a/arch/powerpc/platforms/40x/Kconfig
++++ b/arch/powerpc/platforms/40x/Kconfig
+@@ -65,6 +65,7 @@ config PPC4xx_GPIO
+ 	bool "PPC4xx GPIO support"
+ 	depends on 40x
+ 	select GPIOLIB
++	select OF_GPIO_MM_GPIOCHIP
+ 	help
+ 	  Enable gpiolib support for ppc40x based boards
+ 
+-- 
+cgit 
+

@@ -1,0 +1,59 @@
+From 3524c96a121952f214271622bb372661ced86101 Mon Sep 17 00:00:00 2001
+From: Arnd Bergmann <arnd@arndb.de>
+Date: Fri, 27 Jan 2023 23:14:55 +0100
+Subject: accel: fix CONFIG_DRM dependencies
+
+At the moment, accel drivers can be built-in even with CONFIG_DRM=m,
+but this causes a link failure:
+
+x86_64-linux-ld: drivers/accel/ivpu/ivpu_drv.o: in function `ivpu_dev_init':
+ivpu_drv.c:(.text+0x1535): undefined reference to `drmm_kmalloc'
+x86_64-linux-ld: ivpu_drv.c:(.text+0x1562): undefined reference to `drmm_kmalloc'
+x86_64-linux-ld: drivers/accel/ivpu/ivpu_drv.o: in function `ivpu_remove':
+ivpu_drv.c:(.text+0x1faa): undefined reference to `drm_dev_unregister'
+x86_64-linux-ld: drivers/accel/ivpu/ivpu_drv.o: in function `ivpu_probe':
+ivpu_drv.c:(.text+0x1fef): undefined reference to `__devm_drm_dev_alloc'
+
+The problem is that DRM_ACCEL is a 'bool' symbol, so driver that
+only depend on DRM_ACCEL but not also on DRM do not see the restriction
+to =m configs.
+
+To ensure that each accel driver has an implied dependency on CONFIG_DRM,
+enclose the entire Kconfig file in an if/endif check.
+
+Fixes: 8bf4889762a8 ("drivers/accel: define kconfig and register a new major")
+Signed-off-by: Arnd Bergmann <arnd@arndb.de>
+Reviewed-by: Stanislaw Gruszka <stanislaw.gruszka@linux.intel.com>
+Reviewed-by: Jeffrey Hugo <quic_jhugo@quicinc.com>
+Reviewed-by: Oded Gabbay <ogabbay@kernel.org>
+Signed-off-by: Jacek Lawrynowicz <jacek.lawrynowicz@linux.intel.com>
+Link: https://patchwork.freedesktop.org/patch/msgid/20230127221504.2522909-1-arnd@kernel.org
+---
+ drivers/accel/Kconfig | 5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/accel/Kconfig b/drivers/accel/Kconfig
+index 4989376e5938c..2d88f2afee8ce 100644
+--- a/drivers/accel/Kconfig
++++ b/drivers/accel/Kconfig
+@@ -6,9 +6,10 @@
+ # as, but not limited to, Machine-Learning and Deep-Learning acceleration
+ # devices
+ #
++if DRM
++
+ menuconfig DRM_ACCEL
+ 	bool "Compute Acceleration Framework"
+-	depends on DRM
+ 	help
+ 	  Framework for device drivers of compute acceleration devices, such
+ 	  as, but not limited to, Machine-Learning and Deep-Learning
+@@ -24,3 +25,5 @@ menuconfig DRM_ACCEL
+ 	  and debugfs).
+ 
+ source "drivers/accel/ivpu/Kconfig"
++
++endif
+-- 
+cgit 
+

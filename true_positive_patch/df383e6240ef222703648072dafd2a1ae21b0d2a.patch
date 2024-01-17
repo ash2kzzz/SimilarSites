@@ -1,0 +1,73 @@
+From df383e6240ef222703648072dafd2a1ae21b0d2a Mon Sep 17 00:00:00 2001
+From: Jiri Benc <jbenc@redhat.com>
+Date: Tue, 18 Aug 2015 18:41:13 +0200
+Subject: lwtunnel: fix memory leak
+
+The built lwtunnel_state struct has to be freed after comparison.
+
+Fixes: 571e722676fe3 ("ipv4: support for fib route lwtunnel encap attributes")
+Signed-off-by: Jiri Benc <jbenc@redhat.com>
+Acked-by: Roopa Prabhu <roopa@cumulusnetworks.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ include/net/lwtunnel.h   |  7 ++++++-
+ net/ipv4/fib_semantics.c | 10 ++++++----
+ 2 files changed, 12 insertions(+), 5 deletions(-)
+
+diff --git a/include/net/lwtunnel.h b/include/net/lwtunnel.h
+index e25b60eb262d1..34fd8f70c2ca3 100644
+--- a/include/net/lwtunnel.h
++++ b/include/net/lwtunnel.h
+@@ -36,6 +36,11 @@ struct lwtunnel_encap_ops {
+ };
+ 
+ #ifdef CONFIG_LWTUNNEL
++static inline void lwtstate_free(struct lwtunnel_state *lws)
++{
++	kfree(lws);
++}
++
+ static inline struct lwtunnel_state *
+ lwtstate_get(struct lwtunnel_state *lws)
+ {
+@@ -51,7 +56,7 @@ static inline void lwtstate_put(struct lwtunnel_state *lws)
+ 		return;
+ 
+ 	if (atomic_dec_and_test(&lws->refcnt))
+-		kfree(lws);
++		lwtstate_free(lws);
+ }
+ 
+ static inline bool lwtunnel_output_redirect(struct lwtunnel_state *lwtstate)
+diff --git a/net/ipv4/fib_semantics.c b/net/ipv4/fib_semantics.c
+index c8025851dac72..d5253071f71ff 100644
+--- a/net/ipv4/fib_semantics.c
++++ b/net/ipv4/fib_semantics.c
+@@ -539,7 +539,7 @@ int fib_encap_match(struct net *net, u16 encap_type,
+ {
+ 	struct lwtunnel_state *lwtstate;
+ 	struct net_device *dev = NULL;
+-	int ret;
++	int ret, result = 0;
+ 
+ 	if (encap_type == LWTUNNEL_ENCAP_NONE)
+ 		return 0;
+@@ -548,10 +548,12 @@ int fib_encap_match(struct net *net, u16 encap_type,
+ 		dev = __dev_get_by_index(net, oif);
+ 	ret = lwtunnel_build_state(dev, encap_type,
+ 				   encap, &lwtstate);
+-	if (!ret)
+-		return lwtunnel_cmp_encap(lwtstate, nh->nh_lwtstate);
++	if (!ret) {
++		result = lwtunnel_cmp_encap(lwtstate, nh->nh_lwtstate);
++		lwtstate_free(lwtstate);
++	}
+ 
+-	return 0;
++	return result;
+ }
+ 
+ int fib_nh_match(struct fib_config *cfg, struct fib_info *fi)
+-- 
+cgit 
+

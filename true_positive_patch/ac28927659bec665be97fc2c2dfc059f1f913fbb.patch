@@ -1,0 +1,39 @@
+From ac28927659bec665be97fc2c2dfc059f1f913fbb Mon Sep 17 00:00:00 2001
+From: Arnd Bergmann <arnd@arndb.de>
+Date: Tue, 5 Jun 2018 13:44:24 +0200
+Subject: cpufreq: kryo: allow building as a loadable module
+
+Building the kryo cpufreq driver while QCOM_SMEM is a loadable module
+results in a link error:
+
+drivers/cpufreq/qcom-cpufreq-kryo.o: In function `qcom_cpufreq_kryo_probe':
+qcom-cpufreq-kryo.c:(.text+0xbc): undefined reference to `qcom_smem_get'
+
+The problem is that Kconfig ignores interprets the dependency as met
+when the dependent symbol is a 'bool' one. By making it 'tristate',
+it will be forced to be a module here, which builds successfully.
+
+Fixes: 46e2856b8e18 (cpufreq: Add Kryo CPU scaling driver)
+Signed-off-by: Arnd Bergmann <arnd@arndb.de>
+Acked-by: Viresh Kumar <viresh.kumar@linaro.org>
+Signed-off-by: Rafael J. Wysocki <rafael.j.wysocki@intel.com>
+---
+ drivers/cpufreq/Kconfig.arm | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/cpufreq/Kconfig.arm b/drivers/cpufreq/Kconfig.arm
+index c7ce928fbf1f5..52f5f1a2040c3 100644
+--- a/drivers/cpufreq/Kconfig.arm
++++ b/drivers/cpufreq/Kconfig.arm
+@@ -125,7 +125,7 @@ config ARM_OMAP2PLUS_CPUFREQ
+ 	default ARCH_OMAP2PLUS
+ 
+ config ARM_QCOM_CPUFREQ_KRYO
+-	bool "Qualcomm Kryo based CPUFreq"
++	tristate "Qualcomm Kryo based CPUFreq"
+ 	depends on ARM64
+ 	depends on QCOM_QFPROM
+ 	depends on QCOM_SMEM
+-- 
+cgit 
+

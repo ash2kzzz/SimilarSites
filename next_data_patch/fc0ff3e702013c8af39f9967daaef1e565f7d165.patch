@@ -1,0 +1,35 @@
+From fc0ff3e702013c8af39f9967daaef1e565f7d165 Mon Sep 17 00:00:00 2001
+From: Krzysztof Kozlowski <krzysztof.kozlowski@linaro.org>
+Date: Thu, 19 Jan 2023 11:54:34 +0100
+Subject: arm64: dts: qcom: sm8350: fixup SDHCI interconnect arguments
+
+After switching interconnects to 2 cells, the SDHCI interconnects need
+to get one more argument.
+
+Fixes: 4f287e31ff5f ("arm64: dts: qcom: sm8350: Use 2 interconnect cells")
+Signed-off-by: Krzysztof Kozlowski <krzysztof.kozlowski@linaro.org>
+Reviewed-by: Konrad Dybcio <konrad.dybcio@linaro.org>
+Signed-off-by: Bjorn Andersson <andersson@kernel.org>
+Link: https://lore.kernel.org/r/20230119105434.51635-1-krzysztof.kozlowski@linaro.org
+---
+ arch/arm64/boot/dts/qcom/sm8350.dtsi | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/arch/arm64/boot/dts/qcom/sm8350.dtsi b/arch/arm64/boot/dts/qcom/sm8350.dtsi
+index 3e019f8b9039b..0a422637b61f7 100644
+--- a/arch/arm64/boot/dts/qcom/sm8350.dtsi
++++ b/arch/arm64/boot/dts/qcom/sm8350.dtsi
+@@ -2547,8 +2547,8 @@
+ 				 <&rpmhcc RPMH_CXO_CLK>;
+ 			clock-names = "iface", "core", "xo";
+ 			resets = <&gcc GCC_SDCC2_BCR>;
+-			interconnects = <&aggre2_noc MASTER_SDCC_2 &mc_virt SLAVE_EBI1>,
+-					<&gem_noc MASTER_APPSS_PROC &config_noc SLAVE_SDCC_2>;
++			interconnects = <&aggre2_noc MASTER_SDCC_2 0 &mc_virt SLAVE_EBI1 0>,
++					<&gem_noc MASTER_APPSS_PROC 0 &config_noc SLAVE_SDCC_2 0>;
+ 			interconnect-names = "sdhc-ddr","cpu-sdhc";
+ 			iommus = <&apps_smmu 0x4a0 0x0>;
+ 			power-domains = <&rpmhpd SM8350_CX>;
+-- 
+cgit 
+

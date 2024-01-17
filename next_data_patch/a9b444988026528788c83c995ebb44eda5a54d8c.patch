@@ -1,0 +1,36 @@
+From a9b444988026528788c83c995ebb44eda5a54d8c Mon Sep 17 00:00:00 2001
+From: Neil Armstrong <neil.armstrong@linaro.org>
+Date: Tue, 7 Feb 2023 16:03:53 +0100
+Subject: dt-bindings: phy: amlogic,g12a-usb3-pcie-phy: add missing optional
+ phy-supply property
+
+Add missing optional phy-supply property used to power up PHY regulators.
+
+Fixes: 87a55485f2fc ("dt-bindings: phy: meson-g12a-usb3-pcie-phy: convert to yaml")
+Signed-off-by: Neil Armstrong <neil.armstrong@linaro.org>
+Acked-by: Rob Herring <robh@kernel.org>
+Link: https://lore.kernel.org/r/20230207-b4-amlogic-amlogic-g12a-usb3-pcie-phy-fix-v1-1-3e437b759549@linaro.org
+Signed-off-by: Vinod Koul <vkoul@kernel.org>
+---
+ .../devicetree/bindings/phy/amlogic,g12a-usb3-pcie-phy.yaml          | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/Documentation/devicetree/bindings/phy/amlogic,g12a-usb3-pcie-phy.yaml b/Documentation/devicetree/bindings/phy/amlogic,g12a-usb3-pcie-phy.yaml
+index 129d26e99776b..3314711292d6e 100644
+--- a/Documentation/devicetree/bindings/phy/amlogic,g12a-usb3-pcie-phy.yaml
++++ b/Documentation/devicetree/bindings/phy/amlogic,g12a-usb3-pcie-phy.yaml
+@@ -35,6 +35,11 @@ properties:
+   "#phy-cells":
+     const: 1
+ 
++  phy-supply:
++    description:
++      Phandle to a regulator that provides power to the PHY. This
++      regulator will be managed during the PHY power on/off sequence.
++
+ required:
+   - compatible
+   - reg
+-- 
+cgit 
+

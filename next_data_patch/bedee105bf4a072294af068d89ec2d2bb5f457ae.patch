@@ -1,0 +1,62 @@
+From bedee105bf4a072294af068d89ec2d2bb5f457ae Mon Sep 17 00:00:00 2001
+From: Arnd Bergmann <arnd@arndb.de>
+Date: Fri, 14 Apr 2023 10:03:07 +0200
+Subject: firmware_loader: rework crypto dependencies
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+The crypto dependencies for the firmwware loader are incomplete,
+in particular a built-in FW_LOADER fails to link against a modular
+crypto hash driver:
+
+ld.lld: error: undefined symbol: crypto_alloc_shash
+ld.lld: error: undefined symbol: crypto_shash_digest
+ld.lld: error: undefined symbol: crypto_destroy_tfm
+>>> referenced by main.c
+>>>               drivers/base/firmware_loader/main.o:(fw_log_firmware_info) in archive vmlinux.a
+
+Rework this to use the usual 'select' from the driver module,
+to respect the built-in vs module dependencies, and add a
+more verbose crypto dependency to the debug option to prevent
+configurations that lead to a link failure.
+
+Fixes: 02fe26f25325 ("firmware_loader: Add debug message with checksum for FW file")
+Reviewed-by: Amadeusz Sławiński <amadeuszx.slawinski@linux.intel.com>
+Acked-by: Herbert Xu <herbert@gondor.apana.org.au>
+Acked-by: Luis Chamberlain <mcgrof@kernel.org>
+Signed-off-by: Arnd Bergmann <arnd@arndb.de>
+Link: https://lore.kernel.org/r/20230414080329.76176-1-arnd@kernel.org
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+---
+ drivers/base/firmware_loader/Kconfig | 5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/base/firmware_loader/Kconfig b/drivers/base/firmware_loader/Kconfig
+index 0cabc783d67af..5ca00e02fe82c 100644
+--- a/drivers/base/firmware_loader/Kconfig
++++ b/drivers/base/firmware_loader/Kconfig
+@@ -3,6 +3,8 @@ menu "Firmware loader"
+ 
+ config FW_LOADER
+ 	tristate "Firmware loading facility" if EXPERT
++	select CRYPTO_HASH if FW_LOADER_DEBUG
++	select CRYPTO_SHA256 if FW_LOADER_DEBUG
+ 	default y
+ 	help
+ 	  This enables the firmware loading facility in the kernel. The kernel
+@@ -26,10 +28,9 @@ config FW_LOADER
+ 
+ config FW_LOADER_DEBUG
+ 	bool "Log filenames and checksums for loaded firmware"
++	depends on CRYPTO = FW_LOADER || CRYPTO=y
+ 	depends on DYNAMIC_DEBUG
+ 	depends on FW_LOADER
+-	depends on CRYPTO
+-	depends on CRYPTO_SHA256
+ 	default FW_LOADER
+ 	help
+ 	  Select this option to use dynamic debug to log firmware filenames and
+-- 
+cgit 
+

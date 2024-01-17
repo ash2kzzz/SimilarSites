@@ -1,0 +1,44 @@
+From 6500d2045d5247cfb2ac31cc1691d7191096389b Mon Sep 17 00:00:00 2001
+From: John Garry <john.g.garry@oracle.com>
+Date: Mon, 27 Mar 2023 07:43:00 +0000
+Subject: scsi: scsi_debug: Fix check for sdev queue full
+
+There is a report that the blktests scsi/004 test for "TASK SET FULL" (TSF)
+now fails.
+
+The condition upon we should issue this TSF is when the sdev queue is
+full. The check for a full queue has an off-by-1 error. Previously we would
+increment the number of requests in the queue after testing if the queue
+would be full, i.e. test if one less than full. Since we now use
+scsi_device_busy() to count the number of requests in the queue, this would
+already account for the current request, so fix the test for queue full
+accordingly.
+
+Fixes: 151f0ec9ddb5 ("scsi: scsi_debug: Drop sdebug_dev_info.num_in_q")
+Reported-by: kernel test robot <oliver.sang@intel.com>
+Link: https://lore.kernel.org/oe-lkp/202303201334.18b30edc-oliver.sang@intel.com
+Signed-off-by: John Garry <john.g.garry@oracle.com>
+Link: https://lore.kernel.org/r/20230327074310.1862889-2-john.g.garry@oracle.com
+Acked-by: Douglas Gilbert <dgilbert@interlog.com>
+Tested-by: Yi Zhang <yi.zhang@redhat.com>
+Signed-off-by: Martin K. Petersen <martin.petersen@oracle.com>
+---
+ drivers/scsi/scsi_debug.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/scsi/scsi_debug.c b/drivers/scsi/scsi_debug.c
+index 7ed117e78bd48..782515abca2ca 100644
+--- a/drivers/scsi/scsi_debug.c
++++ b/drivers/scsi/scsi_debug.c
+@@ -5580,7 +5580,7 @@ static int schedule_resp(struct scsi_cmnd *cmnd, struct sdebug_dev_info *devip,
+ 		int num_in_q = scsi_device_busy(sdp);
+ 		int qdepth = cmnd->device->queue_depth;
+ 
+-		if ((num_in_q == (qdepth - 1)) &&
++		if ((num_in_q == qdepth) &&
+ 		    (atomic_inc_return(&sdebug_a_tsf) >=
+ 		     abs(sdebug_every_nth))) {
+ 			atomic_set(&sdebug_a_tsf, 0);
+-- 
+cgit 
+

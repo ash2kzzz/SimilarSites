@@ -1,0 +1,47 @@
+From a8f54d940196c8bd9aced9c82557fdc63baefb02 Mon Sep 17 00:00:00 2001
+From: Eric Lin <eric.lin@sifive.com>
+Date: Sat, 31 Dec 2022 05:27:31 +0000
+Subject: perf tools riscv: Fix build error on riscv due to missing header for
+ 'struct perf_sample'
+
+Since the definition of 'struct perf_sample' has been moved to sample.h,
+we need to include this header file to fix the build error as follows:
+
+  arch/riscv/util/unwind-libdw.c: In function 'libdw__arch_set_initial_registers':
+  arch/riscv/util/unwind-libdw.c:12:50: error: invalid use of undefined type 'struct perf_sample'
+     12 |         struct regs_dump *user_regs = &ui->sample->user_regs;
+        |                                                  ^~
+
+Fixes: 9823147da6c893d9 ("perf tools: Move 'struct perf_sample' to a separate header file to disentangle headers")
+Signed-off-by: Eric Lin <eric.lin@sifive.com>
+Cc: Alexander Shishkin <alexander.shishkin@linux.intel.com>
+Cc: greentime.hu@sifive.com
+Cc: Jiri Olsa <jolsa@kernel.org>
+Cc: linux-riscv@lists.infradead.org
+Cc: Namhyung Kim <namhyung@kernel.org>
+Cc: Palmer Dabbelt <palmer@dabbelt.com>
+Cc: Paul Walmsley <paul.walmsley@sifive.com>
+Cc: Peter Zijlstra <peterz@infradead.org>
+Cc: Vincent Chen <vincent.chen@sifive.com>
+Link: https://lore.kernel.org/r/20221231052731.24908-1-eric.lin@sifive.com
+Signed-off-by: Arnaldo Carvalho de Melo <acme@redhat.com>
+---
+ tools/perf/arch/riscv/util/unwind-libdw.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/tools/perf/arch/riscv/util/unwind-libdw.c b/tools/perf/arch/riscv/util/unwind-libdw.c
+index 19536e1728507..54a198714eb82 100644
+--- a/tools/perf/arch/riscv/util/unwind-libdw.c
++++ b/tools/perf/arch/riscv/util/unwind-libdw.c
+@@ -4,7 +4,7 @@
+ #include <elfutils/libdwfl.h>
+ #include "../../util/unwind-libdw.h"
+ #include "../../util/perf_regs.h"
+-#include "../../util/event.h"
++#include "../../util/sample.h"
+ 
+ bool libdw__arch_set_initial_registers(Dwfl_Thread *thread, void *arg)
+ {
+-- 
+cgit 
+

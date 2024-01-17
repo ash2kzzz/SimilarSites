@@ -1,0 +1,65 @@
+From 7a1562d4f2d01721ad07c3a326db7512077ceea9 Mon Sep 17 00:00:00 2001
+From: Yinghai Lu <yinghai@kernel.org>
+Date: Tue, 11 Nov 2014 12:09:46 -0800
+Subject: PCI: Apply _HPX Link Control settings to all devices with a link
+
+Previously we applied _HPX type 2 record Link Control register settings
+only to bridges with a subordinate bus.  But it's better to apply them to
+all devices with a link because if the subordinate bus has not been
+allocated yet, we won't apply settings to the device.
+
+Use pcie_cap_has_lnkctl() to determine whether the device has a Link
+Control register instead of looking at dev->subordinate.
+
+[bhelgaas: changelog]
+Fixes: 6cd33649fa83 ("PCI: Add pci_configure_device() during enumeration")
+Signed-off-by: Yinghai Lu <yinghai@kernel.org>
+Signed-off-by: Bjorn Helgaas <bhelgaas@google.com>
+---
+ drivers/pci/access.c | 2 +-
+ drivers/pci/pci.h    | 2 ++
+ drivers/pci/probe.c  | 2 +-
+ 3 files changed, 4 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/pci/access.c b/drivers/pci/access.c
+index d292d7cb34170..49dd766852ba5 100644
+--- a/drivers/pci/access.c
++++ b/drivers/pci/access.c
+@@ -444,7 +444,7 @@ static inline int pcie_cap_version(const struct pci_dev *dev)
+ 	return pcie_caps_reg(dev) & PCI_EXP_FLAGS_VERS;
+ }
+ 
+-static inline bool pcie_cap_has_lnkctl(const struct pci_dev *dev)
++bool pcie_cap_has_lnkctl(const struct pci_dev *dev)
+ {
+ 	int type = pci_pcie_type(dev);
+ 
+diff --git a/drivers/pci/pci.h b/drivers/pci/pci.h
+index 0601890db22de..4a3902d8e6fec 100644
+--- a/drivers/pci/pci.h
++++ b/drivers/pci/pci.h
+@@ -6,6 +6,8 @@
+ 
+ extern const unsigned char pcie_link_speed[];
+ 
++bool pcie_cap_has_lnkctl(const struct pci_dev *dev);
++
+ /* Functions internal to the PCI core code */
+ 
+ int pci_create_sysfs_dev_files(struct pci_dev *pdev);
+diff --git a/drivers/pci/probe.c b/drivers/pci/probe.c
+index 5ed99309c7580..6244b1834dfe4 100644
+--- a/drivers/pci/probe.c
++++ b/drivers/pci/probe.c
+@@ -1323,7 +1323,7 @@ static void program_hpp_type2(struct pci_dev *dev, struct hpp_type2 *hpp)
+ 			~hpp->pci_exp_devctl_and, hpp->pci_exp_devctl_or);
+ 
+ 	/* Initialize Link Control Register */
+-	if (dev->subordinate)
++	if (pcie_cap_has_lnkctl(dev))
+ 		pcie_capability_clear_and_set_word(dev, PCI_EXP_LNKCTL,
+ 			~hpp->pci_exp_lnkctl_and, hpp->pci_exp_lnkctl_or);
+ 
+-- 
+cgit 
+

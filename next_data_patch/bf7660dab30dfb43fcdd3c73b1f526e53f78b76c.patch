@@ -1,0 +1,151 @@
+From bf7660dab30dfb43fcdd3c73b1f526e53f78b76c Mon Sep 17 00:00:00 2001
+From: Arnd Bergmann <arnd@arndb.de>
+Date: Tue, 17 Jan 2023 18:20:55 +0100
+Subject: HID: stop drivers from selecting CONFIG_HID
+
+There is a mix of drivers using either 'depends on HID' or 'select HID',
+which causes both circular dependencies and missed dependencies for
+a 'select':
+
+WARNING: unment direct dependencies for HID
+  Depends on [m]: HID_SUPPORT [=y] && INPUT [=m]
+  Selected by [y]:
+  - AMD_SFH_HID [=y] && HID_SUPPORT [=y] && (X86_64 || COMPILE_TEST [=y]) && PCI [=y]
+  Selected by [m]:
+  - I2C_HID_CORE [=m] && HID_SUPPORT [=y]
+
+WARNING: unmet direct dependencies detected for INPUT_FF_MEMLESS
+  Depends on [m]: INPUT [=m]
+  Selected by [y]:
+  - DRAGONRISE_FF [=y] && HID_SUPPORT [=y] && HID [=y] && HID_DRAGONRISE [=y]
+  - HID_MICROSOFT [=y] && HID_SUPPORT [=y] && HID [=y]
+  - GREENASIA_FF [=y] && HID_SUPPORT [=y] && HID [=y] && HID_GREENASIA [=y]
+  Selected by [m]:
+  - INPUT_ARIZONA_HAPTICS [=m] && INPUT [=m] && INPUT_MISC [=y] && MFD_ARIZONA [=y] && SND_SOC [=m]
+  - INPUT_PM8XXX_VIBRATOR [=m] && INPUT [=m] && INPUT_MISC [=y] && (MFD_PM8XXX [=m] || MFD_SPMI_PMIC [=n])
+  - INPUT_MAX8997_HAPTIC [=m] && INPUT [=m] && INPUT_MISC [=y] && PWM [=y] && MFD_MAX8997 [=y]
+  - INPUT_GPIO_VIBRA [=m] && INPUT [=m] && INPUT_MISC [=y] && (GPIOLIB [=y] || COMPILE_TEST [=y])
+  - INPUT_REGULATOR_HAPTIC [=m] && INPUT [=m] && INPUT_MISC [=y] && REGULATOR [=y]
+  - INPUT_TWL6040_VIBRA [=m] && INPUT [=m] && INPUT_MISC [=y] && TWL6040_CORE [=y]
+  - INPUT_PWM_VIBRA [=m] && INPUT [=m] && INPUT_MISC [=y] && PWM [=y]
+  - INPUT_DRV260X_HAPTICS [=m] && INPUT_MISC [=y] && INPUT [=m] && I2C [=y] && (GPIOLIB [=y] || COMPILE_TEST [=y])
+  - INPUT_DRV2665_HAPTICS [=m] && INPUT_MISC [=y] && INPUT [=m] && I2C [=y]
+  - INPUT_DRV2667_HAPTICS [=m] && INPUT_MISC [=y] && INPUT [=m] && I2C [=y]
+  - INPUT_SC27XX_VIBRA [=m] && INPUT [=m] && INPUT_MISC [=y] && (MFD_SC27XX_PMIC [=y] || COMPILE_TEST [=y])
+  - HID_MAYFLASH [=m] && HID_SUPPORT [=y] && HID [=y]
+
+Avoid this by changing all HID client drivers to use 'depends on HID'.
+For I2C_HID, this requires a larger rework of the Kconfig description,
+but it hopefully becomes easier to understand without the complex
+I2C_HID_CORE definition.
+
+Fixes: 25621bcc8976 ("HID: Kconfig: split HID support and hid-core compilation")
+Signed-off-by: Arnd Bergmann <arnd@arndb.de>
+Acked-by: Randy Dunlap <rdunlap@infradead.org>
+Reviewed-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+Signed-off-by: Jiri Kosina <jkosina@suse.cz>
+---
+ drivers/hid/amd-sfh-hid/Kconfig   |  2 +-
+ drivers/hid/i2c-hid/Kconfig       | 31 ++++++++++++++++---------------
+ drivers/hid/intel-ish-hid/Kconfig |  2 +-
+ 3 files changed, 18 insertions(+), 17 deletions(-)
+
+diff --git a/drivers/hid/amd-sfh-hid/Kconfig b/drivers/hid/amd-sfh-hid/Kconfig
+index 56e473fc3c938..af752dd3a3409 100644
+--- a/drivers/hid/amd-sfh-hid/Kconfig
++++ b/drivers/hid/amd-sfh-hid/Kconfig
+@@ -5,7 +5,7 @@ menu "AMD SFH HID Support"
+ 
+ config AMD_SFH_HID
+ 	tristate "AMD Sensor Fusion Hub"
+-	select HID
++	depends on HID
+ 	help
+ 	  If you say yes to this option, support will be included for the
+ 	  AMD Sensor Fusion Hub.
+diff --git a/drivers/hid/i2c-hid/Kconfig b/drivers/hid/i2c-hid/Kconfig
+index 5273ee2bb1343..4439be7fa74dd 100644
+--- a/drivers/hid/i2c-hid/Kconfig
++++ b/drivers/hid/i2c-hid/Kconfig
+@@ -1,11 +1,15 @@
+ # SPDX-License-Identifier: GPL-2.0-only
+-menu "I2C HID support"
+-	depends on I2C
++menuconfig I2C_HID
++	tristate "I2C HID support"
++	default y
++	depends on I2C && INPUT && HID
++
++if I2C_HID
+ 
+ config I2C_HID_ACPI
+ 	tristate "HID over I2C transport layer ACPI driver"
+-	default n
+-	depends on I2C && INPUT && ACPI
++	depends on ACPI
++	select I2C_HID_CORE
+ 	help
+ 	  Say Y here if you use a keyboard, a touchpad, a touchscreen, or any
+ 	  other HID based devices which is connected to your computer via I2C.
+@@ -19,8 +23,8 @@ config I2C_HID_ACPI
+ 
+ config I2C_HID_OF
+ 	tristate "HID over I2C transport layer Open Firmware driver"
+-	default n
+-	depends on I2C && INPUT && OF
++	depends on OF
++	select I2C_HID_CORE
+ 	help
+ 	  Say Y here if you use a keyboard, a touchpad, a touchscreen, or any
+ 	  other HID based devices which is connected to your computer via I2C.
+@@ -34,8 +38,8 @@ config I2C_HID_OF
+ 
+ config I2C_HID_OF_ELAN
+ 	tristate "Driver for Elan hid-i2c based devices on OF systems"
+-	default n
+-	depends on I2C && INPUT && OF
++	depends on OF
++	select I2C_HID_CORE
+ 	help
+ 	  Say Y here if you want support for Elan i2c devices that use
+ 	  the i2c-hid protocol on Open Firmware (Device Tree)-based
+@@ -49,8 +53,8 @@ config I2C_HID_OF_ELAN
+ 
+ config I2C_HID_OF_GOODIX
+ 	tristate "Driver for Goodix hid-i2c based devices on OF systems"
+-	default n
+-	depends on I2C && INPUT && OF
++	depends on OF
++	select I2C_HID_CORE
+ 	help
+ 	  Say Y here if you want support for Goodix i2c devices that use
+ 	  the i2c-hid protocol on Open Firmware (Device Tree)-based
+@@ -62,10 +66,7 @@ config I2C_HID_OF_GOODIX
+ 	  will be called i2c-hid-of-goodix.  It will also build/depend on
+ 	  the module i2c-hid.
+ 
+-endmenu
+-
+ config I2C_HID_CORE
+ 	tristate
+-	default y if I2C_HID_ACPI=y || I2C_HID_OF=y || I2C_HID_OF_GOODIX=y
+-	default m if I2C_HID_ACPI=m || I2C_HID_OF=m || I2C_HID_OF_GOODIX=m
+-	select HID
++endif
++
+diff --git a/drivers/hid/intel-ish-hid/Kconfig b/drivers/hid/intel-ish-hid/Kconfig
+index 689da84a520db..253dc10d35ef2 100644
+--- a/drivers/hid/intel-ish-hid/Kconfig
++++ b/drivers/hid/intel-ish-hid/Kconfig
+@@ -6,7 +6,7 @@ config INTEL_ISH_HID
+ 	tristate "Intel Integrated Sensor Hub"
+ 	default n
+ 	depends on X86
+-	select HID
++	depends on HID
+ 	help
+ 	  The Integrated Sensor Hub (ISH) enables the ability to offload
+ 	  sensor polling and algorithm processing to a dedicated low power
+-- 
+cgit 
+

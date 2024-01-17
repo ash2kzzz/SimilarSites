@@ -1,0 +1,42 @@
+From 918b8f7eeea1c9f7f54b3d8ea74e8c6fa68e5a9d Mon Sep 17 00:00:00 2001
+From: Arnd Bergmann <arnd@arndb.de>
+Date: Thu, 26 Jan 2023 17:37:55 +0100
+Subject: accel/ivpu: avoid duplicate assignment
+
+With extra warnings enabled, gcc warns about two assignments
+of the same .mmap callback:
+
+In file included from drivers/accel/ivpu/ivpu_drv.c:10:
+include/drm/drm_accel.h:31:27: error: initialized field overwritten [-Werror=override-init]
+   31 |         .mmap           = drm_gem_mmap
+      |                           ^~~~~~~~~~~~
+drivers/accel/ivpu/ivpu_drv.c:360:9: note: in expansion of macro 'DRM_ACCEL_FOPS'
+  360 |         DRM_ACCEL_FOPS,
+      |         ^~~~~~~~~~~~~~
+
+Remove the unused local assignment.
+
+Fixes: e868cc591e89 ("accel: Add .mmap to DRM_ACCEL_FOPS")
+Signed-off-by: Arnd Bergmann <arnd@arndb.de>
+Reviewed-by: Jeffrey Hugo <quic_jhugo@quicinc.com>
+Signed-off-by: Jacek Lawrynowicz <jacek.lawrynowicz@linux.intel.com>
+Link: https://patchwork.freedesktop.org/patch/msgid/20230126163804.3648051-2-arnd@kernel.org
+---
+ drivers/accel/ivpu/ivpu_drv.c | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/drivers/accel/ivpu/ivpu_drv.c b/drivers/accel/ivpu/ivpu_drv.c
+index 2bc2f1b90671a..a29e8ee0dce6c 100644
+--- a/drivers/accel/ivpu/ivpu_drv.c
++++ b/drivers/accel/ivpu/ivpu_drv.c
+@@ -356,7 +356,6 @@ int ivpu_shutdown(struct ivpu_device *vdev)
+ 
+ static const struct file_operations ivpu_fops = {
+ 	.owner		= THIS_MODULE,
+-	.mmap           = drm_gem_mmap,
+ 	DRM_ACCEL_FOPS,
+ };
+ 
+-- 
+cgit 
+

@@ -1,0 +1,45 @@
+From 8b7b59d030cc0d34b83b0c556bb6365c9ae6ba77 Mon Sep 17 00:00:00 2001
+From: Zhu Yanjun <yanjun.zhu@oracle.com>
+Date: Sun, 19 Aug 2018 15:04:01 +0800
+Subject: IB/rxe: remove redudant qpn check
+
+In the commit 536ca245c512 ("IB/rxe: Drop QP0 silently"), if qpn is
+zero, the function directly returns. So in the following function,
+it is not necessary to check qpn. The qpn check in the function
+check_keys is removed.
+
+Fixes: 536ca245c512 ("IB/rxe: Drop QP0 silently")
+CC: Srinivas Eeda <srinivas.eeda@oracle.com>
+CC: Junxiao Bi <junxiao.bi@oracle.com>
+Signed-off-by: Zhu Yanjun <yanjun.zhu@oracle.com>
+Reviewed-by: Yuval Shaia <yuval.shaia@oracle.com>
+Signed-off-by: Doug Ledford <dledford@redhat.com>
+---
+ drivers/infiniband/sw/rxe/rxe_recv.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/infiniband/sw/rxe/rxe_recv.c b/drivers/infiniband/sw/rxe/rxe_recv.c
+index d30dbac24583a..5c29a1bb575a8 100644
+--- a/drivers/infiniband/sw/rxe/rxe_recv.c
++++ b/drivers/infiniband/sw/rxe/rxe_recv.c
+@@ -122,7 +122,7 @@ static int check_keys(struct rxe_dev *rxe, struct rxe_pkt_info *pkt,
+ 			set_bad_pkey_cntr(port);
+ 			goto err1;
+ 		}
+-	} else if (qpn != 0) {
++	} else {
+ 		if (unlikely(!pkey_match(pkey,
+ 					 port->pkey_tbl[qp->attr.pkey_index]
+ 					))) {
+@@ -134,7 +134,7 @@ static int check_keys(struct rxe_dev *rxe, struct rxe_pkt_info *pkt,
+ 	}
+ 
+ 	if ((qp_type(qp) == IB_QPT_UD || qp_type(qp) == IB_QPT_GSI) &&
+-	    qpn != 0 && pkt->mask) {
++	    pkt->mask) {
+ 		u32 qkey = (qpn == 1) ? GSI_QKEY : qp->attr.qkey;
+ 
+ 		if (unlikely(deth_qkey(pkt) != qkey)) {
+-- 
+cgit 
+

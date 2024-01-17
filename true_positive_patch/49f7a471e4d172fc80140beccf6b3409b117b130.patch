@@ -1,0 +1,37 @@
+From 49f7a471e4d172fc80140beccf6b3409b117b130 Mon Sep 17 00:00:00 2001
+From: Florian Fainelli <f.fainelli@gmail.com>
+Date: Mon, 18 Jan 2016 19:33:08 -0800
+Subject: net: bcmgenet: Properly configure PHY to ignore interrupt
+
+By the time we execute bcmgenet_mii_probe(), the MDIO bus structure has
+long been allocated and registered. Overirring the PHY interrupt using
+the MDIO bus structure has no chance to work anymore, because
+of_mdiobus_register() has call phy_device_create() for use, which copied
+the MDIO bus address's irq for the PHY into the PHY device "irq" member.
+
+Since we do have a proper reference to a PHY device in
+bcmgenet_mii_probe(), just assign the desired IRQ value here.
+
+Fixes: aa09677cba42 ("net: bcmgenet: add MDIO routines")
+Signed-off-by: Florian Fainelli <f.fainelli@gmail.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ drivers/net/ethernet/broadcom/genet/bcmmii.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/net/ethernet/broadcom/genet/bcmmii.c b/drivers/net/ethernet/broadcom/genet/bcmmii.c
+index 0d775964b0601..457c3bc8cfff4 100644
+--- a/drivers/net/ethernet/broadcom/genet/bcmmii.c
++++ b/drivers/net/ethernet/broadcom/genet/bcmmii.c
+@@ -401,7 +401,7 @@ int bcmgenet_mii_probe(struct net_device *dev)
+ 	 * Ethernet MAC ISRs
+ 	 */
+ 	if (priv->internal_phy)
+-		priv->mii_bus->irq[phydev->mdio.addr] = PHY_IGNORE_INTERRUPT;
++		priv->phydev->irq = PHY_IGNORE_INTERRUPT;
+ 
+ 	return 0;
+ }
+-- 
+cgit 
+

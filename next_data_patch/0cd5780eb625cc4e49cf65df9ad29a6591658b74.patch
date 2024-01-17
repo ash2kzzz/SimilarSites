@@ -1,0 +1,39 @@
+From 0cd5780eb625cc4e49cf65df9ad29a6591658b74 Mon Sep 17 00:00:00 2001
+From: Mark Brown <broonie@kernel.org>
+Date: Mon, 20 Feb 2023 19:09:45 +0000
+Subject: arm64: defconfig: Fix unintentional disablement of PCI on i.MX
+
+A recent update to support PCI endpoint mode on i.MX platforms
+unintentionally disabled PCI host support for i.MX in defconfig.  The
+existing PCI_IMX6 was made a hidden option, selected by new options
+PCI_IMX6_HOST (for the existing support) and PCI_IMX6_EP (for the
+endpoint mode), but there has been no corresponding update to defconfig
+so the PCI_IMX6 ends up getting disabled.  Switch defconfig to
+PCI_IMX6_HOST to preserve the existing functionality.
+
+Fixes: 75c2f26da03f ("PCI: imx6: Add i.MX PCIe EP mode support")
+Reported-by: "kernelci.org bot" <bot@kernelci.org>
+Signed-off-by: Mark Brown <broonie@kernel.org>
+Reviewed-by: Richard Zhu <hongxing.zhu@nxp.com>
+Link: https://lore.kernel.org/r/20230220-imx-pci-defconfig-v1-1-2210cf08340e@kernel.org
+Signed-off-by: Arnd Bergmann <arnd@arndb.de>
+---
+ arch/arm64/configs/defconfig | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/arch/arm64/configs/defconfig b/arch/arm64/configs/defconfig
+index 851e8f9be06da..b68a3d243a089 100644
+--- a/arch/arm64/configs/defconfig
++++ b/arch/arm64/configs/defconfig
+@@ -232,7 +232,7 @@ CONFIG_PCI_HOST_THUNDER_PEM=y
+ CONFIG_PCI_HOST_THUNDER_ECAM=y
+ CONFIG_PCIE_ROCKCHIP_HOST=m
+ CONFIG_PCIE_BRCMSTB=m
+-CONFIG_PCI_IMX6=y
++CONFIG_PCI_IMX6_HOST=y
+ CONFIG_PCI_LAYERSCAPE=y
+ CONFIG_PCI_HISI=y
+ CONFIG_PCIE_QCOM=y
+-- 
+cgit 
+

@@ -1,0 +1,39 @@
+From 169f8997968ab620d750d9a45e15c5288d498356 Mon Sep 17 00:00:00 2001
+From: Nicholas Piggin <npiggin@gmail.com>
+Date: Wed, 26 Apr 2023 15:58:39 +1000
+Subject: powerpc/64s: Disable pcrel code model on Clang
+
+Clang has a bug that casues the pcrel code model not to be used when any of
+-msoft-float, -mno-altivec, or -mno-vsx are set. Leaving these off causes
+FP/vector instructions to be generated, causing crashes. So disable pcrel
+for clang for now.
+
+Fixes: 7e3a68be42e10 ("powerpc/64: vmlinux support building with PCREL addresing")
+Signed-off-by: Nicholas Piggin <npiggin@gmail.com>
+Signed-off-by: Michael Ellerman <mpe@ellerman.id.au>
+Link: https://msgid.link/20230426055848.402993-3-npiggin@gmail.com
+---
+ arch/powerpc/Kconfig | 7 ++++++-
+ 1 file changed, 6 insertions(+), 1 deletion(-)
+
+diff --git a/arch/powerpc/Kconfig b/arch/powerpc/Kconfig
+index 7a0f25a097592..520e577f31065 100644
+--- a/arch/powerpc/Kconfig
++++ b/arch/powerpc/Kconfig
+@@ -8,7 +8,12 @@ config CC_HAS_PREFIXED
+ 	def_bool PPC64 && $(cc-option, -mcpu=power10 -mprefixed)
+ 
+ config CC_HAS_PCREL
+-	def_bool PPC64 && $(cc-option, -mcpu=power10 -mpcrel)
++	# Clang has a bug (https://github.com/llvm/llvm-project/issues/62372)
++	# where pcrel code is not generated if -msoft-float, -mno-altivec, or
++	# -mno-vsx options are also given. Without these options, fp/vec
++	# instructions are generated from regular kernel code. So Clang can't
++	# do pcrel yet.
++	def_bool PPC64 && CC_IS_GCC && $(cc-option, -mcpu=power10 -mpcrel)
+ 
+ config 32BIT
+ 	bool
+-- 
+cgit 
+

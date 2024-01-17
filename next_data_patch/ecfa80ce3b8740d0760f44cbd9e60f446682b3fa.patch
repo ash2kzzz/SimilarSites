@@ -1,0 +1,35 @@
+From ecfa80ce3b8740d0760f44cbd9e60f446682b3fa Mon Sep 17 00:00:00 2001
+From: Alex Elder <elder@linaro.org>
+Date: Wed, 15 Feb 2023 13:53:47 -0600
+Subject: net: ipa: fix an incorrect assignment
+
+I spotted an error in a patch posted this week, unfortunately just
+after it got accepted.  The effect of the bug is that time-based
+interrupt moderation is disabled.  This is not technically a bug,
+but it is not what is intended.  The problem is that a |= assignment
+got implemented as a simple assignment, so the previously assigned
+value was ignored.
+
+Fixes: edc6158b18af ("net: ipa: define fields for event-ring related registers")
+Signed-off-by: Alex Elder <elder@linaro.org>
+Signed-off-by: Paolo Abeni <pabeni@redhat.com>
+---
+ drivers/net/ipa/gsi.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/net/ipa/gsi.c b/drivers/net/ipa/gsi.c
+index f44d2d843de12..05ea2502201da 100644
+--- a/drivers/net/ipa/gsi.c
++++ b/drivers/net/ipa/gsi.c
+@@ -762,7 +762,7 @@ static void gsi_evt_ring_program(struct gsi *gsi, u32 evt_ring_id)
+ 	/* Enable interrupt moderation by setting the moderation delay */
+ 	reg = gsi_reg(gsi, EV_CH_E_CNTXT_8);
+ 	val = reg_encode(reg, EV_MODT, GSI_EVT_RING_INT_MODT);
+-	val = reg_encode(reg, EV_MODC, 1);	/* comes from channel */
++	val |= reg_encode(reg, EV_MODC, 1);	/* comes from channel */
+ 	/* EV_MOD_CNT is 0 (no counter-based interrupt coalescing) */
+ 	iowrite32(val, gsi->virt + reg_n_offset(reg, evt_ring_id));
+ 
+-- 
+cgit 
+

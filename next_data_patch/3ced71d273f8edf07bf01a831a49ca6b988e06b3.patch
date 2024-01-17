@@ -1,0 +1,46 @@
+From 3ced71d273f8edf07bf01a831a49ca6b988e06b3 Mon Sep 17 00:00:00 2001
+From: Kevin Locke <kevin@kevinlocke.name>
+Date: Tue, 21 Mar 2023 15:39:22 -0600
+Subject: kbuild: deb-pkg: set version for linux-headers paths
+
+As a result of the switch to dh_listpackages, $version is no longer set
+when install_kernel_headers() is called.  This causes files in the
+linux-headers deb package to be installed to a path with an empty
+$version (e.g. /usr/src/linux-headers-/scripts/sign-file rather than
+/usr/src/linux-headers-6.3.0-rc3/scripts/sign-file).
+
+To avoid this, while continuing to use the version information from
+dh_listpackages, pass $version from $package as the second argument
+of install_kernel_headers().
+
+Fixes: 36862e14e316 ("kbuild: deb-pkg: use dh_listpackages to know enabled packages")
+Signed-off-by: Kevin Locke <kevin@kevinlocke.name>
+Signed-off-by: Masahiro Yamada <masahiroy@kernel.org>
+---
+ scripts/package/builddeb | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/scripts/package/builddeb b/scripts/package/builddeb
+index c5ae57167d7ce..7b23f52c70c5f 100755
+--- a/scripts/package/builddeb
++++ b/scripts/package/builddeb
+@@ -162,6 +162,7 @@ install_linux_image_dbg () {
+ 
+ install_kernel_headers () {
+ 	pdir=$1
++	version=$2
+ 
+ 	rm -rf $pdir
+ 
+@@ -229,7 +230,7 @@ do
+ 	linux-libc-dev)
+ 		install_libc_headers debian/linux-libc-dev;;
+ 	linux-headers-*)
+-		install_kernel_headers debian/linux-headers;;
++		install_kernel_headers debian/linux-headers ${package#linux-headers-};;
+ 	esac
+ done
+ 
+-- 
+cgit 
+

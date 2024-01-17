@@ -1,0 +1,41 @@
+From b131129d96575479e2447d134cb1797cf430b3a4 Mon Sep 17 00:00:00 2001
+From: Rajkumar Manoharan <rmanohar@qti.qualcomm.com>
+Date: Thu, 7 Apr 2016 12:07:29 +0530
+Subject: ath10k: fix calibration init sequence of qca99x0
+
+pre-calibration is meant for qca4019 which contains only caldata
+whereas calibration file is used by ar9888 and qca99x0 that contains
+both board data and caldata. So by definition both pre-cal-file and
+cal-file can not coexist. Keeping them in shared memory (union), is
+breaking boot sequence of qca99x0. Fix it by storing both binaries
+in separate memories. This issue is reported in ipq8064 platform which
+includes caldata in flash memory.
+
+Fixes: 3d9195ea19e4 ("ath10k: incorporate qca4019 cal data download sequence")
+Reported-by: Sebastian Gottschall <s.gottschall@dd-wrt.com>
+Signed-off-by: Rajkumar Manoharan <rmanohar@qti.qualcomm.com>
+Signed-off-by: Kalle Valo <kvalo@qca.qualcomm.com>
+---
+ drivers/net/wireless/ath/ath10k/core.h | 6 ++----
+ 1 file changed, 2 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/net/wireless/ath/ath10k/core.h b/drivers/net/wireless/ath/ath10k/core.h
+index c23c37312ef70..d85b99164212f 100644
+--- a/drivers/net/wireless/ath/ath10k/core.h
++++ b/drivers/net/wireless/ath/ath10k/core.h
+@@ -728,10 +728,8 @@ struct ath10k {
+ 	const void *firmware_data;
+ 	size_t firmware_len;
+ 
+-	union {
+-		const struct firmware *pre_cal_file;
+-		const struct firmware *cal_file;
+-	};
++	const struct firmware *pre_cal_file;
++	const struct firmware *cal_file;
+ 
+ 	struct {
+ 		const void *firmware_codeswap_data;
+-- 
+cgit 
+

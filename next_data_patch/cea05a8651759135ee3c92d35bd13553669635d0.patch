@@ -1,0 +1,57 @@
+From cea05a8651759135ee3c92d35bd13553669635d0 Mon Sep 17 00:00:00 2001
+From: Miri Korenblit <miriam.rachel.korenblit@intel.com>
+Date: Tue, 28 Mar 2023 10:58:51 +0300
+Subject: wifi: iwlwifi: mvm: fix "modify_mask" value in the link cmd.
+
+This bitmap indicates what fields of the cmd got changed.
+A field will be ignored by the FW if the corresponding flag wasn't set.
+There are a few cases in which we currently set the wrong bits when
+sending this cmd, which caused FW asserts. Fix this by setting the
+correct bits in each case.
+
+Fixes: 1ab26632332e ("wifi: iwlwifi: mvm: Add an add_interface() callback for mld mode")
+Signed-off-by: Miri Korenblit <miriam.rachel.korenblit@intel.com>
+Signed-off-by: Gregory Greenman <gregory.greenman@intel.com>
+Link: https://lore.kernel.org/r/20230328104948.19ddbee0c98d.I595abb79d0419c9a21e5234303c2c3fd5290a52a@changeid
+Signed-off-by: Johannes Berg <johannes.berg@intel.com>
+---
+ drivers/net/wireless/intel/iwlwifi/mvm/mld-mac80211.c | 9 ++++-----
+ 1 file changed, 4 insertions(+), 5 deletions(-)
+
+diff --git a/drivers/net/wireless/intel/iwlwifi/mvm/mld-mac80211.c b/drivers/net/wireless/intel/iwlwifi/mvm/mld-mac80211.c
+index 5f54e57de8e6d..33368e5945f44 100644
+--- a/drivers/net/wireless/intel/iwlwifi/mvm/mld-mac80211.c
++++ b/drivers/net/wireless/intel/iwlwifi/mvm/mld-mac80211.c
+@@ -54,9 +54,7 @@ static int iwl_mvm_mld_mac_add_interface(struct ieee80211_hw *hw,
+ 		if (ret)
+ 			goto out_unref_phy;
+ 
+-		ret = iwl_mvm_link_changed(mvm, vif,
+-					   LINK_CONTEXT_MODIFY_ACTIVE |
+-					   LINK_CONTEXT_MODIFY_RATES_INFO,
++		ret = iwl_mvm_link_changed(mvm, vif, LINK_CONTEXT_MODIFY_ACTIVE,
+ 					   true);
+ 		if (ret)
+ 			goto out_remove_link;
+@@ -162,7 +160,8 @@ static int __iwl_mvm_mld_assign_vif_chanctx(struct iwl_mvm *mvm,
+ 	ret = iwl_mvm_add_link(mvm, vif);
+ 	if (ret)
+ 		goto out;
+-	ret = iwl_mvm_link_changed(mvm, vif, LINK_CONTEXT_MODIFY_ACTIVE,
++	ret = iwl_mvm_link_changed(mvm, vif, LINK_CONTEXT_MODIFY_ACTIVE |
++				   LINK_CONTEXT_MODIFY_RATES_INFO,
+ 				   true);
+ 	if (ret)
+ 		goto out_remove_link;
+@@ -270,7 +269,7 @@ static int iwl_mvm_mld_start_ap_ibss(struct ieee80211_hw *hw,
+ 	if (ret)
+ 		goto out_remove_mac;
+ 
+-	ret = iwl_mvm_link_changed(mvm, vif, LINK_CONTEXT_MODIFY_ACTIVE,
++	ret = iwl_mvm_link_changed(mvm, vif, LINK_CONTEXT_MODIFY_ALL,
+ 				   true);
+ 	if (ret)
+ 		goto out_remove_link;
+-- 
+cgit 
+

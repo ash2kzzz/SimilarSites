@@ -1,0 +1,62 @@
+From 1132d1c834d6185c89aef07c860fc143a6f2db93 Mon Sep 17 00:00:00 2001
+From: Lorenzo Bianconi <lorenzo@kernel.org>
+Date: Fri, 13 Jan 2023 11:58:46 +0100
+Subject: wifi: mt76: dma: do not increment queue head if mt76_dma_add_buf
+ fails
+
+Do not increment queue head if mt76_dma_add_buf fails for Wireless
+Ethernet Dispatcher rx queues.
+
+Fixes: cd372b8c99c5 ("wifi: mt76: add WED RX support to mt76_dma_{add,get}_buf")
+Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
+Signed-off-by: Felix Fietkau <nbd@nbd.name>
+(cherry picked from commit fe13dad8992be0b26c1be390bcd111acf9892c17)
+Signed-off-by: Kalle Valo <kvalo@kernel.org>
+Link: https://lore.kernel.org/r/20230113105848.34642-1-nbd@nbd.name
+---
+ drivers/net/wireless/mediatek/mt76/dma.c | 9 +++++----
+ 1 file changed, 5 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/net/wireless/mediatek/mt76/dma.c b/drivers/net/wireless/mediatek/mt76/dma.c
+index f795548562f55..c058a02e9ba55 100644
+--- a/drivers/net/wireless/mediatek/mt76/dma.c
++++ b/drivers/net/wireless/mediatek/mt76/dma.c
+@@ -212,14 +212,14 @@ mt76_dma_add_buf(struct mt76_dev *dev, struct mt76_queue *q,
+ {
+ 	struct mt76_queue_entry *entry;
+ 	struct mt76_desc *desc;
+-	u32 ctrl;
+ 	int i, idx = -1;
++	u32 ctrl, next;
+ 
+ 	for (i = 0; i < nbufs; i += 2, buf += 2) {
+ 		u32 buf0 = buf[0].addr, buf1 = 0;
+ 
+ 		idx = q->head;
+-		q->head = (q->head + 1) % q->ndesc;
++		next = (q->head + 1) % q->ndesc;
+ 
+ 		desc = &q->desc[idx];
+ 		entry = &q->entry[idx];
+@@ -239,8 +239,8 @@ mt76_dma_add_buf(struct mt76_dev *dev, struct mt76_queue *q,
+ 			       MT_DMA_CTL_TO_HOST;
+ 		} else {
+ 			if (txwi) {
+-				q->entry[q->head].txwi = DMA_DUMMY_DATA;
+-				q->entry[q->head].skip_buf0 = true;
++				q->entry[next].txwi = DMA_DUMMY_DATA;
++				q->entry[next].skip_buf0 = true;
+ 			}
+ 
+ 			if (buf[0].skip_unmap)
+@@ -271,6 +271,7 @@ mt76_dma_add_buf(struct mt76_dev *dev, struct mt76_queue *q,
+ 		WRITE_ONCE(desc->info, cpu_to_le32(info));
+ 		WRITE_ONCE(desc->ctrl, cpu_to_le32(ctrl));
+ 
++		q->head = next;
+ 		q->queued++;
+ 	}
+ 
+-- 
+cgit 
+

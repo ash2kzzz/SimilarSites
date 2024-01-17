@@ -1,0 +1,35 @@
+From 09f3756bb9a82835b0c2a9b50f36b47aa42f2c61 Mon Sep 17 00:00:00 2001
+From: Tobias Klauser <tklauser@distanz.ch>
+Date: Fri, 19 Sep 2014 16:16:25 +0200
+Subject: dm9000: Return an ERR_PTR() in all error conditions of
+ dm9000_parse_dt()
+
+In one error condition dm9000_parse_dt() returns NULL, however the
+return value is checked using IS_ERR() in dm9000_probe(), leading to the
+error not being properly propagated if CONFIG_OF is not enabled or the
+device tree data is not available. Fix this by also returning an
+ERR_PTR() in this case.
+
+Fixes: 0b8bf1baabe5 (net: dm9000: Allow instantiation using device tree)
+Signed-off-by: Tobias Klauser <tklauser@distanz.ch>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ drivers/net/ethernet/davicom/dm9000.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/net/ethernet/davicom/dm9000.c b/drivers/net/ethernet/davicom/dm9000.c
+index 9b33057a94779..70089c29d307a 100644
+--- a/drivers/net/ethernet/davicom/dm9000.c
++++ b/drivers/net/ethernet/davicom/dm9000.c
+@@ -1399,7 +1399,7 @@ static struct dm9000_plat_data *dm9000_parse_dt(struct device *dev)
+ 	const void *mac_addr;
+ 
+ 	if (!IS_ENABLED(CONFIG_OF) || !np)
+-		return NULL;
++		return ERR_PTR(-ENXIO);
+ 
+ 	pdata = devm_kzalloc(dev, sizeof(*pdata), GFP_KERNEL);
+ 	if (!pdata)
+-- 
+cgit 
+

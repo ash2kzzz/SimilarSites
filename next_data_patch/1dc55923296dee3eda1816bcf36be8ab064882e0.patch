@@ -1,0 +1,39 @@
+From 1dc55923296dee3eda1816bcf36be8ab064882e0 Mon Sep 17 00:00:00 2001
+From: Lorenzo Bianconi <lorenzo@kernel.org>
+Date: Sun, 12 Feb 2023 11:08:26 +0100
+Subject: net: mvneta: do not set xdp_features for hw buffer devices
+
+Devices with hardware buffer management do not support XDP, so do not
+set xdp_features for them.
+
+Fixes: 66c0e13ad236 ("drivers: net: turn on XDP features")
+Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
+Link: https://lore.kernel.org/r/19b5838bb3e4515750af822edb2fa5e974d0a86b.1676196230.git.lorenzo@kernel.org
+Signed-off-by: Jakub Kicinski <kuba@kernel.org>
+---
+ drivers/net/ethernet/marvell/mvneta.c | 9 ++++++---
+ 1 file changed, 6 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/net/ethernet/marvell/mvneta.c b/drivers/net/ethernet/marvell/mvneta.c
+index 1cb4f59c00509..0e39d199ff061 100644
+--- a/drivers/net/ethernet/marvell/mvneta.c
++++ b/drivers/net/ethernet/marvell/mvneta.c
+@@ -5612,9 +5612,12 @@ static int mvneta_probe(struct platform_device *pdev)
+ 			NETIF_F_TSO | NETIF_F_RXCSUM;
+ 	dev->hw_features |= dev->features;
+ 	dev->vlan_features |= dev->features;
+-	dev->xdp_features = NETDEV_XDP_ACT_BASIC | NETDEV_XDP_ACT_REDIRECT |
+-			    NETDEV_XDP_ACT_NDO_XMIT | NETDEV_XDP_ACT_RX_SG |
+-			    NETDEV_XDP_ACT_NDO_XMIT_SG;
++	if (!pp->bm_priv)
++		dev->xdp_features = NETDEV_XDP_ACT_BASIC |
++				    NETDEV_XDP_ACT_REDIRECT |
++				    NETDEV_XDP_ACT_NDO_XMIT |
++				    NETDEV_XDP_ACT_RX_SG |
++				    NETDEV_XDP_ACT_NDO_XMIT_SG;
+ 	dev->priv_flags |= IFF_LIVE_ADDR_CHANGE;
+ 	netif_set_tso_max_segs(dev, MVNETA_MAX_TSO_SEGS);
+ 
+-- 
+cgit 
+

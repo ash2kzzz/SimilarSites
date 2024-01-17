@@ -1,0 +1,46 @@
+From adeaa3f290ecf7f6a6a5c53219a4686cbdff5fbd Mon Sep 17 00:00:00 2001
+From: Jens Axboe <axboe@kernel.dk>
+Date: Tue, 13 Jun 2023 19:26:55 -0600
+Subject: io_uring/io-wq: clear current->worker_private on exit
+
+A recent fix stopped clearing PF_IO_WORKER from current->flags on exit,
+which meant that we can now call inc/dec running on the worker after it
+has been removed if it ends up scheduling in/out as part of exit.
+
+If this happens after an RCU grace period has passed, then the struct
+pointed to by current->worker_private may have been freed, and we can
+now be accessing memory that is freed.
+
+Ensure this doesn't happen by clearing the task worker_private field.
+Both io_wq_worker_running() and io_wq_worker_sleeping() check this
+field before going any further, and we don't need any accounting etc
+done after this worker has exited.
+
+Fixes: fd37b884003c ("io_uring/io-wq: don't clear PF_IO_WORKER on exit")
+Reported-by: Zorro Lang <zlang@redhat.com>
+Signed-off-by: Jens Axboe <axboe@kernel.dk>
+---
+ io_uring/io-wq.c | 7 ++++++-
+ 1 file changed, 6 insertions(+), 1 deletion(-)
+
+diff --git a/io_uring/io-wq.c b/io_uring/io-wq.c
+index fe38eb0cbc82a..399e9a15c38d6 100644
+--- a/io_uring/io-wq.c
++++ b/io_uring/io-wq.c
+@@ -220,7 +220,12 @@ static void io_worker_exit(struct io_worker *worker)
+ 	list_del_rcu(&worker->all_list);
+ 	raw_spin_unlock(&wq->lock);
+ 	io_wq_dec_running(worker);
+-	worker->flags = 0;
++	/*
++	 * this worker is a goner, clear ->worker_private to avoid any
++	 * inc/dec running calls that could happen as part of exit from
++	 * touching 'worker'.
++	 */
++	current->worker_private = NULL;
+ 
+ 	kfree_rcu(worker, rcu);
+ 	io_worker_ref_put(wq);
+-- 
+cgit 
+

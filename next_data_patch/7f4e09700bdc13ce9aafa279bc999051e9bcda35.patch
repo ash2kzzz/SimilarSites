@@ -1,0 +1,34 @@
+From 7f4e09700bdc13ce9aafa279bc999051e9bcda35 Mon Sep 17 00:00:00 2001
+From: Benjamin Berg <benjamin.berg@intel.com>
+Date: Wed, 21 Jun 2023 14:05:44 +0200
+Subject: wifi: mac80211: report all unusable beacon frames
+
+Properly check for RX_DROP_UNUSABLE now that the new drop reason
+infrastructure is used. Without this change, the comparison will always
+be false as a more specific reason is given in the lower bits of result.
+
+Fixes: baa951a1c177 ("mac80211: use the new drop reasons infrastructure")
+Signed-off-by: Benjamin Berg <benjamin.berg@intel.com>
+Signed-off-by: Johannes Berg <johannes.berg@intel.com>
+Link: https://lore.kernel.org/r/20230621120543.412920-2-johannes@sipsolutions.net
+Signed-off-by: Jakub Kicinski <kuba@kernel.org>
+---
+ net/mac80211/rx.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/net/mac80211/rx.c b/net/mac80211/rx.c
+index d996aa2579dff..fc6e130364da1 100644
+--- a/net/mac80211/rx.c
++++ b/net/mac80211/rx.c
+@@ -2110,7 +2110,7 @@ ieee80211_rx_h_decrypt(struct ieee80211_rx_data *rx)
+ 	/* either the frame has been decrypted or will be dropped */
+ 	status->flag |= RX_FLAG_DECRYPTED;
+ 
+-	if (unlikely(ieee80211_is_beacon(fc) && result == RX_DROP_UNUSABLE &&
++	if (unlikely(ieee80211_is_beacon(fc) && (result & RX_DROP_UNUSABLE) &&
+ 		     rx->sdata->dev))
+ 		cfg80211_rx_unprot_mlme_mgmt(rx->sdata->dev,
+ 					     skb->data, skb->len);
+-- 
+cgit 
+

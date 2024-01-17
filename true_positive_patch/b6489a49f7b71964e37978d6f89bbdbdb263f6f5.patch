@@ -1,0 +1,315 @@
+From b6489a49f7b71964e37978d6f89bbdbdb263f6f5 Mon Sep 17 00:00:00 2001
+From: David Howells <dhowells@redhat.com>
+Date: Mon, 15 Jun 2020 17:36:58 +0100
+Subject: afs: Fix silly rename
+
+Fix AFS's silly rename by the following means:
+
+ (1) Set the destination directory in afs_do_silly_rename() so as to avoid
+     misbehaviour and indicate that the directory data version will
+     increment by 1 so as to avoid warnings about unexpected changes in the
+     DV.  Also indicate that the ctime should be updated to avoid xfstest
+     grumbling.
+
+ (2) Note when the server indicates that a directory changed more than we
+     expected (AFS_OPERATION_DIR_CONFLICT), indicating a conflict with a
+     third party change, checking on successful completion of unlink and
+     rename.
+
+     The problem is that the FS.RemoveFile RPC op doesn't report the status
+     of the unlinked file, though YFS.RemoveFile2 does.  This can be
+     mitigated by the assumption that if the directory DV cranked by
+     exactly 1, we can be sure we removed one link from the file; further,
+     ordinarily in AFS, files cannot be hardlinked across directories, so
+     if we reduce nlink to 0, the file is deleted.
+
+     However, if the directory DV jumps by more than 1, we cannot know if a
+     third party intervened by adding or removing a link on the file we
+     just removed a link from.
+
+     The same also goes for any vnode that is at the destination of the
+     FS.Rename RPC op.
+
+ (3) Make afs_vnode_commit_status() apply the nlink drop inside the cb_lock
+     section along with the other attribute updates if ->op_unlinked is set
+     on the descriptor for the appropriate vnode.
+
+ (4) Issue a follow up status fetch to the unlinked file in the event of a
+     third party conflict that makes it impossible for us to know if we
+     actually deleted the file or not.
+
+ (5) Provide a flag, AFS_VNODE_SILLY_DELETED, to make afs_getattr() lie to
+     the user about the nlink of a silly deleted file so that it appears as
+     0, not 1.
+
+Found with the generic/035 and generic/084 xfstests.
+
+Fixes: e49c7b2f6de7 ("afs: Build an abstraction around an "operation" concept")
+Reported-by: Marc Dionne <marc.dionne@auristor.com>
+Signed-off-by: David Howells <dhowells@redhat.com>
+---
+ fs/afs/dir.c       | 21 +++++++++++++++++++--
+ fs/afs/dir_silly.c | 36 +++++++++++++++++++++++++++---------
+ fs/afs/inode.c     | 22 +++++++++++++++++-----
+ fs/afs/internal.h  | 17 +++++++++++++++++
+ 4 files changed, 80 insertions(+), 16 deletions(-)
+
+diff --git a/fs/afs/dir.c b/fs/afs/dir.c
+index cd74731112f41..3e3c2bf0a7222 100644
+--- a/fs/afs/dir.c
++++ b/fs/afs/dir.c
+@@ -696,7 +696,7 @@ static const struct afs_operation_ops afs_inline_bulk_status_operation = {
+ 	.success	= afs_do_lookup_success,
+ };
+ 
+-static const struct afs_operation_ops afs_fetch_status_operation = {
++static const struct afs_operation_ops afs_lookup_fetch_status_operation = {
+ 	.issue_afs_rpc	= afs_fs_fetch_status,
+ 	.issue_yfs_rpc	= yfs_fs_fetch_status,
+ 	.success	= afs_do_lookup_success,
+@@ -1496,6 +1496,7 @@ static void afs_unlink_success(struct afs_operation *op)
+ {
+ 	_enter("op=%08x", op->debug_id);
+ 	op->ctime = op->file[0].scb.status.mtime_client;
++	afs_check_dir_conflict(op, &op->file[0]);
+ 	afs_vnode_commit_status(op, &op->file[0]);
+ 	afs_vnode_commit_status(op, &op->file[1]);
+ 	afs_update_dentry_version(op, &op->file[0], op->dentry);
+@@ -1580,9 +1581,24 @@ static int afs_unlink(struct inode *dir, struct dentry *dentry)
+ 
+ 	op->file[1].vnode = vnode;
+ 	op->file[1].update_ctime = true;
++	op->file[1].op_unlinked = true;
+ 	op->dentry	= dentry;
+ 	op->ops		= &afs_unlink_operation;
+-	return afs_do_sync_operation(op);
++	afs_begin_vnode_operation(op);
++	afs_wait_for_operation(op);
++
++	/* If there was a conflict with a third party, check the status of the
++	 * unlinked vnode.
++	 */
++	if (op->error == 0 && (op->flags & AFS_OPERATION_DIR_CONFLICT)) {
++		op->file[1].update_ctime = false;
++		op->fetch_status.which = 1;
++		op->ops = &afs_fetch_status_operation;
++		afs_begin_vnode_operation(op);
++		afs_wait_for_operation(op);
++	}
++
++	return afs_put_operation(op);
+ 
+ error:
+ 	return afs_put_operation(op);
+@@ -1767,6 +1783,7 @@ static void afs_rename_success(struct afs_operation *op)
+ 	_enter("op=%08x", op->debug_id);
+ 
+ 	op->ctime = op->file[0].scb.status.mtime_client;
++	afs_check_dir_conflict(op, &op->file[1]);
+ 	afs_vnode_commit_status(op, &op->file[0]);
+ 	if (op->file[1].vnode != op->file[0].vnode) {
+ 		op->ctime = op->file[1].scb.status.mtime_client;
+diff --git a/fs/afs/dir_silly.c b/fs/afs/dir_silly.c
+index 001adb87ff231..04f75a44f2432 100644
+--- a/fs/afs/dir_silly.c
++++ b/fs/afs/dir_silly.c
+@@ -16,6 +16,7 @@ static void afs_silly_rename_success(struct afs_operation *op)
+ {
+ 	_enter("op=%08x", op->debug_id);
+ 
++	afs_check_dir_conflict(op, &op->file[0]);
+ 	afs_vnode_commit_status(op, &op->file[0]);
+ }
+ 
+@@ -69,6 +70,11 @@ static int afs_do_silly_rename(struct afs_vnode *dvnode, struct afs_vnode *vnode
+ 		return PTR_ERR(op);
+ 
+ 	afs_op_set_vnode(op, 0, dvnode);
++	afs_op_set_vnode(op, 1, dvnode);
++	op->file[0].dv_delta = 1;
++	op->file[1].dv_delta = 1;
++	op->file[0].update_ctime = true;
++	op->file[1].update_ctime = true;
+ 
+ 	op->dentry		= old;
+ 	op->dentry_2		= new;
+@@ -129,6 +135,7 @@ int afs_sillyrename(struct afs_vnode *dvnode, struct afs_vnode *vnode,
+ 	switch (ret) {
+ 	case 0:
+ 		/* The rename succeeded. */
++		set_bit(AFS_VNODE_SILLY_DELETED, &vnode->flags);
+ 		d_move(dentry, sdentry);
+ 		break;
+ 	case -ERESTARTSYS:
+@@ -148,18 +155,11 @@ out:
+ 
+ static void afs_silly_unlink_success(struct afs_operation *op)
+ {
+-	struct afs_vnode *vnode = op->file[1].vnode;
+-
+ 	_enter("op=%08x", op->debug_id);
++	afs_check_dir_conflict(op, &op->file[0]);
+ 	afs_vnode_commit_status(op, &op->file[0]);
+ 	afs_vnode_commit_status(op, &op->file[1]);
+ 	afs_update_dentry_version(op, &op->file[0], op->dentry);
+-
+-	drop_nlink(&vnode->vfs_inode);
+-	if (vnode->vfs_inode.i_nlink == 0) {
+-		set_bit(AFS_VNODE_DELETED, &vnode->flags);
+-		clear_bit(AFS_VNODE_CB_PROMISED, &vnode->flags);
+-	}
+ }
+ 
+ static void afs_silly_unlink_edit_dir(struct afs_operation *op)
+@@ -200,12 +200,30 @@ static int afs_do_silly_unlink(struct afs_vnode *dvnode, struct afs_vnode *vnode
+ 
+ 	afs_op_set_vnode(op, 0, dvnode);
+ 	afs_op_set_vnode(op, 1, vnode);
++	op->file[0].dv_delta = 1;
++	op->file[0].update_ctime = true;
++	op->file[1].op_unlinked = true;
++	op->file[1].update_ctime = true;
+ 
+ 	op->dentry	= dentry;
+ 	op->ops		= &afs_silly_unlink_operation;
+ 
+ 	trace_afs_silly_rename(vnode, true);
+-	return afs_do_sync_operation(op);
++	afs_begin_vnode_operation(op);
++	afs_wait_for_operation(op);
++
++	/* If there was a conflict with a third party, check the status of the
++	 * unlinked vnode.
++	 */
++	if (op->error == 0 && (op->flags & AFS_OPERATION_DIR_CONFLICT)) {
++		op->file[1].update_ctime = false;
++		op->fetch_status.which = 1;
++		op->ops = &afs_fetch_status_operation;
++		afs_begin_vnode_operation(op);
++		afs_wait_for_operation(op);
++	}
++
++	return afs_put_operation(op);
+ }
+ 
+ /*
+diff --git a/fs/afs/inode.c b/fs/afs/inode.c
+index d5d0ae7b2b1e1..1d13d2e882ada 100644
+--- a/fs/afs/inode.c
++++ b/fs/afs/inode.c
+@@ -284,16 +284,25 @@ void afs_vnode_commit_status(struct afs_operation *op, struct afs_vnode_param *v
+ 	write_seqlock(&vnode->cb_lock);
+ 
+ 	if (vp->scb.have_error) {
++		/* A YFS server will return this from RemoveFile2 and AFS and
++		 * YFS will return this from InlineBulkStatus.
++		 */
+ 		if (vp->scb.status.abort_code == VNOVNODE) {
+ 			set_bit(AFS_VNODE_DELETED, &vnode->flags);
+ 			clear_nlink(&vnode->vfs_inode);
+ 			__afs_break_callback(vnode, afs_cb_break_for_deleted);
++			op->flags &= ~AFS_OPERATION_DIR_CONFLICT;
+ 		}
+-	} else {
+-		if (vp->scb.have_status)
+-			afs_apply_status(op, vp);
++	} else if (vp->scb.have_status) {
++		afs_apply_status(op, vp);
+ 		if (vp->scb.have_cb)
+ 			afs_apply_callback(op, vp);
++	} else if (vp->op_unlinked && !(op->flags & AFS_OPERATION_DIR_CONFLICT)) {
++		drop_nlink(&vnode->vfs_inode);
++		if (vnode->vfs_inode.i_nlink == 0) {
++			set_bit(AFS_VNODE_DELETED, &vnode->flags);
++			__afs_break_callback(vnode, afs_cb_break_for_deleted);
++		}
+ 	}
+ 
+ 	write_sequnlock(&vnode->cb_lock);
+@@ -304,7 +313,7 @@ void afs_vnode_commit_status(struct afs_operation *op, struct afs_vnode_param *v
+ 
+ static void afs_fetch_status_success(struct afs_operation *op)
+ {
+-	struct afs_vnode_param *vp = &op->file[0];
++	struct afs_vnode_param *vp = &op->file[op->fetch_status.which];
+ 	struct afs_vnode *vnode = vp->vnode;
+ 	int ret;
+ 
+@@ -318,7 +327,7 @@ static void afs_fetch_status_success(struct afs_operation *op)
+ 	}
+ }
+ 
+-static const struct afs_operation_ops afs_fetch_status_operation = {
++const struct afs_operation_ops afs_fetch_status_operation = {
+ 	.issue_afs_rpc	= afs_fs_fetch_status,
+ 	.issue_yfs_rpc	= yfs_fs_fetch_status,
+ 	.success	= afs_fetch_status_success,
+@@ -729,6 +738,9 @@ int afs_getattr(const struct path *path, struct kstat *stat,
+ 	do {
+ 		read_seqbegin_or_lock(&vnode->cb_lock, &seq);
+ 		generic_fillattr(inode, stat);
++		if (test_bit(AFS_VNODE_SILLY_DELETED, &vnode->flags) &&
++		    stat->nlink > 0)
++			stat->nlink -= 1;
+ 	} while (need_seqretry(&vnode->cb_lock, seq));
+ 
+ 	done_seqretry(&vnode->cb_lock, seq);
+diff --git a/fs/afs/internal.h b/fs/afs/internal.h
+index 9420890e3577e..573a5922c3bb9 100644
+--- a/fs/afs/internal.h
++++ b/fs/afs/internal.h
+@@ -634,6 +634,7 @@ struct afs_vnode {
+ #define AFS_VNODE_AUTOCELL	6		/* set if Vnode is an auto mount point */
+ #define AFS_VNODE_PSEUDODIR	7 		/* set if Vnode is a pseudo directory */
+ #define AFS_VNODE_NEW_CONTENT	8		/* Set if file has new content (create/trunc-0) */
++#define AFS_VNODE_SILLY_DELETED	9		/* Set if file has been silly-deleted */
+ 
+ 	struct list_head	wb_keys;	/* List of keys available for writeback */
+ 	struct list_head	pending_locks;	/* locks waiting to be granted */
+@@ -748,6 +749,7 @@ struct afs_vnode_param {
+ 	bool			need_io_lock:1;	/* T if we need the I/O lock on this */
+ 	bool			update_ctime:1;	/* Need to update the ctime */
+ 	bool			set_size:1;	/* Must update i_size */
++	bool			op_unlinked:1;	/* True if file was unlinked by op */
+ };
+ 
+ /*
+@@ -839,6 +841,7 @@ struct afs_operation {
+ #define AFS_OPERATION_LOCK_1		0x0200	/* Set if have io_lock on file[1] */
+ #define AFS_OPERATION_TRIED_ALL		0x0400	/* Set if we've tried all the fileservers */
+ #define AFS_OPERATION_RETRY_SERVER	0x0800	/* Set if we should retry the current server */
++#define AFS_OPERATION_DIR_CONFLICT	0x1000	/* Set if we detected a 3rd-party dir change */
+ };
+ 
+ /*
+@@ -1066,6 +1069,8 @@ extern int afs_wait_for_one_fs_probe(struct afs_server *, bool);
+ /*
+  * inode.c
+  */
++extern const struct afs_operation_ops afs_fetch_status_operation;
++
+ extern void afs_vnode_commit_status(struct afs_operation *, struct afs_vnode_param *);
+ extern int afs_fetch_status(struct afs_vnode *, struct key *, bool, afs_access_t *);
+ extern int afs_ilookup5_test_by_fid(struct inode *, void *);
+@@ -1497,6 +1502,18 @@ static inline void afs_update_dentry_version(struct afs_operation *op,
+ 			(void *)(unsigned long)dir_vp->scb.status.data_version;
+ }
+ 
++/*
++ * Check for a conflicting operation on a directory that we just unlinked from.
++ * If someone managed to sneak a link or an unlink in on the file we just
++ * unlinked, we won't be able to trust nlink on an AFS file (but not YFS).
++ */
++static inline void afs_check_dir_conflict(struct afs_operation *op,
++					  struct afs_vnode_param *dvp)
++{
++	if (dvp->dv_before + dvp->dv_delta != dvp->scb.status.data_version)
++		op->flags |= AFS_OPERATION_DIR_CONFLICT;
++}
++
+ static inline int afs_io_error(struct afs_call *call, enum afs_io_error where)
+ {
+ 	trace_afs_io_error(call->debug_id, -EIO, where);
+-- 
+cgit 
+

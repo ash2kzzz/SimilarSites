@@ -1,0 +1,51 @@
+From 01bb11ad828b320749764fa93ad078db20d08a9e Mon Sep 17 00:00:00 2001
+From: Yury Norov <yury.norov@gmail.com>
+Date: Thu, 16 Feb 2023 17:39:08 -0800
+Subject: sched/topology: fix KASAN warning in hop_cmp()
+
+Despite that prev_hop is used conditionally on cur_hop
+is not the first hop, it's initialized unconditionally.
+
+Because initialization implies dereferencing, it might happen
+that the code dereferences uninitialized memory, which has been
+spotted by KASAN. Fix it by reorganizing hop_cmp() logic.
+
+Reported-by: Bruno Goncalves <bgoncalv@redhat.com>
+Fixes: cd7f55359c90 ("sched: add sched_numa_find_nth_cpu()")
+Signed-off-by: Yury Norov <yury.norov@gmail.com>
+Link: https://lore.kernel.org/r/Y+7avK6V9SyAWsXi@yury-laptop/
+Signed-off-by: Jakub Kicinski <kuba@kernel.org>
+---
+ kernel/sched/topology.c | 11 ++++++++---
+ 1 file changed, 8 insertions(+), 3 deletions(-)
+
+diff --git a/kernel/sched/topology.c b/kernel/sched/topology.c
+index 1233affc106c6..1a9ee8fcd4775 100644
+--- a/kernel/sched/topology.c
++++ b/kernel/sched/topology.c
+@@ -2079,14 +2079,19 @@ struct __cmp_key {
+ 
+ static int hop_cmp(const void *a, const void *b)
+ {
+-	struct cpumask **prev_hop = *((struct cpumask ***)b - 1);
+-	struct cpumask **cur_hop = *(struct cpumask ***)b;
++	struct cpumask **prev_hop, **cur_hop = *(struct cpumask ***)b;
+ 	struct __cmp_key *k = (struct __cmp_key *)a;
+ 
+ 	if (cpumask_weight_and(k->cpus, cur_hop[k->node]) <= k->cpu)
+ 		return 1;
+ 
+-	k->w = (b == k->masks) ? 0 : cpumask_weight_and(k->cpus, prev_hop[k->node]);
++	if (b == k->masks) {
++		k->w = 0;
++		return 0;
++	}
++
++	prev_hop = *((struct cpumask ***)b - 1);
++	k->w = cpumask_weight_and(k->cpus, prev_hop[k->node]);
+ 	if (k->w <= k->cpu)
+ 		return 0;
+ 
+-- 
+cgit 
+

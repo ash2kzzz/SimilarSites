@@ -1,0 +1,45 @@
+From 6175b70df95ed3b8fe177cb20b9b00b1f9008cc4 Mon Sep 17 00:00:00 2001
+From: Randy Dunlap <rdunlap@infradead.org>
+Date: Wed, 22 Feb 2023 23:01:15 -0800
+Subject: powerpc/pseries: RTAS work area requires GENERIC_ALLOCATOR
+
+The RTAS work area allocator uses code that is built by
+GENERIC_ALLOCATOR, so the PSERIES Kconfig should select the
+required Kconfig symbol to fix multiple build errors.
+
+powerpc64-linux-ld: arch/powerpc/platforms/pseries/rtas-work-area.o: in function `.rtas_work_area_allocator_init':
+rtas-work-area.c:(.init.text+0x288): undefined reference to `.gen_pool_create'
+powerpc64-linux-ld: rtas-work-area.c:(.init.text+0x2dc): undefined reference to `.gen_pool_set_algo'
+powerpc64-linux-ld: rtas-work-area.c:(.init.text+0x310): undefined reference to `.gen_pool_add_owner'
+powerpc64-linux-ld: rtas-work-area.c:(.init.text+0x43c): undefined reference to `.gen_pool_destroy'
+powerpc64-linux-ld: arch/powerpc/platforms/pseries/rtas-work-area.o:(.toc+0x0): undefined reference to `gen_pool_first_fit_order_align'
+powerpc64-linux-ld: arch/powerpc/platforms/pseries/rtas-work-area.o: in function `.__rtas_work_area_alloc':
+rtas-work-area.c:(.ref.text+0x14c): undefined reference to `.gen_pool_alloc_algo_owner'
+powerpc64-linux-ld: rtas-work-area.c:(.ref.text+0x238): undefined reference to `.gen_pool_alloc_algo_owner'
+powerpc64-linux-ld: arch/powerpc/platforms/pseries/rtas-work-area.o: in function `.rtas_work_area_free':
+rtas-work-area.c:(.ref.text+0x44c): undefined reference to `.gen_pool_free_owner'
+
+Fixes: 43033bc62d34 ("powerpc/pseries: add RTAS work area allocator")
+Signed-off-by: Randy Dunlap <rdunlap@infradead.org>
+Reviewed-by: Nathan Lynch <nathanl@linux.ibm.com>
+Signed-off-by: Michael Ellerman <mpe@ellerman.id.au>
+Link: https://msgid.link/20230223070116.660-2-rdunlap@infradead.org
+---
+ arch/powerpc/platforms/pseries/Kconfig | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/arch/powerpc/platforms/pseries/Kconfig b/arch/powerpc/platforms/pseries/Kconfig
+index b481c5c8bae11..21b22bf16ce66 100644
+--- a/arch/powerpc/platforms/pseries/Kconfig
++++ b/arch/powerpc/platforms/pseries/Kconfig
+@@ -7,6 +7,7 @@ config PPC_PSERIES
+ 	select OF_DYNAMIC
+ 	select FORCE_PCI
+ 	select PCI_MSI
++	select GENERIC_ALLOCATOR
+ 	select PPC_XICS
+ 	select PPC_XIVE_SPAPR
+ 	select PPC_ICP_NATIVE
+-- 
+cgit 
+

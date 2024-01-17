@@ -1,0 +1,68 @@
+From 347052e3bf1b62a25c11f7a673acfbaf554d67a1 Mon Sep 17 00:00:00 2001
+From: Martin Blumenstingl <martin.blumenstingl@googlemail.com>
+Date: Tue, 26 May 2020 22:29:43 +0200
+Subject: usb: dwc3: meson-g12a: fix USB2 PHY initialization on G12A and A1
+ SoCs
+
+dwc3_meson_g12a_usb2_init_phy() crashes with NULL pointer on an SM1
+board (which uses the same USB setup as G12A) dereference as reported
+by the Kernel CI bot. This is because of the following call flow:
+  dwc3_meson_g12a_probe
+    priv->drvdata->setup_regmaps
+      dwc3_meson_g12a_setup_regmaps
+        priv->usb2_ports is still 0 so priv->u2p_regmap[i] will be NULL
+    dwc3_meson_g12a_get_phys
+      initializes priv->usb2_ports
+    priv->drvdata->usb_init
+      dwc3_meson_g12a_usb_init
+        dwc3_meson_g12a_usb_init_glue
+          dwc3_meson_g12a_usb2_init
+            priv->drvdata->usb2_init_phy
+              dwc3_meson_g12a_usb2_init_phy
+                dereferences priv->u2p_regmap[i]
+
+Call priv->drvdata->setup_regmaps only after dwc3_meson_g12a_get_phys so
+priv->usb2_ports is initialized and the regmaps will be set up
+correctly. This fixes the NULL dereference later on.
+
+Fixes: 013af227f58a97 ("usb: dwc3: meson-g12a: handle the phy and glue registers separately")
+Reported-by: "kernelci.org bot" <bot@kernelci.org>
+Acked-by: Felipe Balbi <balbi@kernel.org>
+Acked-by: Neil Armstrong <narmstron@baylibre.com>
+Signed-off-by: Martin Blumenstingl <martin.blumenstingl@googlemail.com>
+Link: https://lore.kernel.org/r/20200526202943.715220-3-martin.blumenstingl@googlemail.com
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+---
+ drivers/usb/dwc3/dwc3-meson-g12a.c | 8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/usb/dwc3/dwc3-meson-g12a.c b/drivers/usb/dwc3/dwc3-meson-g12a.c
+index ce5388338389b..1f7f4d88ed9d8 100644
+--- a/drivers/usb/dwc3/dwc3-meson-g12a.c
++++ b/drivers/usb/dwc3/dwc3-meson-g12a.c
+@@ -708,11 +708,7 @@ static int dwc3_meson_g12a_probe(struct platform_device *pdev)
+ 		return PTR_ERR(base);
+ 
+ 	priv->drvdata = of_device_get_match_data(&pdev->dev);
+-
+ 	priv->dev = dev;
+-	ret = priv->drvdata->setup_regmaps(priv, base);
+-	if (ret)
+-		return ret;
+ 
+ 	priv->vbus = devm_regulator_get_optional(dev, "vbus");
+ 	if (IS_ERR(priv->vbus)) {
+@@ -749,6 +745,10 @@ static int dwc3_meson_g12a_probe(struct platform_device *pdev)
+ 	if (ret)
+ 		goto err_disable_clks;
+ 
++	ret = priv->drvdata->setup_regmaps(priv, base);
++	if (ret)
++		return ret;
++
+ 	if (priv->vbus) {
+ 		ret = regulator_enable(priv->vbus);
+ 		if (ret)
+-- 
+cgit 
+

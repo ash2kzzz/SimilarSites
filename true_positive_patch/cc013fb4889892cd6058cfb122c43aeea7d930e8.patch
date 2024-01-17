@@ -1,0 +1,76 @@
+From cc013fb4889892cd6058cfb122c43aeea7d930e8 Mon Sep 17 00:00:00 2001
+From: Florian Fainelli <f.fainelli@gmail.com>
+Date: Mon, 11 Aug 2014 14:50:43 -0700
+Subject: net: bcmgenet: correctly suspend and resume PHY device
+
+Make sure that we properly suspend and resume the PHY device when we
+enter low power modes. We had two calls to bcmgenet_mii_reset() which
+will issue a software-reset to the PHY without using the PHY library,
+get rid of them since they are completely bogus and mess up with the PHY
+library state. Make sure that we reset the PHY library cached values
+(link, pause and duplex) to allow the link adjustment callback to be
+invoked when needed.
+
+Fixes: b6e978e50444 ("net: bcmgenet: add suspend/resume callbacks")
+Fixes: 1c1008c793fa4 ("net: bcmgenet: add main driver file")
+Signed-off-by: Florian Fainelli <f.fainelli@gmail.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ drivers/net/ethernet/broadcom/genet/bcmgenet.c | 13 +++++++++++--
+ 1 file changed, 11 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/net/ethernet/broadcom/genet/bcmgenet.c b/drivers/net/ethernet/broadcom/genet/bcmgenet.c
+index 7a3661c090ee6..90eb9c4b1b2c8 100644
+--- a/drivers/net/ethernet/broadcom/genet/bcmgenet.c
++++ b/drivers/net/ethernet/broadcom/genet/bcmgenet.c
+@@ -739,7 +739,6 @@ static void bcmgenet_power_down(struct bcmgenet_priv *priv,
+ 
+ 	case GENET_POWER_PASSIVE:
+ 		/* Power down LED */
+-		bcmgenet_mii_reset(priv->dev);
+ 		if (priv->hw_params->flags & GENET_HAS_EXT) {
+ 			reg = bcmgenet_ext_readl(priv, EXT_EXT_PWR_MGMT);
+ 			reg |= (EXT_PWR_DOWN_PHY |
+@@ -779,7 +778,9 @@ static void bcmgenet_power_up(struct bcmgenet_priv *priv,
+ 	}
+ 
+ 	bcmgenet_ext_writel(priv, reg, EXT_EXT_PWR_MGMT);
+-	bcmgenet_mii_reset(priv->dev);
++
++	if (mode == GENET_POWER_PASSIVE)
++		bcmgenet_mii_reset(priv->dev);
+ }
+ 
+ /* ioctl handle special commands that are not present in ethtool. */
+@@ -2164,6 +2165,10 @@ static void bcmgenet_netif_stop(struct net_device *dev)
+ 	 * disabled no new work will be scheduled.
+ 	 */
+ 	cancel_work_sync(&priv->bcmgenet_irq_work);
++
++	priv->old_pause = -1;
++	priv->old_link = -1;
++	priv->old_duplex = -1;
+ }
+ 
+ static int bcmgenet_close(struct net_device *dev)
+@@ -2611,6 +2616,8 @@ static int bcmgenet_suspend(struct device *d)
+ 
+ 	bcmgenet_netif_stop(dev);
+ 
++	phy_suspend(priv->phydev);
++
+ 	netif_device_detach(dev);
+ 
+ 	/* Disable MAC receive */
+@@ -2693,6 +2700,8 @@ static int bcmgenet_resume(struct device *d)
+ 
+ 	netif_device_attach(dev);
+ 
++	phy_resume(priv->phydev);
++
+ 	bcmgenet_netif_start(dev);
+ 
+ 	return 0;
+-- 
+cgit 
+

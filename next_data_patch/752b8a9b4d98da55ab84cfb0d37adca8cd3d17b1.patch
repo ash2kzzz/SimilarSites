@@ -1,0 +1,32 @@
+From 752b8a9b4d98da55ab84cfb0d37adca8cd3d17b1 Mon Sep 17 00:00:00 2001
+From: Shaoqin Huang <shahuang@redhat.com>
+Date: Mon, 20 Feb 2023 11:49:09 +0800
+Subject: KVM: Add the missed title format
+
+The 7.18 KVM_CAP_MANUAL_DIRTY_LOG_PROTECT2 now is not a title, make it
+as a title to keep the format consistent.
+
+Signed-off-by: Shaoqin Huang <shahuang@redhat.com>
+Fixes: 106ee47dc633 ("docs: kvm: Convert api.txt to ReST format")
+Reviewed-by: Sean Christopherson <seanjc@google.com>
+Link: https://lore.kernel.org/r/20230220034910.11024-1-shahuang@redhat.com
+Signed-off-by: Sean Christopherson <seanjc@google.com>
+---
+ Documentation/virt/kvm/api.rst | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/Documentation/virt/kvm/api.rst b/Documentation/virt/kvm/api.rst
+index 48fad65568227..a69e91088d769 100644
+--- a/Documentation/virt/kvm/api.rst
++++ b/Documentation/virt/kvm/api.rst
+@@ -7267,6 +7267,7 @@ and injected exceptions.
+        will clear DR6.RTM.
+ 
+ 7.18 KVM_CAP_MANUAL_DIRTY_LOG_PROTECT2
++--------------------------------------
+ 
+ :Architectures: x86, arm64, mips
+ :Parameters: args[0] whether feature should be enabled or not
+-- 
+cgit 
+

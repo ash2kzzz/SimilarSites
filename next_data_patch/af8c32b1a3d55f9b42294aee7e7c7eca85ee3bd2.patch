@@ -1,0 +1,55 @@
+From af8c32b1a3d55f9b42294aee7e7c7eca85ee3bd2 Mon Sep 17 00:00:00 2001
+From: Pierre-Louis Bossart <pierre-louis.bossart@linux.intel.com>
+Date: Fri, 12 May 2023 12:46:08 -0500
+Subject: ASoC: SOF: Intel: hda-mlink: fix base_ptr computation
+
+The base_ptr value needs to be derived from the remap_addr pointer,
+not the ml_addr. This base_ptr was used only in debug logs that were
+so far not contributed upstream so the issue was not detected. It
+needs to be fixed for SoundWire support on LunarLake.
+
+Fixes: 17c9b6ec35c0 ("ASoC: SOF: Intel: hda-mlink: add structures to parse ALT links")
+Signed-off-by: Pierre-Louis Bossart <pierre-louis.bossart@linux.intel.com
+Reviewed-by: Bard Liao <yung-chuan.liao@linux.intel.com
+Reviewed-by: Rander Wang <rander.wang@intel.com
+Reviewed-by: Ranjani Sridharan <ranjani.sridharan@linux.intel.com
+Link: https://lore.kernel.org/r/20230512174611.84372-4-pierre-louis.bossart@linux.intel.com
+Signed-off-by: Mark Brown <broonie@kernel.org
+---
+ sound/soc/sof/intel/hda-mlink.c | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/sound/soc/sof/intel/hda-mlink.c b/sound/soc/sof/intel/hda-mlink.c
+index cfa43d93cbd07..7f5d0ea4abeb7 100644
+--- a/sound/soc/sof/intel/hda-mlink.c
++++ b/sound/soc/sof/intel/hda-mlink.c
+@@ -96,7 +96,7 @@ struct hdac_ext2_link {
+  */
+ 
+ static int hdaml_lnk_enum(struct device *dev, struct hdac_ext2_link *h2link,
+-			  void __iomem *ml_addr, int link_idx)
++			  void __iomem *remap_addr, void __iomem *ml_addr, int link_idx)
+ {
+ 	struct hdac_ext_link *hlink = &h2link->hext_link;
+ 	u32 base_offset;
+@@ -136,7 +136,7 @@ static int hdaml_lnk_enum(struct device *dev, struct hdac_ext2_link *h2link,
+ 	h2link->elid = FIELD_GET(AZX_REG_ML_LEPTR_ID, h2link->leptr);
+ 
+ 	base_offset = FIELD_GET(AZX_REG_ML_LEPTR_PTR, h2link->leptr);
+-	h2link->base_ptr = hlink->ml_addr + base_offset;
++	h2link->base_ptr = remap_addr + base_offset;
+ 
+ 	switch (h2link->elid) {
+ 	case AZX_REG_ML_LEPTR_ID_SDW:
+@@ -369,7 +369,7 @@ static int hda_ml_alloc_h2link(struct hdac_bus *bus, int index)
+ 	hlink->bus = bus;
+ 	hlink->ml_addr = bus->mlcap + AZX_ML_BASE + (AZX_ML_INTERVAL * index);
+ 
+-	ret = hdaml_lnk_enum(bus->dev, h2link, hlink->ml_addr, index);
++	ret = hdaml_lnk_enum(bus->dev, h2link, bus->remap_addr, hlink->ml_addr, index);
+ 	if (ret < 0) {
+ 		kfree(h2link);
+ 		return ret;
+-- 
+cgit 
+

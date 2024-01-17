@@ -1,0 +1,42 @@
+From f3e57da528127febae7eb03d9c87408d572b0fd8 Mon Sep 17 00:00:00 2001
+From: Bean Huo <beanhuo@micron.com>
+Date: Sun, 8 Jan 2023 23:40:56 +0100
+Subject: scsi: core: Fix invisible definition compilation warning
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+In 'include/ufs/ufshcd.h' file, 'enum dma_data_direction' will be used,
+which is defined in linux/dma-direction.h, however, this header file is not
+included in ufshcd.h, thus causing the following compilation warning:
+
+"warning: ‘enum dma_data_direction’ declared inside parameter list will not
+be visible outside of this definition or declaration"
+
+Fix this warning by including 'linux/dma-direction.h'.
+
+Fixes: 6ff265fc5ef6 ("scsi: ufs: core: bsg: Add advanced RPMB support in ufs_bsg")
+Reported-by: Xiaosen He <quic_xiaosenh@quicinc.com>
+Reported-by: Bart Van Assche <bvanassche@acm.org>
+Signed-off-by: Bean Huo <beanhuo@micron.com>
+Reviewed-by: Bart Van Assche <bvanassche@acm.org>
+Signed-off-by: Martin K. Petersen <martin.petersen@oracle.com>
+---
+ include/ufs/ufshcd.h | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/include/ufs/ufshcd.h b/include/ufs/ufshcd.h
+index ff138927676be..fc7373a1a15e5 100644
+--- a/include/ufs/ufshcd.h
++++ b/include/ufs/ufshcd.h
+@@ -17,6 +17,7 @@
+ #include <linux/blk-mq.h>
+ #include <linux/devfreq.h>
+ #include <linux/pm_runtime.h>
++#include <linux/dma-direction.h>
+ #include <scsi/scsi_device.h>
+ #include <ufs/unipro.h>
+ #include <ufs/ufs.h>
+-- 
+cgit 
+

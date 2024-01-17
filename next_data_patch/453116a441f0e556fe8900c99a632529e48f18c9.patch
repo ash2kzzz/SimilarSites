@@ -1,0 +1,36 @@
+From 453116a441f0e556fe8900c99a632529e48f18c9 Mon Sep 17 00:00:00 2001
+From: Hector Martin <marcan@marcan.st>
+Date: Wed, 4 Jan 2023 19:16:42 +0900
+Subject: nvme-pci: add NVME_QUIRK_IDENTIFY_CNS quirk to Apple T2 controllers
+
+This mirrors the quirk added to Apple Silicon controllers in apple.c.
+These controllers do not support the Active NS ID List command and
+behave identically to the SoC version judging by existing user
+reports/syslogs, so will need the same fix. This quirk reverts
+back to NVMe 1.0 behavior and disables the broken commands.
+
+Fixes: 811f4de0344d ("nvme: avoid fallback to sequential scan due to transient issues")
+Signed-off-by: Hector Martin <marcan@marcan.st>
+Tested-by: Orlando Chamberlain <orlandoch.dev@gmail.com>
+Signed-off-by: Christoph Hellwig <hch@lst.de>
+---
+ drivers/nvme/host/pci.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/nvme/host/pci.c b/drivers/nvme/host/pci.c
+index b13baccedb4a9..91f8adcf6056e 100644
+--- a/drivers/nvme/host/pci.c
++++ b/drivers/nvme/host/pci.c
+@@ -3495,7 +3495,8 @@ static const struct pci_device_id nvme_id_table[] = {
+ 		.driver_data = NVME_QUIRK_SINGLE_VECTOR |
+ 				NVME_QUIRK_128_BYTES_SQES |
+ 				NVME_QUIRK_SHARED_TAGS |
+-				NVME_QUIRK_SKIP_CID_GEN },
++				NVME_QUIRK_SKIP_CID_GEN |
++				NVME_QUIRK_IDENTIFY_CNS },
+ 	{ PCI_DEVICE_CLASS(PCI_CLASS_STORAGE_EXPRESS, 0xffffff) },
+ 	{ 0, }
+ };
+-- 
+cgit 
+

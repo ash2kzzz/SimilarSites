@@ -1,0 +1,70 @@
+From 0f097f08c9b3c1fdb6cc9f2dd423abc17d13f1a2 Mon Sep 17 00:00:00 2001
+From: Yishai Hadas <yishaih@nvidia.com>
+Date: Wed, 11 Jan 2023 12:10:54 +0200
+Subject: lib/scatterlist: Fix to calculate the last_pg properly
+
+The last_pg is wrong, it is actually the first page of the last
+scatterlist element. To get the last page of the last scatterlist element
+we have to add prv->length. So it is checking mergability against the
+wrong page, Further, a SG element is not guaranteed to end on a page
+boundary, so we have to check the sub page location also for merge
+eligibility.
+
+Fix the above by checking physical contiguity based on PFNs, compute the
+actual last page and then call pages_are_mergable().
+
+Fixes: 1567b49d1a40 ("lib/scatterlist: add check when merging zone device pages")
+Link: https://lore.kernel.org/r/20230111101054.188136-1-yishaih@nvidia.com
+Reported-by: Jason Gunthorpe <jgg@nvidia.com>
+Signed-off-by: Yishai Hadas <yishaih@nvidia.com>
+Reviewed-by: Chaitanya Kulkarni <kch@nvidia.com>
+Signed-off-by: Jason Gunthorpe <jgg@nvidia.com>
+---
+ lib/scatterlist.c | 25 +++++++++++++++----------
+ 1 file changed, 15 insertions(+), 10 deletions(-)
+
+diff --git a/lib/scatterlist.c b/lib/scatterlist.c
+index f72aa50c6654b..8d7519a8f308d 100644
+--- a/lib/scatterlist.c
++++ b/lib/scatterlist.c
+@@ -470,22 +470,27 @@ int sg_alloc_append_table_from_pages(struct sg_append_table *sgt_append,
+ 		return -EOPNOTSUPP;
+ 
+ 	if (sgt_append->prv) {
++		unsigned long next_pfn = (page_to_phys(sg_page(sgt_append->prv)) +
++			sgt_append->prv->offset + sgt_append->prv->length) / PAGE_SIZE;
++
+ 		if (WARN_ON(offset))
+ 			return -EINVAL;
+ 
+ 		/* Merge contiguous pages into the last SG */
+ 		prv_len = sgt_append->prv->length;
+-		last_pg = sg_page(sgt_append->prv);
+-		while (n_pages && pages_are_mergeable(pages[0], last_pg)) {
+-			if (sgt_append->prv->length + PAGE_SIZE > max_segment)
+-				break;
+-			sgt_append->prv->length += PAGE_SIZE;
+-			last_pg = pages[0];
+-			pages++;
+-			n_pages--;
++		if (page_to_pfn(pages[0]) == next_pfn) {
++			last_pg = pfn_to_page(next_pfn - 1);
++			while (n_pages && pages_are_mergeable(pages[0], last_pg)) {
++				if (sgt_append->prv->length + PAGE_SIZE > max_segment)
++					break;
++				sgt_append->prv->length += PAGE_SIZE;
++				last_pg = pages[0];
++				pages++;
++				n_pages--;
++			}
++			if (!n_pages)
++				goto out;
+ 		}
+-		if (!n_pages)
+-			goto out;
+ 	}
+ 
+ 	/* compute number of contiguous chunks */
+-- 
+cgit 
+

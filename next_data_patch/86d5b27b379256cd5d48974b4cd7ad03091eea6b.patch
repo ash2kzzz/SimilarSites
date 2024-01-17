@@ -1,0 +1,41 @@
+From 86d5b27b379256cd5d48974b4cd7ad03091eea6b Mon Sep 17 00:00:00 2001
+From: Fabio Estevam <festevam@denx.de>
+Date: Tue, 4 Apr 2023 09:13:03 -0300
+Subject: ARM: imx_v6_v7_defconfig: Fix unintentional disablement of PCI
+
+Since commit 75c2f26da03f ("PCI: imx6: Add i.MX PCIe EP mode support")
+the i.MX6 PCI driver is no longer selected by default. The
+existing PCI_IMX6 was made a hidden option, selected by new options
+PCI_IMX6_HOST (for the existing support) and PCI_IMX6_EP (for the
+endpoint mode), but there has been no corresponding update to
+imx_v6_v7_defconfig so the PCI_IMX6 ends up getting disabled.
+Switch imx_v6_v7_defconfig to PCI_IMX6_HOST to preserve the existing
+functionality.
+
+This is based on the same fix done in commit 0cd5780eb625 ("arm64:
+defconfig: Fix unintentional disablement of PCI on i.MX").
+
+Fixes: 75c2f26da03f ("PCI: imx6: Add i.MX PCIe EP mode support")
+Reported-by: Mattias Barthel <mattiasbarthel@gmail.com>
+Signed-off-by: Fabio Estevam <festevam@denx.de>
+Signed-off-by: Shawn Guo <shawnguo@kernel.org>
+---
+ arch/arm/configs/imx_v6_v7_defconfig | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/arch/arm/configs/imx_v6_v7_defconfig b/arch/arm/configs/imx_v6_v7_defconfig
+index 6dc6fed12af83..8d002c6e6cb3b 100644
+--- a/arch/arm/configs/imx_v6_v7_defconfig
++++ b/arch/arm/configs/imx_v6_v7_defconfig
+@@ -76,7 +76,7 @@ CONFIG_RFKILL=y
+ CONFIG_RFKILL_INPUT=y
+ CONFIG_PCI=y
+ CONFIG_PCI_MSI=y
+-CONFIG_PCI_IMX6=y
++CONFIG_PCI_IMX6_HOST=y
+ CONFIG_DEVTMPFS=y
+ CONFIG_DEVTMPFS_MOUNT=y
+ # CONFIG_STANDALONE is not set
+-- 
+cgit 
+

@@ -1,0 +1,67 @@
+From 7241d26e8175e95290a6549a470c330dbfc63442 Mon Sep 17 00:00:00 2001
+From: Christophe Leroy <christophe.leroy@c-s.fr>
+Date: Sat, 13 Oct 2018 09:45:12 +0000
+Subject: powerpc/64: properly initialise the stackprotector canary on SMP.
+
+commit 06ec27aea9fc ("powerpc/64: add stack protector support")
+doesn't initialise the stack canary on SMP secondary CPU's paca,
+leading to the following false positive report from the
+stack protector.
+
+smp: Bringing up secondary CPUs ...
+Kernel panic - not syncing: stack-protector: Kernel stack is corrupted in: __schedule+0x978/0xa80
+CPU: 1 PID: 0 Comm: swapper/1 Not tainted 4.19.0-rc7-next-20181010-autotest-autotest #1
+Call Trace:
+[c000001fed5b3bf0] [c000000000a0ef3c] dump_stack+0xb0/0xf4 (unreliable)
+[c000001fed5b3c30] [c0000000000f9d68] panic+0x140/0x308
+[c000001fed5b3cc0] [c0000000000f9844] __stack_chk_fail+0x24/0x30
+[c000001fed5b3d20] [c000000000a2c3a8] __schedule+0x978/0xa80
+[c000001fed5b3e00] [c000000000a2c9b4] schedule_idle+0x34/0x60
+[c000001fed5b3e30] [c00000000013d344] do_idle+0x224/0x3d0
+[c000001fed5b3ec0] [c00000000013d6e0] cpu_startup_entry+0x30/0x50
+[c000001fed5b3ef0] [c000000000047f34] start_secondary+0x4d4/0x520
+[c000001fed5b3f90] [c00000000000b370] start_secondary_prolog+0x10/0x14
+
+This patch properly initialises the stack_canary of the secondary
+idle tasks.
+
+Reported-by: Abdul Haleem <abdhalee@linux.vnet.ibm.com>
+Fixes: 06ec27aea9fc ("powerpc/64: add stack protector support")
+Signed-off-by: Christophe Leroy <christophe.leroy@c-s.fr>
+Signed-off-by: Michael Ellerman <mpe@ellerman.id.au>
+---
+ arch/powerpc/kernel/smp.c | 8 ++++++++
+ 1 file changed, 8 insertions(+)
+
+diff --git a/arch/powerpc/kernel/smp.c b/arch/powerpc/kernel/smp.c
+index 61c1fadbc6444..e774d3bf3a03b 100644
+--- a/arch/powerpc/kernel/smp.c
++++ b/arch/powerpc/kernel/smp.c
+@@ -34,6 +34,7 @@
+ #include <linux/topology.h>
+ #include <linux/profile.h>
+ #include <linux/processor.h>
++#include <linux/random.h>
+ 
+ #include <asm/ptrace.h>
+ #include <linux/atomic.h>
+@@ -810,9 +811,16 @@ static void cpu_idle_thread_init(unsigned int cpu, struct task_struct *idle)
+ {
+ 	struct thread_info *ti = task_thread_info(idle);
+ 
++#ifdef CONFIG_STACKPROTECTOR
++	idle->stack_canary = get_random_canary();
++#endif
++
+ #ifdef CONFIG_PPC64
+ 	paca_ptrs[cpu]->__current = idle;
+ 	paca_ptrs[cpu]->kstack = (unsigned long)ti + THREAD_SIZE - STACK_FRAME_OVERHEAD;
++#ifdef CONFIG_STACKPROTECTOR
++	paca_ptrs[cpu]->canary = idle->stack_canary;
++#endif
+ #endif
+ 	ti->cpu = cpu;
+ 	secondary_ti = current_set[cpu] = ti;
+-- 
+cgit 
+

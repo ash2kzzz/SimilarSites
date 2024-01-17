@@ -1,0 +1,38 @@
+From 3ecde2182adbb12b52b777d8fb4a599b43faf4f1 Mon Sep 17 00:00:00 2001
+From: Daniel Müller <deso@posteo.net>
+Date: Tue, 7 Mar 2023 21:55:04 +0000
+Subject: libbpf: Fix theoretical u32 underflow in find_cd() function
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Coverity reported a potential underflow of the offset variable used in
+the find_cd() function. Switch to using a signed 64 bit integer for the
+representation of offset to make sure we can never underflow.
+
+Fixes: 1eebcb60633f ("libbpf: Implement basic zip archive parsing support")
+Signed-off-by: Daniel Müller <deso@posteo.net>
+Signed-off-by: Andrii Nakryiko <andrii@kernel.org>
+Link: https://lore.kernel.org/bpf/20230307215504.837321-1-deso@posteo.net
+---
+ tools/lib/bpf/zip.c | 3 +--
+ 1 file changed, 1 insertion(+), 2 deletions(-)
+
+diff --git a/tools/lib/bpf/zip.c b/tools/lib/bpf/zip.c
+index 8458c2dd0e3bc..f561aa07438f5 100644
+--- a/tools/lib/bpf/zip.c
++++ b/tools/lib/bpf/zip.c
+@@ -168,9 +168,8 @@ static int try_parse_end_of_cd(struct zip_archive *archive, __u32 offset)
+ 
+ static int find_cd(struct zip_archive *archive)
+ {
++	int64_t limit, offset;
+ 	int rc = -EINVAL;
+-	int64_t limit;
+-	__u32 offset;
+ 
+ 	if (archive->size <= sizeof(struct end_of_cd_record))
+ 		return -EINVAL;
+-- 
+cgit 
+

@@ -1,0 +1,50 @@
+From 05777499a81298ef7e4a5e32a6f744f1f937a80c Mon Sep 17 00:00:00 2001
+From: Arnd Bergmann <arnd@arndb.de>
+Date: Fri, 10 Mar 2023 15:01:26 +0100
+Subject: ARM: dyndbg: allow including dyndbg.h in decompressor
+
+After a change to linux/module.h, dyndbg.h is now included
+indirectly from the decompressor for lz4 support, which in turn
+causes a build failure on 32-bit Arm:
+
+In file included from include/linux/module.h:30,
+                 from arch/arm/boot/compressed/../../../../lib/lz4/lz4_decompress.c:39,
+                 from arch/arm/boot/compressed/../../../../lib/decompress_unlz4.c:10,
+                 from arch/arm/boot/compressed/decompress.c:59:
+include/linux/dynamic_debug.h: In function 'ddebug_dyndbg_module_param_cb':
+include/linux/dynamic_debug.h:307:14: error: implicit declaration of function 'strcmp' [-Werror=implicit-function-declaration]
+  307 |         if (!strcmp(param, "dyndbg")) {
+      |              ^~~~~~
+include/linux/dynamic_debug.h:1:1: note: 'strcmp' is defined in header '<string.h>'; did you forget to '#include <string.h>'?
+  +++ |+#include <string.h>
+
+The decompressor has its own replacement for the linux/string.h contents,
+so the normal declaration is not visible here. Since the function is
+not actually called, it is sufficient to add a declaration, and this
+is in fact the correct one as it matches the definition in
+arch/arm/boot/compressed/string.c.
+
+Fixes: 7deabd674988 ("dyndbg: use the module notifier callbacks")
+Signed-off-by: Arnd Bergmann <arnd@arndb.de>
+Acked-by: Jason Baron <jbaron@akamai.com>
+Reviewed-by: Vincenzo Palazzo <vincenzopalazzodev@gmail.com>
+Signed-off-by: Luis Chamberlain <mcgrof@kernel.org>
+---
+ arch/arm/boot/compressed/decompress.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/arch/arm/boot/compressed/decompress.c b/arch/arm/boot/compressed/decompress.c
+index 74255e8198314..0669851394f04 100644
+--- a/arch/arm/boot/compressed/decompress.c
++++ b/arch/arm/boot/compressed/decompress.c
+@@ -31,6 +31,7 @@
+ /* Not needed, but used in some headers pulled in by decompressors */
+ extern char * strstr(const char * s1, const char *s2);
+ extern size_t strlen(const char *s);
++extern int strcmp(const char *cs, const char *ct);
+ extern int memcmp(const void *cs, const void *ct, size_t count);
+ extern char * strchrnul(const char *, int);
+ 
+-- 
+cgit 
+

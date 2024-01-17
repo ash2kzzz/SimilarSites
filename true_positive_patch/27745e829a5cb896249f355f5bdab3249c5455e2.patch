@@ -1,0 +1,56 @@
+From 27745e829a5cb896249f355f5bdab3249c5455e2 Mon Sep 17 00:00:00 2001
+From: Chris Wilson <chris@chris-wilson.co.uk>
+Date: Wed, 16 Nov 2016 15:27:21 +0000
+Subject: drm/i915/execlists: Use a local lock for dfs_link access
+
+Avoid requiring struct_mutex for exclusive access to the temporary
+dfs_link inside the i915_dependency as not all callers may want to touch
+struct_mutex. So rather than force them to take a highly contended
+lock, introduce a local lock for the execlists schedule operation.
+
+Reported-by: David Weinehall <david.weinehall@linux.intel.com>
+Fixes: 9a151987d709 ("drm/i915: Add execution priority boosting for mmioflips")
+Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk>
+Cc: Tvrtko Ursulin <tvrtko.ursulin@intel.com>
+Cc: David Weinehall <david.weinehall@linux.intel.com>
+Link: http://patchwork.freedesktop.org/patch/msgid/20161116152721.11053-1-chris@chris-wilson.co.uk
+Reviewed-by: Tvrtko Ursulin <tvrtko.ursulin@intel.com>
+---
+ drivers/gpu/drm/i915/intel_lrc.c | 7 +++++--
+ 1 file changed, 5 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/gpu/drm/i915/intel_lrc.c b/drivers/gpu/drm/i915/intel_lrc.c
+index f50feaa7116a1..43526814e042b 100644
+--- a/drivers/gpu/drm/i915/intel_lrc.c
++++ b/drivers/gpu/drm/i915/intel_lrc.c
+@@ -694,6 +694,7 @@ pt_lock_engine(struct i915_priotree *pt, struct intel_engine_cs *locked)
+ 
+ static void execlists_schedule(struct drm_i915_gem_request *request, int prio)
+ {
++	static DEFINE_MUTEX(lock);
+ 	struct intel_engine_cs *engine = NULL;
+ 	struct i915_dependency *dep, *p;
+ 	struct i915_dependency stack;
+@@ -702,8 +703,8 @@ static void execlists_schedule(struct drm_i915_gem_request *request, int prio)
+ 	if (prio <= READ_ONCE(request->priotree.priority))
+ 		return;
+ 
+-	/* Need BKL in order to use the temporary link inside i915_dependency */
+-	lockdep_assert_held(&request->i915->drm.struct_mutex);
++	/* Need global lock to use the temporary link inside i915_dependency */
++	mutex_lock(&lock);
+ 
+ 	stack.signaler = &request->priotree;
+ 	list_add(&stack.dfs_link, &dfs);
+@@ -770,6 +771,8 @@ static void execlists_schedule(struct drm_i915_gem_request *request, int prio)
+ 	if (engine)
+ 		spin_unlock_irq(&engine->timeline->lock);
+ 
++	mutex_unlock(&lock);
++
+ 	/* XXX Do we need to preempt to make room for us and our deps? */
+ }
+ 
+-- 
+cgit 
+

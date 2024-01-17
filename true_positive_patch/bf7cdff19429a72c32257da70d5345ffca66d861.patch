@@ -1,0 +1,32 @@
+From bf7cdff19429a72c32257da70d5345ffca66d861 Mon Sep 17 00:00:00 2001
+From: "Rafael J. Wysocki" <rafael.j.wysocki@intel.com>
+Date: Fri, 6 May 2016 15:00:38 +0200
+Subject: cpufreq: schedutil: Make it depend on CONFIG_SMP
+
+Make the schedutil cpufreq governor depend on CONFIG_SMP, because
+the scheduler-provided utilization numbers used by it are only
+available with CONFIG_SMP set.
+
+Fixes: 9bdcb44e391d (cpufreq: schedutil: New governor based on scheduler utilization data)
+Reported-by: Steve Muckle <steve.muckle@linaro.org>
+Signed-off-by: Rafael J. Wysocki <rafael.j.wysocki@intel.com>
+---
+ drivers/cpufreq/Kconfig | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/cpufreq/Kconfig b/drivers/cpufreq/Kconfig
+index 5d74826d75be8..e9849b4394142 100644
+--- a/drivers/cpufreq/Kconfig
++++ b/drivers/cpufreq/Kconfig
+@@ -200,7 +200,7 @@ config CPU_FREQ_GOV_CONSERVATIVE
+ 
+ config CPU_FREQ_GOV_SCHEDUTIL
+ 	tristate "'schedutil' cpufreq policy governor"
+-	depends on CPU_FREQ
++	depends on CPU_FREQ && SMP
+ 	select CPU_FREQ_GOV_ATTR_SET
+ 	select IRQ_WORK
+ 	help
+-- 
+cgit 
+

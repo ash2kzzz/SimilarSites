@@ -1,0 +1,41 @@
+From b4fb12e6c74791ac4c5c98b845628c576366b889 Mon Sep 17 00:00:00 2001
+From: "Mike Rapoport (IBM)" <rppt@kernel.org>
+Date: Tue, 14 Feb 2023 16:07:29 +0200
+Subject: sh: initialize max_mapnr
+
+sh never initializes max_mapnr which is used by the generic implementation
+of pfn_valid().
+
+Initialize max_mapnr with set_max_mapnr() in sh::paging_init().
+
+Link: https://lkml.kernel.org/r/20230214140729.1649961-3-rppt@kernel.org
+Fixes: e5080a967785 ("mm, arch: add generic implementation of pfn_valid() for FLATMEM")
+Reported-by: Guenter Roeck <linux@roeck-us.net>
+Signed-off-by: Mike Rapoport (IBM) <rppt@kernel.org>
+Acked-by: John Paul Adrian Glaubitz <glaubitz@physik.fu-berlin.de>
+Reviewed-by: David Hildenbrand <david@redhat.com>
+Cc: Arnd Bergmann <arnd@arndb.de>
+Cc: Geert Uytterhoeven <geert@linux-m68k.org>
+Cc: Greg Ungerer <gerg@linux-m68k.org>
+Cc: Rich Felker <dalias@libc.org>
+Cc: Yoshinori Sato <ysato@users.sourceforge.jp>
+Signed-off-by: Andrew Morton <akpm@linux-foundation.org>
+---
+ arch/sh/mm/init.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/arch/sh/mm/init.c b/arch/sh/mm/init.c
+index 506784702430c..bf1b540553164 100644
+--- a/arch/sh/mm/init.c
++++ b/arch/sh/mm/init.c
+@@ -301,6 +301,7 @@ void __init paging_init(void)
+ 	 */
+ 	max_low_pfn = max_pfn = memblock_end_of_DRAM() >> PAGE_SHIFT;
+ 	min_low_pfn = __MEMORY_START >> PAGE_SHIFT;
++	set_max_mapnr(max_low_pfn - min_low_pfn);
+ 
+ 	nodes_clear(node_online_map);
+ 
+-- 
+cgit 
+

@@ -1,0 +1,36 @@
+From e5011447376e1b050847ccb2ef7933176ce4de41 Mon Sep 17 00:00:00 2001
+From: Krzysztof Kozlowski <krzysztof.kozlowski@linaro.org>
+Date: Thu, 22 Dec 2022 16:13:17 +0100
+Subject: arm64: dts: qcom: sdm845-xiaomi-beryllium: fix audio codec interrupt
+ pin name
+
+The pin config entry should have a string, not number, for the GPIO used
+as WCD9340 audio codec interrupt.
+
+Fixes: dd6459a0890a ("arm64: dts: qcom: split beryllium dts into common dtsi and tianma dts")
+Reported-by: Doug Anderson <dianders@chromium.org>
+Signed-off-by: Krzysztof Kozlowski <krzysztof.kozlowski@linaro.org>
+Reviewed-by: Douglas Anderson <dianders@chromium.org>
+Reviewed-by: Konrad Dybcio <konrad.dybcio@linaro.org>
+Signed-off-by: Bjorn Andersson <andersson@kernel.org>
+Link: https://lore.kernel.org/r/20221222151319.122398-2-krzysztof.kozlowski@linaro.org
+---
+ arch/arm64/boot/dts/qcom/sdm845-xiaomi-beryllium-common.dtsi | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/arch/arm64/boot/dts/qcom/sdm845-xiaomi-beryllium-common.dtsi b/arch/arm64/boot/dts/qcom/sdm845-xiaomi-beryllium-common.dtsi
+index 49780c1230096..8879453d3543a 100644
+--- a/arch/arm64/boot/dts/qcom/sdm845-xiaomi-beryllium-common.dtsi
++++ b/arch/arm64/boot/dts/qcom/sdm845-xiaomi-beryllium-common.dtsi
+@@ -467,7 +467,7 @@
+ 	};
+ 
+ 	wcd_intr_default: wcd_intr_default {
+-		pins = <54>;
++		pins = "gpio54";
+ 		function = "gpio";
+ 
+ 		input-enable;
+-- 
+cgit 
+

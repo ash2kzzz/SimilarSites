@@ -1,0 +1,80 @@
+From ae63ad9b2cc766bc4b3b6328e68dd27995abb0fe Mon Sep 17 00:00:00 2001
+From: Herbert Xu <herbert@gondor.apana.org.au>
+Date: Wed, 29 Mar 2023 16:45:33 +0800
+Subject: macvlan: Fix mc_filter calculation
+
+On Wed, Mar 29, 2023 at 08:10:26AM +0000, patchwork-bot+netdevbpf@kernel.org wrote:
+>
+> Here is the summary with links:
+>   - [1/2] macvlan: Skip broadcast queue if multicast with single receiver
+>     https://git.kernel.org/netdev/net-next/c/d45276e75e90
+>   - [2/2] macvlan: Add netlink attribute for broadcast cutoff
+>     https://git.kernel.org/netdev/net-next/c/954d1fa1ac93
+
+Sorry, I made an error and posted my patches from an earlier
+revision so a follow-up fix was missing:
+
+---8<---
+The bc_cutoff patch broke the calculation of mc_filter causing
+some multicast packets to not make it through to the targeted
+device.
+
+Fix this by checking whether vlan is set instead of cutoff >= 0.
+
+Also move the cutoff < 0 logic into macvlan_recompute_bc_filter
+so that it doesn't change the mc_filter at all.
+
+Fixes: d45276e75e90 ("macvlan: Skip broadcast queue if multicast with single receiver")
+Signed-off-by: Herbert Xu <herbert@gondor.apana.org.au>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ drivers/net/macvlan.c | 15 ++++++++-------
+ 1 file changed, 8 insertions(+), 7 deletions(-)
+
+diff --git a/drivers/net/macvlan.c b/drivers/net/macvlan.c
+index 4215106adc403..4a53debf9d7c4 100644
+--- a/drivers/net/macvlan.c
++++ b/drivers/net/macvlan.c
+@@ -792,24 +792,20 @@ static void macvlan_compute_filter(unsigned long *mc_filter,
+ 				   struct macvlan_dev *vlan, int cutoff)
+ {
+ 	if (dev->flags & (IFF_PROMISC | IFF_ALLMULTI)) {
+-		if (cutoff >= 0)
+-			bitmap_fill(mc_filter, MACVLAN_MC_FILTER_SZ);
+-		else
+-			bitmap_zero(mc_filter, MACVLAN_MC_FILTER_SZ);
++		bitmap_fill(mc_filter, MACVLAN_MC_FILTER_SZ);
+ 	} else {
+ 		DECLARE_BITMAP(filter, MACVLAN_MC_FILTER_SZ);
+ 		struct netdev_hw_addr *ha;
+ 
+ 		bitmap_zero(filter, MACVLAN_MC_FILTER_SZ);
+ 		netdev_for_each_mc_addr(ha, dev) {
+-			if (cutoff >= 0 && ha->synced <= cutoff)
++			if (!vlan && ha->synced <= cutoff)
+ 				continue;
+ 
+ 			__set_bit(mc_hash(vlan, ha->addr), filter);
+ 		}
+ 
+-		if (cutoff >= 0)
+-			__set_bit(mc_hash(vlan, dev->broadcast), filter);
++		__set_bit(mc_hash(vlan, dev->broadcast), filter);
+ 
+ 		bitmap_copy(mc_filter, filter, MACVLAN_MC_FILTER_SZ);
+ 	}
+@@ -817,6 +813,11 @@ static void macvlan_compute_filter(unsigned long *mc_filter,
+ 
+ static void macvlan_recompute_bc_filter(struct macvlan_dev *vlan)
+ {
++	if (vlan->port->bc_cutoff < 0) {
++		bitmap_zero(vlan->port->bc_filter, MACVLAN_MC_FILTER_SZ);
++		return;
++	}
++
+ 	macvlan_compute_filter(vlan->port->bc_filter, vlan->lowerdev, NULL,
+ 			       vlan->port->bc_cutoff);
+ }
+-- 
+cgit 
+

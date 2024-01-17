@@ -1,0 +1,40 @@
+From 3f4870df1b15d62665cb86ca116c8c9cf0e830b0 Mon Sep 17 00:00:00 2001
+From: Dan Carpenter <dan.carpenter@oracle.com>
+Date: Fri, 28 Oct 2022 18:02:24 +0300
+Subject: ice: Fix off by one in ice_tc_forward_to_queue()
+
+The > comparison should be >= to prevent reading one element beyond
+the end of the array.
+
+The "vsi->num_rxq" is not strictly speaking the number of elements in
+the vsi->rxq_map[] array.  The array has "vsi->alloc_rxq" elements and
+"vsi->num_rxq" is less than or equal to the number of elements in the
+array.  The array is allocated in ice_vsi_alloc_arrays().  It's still
+an off by one but it might not access outside the end of the array.
+
+Fixes: 143b86f346c7 ("ice: Enable RX queue selection using skbedit action")
+Signed-off-by: Dan Carpenter <dan.carpenter@oracle.com>
+Acked-by: Amritha Nambiar <amritha.nambiar@intel.com>
+Tested-by: Bharathi Sreenivas <bharathi.sreenivas@intel.com>
+Signed-off-by: Tony Nguyen <anthony.l.nguyen@intel.com>
+Reviewed-by: Leon Romanovsky <leonro@nvidia.com>
+---
+ drivers/net/ethernet/intel/ice/ice_tc_lib.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/net/ethernet/intel/ice/ice_tc_lib.c b/drivers/net/ethernet/intel/ice/ice_tc_lib.c
+index faba0f857cd9f..95f392ab96708 100644
+--- a/drivers/net/ethernet/intel/ice/ice_tc_lib.c
++++ b/drivers/net/ethernet/intel/ice/ice_tc_lib.c
+@@ -1681,7 +1681,7 @@ ice_tc_forward_to_queue(struct ice_vsi *vsi, struct ice_tc_flower_fltr *fltr,
+ 	struct ice_vsi *ch_vsi = NULL;
+ 	u16 queue = act->rx_queue;
+ 
+-	if (queue > vsi->num_rxq) {
++	if (queue >= vsi->num_rxq) {
+ 		NL_SET_ERR_MSG_MOD(fltr->extack,
+ 				   "Unable to add filter because specified queue is invalid");
+ 		return -EINVAL;
+-- 
+cgit 
+

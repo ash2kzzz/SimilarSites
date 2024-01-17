@@ -1,0 +1,89 @@
+From 3d6f6d2b584e7a629158be8a3f44f5de00b337ee Mon Sep 17 00:00:00 2001
+From: Alexandre Mergnat <amergnat@baylibre.com>
+Date: Fri, 26 May 2023 15:10:43 +0200
+Subject: clk: mediatek: mt8365: Fix index issue
+
+Before the patch [1], the clock probe was done directly in the
+clk-mt8365 driver. In this probe function, the array which stores the
+data clocks is sized using the higher defined numbers (*_NR_CLOCK) in
+the clock lists [2]. Currently, with the patch [1], the specific
+clk-mt8365 probe function is replaced by the mtk generic one [3], which
+size the clock data array by adding all the clock descriptor array size
+provided by the clk-mt8365 driver.
+
+Actually, all clock indexes come from the header file [2], that mean, if
+there are more clock (then more index) in the header file [2] than the
+number of clock declared in the clock descriptor arrays (which is the
+case currently), the clock data array will be undersized and then the
+generic probe function will overflow when it will try to write in
+"clk_data[CLK_INDEX]". Actually, instead of crashing at boot, the probe
+function returns an error in the log which looks like:
+"of_clk_hw_onecell_get: invalid index 135", then this clock isn't
+enabled.
+
+Solve this issue by adding in the driver the missing clocks declared in
+the header clock file [2].
+
+[1]: Commit ffe91cb28f6a ("clk: mediatek: mt8365: Convert to
+     mtk_clk_simple_{probe,remove}()")
+[2]: include/dt-bindings/clock/mediatek,mt8365-clk.h
+[3]: drivers/clk/mediatek/clk-mtk.c
+
+Fixes: ffe91cb28f6a ("clk: mediatek: mt8365: Convert to mtk_clk_simple_{probe,remove}()")
+
+Signed-off-by: Alexandre Mergnat <amergnat@baylibre.com>
+Link: https://lore.kernel.org/r/20230517-fix-clk-index-v3-1-be4df46065c4@baylibre.com
+Tested-by: Markus Schneider-Pargmann <msp@baylibre.com>
+Reviewed-by: Markus Schneider-Pargmann <msp@baylibre.com>
+Signed-off-by: Stephen Boyd <sboyd@kernel.org>
+---
+ drivers/clk/mediatek/clk-mt8365.c | 12 ++++++++++++
+ 1 file changed, 12 insertions(+)
+
+diff --git a/drivers/clk/mediatek/clk-mt8365.c b/drivers/clk/mediatek/clk-mt8365.c
+index 6b4e193f648d8..c366ac1611e67 100644
+--- a/drivers/clk/mediatek/clk-mt8365.c
++++ b/drivers/clk/mediatek/clk-mt8365.c
+@@ -23,6 +23,7 @@
+ static DEFINE_SPINLOCK(mt8365_clk_lock);
+ 
+ static const struct mtk_fixed_clk top_fixed_clks[] = {
++	FIXED_CLK(CLK_TOP_CLK_NULL, "clk_null", NULL, 0),
+ 	FIXED_CLK(CLK_TOP_I2S0_BCK, "i2s0_bck", NULL, 26000000),
+ 	FIXED_CLK(CLK_TOP_DSI0_LNTC_DSICK, "dsi0_lntc_dsick", "clk26m",
+ 		  75000000),
+@@ -559,6 +560,14 @@ static const struct mtk_clk_divider top_adj_divs[] = {
+ 		  0x324, 16, 8, CLK_DIVIDER_ROUND_CLOSEST),
+ 	DIV_ADJ_F(CLK_TOP_APLL12_CK_DIV3, "apll12_ck_div3", "apll_i2s3_sel",
+ 		  0x324, 24, 8, CLK_DIVIDER_ROUND_CLOSEST),
++	DIV_ADJ_F(CLK_TOP_APLL12_CK_DIV4, "apll12_ck_div4", "apll_tdmout_sel",
++		  0x328, 0, 8, CLK_DIVIDER_ROUND_CLOSEST),
++	DIV_ADJ_F(CLK_TOP_APLL12_CK_DIV4B, "apll12_ck_div4b", "apll_tdmout_sel",
++		  0x328, 8, 8, CLK_DIVIDER_ROUND_CLOSEST),
++	DIV_ADJ_F(CLK_TOP_APLL12_CK_DIV5, "apll12_ck_div5", "apll_tdmin_sel",
++		  0x328, 16, 8, CLK_DIVIDER_ROUND_CLOSEST),
++	DIV_ADJ_F(CLK_TOP_APLL12_CK_DIV5B, "apll12_ck_div5b", "apll_tdmin_sel",
++		  0x328, 24, 8, CLK_DIVIDER_ROUND_CLOSEST),
+ 	DIV_ADJ_F(CLK_TOP_APLL12_CK_DIV6, "apll12_ck_div6", "apll_spdif_sel",
+ 		  0x32c, 0, 8, CLK_DIVIDER_ROUND_CLOSEST),
+ };
+@@ -696,6 +705,7 @@ static const struct mtk_gate ifr_clks[] = {
+ 	GATE_IFR3(CLK_IFR_GCPU, "ifr_gcpu", "axi_sel", 8),
+ 	GATE_IFR3(CLK_IFR_TRNG, "ifr_trng", "axi_sel", 9),
+ 	GATE_IFR3(CLK_IFR_AUXADC, "ifr_auxadc", "clk26m", 10),
++	GATE_IFR3(CLK_IFR_CPUM, "ifr_cpum", "clk26m", 11),
+ 	GATE_IFR3(CLK_IFR_AUXADC_MD, "ifr_auxadc_md", "clk26m", 14),
+ 	GATE_IFR3(CLK_IFR_AP_DMA, "ifr_ap_dma", "axi_sel", 18),
+ 	GATE_IFR3(CLK_IFR_DEBUGSYS, "ifr_debugsys", "axi_sel", 24),
+@@ -717,6 +727,8 @@ static const struct mtk_gate ifr_clks[] = {
+ 	GATE_IFR5(CLK_IFR_PWRAP_TMR, "ifr_pwrap_tmr", "clk26m", 12),
+ 	GATE_IFR5(CLK_IFR_PWRAP_SPI, "ifr_pwrap_spi", "clk26m", 13),
+ 	GATE_IFR5(CLK_IFR_PWRAP_SYS, "ifr_pwrap_sys", "clk26m", 14),
++	GATE_MTK_FLAGS(CLK_IFR_MCU_PM_BK, "ifr_mcu_pm_bk", NULL, &ifr5_cg_regs,
++			17, &mtk_clk_gate_ops_setclr, CLK_IGNORE_UNUSED),
+ 	GATE_IFR5(CLK_IFR_IRRX_26M, "ifr_irrx_26m", "clk26m", 22),
+ 	GATE_IFR5(CLK_IFR_IRRX_32K, "ifr_irrx_32k", "clk32k", 23),
+ 	GATE_IFR5(CLK_IFR_I2C0_AXI, "ifr_i2c0_axi", "i2c_sel", 24),
+-- 
+cgit 
+

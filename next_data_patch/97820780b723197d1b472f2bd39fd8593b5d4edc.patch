@@ -1,0 +1,51 @@
+From 97820780b723197d1b472f2bd39fd8593b5d4edc Mon Sep 17 00:00:00 2001
+From: Johan Hovold <johan+linaro@kernel.org>
+Date: Tue, 7 Mar 2023 17:44:04 +0100
+Subject: serial: qcom-geni: fix mapping of empty DMA buffer
+
+Make sure that there is data in the ring buffer before trying to set up
+a zero-length DMA transfer.
+
+This specifically fixes the following warning when unmapping the empty
+buffer on the sc8280xp-crd:
+
+   WARNING: CPU: 0 PID: 138 at drivers/iommu/dma-iommu.c:1046 iommu_dma_unmap_page+0xbc/0xd8
+   ...
+   Call trace:
+    iommu_dma_unmap_page+0xbc/0xd8
+    dma_unmap_page_attrs+0x30/0x1c8
+    geni_se_tx_dma_unprep+0x28/0x38
+    qcom_geni_serial_isr+0x358/0x75c
+
+Fixes: 2aaa43c70778 ("tty: serial: qcom-geni-serial: add support for serial engine DMA")
+Cc: stable <stable@kernel.org>
+Cc: Bartosz Golaszewski <bartosz.golaszewski@linaro.org>
+Signed-off-by: Johan Hovold <johan+linaro@kernel.org>
+Reviewed-by: Douglas Anderson <dianders@chromium.org>
+Reviewed-by: Srinivas Kandagatla <srinivas.kandagatla@linaro.org>
+Tested-by: Srinivas Kandagatla <srinivas.kandagatla@linaro.org>
+Reviewed-by: Andrew Halaney <ahalaney@redhat.com>
+Tested-by: Andrew Halaney <ahalaney@redhat.com> # sa8540p-ride
+Link: https://lore.kernel.org/r/20230307164405.14218-4-johan+linaro@kernel.org
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+---
+ drivers/tty/serial/qcom_geni_serial.c | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/drivers/tty/serial/qcom_geni_serial.c b/drivers/tty/serial/qcom_geni_serial.c
+index 2aa3872e62835..9871225b2f9bb 100644
+--- a/drivers/tty/serial/qcom_geni_serial.c
++++ b/drivers/tty/serial/qcom_geni_serial.c
+@@ -631,6 +631,9 @@ static void qcom_geni_serial_start_tx_dma(struct uart_port *uport)
+ 	if (port->tx_dma_addr)
+ 		return;
+ 
++	if (uart_circ_empty(xmit))
++		return;
++
+ 	xmit_size = uart_circ_chars_pending(xmit);
+ 	if (xmit_size < WAKEUP_CHARS)
+ 		uart_write_wakeup(uport);
+-- 
+cgit 
+

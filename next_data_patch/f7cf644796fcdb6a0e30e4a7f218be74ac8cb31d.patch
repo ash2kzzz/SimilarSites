@@ -1,0 +1,35 @@
+From f7cf644796fcdb6a0e30e4a7f218be74ac8cb31d Mon Sep 17 00:00:00 2001
+From: Jakub Kicinski <kuba@kernel.org>
+Date: Thu, 23 Feb 2023 10:31:39 -0800
+Subject: tools: ynl-gen: fix single attribute structs with attr 0 only
+
+Chuck run into an issue with a single-element attr-set which
+only has an attr with value of 0. The search for max attr in
+a struct records attrs with value larger than 0 only (max_val
+is set to 0 at the start). Adjust the comparison, alternatively
+max_val could be init'ed to -1. Somehow picking the last attr
+of a value seems like a good idea in general.
+
+Reported-by: Chuck Lever III <chuck.lever@oracle.com>
+Fixes: be5bea1cc0bf ("net: add basic C code generators for Netlink")
+Signed-off-by: Jakub Kicinski <kuba@kernel.org>
+---
+ tools/net/ynl/ynl-gen-c.py | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/tools/net/ynl/ynl-gen-c.py b/tools/net/ynl/ynl-gen-c.py
+index 3942f24b91635..274e9c566f61b 100755
+--- a/tools/net/ynl/ynl-gen-c.py
++++ b/tools/net/ynl/ynl-gen-c.py
+@@ -546,7 +546,7 @@ class Struct:
+         max_val = 0
+         self.attr_max_val = None
+         for name, attr in self.attr_list:
+-            if attr.value > max_val:
++            if attr.value >= max_val:
+                 max_val = attr.value
+                 self.attr_max_val = attr
+             self.attrs[name] = attr
+-- 
+cgit 
+

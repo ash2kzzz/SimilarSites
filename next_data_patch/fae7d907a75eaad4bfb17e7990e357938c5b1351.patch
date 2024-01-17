@@ -1,0 +1,32 @@
+From fae7d907a75eaad4bfb17e7990e357938c5b1351 Mon Sep 17 00:00:00 2001
+From: Krzysztof Kozlowski <krzysztof.kozlowski@linaro.org>
+Date: Sat, 8 Apr 2023 15:08:09 +0200
+Subject: arm64: dts: qcom: sm8250-xiaomi-elish-csot: fix panel compatible
+
+The bindings expect "novatek,nt36523" fallback in the panel compatible:
+
+  sm8250-xiaomi-elish-csot.dtb: panel@0: compatible: ['xiaomi,elish-csot-nt36523'] is too short
+
+Fixes: 8a786036c7b6 ("arm64: dts: qcom: sm8250-xiaomi-elish-csot: Add Xiaomi Mi Pad 5 Pro CSOT variant")
+Signed-off-by: Krzysztof Kozlowski <krzysztof.kozlowski@linaro.org>
+Signed-off-by: Bjorn Andersson <andersson@kernel.org>
+Link: https://lore.kernel.org/r/20230408130809.52319-2-krzysztof.kozlowski@linaro.org
+---
+ arch/arm64/boot/dts/qcom/sm8250-xiaomi-elish-csot.dts | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/arch/arm64/boot/dts/qcom/sm8250-xiaomi-elish-csot.dts b/arch/arm64/boot/dts/qcom/sm8250-xiaomi-elish-csot.dts
+index a4d5341495cf8..4cffe9c703df8 100644
+--- a/arch/arm64/boot/dts/qcom/sm8250-xiaomi-elish-csot.dts
++++ b/arch/arm64/boot/dts/qcom/sm8250-xiaomi-elish-csot.dts
+@@ -13,6 +13,6 @@
+ };
+ 
+ &display_panel {
+-	compatible = "xiaomi,elish-csot-nt36523";
++	compatible = "xiaomi,elish-csot-nt36523", "novatek,nt36523";
+ 	status = "okay";
+ };
+-- 
+cgit 
+

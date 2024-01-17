@@ -1,0 +1,61 @@
+From 55cd57b596e86140503214eafc8fb62c9c544e8f Mon Sep 17 00:00:00 2001
+From: Sean Christopherson <seanjc@google.com>
+Date: Tue, 4 Apr 2023 17:45:16 -0700
+Subject: KVM: x86: Filter out XTILE_CFG if XTILE_DATA isn't permitted
+
+Filter out XTILE_CFG from the supported XCR0 reported to userspace if the
+current process doesn't have access to XTILE_DATA.  Attempting to set
+XTILE_CFG in XCR0 will #GP if XTILE_DATA is also not set, and so keeping
+XTILE_CFG as supported results in explosions if userspace feeds
+KVM_GET_SUPPORTED_CPUID back into KVM and the guest doesn't sanity check
+CPUID.
+
+Fixes: 445ecdf79be0 ("kvm: x86: Exclude unpermitted xfeatures at KVM_GET_SUPPORTED_CPUID")
+Reported-by: Aaron Lewis <aaronlewis@google.com>
+Reviewed-by: Aaron Lewis <aaronlewis@google.com>
+Tested-by: Aaron Lewis <aaronlewis@google.com>
+Link: https://lore.kernel.org/r/20230405004520.421768-3-seanjc@google.com
+Signed-off-by: Sean Christopherson <seanjc@google.com>
+---
+ arch/x86/kvm/x86.h | 18 +++++++++++++++++-
+ 1 file changed, 17 insertions(+), 1 deletion(-)
+
+diff --git a/arch/x86/kvm/x86.h b/arch/x86/kvm/x86.h
+index 9589c86812eb7..bca706406189c 100644
+--- a/arch/x86/kvm/x86.h
++++ b/arch/x86/kvm/x86.h
+@@ -3,6 +3,7 @@
+ #define ARCH_X86_KVM_X86_H
+ 
+ #include <linux/kvm_host.h>
++#include <asm/fpu/xstate.h>
+ #include <asm/mce.h>
+ #include <asm/pvclock.h>
+ #include "kvm_cache_regs.h"
+@@ -325,7 +326,22 @@ extern bool enable_pmu;
+  */
+ static inline u64 kvm_get_filtered_xcr0(void)
+ {
+-	return kvm_caps.supported_xcr0 & xstate_get_guest_group_perm();
++	u64 permitted_xcr0 = kvm_caps.supported_xcr0;
++
++	BUILD_BUG_ON(XFEATURE_MASK_USER_DYNAMIC != XFEATURE_MASK_XTILE_DATA);
++
++	if (permitted_xcr0 & XFEATURE_MASK_USER_DYNAMIC) {
++		permitted_xcr0 &= xstate_get_guest_group_perm();
++
++		/*
++		 * Treat XTILE_CFG as unsupported if the current process isn't
++		 * allowed to use XTILE_DATA, as attempting to set XTILE_CFG in
++		 * XCR0 without setting XTILE_DATA is architecturally illegal.
++		 */
++		if (!(permitted_xcr0 & XFEATURE_MASK_XTILE_DATA))
++			permitted_xcr0 &= ~XFEATURE_MASK_XTILE_CFG;
++	}
++	return permitted_xcr0;
+ }
+ 
+ static inline bool kvm_mpx_supported(void)
+-- 
+cgit 
+

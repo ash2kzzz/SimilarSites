@@ -1,0 +1,67 @@
+From f7355a6c049711ecfbeed573e43d48bee7acb83a Mon Sep 17 00:00:00 2001
+From: Martin KaFai Lau <kafai@fb.com>
+Date: Fri, 17 May 2019 14:21:17 -0700
+Subject: bpf: Check sk_fullsock() before returning from bpf_sk_lookup()
+
+The BPF_FUNC_sk_lookup_xxx helpers return RET_PTR_TO_SOCKET_OR_NULL.
+Meaning a fullsock ptr and its fullsock's fields in bpf_sock can be
+accessed, e.g. type, protocol, mark and priority.
+Some new helper, like bpf_sk_storage_get(), also expects
+ARG_PTR_TO_SOCKET is a fullsock.
+
+bpf_sk_lookup() currently calls sk_to_full_sk() before returning.
+However, the ptr returned from sk_to_full_sk() is not guaranteed
+to be a fullsock.  For example, it cannot get a fullsock if sk
+is in TCP_TIME_WAIT.
+
+This patch checks for sk_fullsock() before returning. If it is not
+a fullsock, sock_gen_put() is called if needed and then returns NULL.
+
+Fixes: 6acc9b432e67 ("bpf: Add helper to retrieve socket in BPF")
+Cc: Joe Stringer <joe@isovalent.com>
+Signed-off-by: Martin KaFai Lau <kafai@fb.com>
+Acked-by: Joe Stringer <joe@isovalent.com>
+Signed-off-by: Daniel Borkmann <daniel@iogearbox.net>
+---
+ net/core/filter.c | 16 ++++++++++++++--
+ 1 file changed, 14 insertions(+), 2 deletions(-)
+
+diff --git a/net/core/filter.c b/net/core/filter.c
+index 76f1d99640e25..fdcc504d2dec7 100644
+--- a/net/core/filter.c
++++ b/net/core/filter.c
+@@ -5343,8 +5343,14 @@ __bpf_sk_lookup(struct sk_buff *skb, struct bpf_sock_tuple *tuple, u32 len,
+ 	struct sock *sk = __bpf_skc_lookup(skb, tuple, len, caller_net,
+ 					   ifindex, proto, netns_id, flags);
+ 
+-	if (sk)
++	if (sk) {
+ 		sk = sk_to_full_sk(sk);
++		if (!sk_fullsock(sk)) {
++			if (!sock_flag(sk, SOCK_RCU_FREE))
++				sock_gen_put(sk);
++			return NULL;
++		}
++	}
+ 
+ 	return sk;
+ }
+@@ -5375,8 +5381,14 @@ bpf_sk_lookup(struct sk_buff *skb, struct bpf_sock_tuple *tuple, u32 len,
+ 	struct sock *sk = bpf_skc_lookup(skb, tuple, len, proto, netns_id,
+ 					 flags);
+ 
+-	if (sk)
++	if (sk) {
+ 		sk = sk_to_full_sk(sk);
++		if (!sk_fullsock(sk)) {
++			if (!sock_flag(sk, SOCK_RCU_FREE))
++				sock_gen_put(sk);
++			return NULL;
++		}
++	}
+ 
+ 	return sk;
+ }
+-- 
+cgit 
+

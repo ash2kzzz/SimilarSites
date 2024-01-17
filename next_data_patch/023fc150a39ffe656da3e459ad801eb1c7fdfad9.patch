@@ -1,0 +1,49 @@
+From 023fc150a39ffe656da3e459ad801eb1c7fdfad9 Mon Sep 17 00:00:00 2001
+From: David Howells <dhowells@redhat.com>
+Date: Tue, 18 Apr 2023 23:49:12 +0100
+Subject: cifs: Reapply lost fix from commit 30b2b2196d6e
+
+Reapply the fix from:
+
+   30b2b2196d6e ("cifs: do not include page data when checking signature")
+
+that got lost in the iteratorisation of the cifs driver.
+
+Fixes: d08089f649a0 ("cifs: Change the I/O paths to use an iterator rather than a page list")
+Acked-by: Paulo Alcantara (SUSE) <pc@manguebit.com>
+Reported-by: Paulo Alcantara <pc@manguebit.com>
+Signed-off-by: David Howells <dhowells@redhat.com>
+cc: Paulo Alcantara <pc@cjr.nz>
+cc: Shyam Prasad N <nspmangalore@gmail.com>
+cc: Bharath S M <bharathsm@microsoft.com>
+cc: Enzo Matsumiya <ematsumiya@suse.de>
+cc: linux-cifs@vger.kernel.org
+Signed-off-by: Steve French <stfrench@microsoft.com>
+---
+ fs/cifs/smb2pdu.c | 10 ++++++----
+ 1 file changed, 6 insertions(+), 4 deletions(-)
+
+diff --git a/fs/cifs/smb2pdu.c b/fs/cifs/smb2pdu.c
+index 4245249dbba86..366f0c3b799b6 100644
+--- a/fs/cifs/smb2pdu.c
++++ b/fs/cifs/smb2pdu.c
+@@ -4180,10 +4180,12 @@ smb2_readv_callback(struct mid_q_entry *mid)
+ 	struct smb2_hdr *shdr =
+ 				(struct smb2_hdr *)rdata->iov[0].iov_base;
+ 	struct cifs_credits credits = { .value = 0, .instance = 0 };
+-	struct smb_rqst rqst = { .rq_iov = &rdata->iov[1],
+-				 .rq_nvec = 1,
+-				 .rq_iter = rdata->iter,
+-				 .rq_iter_size = iov_iter_count(&rdata->iter), };
++	struct smb_rqst rqst = { .rq_iov = &rdata->iov[1], .rq_nvec = 1 };
++
++	if (rdata->got_bytes) {
++		rqst.rq_iter	  = rdata->iter;
++		rqst.rq_iter_size = iov_iter_count(&rdata->iter);
++	};
+ 
+ 	WARN_ONCE(rdata->server != mid->server,
+ 		  "rdata server %p != mid server %p",
+-- 
+cgit 
+

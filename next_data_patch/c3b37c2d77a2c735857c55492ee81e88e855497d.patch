@@ -1,0 +1,41 @@
+From c3b37c2d77a2c735857c55492ee81e88e855497d Mon Sep 17 00:00:00 2001
+From: Catalin Marinas <catalin.marinas@arm.com>
+Date: Thu, 19 Jan 2023 17:09:02 +0000
+Subject: KVM: arm64: Pass the actual page address to mte_clear_page_tags()
+
+Commit d77e59a8fccd ("arm64: mte: Lock a page for MTE tag
+initialisation") added a call to mte_clear_page_tags() in case a
+prior mte_copy_tags_from_user() failed in order to avoid stale tags in
+the guest page (it should have really been a separate commit).
+Unfortunately, the argument passed to this function was the address of
+the struct page rather than the actual page address. Fix this function
+call.
+
+Fixes: d77e59a8fccd ("arm64: mte: Lock a page for MTE tag initialisation")
+Signed-off-by: Catalin Marinas <catalin.marinas@arm.com>
+Cc: Marc Zyngier <maz@kernel.org>
+Reviewed-by: Oliver Upton <oliver.upton@linux.dev>
+Reviewed-by: Anshuman Khandual <anshuman.khandual@arm.com>
+Reviewed-by: Cornelia Huck <cohuck@redhat.com>
+Signed-off-by: Marc Zyngier <maz@kernel.org>
+Link: https://lore.kernel.org/r/20230119170902.1574756-1-catalin.marinas@arm.com
+---
+ arch/arm64/kvm/guest.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/arch/arm64/kvm/guest.c b/arch/arm64/kvm/guest.c
+index 5626ddb540ce3..cf4c495a43213 100644
+--- a/arch/arm64/kvm/guest.c
++++ b/arch/arm64/kvm/guest.c
+@@ -1079,7 +1079,7 @@ long kvm_vm_ioctl_mte_copy_tags(struct kvm *kvm,
+ 
+ 			/* uaccess failed, don't leave stale tags */
+ 			if (num_tags != MTE_GRANULES_PER_PAGE)
+-				mte_clear_page_tags(page);
++				mte_clear_page_tags(maddr);
+ 			set_page_mte_tagged(page);
+ 
+ 			kvm_release_pfn_dirty(pfn);
+-- 
+cgit 
+

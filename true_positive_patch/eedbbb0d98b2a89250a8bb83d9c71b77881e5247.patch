@@ -1,0 +1,60 @@
+From eedbbb0d98b2a89250a8bb83d9c71b77881e5247 Mon Sep 17 00:00:00 2001
+From: Peter Oskolkov <posk@google.com>
+Date: Sun, 16 Dec 2018 15:42:48 -0800
+Subject: net: dccp: initialize (addr,port) listening hashtable
+
+Commit d9fbc7f6431f "net: tcp: prefer listeners bound to an address"
+removes port-only listener lookups. This caused segfaults in DCCP
+lookups because DCCP did not initialize the (addr,port) hashtable.
+
+This patch adds said initialization.
+
+The only non-trivial issue here is the size of the new hashtable.
+It seemed reasonable to make it match the size of the port-only
+hashtable (= INET_LHTABLE_SIZE) that was used previously. Other
+parameters to inet_hashinfo2_init() match those used in TCP.
+
+V2 changes: marked inet_hashinfo2_init as an exported symbol
+so that DCCP compiles when configured as a module.
+
+Tested: syzcaller issues fixed; the second patch in the patchset
+        tests that DCCP lookups work correctly.
+
+Fixes: d9fbc7f6431f "net: tcp: prefer listeners bound to an address"
+Reported-by: syzcaller <syzkaller@googlegroups.com>
+Signed-off-by: Peter Oskolkov <posk@google.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ net/dccp/proto.c           | 3 +++
+ net/ipv4/inet_hashtables.c | 1 +
+ 2 files changed, 4 insertions(+)
+
+diff --git a/net/dccp/proto.c b/net/dccp/proto.c
+index 658cd32bb7b37..be0b223aa8625 100644
+--- a/net/dccp/proto.c
++++ b/net/dccp/proto.c
+@@ -1141,6 +1141,9 @@ static int __init dccp_init(void)
+ 		goto out_fail;
+ 	rc = -ENOBUFS;
+ 	inet_hashinfo_init(&dccp_hashinfo);
++	inet_hashinfo2_init(&dccp_hashinfo, "dccp_listen_portaddr_hash",
++			    INET_LHTABLE_SIZE, 21,  /* one slot per 2 MB*/
++			    0, 64 * 1024);
+ 	dccp_hashinfo.bind_bucket_cachep =
+ 		kmem_cache_create("dccp_bind_bucket",
+ 				  sizeof(struct inet_bind_bucket), 0,
+diff --git a/net/ipv4/inet_hashtables.c b/net/ipv4/inet_hashtables.c
+index cd03ab42705b4..2445614de6a76 100644
+--- a/net/ipv4/inet_hashtables.c
++++ b/net/ipv4/inet_hashtables.c
+@@ -785,6 +785,7 @@ void __init inet_hashinfo2_init(struct inet_hashinfo *h, const char *name,
+ 		h->lhash2[i].count = 0;
+ 	}
+ }
++EXPORT_SYMBOL_GPL(inet_hashinfo2_init);
+ 
+ int inet_ehash_locks_alloc(struct inet_hashinfo *hashinfo)
+ {
+-- 
+cgit 
+

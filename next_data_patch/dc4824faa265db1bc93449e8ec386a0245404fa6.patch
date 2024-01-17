@@ -1,0 +1,136 @@
+From dc4824faa265db1bc93449e8ec386a0245404fa6 Mon Sep 17 00:00:00 2001
+From: Mark Rutland <mark.rutland@arm.com>
+Date: Fri, 27 Jan 2023 11:08:20 +0000
+Subject: arm64: avoid executing padding bytes during kexec / hibernation
+
+Currently we rely on the HIBERNATE_TEXT section starting with the entry
+point to swsusp_arch_suspend_exit, and the KEXEC_TEXT section starting
+with the entry point to arm64_relocate_new_kernel. In both cases we copy
+the entire section into a dynamically-allocated page, and then later
+branch to the start of this page.
+
+SYM_FUNC_START() will align the function entry points to
+CONFIG_FUNCTION_ALIGNMENT, and when the linker later processes the
+assembled code it will place padding bytes before the function entry
+point if the location counter was not already sufficiently aligned. The
+linker happens to use the value zero for these padding bytes.
+
+This padding may end up being applied whenever CONFIG_FUNCTION_ALIGNMENT
+is greater than 4, which can be the case with
+CONFIG_DEBUG_FORCE_FUNCTION_ALIGN_64B=y or
+CONFIG_DYNAMIC_FTRACE_WITH_CALL_OPS=y.
+
+When such padding is applied, attempting to kexec or resume from
+hibernate will result ina crash: the kernel will branch to the padding
+bytes as the start of the dynamically-allocated page, and as those bytes
+are zero they will decode as UDF #0, which reliably triggers an
+UNDEFINED exception. For example:
+
+| # ./kexec --reuse-cmdline -f Image
+| [   46.965800] kexec_core: Starting new kernel
+| [   47.143641] psci: CPU1 killed (polled 0 ms)
+| [   47.233653] psci: CPU2 killed (polled 0 ms)
+| [   47.323465] psci: CPU3 killed (polled 0 ms)
+| [   47.324776] Bye!
+| [   47.327072] Internal error: Oops - Undefined instruction: 0000000002000000 [#1] SMP
+| [   47.328510] Modules linked in:
+| [   47.329086] CPU: 0 PID: 259 Comm: kexec Not tainted 6.2.0-rc5+ #3
+| [   47.330223] Hardware name: QEMU KVM Virtual Machine, BIOS 0.0.0 02/06/2015
+| [   47.331497] pstate: 604003c5 (nZCv DAIF +PAN -UAO -TCO -DIT -SSBS BTYPE=--)
+| [   47.332782] pc : 0x43a95000
+| [   47.333338] lr : machine_kexec+0x190/0x1e0
+| [   47.334169] sp : ffff80000d293b70
+| [   47.334845] x29: ffff80000d293b70 x28: ffff000002cc0000 x27: 0000000000000000
+| [   47.336292] x26: 0000000000000000 x25: 0000000000000000 x24: 0000000000000000
+| [   47.337744] x23: ffff80000a837858 x22: 0000000048ec9000 x21: 0000000000000010
+| [   47.339192] x20: 00000000adc83000 x19: ffff000000827000 x18: 0000000000000006
+| [   47.340638] x17: ffff800075a61000 x16: ffff800008000000 x15: ffff80000d293658
+| [   47.342085] x14: 0000000000000000 x13: ffff80000d2937f7 x12: ffff80000a7ff6e0
+| [   47.343530] x11: 00000000ffffdfff x10: ffff80000a8ef8e0 x9 : ffff80000813ef00
+| [   47.344976] x8 : 000000000002ffe8 x7 : c0000000ffffdfff x6 : 00000000000affa8
+| [   47.346431] x5 : 0000000000001fff x4 : 0000000000000001 x3 : ffff80000a0a3008
+| [   47.347877] x2 : ffff80000a8220f8 x1 : 0000000043a95000 x0 : ffff000000827000
+| [   47.349334] Call trace:
+| [   47.349834]  0x43a95000
+| [   47.350338]  kernel_kexec+0x88/0x100
+| [   47.351070]  __do_sys_reboot+0x108/0x268
+| [   47.351873]  __arm64_sys_reboot+0x2c/0x40
+| [   47.352689]  invoke_syscall+0x78/0x108
+| [   47.353458]  el0_svc_common.constprop.0+0x4c/0x100
+| [   47.354426]  do_el0_svc+0x34/0x50
+| [   47.355102]  el0_svc+0x34/0x108
+| [   47.355747]  el0t_64_sync_handler+0xf4/0x120
+| [   47.356617]  el0t_64_sync+0x194/0x198
+| [   47.357374] Code: bad PC value
+| [   47.357999] ---[ end trace 0000000000000000 ]---
+| [   47.358937] Kernel panic - not syncing: Oops - Undefined instruction: Fatal exception
+| [   47.360515] Kernel Offset: disabled
+| [   47.361230] CPU features: 0x002000,00050108,c8004203
+| [   47.362232] Memory Limit: none
+
+Note: Unfortunately the code dump reports "bad PC value" as it attempts
+to dump some instructions prior to the UDF (i.e. before the start of the
+page), and terminates early upon a fault, obscuring the problem.
+
+This patch fixes this issue by aligning the section starter markes to
+CONFIG_FUNCTION_ALIGNMENT using the ALIGN_FUNCTION() helper, which
+ensures that the linker never needs to place padding bytes within the
+section. Assertions are added to verify each section begins with the
+function we expect, making our implicit requirement explicit.
+
+In future it might be nice to rework the kexec and hibernation code to
+decouple the section start from the entry point, but that involves much
+more significant changes that come with a higher risk of error, so I've
+tried to keep this fix as simple as possible for now.
+
+Fixes: 47a15aa54427 ("arm64: Extend support for CONFIG_FUNCTION_ALIGNMENT")
+Reported-by: CKI Project <cki-project@redhat.com>
+Link: https://lore.kernel.org/linux-arm-kernel/29992.123012504212600261@us-mta-139.us.mimecast.lan/
+Signed-off-by: Mark Rutland <mark.rutland@arm.com>
+Cc: James Morse <james.morse@arm.com>
+Cc: Will Deacon <will@kernel.org>
+Reviewed-by: Ard Biesheuvel <ardb@kernel.org>
+Signed-off-by: Catalin Marinas <catalin.marinas@arm.com>
+---
+ arch/arm64/kernel/vmlinux.lds.S | 6 ++++++
+ 1 file changed, 6 insertions(+)
+
+diff --git a/arch/arm64/kernel/vmlinux.lds.S b/arch/arm64/kernel/vmlinux.lds.S
+index 4c13dafc98b84..1f6d75f78fd58 100644
+--- a/arch/arm64/kernel/vmlinux.lds.S
++++ b/arch/arm64/kernel/vmlinux.lds.S
+@@ -93,6 +93,7 @@ jiffies = jiffies_64;
+ 
+ #ifdef CONFIG_HIBERNATION
+ #define HIBERNATE_TEXT					\
++	ALIGN_FUNCTION();				\
+ 	__hibernate_exit_text_start = .;		\
+ 	*(.hibernate_exit.text)				\
+ 	__hibernate_exit_text_end = .;
+@@ -102,6 +103,7 @@ jiffies = jiffies_64;
+ 
+ #ifdef CONFIG_KEXEC_CORE
+ #define KEXEC_TEXT					\
++	ALIGN_FUNCTION();				\
+ 	__relocate_new_kernel_start = .;		\
+ 	*(.kexec_relocate.text)				\
+ 	__relocate_new_kernel_end = .;
+@@ -355,6 +357,8 @@ ASSERT(__idmap_text_end - (__idmap_text_start & ~(SZ_4K - 1)) <= SZ_4K,
+ #ifdef CONFIG_HIBERNATION
+ ASSERT(__hibernate_exit_text_end - __hibernate_exit_text_start <= SZ_4K,
+        "Hibernate exit text is bigger than 4 KiB")
++ASSERT(__hibernate_exit_text_start == swsusp_arch_suspend_exit,
++       "Hibernate exit text does not start with swsusp_arch_suspend_exit")
+ #endif
+ #ifdef CONFIG_UNMAP_KERNEL_AT_EL0
+ ASSERT((__entry_tramp_text_end - __entry_tramp_text_start) <= 3*PAGE_SIZE,
+@@ -381,4 +385,6 @@ ASSERT(swapper_pg_dir - tramp_pg_dir == TRAMP_SWAPPER_OFFSET,
+ ASSERT(__relocate_new_kernel_end - __relocate_new_kernel_start <= SZ_4K,
+        "kexec relocation code is bigger than 4 KiB")
+ ASSERT(KEXEC_CONTROL_PAGE_SIZE >= SZ_4K, "KEXEC_CONTROL_PAGE_SIZE is broken")
++ASSERT(__relocate_new_kernel_start == arm64_relocate_new_kernel,
++       "kexec control page does not start with arm64_relocate_new_kernel")
+ #endif
+-- 
+cgit 
+

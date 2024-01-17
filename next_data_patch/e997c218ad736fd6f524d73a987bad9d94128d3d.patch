@@ -1,0 +1,85 @@
+From e997c218ad736fd6f524d73a987bad9d94128d3d Mon Sep 17 00:00:00 2001
+From: Jeffrey Hugo <quic_jhugo@quicinc.com>
+Date: Wed, 17 May 2023 13:35:40 -0600
+Subject: accel/qaic: Fix NNC message corruption
+
+If msg_xfer() is unable to queue part of a NNC message because the MHI ring
+is full, it will attempt to give the QSM some time to drain the queue.
+However, if QSM fails to make any room, msg_xfer() will fail and tell the
+caller to try again.  This is problematic because part of the message may
+have been committed to the ring and there is no mechanism to revoke that
+content.  This will cause QSM to receive a corrupt message.
+
+The better way to do this is to check if the ring has enough space for the
+entire message before committing any of the message.  Since msg_xfer() is
+under the cntl_mutex no one else can come in and consume the space.
+
+Fixes: 129776ac2e38 ("accel/qaic: Add control path")
+Signed-off-by: Jeffrey Hugo <quic_jhugo@quicinc.com>
+Reviewed-by: Pranjal Ramajor Asha Kanojiya <quic_pkanojiy@quicinc.com>
+Reviewed-by: Carl Vanderlip <quic_carlv@quicinc.com>
+Link: https://patchwork.freedesktop.org/patch/msgid/20230517193540.14323-6-quic_jhugo@quicinc.com
+---
+ drivers/accel/qaic/qaic_control.c | 29 +++++++++++++++++++++--------
+ 1 file changed, 21 insertions(+), 8 deletions(-)
+
+diff --git a/drivers/accel/qaic/qaic_control.c b/drivers/accel/qaic/qaic_control.c
+index 9e39b1a324f7e..5c57f7b4494e4 100644
+--- a/drivers/accel/qaic/qaic_control.c
++++ b/drivers/accel/qaic/qaic_control.c
+@@ -997,14 +997,34 @@ static void *msg_xfer(struct qaic_device *qdev, struct wrapper_list *wrappers, u
+ 	struct xfer_queue_elem elem;
+ 	struct wire_msg *out_buf;
+ 	struct wrapper_msg *w;
++	long ret = -EAGAIN;
++	int xfer_count = 0;
+ 	int retry_count;
+-	long ret;
+ 
+ 	if (qdev->in_reset) {
+ 		mutex_unlock(&qdev->cntl_mutex);
+ 		return ERR_PTR(-ENODEV);
+ 	}
+ 
++	/* Attempt to avoid a partial commit of a message */
++	list_for_each_entry(w, &wrappers->list, list)
++		xfer_count++;
++
++	for (retry_count = 0; retry_count < QAIC_MHI_RETRY_MAX; retry_count++) {
++		if (xfer_count <= mhi_get_free_desc_count(qdev->cntl_ch, DMA_TO_DEVICE)) {
++			ret = 0;
++			break;
++		}
++		msleep_interruptible(QAIC_MHI_RETRY_WAIT_MS);
++		if (signal_pending(current))
++			break;
++	}
++
++	if (ret) {
++		mutex_unlock(&qdev->cntl_mutex);
++		return ERR_PTR(ret);
++	}
++
+ 	elem.seq_num = seq_num;
+ 	elem.buf = NULL;
+ 	init_completion(&elem.xfer_done);
+@@ -1038,16 +1058,9 @@ static void *msg_xfer(struct qaic_device *qdev, struct wrapper_list *wrappers, u
+ 	list_for_each_entry(w, &wrappers->list, list) {
+ 		kref_get(&w->ref_count);
+ 		retry_count = 0;
+-retry:
+ 		ret = mhi_queue_buf(qdev->cntl_ch, DMA_TO_DEVICE, &w->msg, w->len,
+ 				    list_is_last(&w->list, &wrappers->list) ? MHI_EOT : MHI_CHAIN);
+ 		if (ret) {
+-			if (ret == -EAGAIN && retry_count++ < QAIC_MHI_RETRY_MAX) {
+-				msleep_interruptible(QAIC_MHI_RETRY_WAIT_MS);
+-				if (!signal_pending(current))
+-					goto retry;
+-			}
+-
+ 			qdev->cntl_lost_buf = true;
+ 			kref_put(&w->ref_count, free_wrapper);
+ 			mutex_unlock(&qdev->cntl_mutex);
+-- 
+cgit 
+

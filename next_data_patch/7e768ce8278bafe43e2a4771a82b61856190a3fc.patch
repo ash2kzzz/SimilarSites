@@ -1,0 +1,35 @@
+From 7e768ce8278bafe43e2a4771a82b61856190a3fc Mon Sep 17 00:00:00 2001
+From: Like Xu <likexu@tencent.com>
+Date: Tue, 4 Apr 2023 15:17:59 +0800
+Subject: KVM: x86/pmu: Zero out pmu->all_valid_pmc_idx each time it's
+ refreshed
+
+The kvm_pmu_refresh() may be called repeatedly (e.g. configure guest
+CPUID repeatedly or update MSR_IA32_PERF_CAPABILITIES) and each
+call will use the last pmu->all_valid_pmc_idx value, with the residual
+bits introducing additional overhead later in the vPMU emulation.
+
+Fixes: b35e5548b411 ("KVM: x86/vPMU: Add lazy mechanism to release perf_event per vPMC")
+Suggested-by: Sean Christopherson <seanjc@google.com>
+Signed-off-by: Like Xu <likexu@tencent.com>
+Link: https://lore.kernel.org/r/20230404071759.75376-1-likexu@tencent.com
+Signed-off-by: Sean Christopherson <seanjc@google.com>
+---
+ arch/x86/kvm/pmu.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/arch/x86/kvm/pmu.c b/arch/x86/kvm/pmu.c
+index 612e6c70ce2e7..29492c2a0c826 100644
+--- a/arch/x86/kvm/pmu.c
++++ b/arch/x86/kvm/pmu.c
+@@ -589,6 +589,7 @@ int kvm_pmu_set_msr(struct kvm_vcpu *vcpu, struct msr_data *msr_info)
+  */
+ void kvm_pmu_refresh(struct kvm_vcpu *vcpu)
+ {
++	bitmap_zero(vcpu_to_pmu(vcpu)->all_valid_pmc_idx, X86_PMC_IDX_MAX);
+ 	static_call(kvm_x86_pmu_refresh)(vcpu);
+ }
+ 
+-- 
+cgit 
+

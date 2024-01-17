@@ -1,0 +1,54 @@
+From b8a2e3f93d412114a1539ea97b59b3e6ed6e1f9a Mon Sep 17 00:00:00 2001
+From: Tejun Heo <tj@kernel.org>
+Date: Tue, 14 Mar 2023 11:59:49 -1000
+Subject: cgroup: Make current_cgns_cgroup_dfl() safe to call after
+ exit_task_namespace()
+
+The commit 332ea1f697be ("bpf: Add bpf_cgroup_from_id() kfunc") added
+bpf_cgroup_from_id() which calls current_cgns_cgroup_dfl() through
+cgroup_get_from_id(). However, BPF programs may be attached to a point where
+current->nsproxy has already been cleared to NULL by exit_task_namespace()
+and calling bpf_cgroup_from_id() would cause an oops.
+
+Just return the system-wide root if nsproxy has been cleared. This allows
+all cgroups to be looked up after the task passed through
+exit_task_namespace(), which semantically makes sense. Given that the only
+way to get this behavior is through BPF programs, it seems safe but let's
+see what others think.
+
+Fixes: 332ea1f697be ("bpf: Add bpf_cgroup_from_id() kfunc")
+Signed-off-by: Tejun Heo <tj@kernel.org>
+Link: https://lore.kernel.org/r/ZBDuVWiFj2jiz3i8@slm.duckdns.org
+Signed-off-by: Alexei Starovoitov <ast@kernel.org>
+---
+ kernel/cgroup/cgroup.c | 14 ++++++++++++--
+ 1 file changed, 12 insertions(+), 2 deletions(-)
+
+diff --git a/kernel/cgroup/cgroup.c b/kernel/cgroup/cgroup.c
+index 935e8121b21e6..8a5294f4ce720 100644
+--- a/kernel/cgroup/cgroup.c
++++ b/kernel/cgroup/cgroup.c
+@@ -1465,8 +1465,18 @@ static struct cgroup *current_cgns_cgroup_dfl(void)
+ {
+ 	struct css_set *cset;
+ 
+-	cset = current->nsproxy->cgroup_ns->root_cset;
+-	return __cset_cgroup_from_root(cset, &cgrp_dfl_root);
++	if (current->nsproxy) {
++		cset = current->nsproxy->cgroup_ns->root_cset;
++		return __cset_cgroup_from_root(cset, &cgrp_dfl_root);
++	} else {
++		/*
++		 * NOTE: This function may be called from bpf_cgroup_from_id()
++		 * on a task which has already passed exit_task_namespaces() and
++		 * nsproxy == NULL. Fall back to cgrp_dfl_root which will make all
++		 * cgroups visible for lookups.
++		 */
++		return &cgrp_dfl_root.cgrp;
++	}
+ }
+ 
+ /* look up cgroup associated with given css_set on the specified hierarchy */
+-- 
+cgit 
+

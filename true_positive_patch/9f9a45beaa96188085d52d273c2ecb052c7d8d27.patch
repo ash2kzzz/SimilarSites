@@ -1,0 +1,33 @@
+From 9f9a45beaa96188085d52d273c2ecb052c7d8d27 Mon Sep 17 00:00:00 2001
+From: Willem de Bruijn <willemb@google.com>
+Date: Thu, 7 Apr 2016 18:12:58 -0400
+Subject: udp: do not expect udp headers on ioctl SIOCINQ
+
+On udp sockets, ioctl SIOCINQ returns the payload size of the first
+packet. Since commit e6afc8ace6dd pulled the headers, the result is
+incorrect when subtracting header length. Remove that operation.
+
+Fixes: e6afc8ace6dd ("udp: remove headers from UDP packets before queueing")
+
+Signed-off-by: Willem de Bruijn <willemb@google.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ net/ipv4/udp.c | 2 --
+ 1 file changed, 2 deletions(-)
+
+diff --git a/net/ipv4/udp.c b/net/ipv4/udp.c
+index 3563788d064fb..d2d294b0a1f15 100644
+--- a/net/ipv4/udp.c
++++ b/net/ipv4/udp.c
+@@ -1282,8 +1282,6 @@ int udp_ioctl(struct sock *sk, int cmd, unsigned long arg)
+ 			 * of this packet since that is all
+ 			 * that will be read.
+ 			 */
+-			amount -= sizeof(struct udphdr);
+-
+ 		return put_user(amount, (int __user *)arg);
+ 	}
+ 
+-- 
+cgit 
+

@@ -1,0 +1,90 @@
+From b953eaaeb58efc944f51cffd3f6838657958f0f8 Mon Sep 17 00:00:00 2001
+From: Takeshi Kihara <takeshi.kihara.df@renesas.com>
+Date: Mon, 25 Feb 2019 11:48:38 +0900
+Subject: clk: renesas: rcar-gen3: Fix cpg_sd_clock_round_rate() return value
+
+cpg_sd_clock_round_rate() may return an unsupported clock rate for the
+requested clock rate. Therefore, when cpg_sd_clock_set_rate() sets the
+clock rate acquired by cpg_sd_clock_round_rate(), an error may occur.
+
+This is not conform the clk API design.
+
+This patch fixes that by making sure cpg_sd_clock_calc_div() considers
+only the division values defined in cpg_sd_div_table[].
+With this fix, the cpg_sd_clock_round_rate() always return a support
+clock rate.
+
+Signed-off-by: Takeshi Kihara <takeshi.kihara.df@renesas.com>
+Fixes: 90c073e53909da85 ("clk: shmobile: r8a7795: Add SD divider support")
+Signed-off-by: Geert Uytterhoeven <geert+renesas@glider.be>
+Reviewed-by: Simon Horman <horms+renesas@verge.net.au>
+---
+ drivers/clk/renesas/rcar-gen3-cpg.c | 30 ++++++++++++++----------------
+ 1 file changed, 14 insertions(+), 16 deletions(-)
+
+diff --git a/drivers/clk/renesas/rcar-gen3-cpg.c b/drivers/clk/renesas/rcar-gen3-cpg.c
+index d5fb768b089ff..dc62ed0dadc2b 100644
+--- a/drivers/clk/renesas/rcar-gen3-cpg.c
++++ b/drivers/clk/renesas/rcar-gen3-cpg.c
+@@ -3,6 +3,7 @@
+  * R-Car Gen3 Clock Pulse Generator
+  *
+  * Copyright (C) 2015-2018 Glider bvba
++ * Copyright (C) 2019 Renesas Electronics Corp.
+  *
+  * Based on clk-rcar-gen3.c
+  *
+@@ -236,8 +237,6 @@ struct sd_clock {
+ 	const struct sd_div_table *div_table;
+ 	struct cpg_simple_notifier csn;
+ 	unsigned int div_num;
+-	unsigned int div_min;
+-	unsigned int div_max;
+ 	unsigned int cur_div_idx;
+ };
+ 
+@@ -314,14 +313,20 @@ static unsigned int cpg_sd_clock_calc_div(struct sd_clock *clock,
+ 					  unsigned long rate,
+ 					  unsigned long parent_rate)
+ {
+-	unsigned int div;
+-
+-	if (!rate)
+-		rate = 1;
+-
+-	div = DIV_ROUND_CLOSEST(parent_rate, rate);
++	unsigned long calc_rate, diff, diff_min = ULONG_MAX;
++	unsigned int i, best_div = 0;
++
++	for (i = 0; i < clock->div_num; i++) {
++		calc_rate = DIV_ROUND_CLOSEST(parent_rate,
++					      clock->div_table[i].div);
++		diff = calc_rate > rate ? calc_rate - rate : rate - calc_rate;
++		if (diff < diff_min) {
++			best_div = clock->div_table[i].div;
++			diff_min = diff;
++		}
++	}
+ 
+-	return clamp_t(unsigned int, div, clock->div_min, clock->div_max);
++	return best_div;
+ }
+ 
+ static long cpg_sd_clock_round_rate(struct clk_hw *hw, unsigned long rate,
+@@ -405,13 +410,6 @@ static struct clk * __init cpg_sd_clk_register(const char *name,
+ 	val |= CPG_SD_STP_MASK | (clock->div_table[0].val & CPG_SD_FC_MASK);
+ 	writel(val, clock->csn.reg);
+ 
+-	clock->div_max = clock->div_table[0].div;
+-	clock->div_min = clock->div_max;
+-	for (i = 1; i < clock->div_num; i++) {
+-		clock->div_max = max(clock->div_max, clock->div_table[i].div);
+-		clock->div_min = min(clock->div_min, clock->div_table[i].div);
+-	}
+-
+ 	clk = clk_register(NULL, &clock->hw);
+ 	if (IS_ERR(clk))
+ 		goto free_clock;
+-- 
+cgit 
+

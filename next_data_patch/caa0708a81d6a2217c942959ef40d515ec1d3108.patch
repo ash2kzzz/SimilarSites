@@ -1,0 +1,64 @@
+From caa0708a81d6a2217c942959ef40d515ec1d3108 Mon Sep 17 00:00:00 2001
+From: "Masami Hiramatsu (Google)" <mhiramat@kernel.org>
+Date: Tue, 28 Feb 2023 10:01:42 +0900
+Subject: bootconfig: Change message if no bootconfig with
+ CONFIG_BOOT_CONFIG_FORCE=y
+
+Change no bootconfig data error message if user do not specify 'bootconfig'
+option but CONFIG_BOOT_CONFIG_FORCE=y.
+With CONFIG_BOOT_CONFIG_FORCE=y, the kernel proceeds bootconfig check even
+if user does not specify 'bootconfig' option. So the current error message
+is confusing. Let's show just an information message to notice skipping
+the bootconfig in that case.
+
+Link: https://lore.kernel.org/all/167754610254.318944.16848412476667893329.stgit@devnote2/
+
+Fixes: b743852ccc1d ("Allow forcing unconditional bootconfig processing")
+Reported-by: Geert Uytterhoeven <geert@linux-m68k.org>
+Link: https://lore.kernel.org/all/CAMuHMdV9jJvE2y8gY5V_CxidUikCf5515QMZHzTA3rRGEOj6=w@mail.gmail.com/
+Suggested-by: Paul E. McKenney <paulmck@kernel.org>
+Signed-off-by: Masami Hiramatsu (Google) <mhiramat@kernel.org>
+Tested-by: Paul E. McKenney <paulmck@kernel.org>
+Acked-by: Mukesh Ojha <quic_mojha@quicinc.com>
+---
+ init/main.c | 10 +++++++---
+ 1 file changed, 7 insertions(+), 3 deletions(-)
+
+diff --git a/init/main.c b/init/main.c
+index 4425d1783d5c2..bb87b789c5439 100644
+--- a/init/main.c
++++ b/init/main.c
+@@ -156,7 +156,7 @@ static char *extra_init_args;
+ 
+ #ifdef CONFIG_BOOT_CONFIG
+ /* Is bootconfig on command line? */
+-static bool bootconfig_found = IS_ENABLED(CONFIG_BOOT_CONFIG_FORCE);
++static bool bootconfig_found;
+ static size_t initargs_offs;
+ #else
+ # define bootconfig_found false
+@@ -429,7 +429,7 @@ static void __init setup_boot_config(void)
+ 	err = parse_args("bootconfig", tmp_cmdline, NULL, 0, 0, 0, NULL,
+ 			 bootconfig_params);
+ 
+-	if (IS_ERR(err) || !bootconfig_found)
++	if (IS_ERR(err) || !(bootconfig_found || IS_ENABLED(CONFIG_BOOT_CONFIG_FORCE)))
+ 		return;
+ 
+ 	/* parse_args() stops at the next param of '--' and returns an address */
+@@ -437,7 +437,11 @@ static void __init setup_boot_config(void)
+ 		initargs_offs = err - tmp_cmdline;
+ 
+ 	if (!data) {
+-		pr_err("'bootconfig' found on command line, but no bootconfig found\n");
++		/* If user intended to use bootconfig, show an error level message */
++		if (bootconfig_found)
++			pr_err("'bootconfig' found on command line, but no bootconfig found\n");
++		else
++			pr_info("No bootconfig data provided, so skipping bootconfig");
+ 		return;
+ 	}
+ 
+-- 
+cgit 
+

@@ -1,0 +1,36 @@
+From cc5be0e5477f53f2d4b3c9211206f34505ec17ba Mon Sep 17 00:00:00 2001
+From: Krzysztof Kozlowski <krzysztof.kozlowski@linaro.org>
+Date: Fri, 20 Jan 2023 16:30:19 +0100
+Subject: ASoC: dt-bindings: samsung,odroid: correct codec DAI phandles
+
+The order of codec DAI phandles is reversed - first comes HDMI (always
+present) and then codec (physically not present on Odroid XU4).
+
+Fixes: 97709d365bbd ("ASoC: dt-bindings: Centralize the 'sound-dai' definition")
+Signed-off-by: Krzysztof Kozlowski <krzysztof.kozlowski@linaro.org>
+Acked-by: Rob Herring <robh@kernel.org>
+Link: https://lore.kernel.org/r/20230120153020.320270-1-krzysztof.kozlowski@linaro.org
+Signed-off-by: Mark Brown <broonie@kernel.org>
+---
+ Documentation/devicetree/bindings/sound/samsung,odroid.yaml | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/Documentation/devicetree/bindings/sound/samsung,odroid.yaml b/Documentation/devicetree/bindings/sound/samsung,odroid.yaml
+index 7b4e08ddef6ae..7774543b88197 100644
+--- a/Documentation/devicetree/bindings/sound/samsung,odroid.yaml
++++ b/Documentation/devicetree/bindings/sound/samsung,odroid.yaml
+@@ -43,9 +43,10 @@ properties:
+     type: object
+     properties:
+       sound-dai:
++        minItems: 1
+         items:
+-          - description: phandle of the MAX98090 CODEC
+           - description: phandle of the HDMI IP block node
++          - description: phandle of the MAX98090 CODEC
+ 
+   samsung,audio-routing:
+     $ref: /schemas/types.yaml#/definitions/non-unique-string-array
+-- 
+cgit 
+

@@ -1,0 +1,70 @@
+From e75a698859a3f62825af06987da6b3e6466e6e56 Mon Sep 17 00:00:00 2001
+From: Arnd Bergmann <arnd@arndb.de>
+Date: Wed, 15 Feb 2023 14:00:57 +0100
+Subject: kmsan: disable ftrace in kmsan core code
+
+objtool warns about some suspicous code inside of kmsan:
+
+vmlinux.o: warning: objtool: __msan_metadata_ptr_for_load_n+0x4: call to __fentry__() with UACCESS enabled
+vmlinux.o: warning: objtool: __msan_metadata_ptr_for_store_n+0x4: call to __fentry__() with UACCESS enabled
+vmlinux.o: warning: objtool: __msan_metadata_ptr_for_load_1+0x4: call to __fentry__() with UACCESS enabled
+vmlinux.o: warning: objtool: __msan_metadata_ptr_for_store_1+0x4: call to __fentry__() with UACCESS enabled
+vmlinux.o: warning: objtool: __msan_metadata_ptr_for_load_2+0x4: call to __fentry__() with UACCESS enabled
+vmlinux.o: warning: objtool: __msan_metadata_ptr_for_store_2+0x4: call to __fentry__() with UACCESS enabled
+vmlinux.o: warning: objtool: __msan_metadata_ptr_for_load_4+0x4: call to __fentry__() with UACCESS enabled
+vmlinux.o: warning: objtool: __msan_metadata_ptr_for_store_4+0x4: call to __fentry__() with UACCESS enabled
+vmlinux.o: warning: objtool: __msan_metadata_ptr_for_load_8+0x4: call to __fentry__() with UACCESS enabled
+vmlinux.o: warning: objtool: __msan_metadata_ptr_for_store_8+0x4: call to __fentry__() with UACCESS enabled
+vmlinux.o: warning: objtool: __msan_instrument_asm_store+0x4: call to __fentry__() with UACCESS enabled
+vmlinux.o: warning: objtool: __msan_chain_origin+0x4: call to __fentry__() with UACCESS enabled
+vmlinux.o: warning: objtool: __msan_poison_alloca+0x4: call to __fentry__() with UACCESS enabled
+vmlinux.o: warning: objtool: __msan_warning+0x4: call to __fentry__() with UACCESS enabled
+vmlinux.o: warning: objtool: __msan_get_context_state+0x4: call to __fentry__() with UACCESS enabled
+vmlinux.o: warning: objtool: kmsan_copy_to_user+0x4: call to __fentry__() with UACCESS enabled
+vmlinux.o: warning: objtool: kmsan_unpoison_memory+0x4: call to __fentry__() with UACCESS enabled
+vmlinux.o: warning: objtool: kmsan_unpoison_entry_regs+0x4: call to __fentry__() with UACCESS enabled
+vmlinux.o: warning: objtool: kmsan_report+0x4: call to __fentry__() with UACCESS enabled
+
+The Makefile contained a line to turn off ftrace for the entire directory,
+but this does not work. Replace it with individual lines, matching the
+approach in kasan.
+
+Link: https://lkml.kernel.org/r/20230215130058.3836177-3-arnd@kernel.org
+Signed-off-by: Arnd Bergmann <arnd@arndb.de>
+Fixes: f80be4571b19 ("kmsan: add KMSAN runtime core")
+Acked-by: Alexander Potapenko <glider@google.com>
+Cc: Andrey Konovalov <andreyknvl@gmail.com>
+Cc: Andrey Ryabinin <ryabinin.a.a@gmail.com>
+Cc: Dmitry Vyukov <dvyukov@google.com>
+Cc: Josh Poimboeuf <jpoimboe@kernel.org>
+Cc: Kuan-Ying Lee <Kuan-Ying.Lee@mediatek.com>
+Cc: Marco Elver <elver@google.com>
+Cc: Peter Zijlstra (Intel) <peterz@infradead.org>
+Cc: Vincenzo Frascino <vincenzo.frascino@arm.com>
+Signed-off-by: Andrew Morton <akpm@linux-foundation.org>
+---
+ mm/kmsan/Makefile | 8 +++++++-
+ 1 file changed, 7 insertions(+), 1 deletion(-)
+
+diff --git a/mm/kmsan/Makefile b/mm/kmsan/Makefile
+index 98eab2856626f..91cfdde642d16 100644
+--- a/mm/kmsan/Makefile
++++ b/mm/kmsan/Makefile
+@@ -14,7 +14,13 @@ CC_FLAGS_KMSAN_RUNTIME := -fno-stack-protector
+ CC_FLAGS_KMSAN_RUNTIME += $(call cc-option,-fno-conserve-stack)
+ CC_FLAGS_KMSAN_RUNTIME += -DDISABLE_BRANCH_PROFILING
+ 
+-CFLAGS_REMOVE.o = $(CC_FLAGS_FTRACE)
++# Disable ftrace to avoid recursion.
++CFLAGS_REMOVE_core.o = $(CC_FLAGS_FTRACE)
++CFLAGS_REMOVE_hooks.o = $(CC_FLAGS_FTRACE)
++CFLAGS_REMOVE_init.o = $(CC_FLAGS_FTRACE)
++CFLAGS_REMOVE_instrumentation.o = $(CC_FLAGS_FTRACE)
++CFLAGS_REMOVE_report.o = $(CC_FLAGS_FTRACE)
++CFLAGS_REMOVE_shadow.o = $(CC_FLAGS_FTRACE)
+ 
+ CFLAGS_core.o := $(CC_FLAGS_KMSAN_RUNTIME)
+ CFLAGS_hooks.o := $(CC_FLAGS_KMSAN_RUNTIME)
+-- 
+cgit 
+

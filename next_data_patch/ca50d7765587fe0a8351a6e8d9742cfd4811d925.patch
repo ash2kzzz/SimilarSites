@@ -1,0 +1,60 @@
+From ca50d7765587fe0a8351a6e8d9742cfd4811d925 Mon Sep 17 00:00:00 2001
+From: Shenwei Wang <shenwei.wang@nxp.com>
+Date: Fri, 26 May 2023 10:38:54 -0500
+Subject: arm64: dts: imx8-ss-dma: assign default clock rate for lpuarts
+
+Add the assigned-clocks and assigned-clock-rates properties for the
+LPUARTx nodes. Without these properties, the default clock rate
+used would be 0, which can cause the UART ports to fail when open.
+
+Fixes: 35f4e9d7530f ("arm64: dts: imx8: split adma ss into dma and audio ss")
+Signed-off-by: Shenwei Wang <shenwei.wang@nxp.com>
+Reviewed-by: Fabio Estevam <festevam@gmail.com>
+Signed-off-by: Shawn Guo <shawnguo@kernel.org>
+---
+ arch/arm64/boot/dts/freescale/imx8-ss-dma.dtsi | 8 ++++++++
+ 1 file changed, 8 insertions(+)
+
+diff --git a/arch/arm64/boot/dts/freescale/imx8-ss-dma.dtsi b/arch/arm64/boot/dts/freescale/imx8-ss-dma.dtsi
+index 2dce8f2ee3ea1..adb98a72bdfd9 100644
+--- a/arch/arm64/boot/dts/freescale/imx8-ss-dma.dtsi
++++ b/arch/arm64/boot/dts/freescale/imx8-ss-dma.dtsi
+@@ -90,6 +90,8 @@ dma_subsys: bus@5a000000 {
+ 		clocks = <&uart0_lpcg IMX_LPCG_CLK_4>,
+ 			 <&uart0_lpcg IMX_LPCG_CLK_0>;
+ 		clock-names = "ipg", "baud";
++		assigned-clocks = <&clk IMX_SC_R_UART_0 IMX_SC_PM_CLK_PER>;
++		assigned-clock-rates = <80000000>;
+ 		power-domains = <&pd IMX_SC_R_UART_0>;
+ 		status = "disabled";
+ 	};
+@@ -100,6 +102,8 @@ dma_subsys: bus@5a000000 {
+ 		clocks = <&uart1_lpcg IMX_LPCG_CLK_4>,
+ 			 <&uart1_lpcg IMX_LPCG_CLK_0>;
+ 		clock-names = "ipg", "baud";
++		assigned-clocks = <&clk IMX_SC_R_UART_1 IMX_SC_PM_CLK_PER>;
++		assigned-clock-rates = <80000000>;
+ 		power-domains = <&pd IMX_SC_R_UART_1>;
+ 		status = "disabled";
+ 	};
+@@ -110,6 +114,8 @@ dma_subsys: bus@5a000000 {
+ 		clocks = <&uart2_lpcg IMX_LPCG_CLK_4>,
+ 			 <&uart2_lpcg IMX_LPCG_CLK_0>;
+ 		clock-names = "ipg", "baud";
++		assigned-clocks = <&clk IMX_SC_R_UART_2 IMX_SC_PM_CLK_PER>;
++		assigned-clock-rates = <80000000>;
+ 		power-domains = <&pd IMX_SC_R_UART_2>;
+ 		status = "disabled";
+ 	};
+@@ -120,6 +126,8 @@ dma_subsys: bus@5a000000 {
+ 		clocks = <&uart3_lpcg IMX_LPCG_CLK_4>,
+ 			 <&uart3_lpcg IMX_LPCG_CLK_0>;
+ 		clock-names = "ipg", "baud";
++		assigned-clocks = <&clk IMX_SC_R_UART_3 IMX_SC_PM_CLK_PER>;
++		assigned-clock-rates = <80000000>;
+ 		power-domains = <&pd IMX_SC_R_UART_3>;
+ 		status = "disabled";
+ 	};
+-- 
+cgit 
+

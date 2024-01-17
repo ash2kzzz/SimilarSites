@@ -1,0 +1,30 @@
+From 71937240a472ee551ac8de0e7429b9d49884a388 Mon Sep 17 00:00:00 2001
+From: Sakari Ailus <sakari.ailus@linux.intel.com>
+Date: Thu, 16 Mar 2023 11:21:49 +0100
+Subject: media: ov2685: Select VIDEO_V4L2_SUBDEV_API
+
+VIDEO_V4L2_SUBDEV_API is required for v4l2_subdev_get_pad_*() functions.
+Select it.
+
+Fixes: ("media: i2c: ov2685: Add .get_selection() support")
+Signed-off-by: Sakari Ailus <sakari.ailus@linux.intel.com>
+Signed-off-by: Mauro Carvalho Chehab <mchehab@kernel.org>
+---
+ drivers/media/i2c/Kconfig | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/drivers/media/i2c/Kconfig b/drivers/media/i2c/Kconfig
+index c3d5952ca27e6..f07fc7ea84f1a 100644
+--- a/drivers/media/i2c/Kconfig
++++ b/drivers/media/i2c/Kconfig
+@@ -462,6 +462,7 @@ config VIDEO_OV2685
+ 	tristate "OmniVision OV2685 sensor support"
+ 	depends on VIDEO_DEV && I2C
+ 	select MEDIA_CONTROLLER
++	select VIDEO_V4L2_SUBDEV_API
+ 	select V4L2_FWNODE
+ 	help
+ 	  This is a Video4Linux2 sensor driver for the OmniVision
+-- 
+cgit 
+

@@ -1,0 +1,54 @@
+From e7304080e0e50d979ce9eaf694ad8283e2e539ea Mon Sep 17 00:00:00 2001
+From: Linus Torvalds <torvalds@linux-foundation.org>
+Date: Sun, 12 Mar 2023 08:52:03 -0700
+Subject: cpumask: relax sanity checking constraints
+
+The cpumask_check() was unnecessarily tight, and causes problems for the
+users of cpumask_next().
+
+We have a number of users that take the previous return value of one of
+the bit scanning functions and subtract one to keep it in "range".  But
+since the scanning functions end up returning up to 'small_cpumask_bits'
+instead of the tighter 'nr_cpumask_bits', the range really needs to be
+using that widened form.
+
+[ This "previous-1" behavior is also the reason we have all those
+  comments about /* -1 is a legal arg here. */ and separate checks for
+  that being ok.  So we could have just made "small_cpumask_bits-1"
+  be a similar special "don't check this" value.
+
+  Tetsuo Handa even suggested a patch that only does that for
+  cpumask_next(), since that seems to be the only actual case that
+  triggers, but that all makes it even _more_ magical and special. So
+  just relax the check ]
+
+One example of this kind of pattern being the 'c_start()' function in
+arch/x86/kernel/cpu/proc.c, but also duplicated in various forms on
+other architectures.
+
+Reported-by: syzbot+96cae094d90877641f32@syzkaller.appspotmail.com
+Link: https://syzkaller.appspot.com/bug?extid=96cae094d90877641f32
+Reported-by: Tetsuo Handa <penguin-kernel@i-love.sakura.ne.jp>
+Link: https://lore.kernel.org/lkml/c1f4cc16-feea-b83c-82cf-1a1f007b7eb9@I-love.SAKURA.ne.jp/
+Fixes: 596ff4a09b89 ("cpumask: re-introduce constant-sized cpumask optimizations")
+Signed-off-by: Linus Torvalds <torvalds@linux-foundation.org>
+---
+ include/linux/cpumask.h | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/include/linux/cpumask.h b/include/linux/cpumask.h
+index 63d637d18e799..d4901ca8883c3 100644
+--- a/include/linux/cpumask.h
++++ b/include/linux/cpumask.h
+@@ -147,7 +147,7 @@ static __always_inline void cpu_max_bits_warn(unsigned int cpu, unsigned int bit
+ /* verify cpu argument to cpumask_* operators */
+ static __always_inline unsigned int cpumask_check(unsigned int cpu)
+ {
+-	cpu_max_bits_warn(cpu, nr_cpumask_bits);
++	cpu_max_bits_warn(cpu, small_cpumask_bits);
+ 	return cpu;
+ }
+ 
+-- 
+cgit 
+

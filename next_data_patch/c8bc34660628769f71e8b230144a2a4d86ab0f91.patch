@@ -1,0 +1,36 @@
+From c8bc34660628769f71e8b230144a2a4d86ab0f91 Mon Sep 17 00:00:00 2001
+From: David Howells <dhowells@redhat.com>
+Date: Thu, 13 Apr 2023 14:51:56 +0100
+Subject: sunrpc: Fix RFC6803 encryption test
+
+The usage_data[] array in rfc6803_encrypt_case() is uninitialised, so clear
+it as it may cause the tests to fail otherwise.
+
+Fixes: b958cff6b27b ("SUNRPC: Add encryption KUnit tests for the RFC 6803 encryption types")
+Link: https://lore.kernel.org/r/380323.1681314997@warthog.procyon.org.uk/
+Signed-off-by: David Howells <dhowells@redhat.com>
+cc: Chuck Lever <chuck.lever@oracle.com>
+cc: Scott Mayhew <smayhew@redhat.com>
+cc: Herbert Xu <herbert@gondor.apana.org.au>
+cc: linux-nfs@vger.kernel.org
+cc: linux-crypto@vger.kernel.org
+Signed-off-by: Chuck Lever <chuck.lever@oracle.com>
+---
+ net/sunrpc/auth_gss/gss_krb5_test.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/net/sunrpc/auth_gss/gss_krb5_test.c b/net/sunrpc/auth_gss/gss_krb5_test.c
+index ce0541e32fc98..aa6ec4e858aa8 100644
+--- a/net/sunrpc/auth_gss/gss_krb5_test.c
++++ b/net/sunrpc/auth_gss/gss_krb5_test.c
+@@ -1327,6 +1327,7 @@ static void rfc6803_encrypt_case(struct kunit *test)
+ 	if (!gk5e)
+ 		kunit_skip(test, "Encryption type is not available");
+ 
++	memset(usage_data, 0, sizeof(usage_data));
+ 	usage.data[3] = param->constant;
+ 
+ 	Ke.len = gk5e->Ke_length;
+-- 
+cgit 
+

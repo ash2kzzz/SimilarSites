@@ -1,0 +1,44 @@
+From d9a94480f978d5fbf1235a12a476f9f39a029ea5 Mon Sep 17 00:00:00 2001
+From: "Darrick J. Wong" <djwong@kernel.org>
+Date: Tue, 11 Apr 2023 19:00:17 -0700
+Subject: xfs: xfs_iget in the directory scrubber needs to use UNTRUSTED
+
+In commit 4b80ac64450f, we tried to strengthen the directory scrubber by
+using the iget call to detect directory entries that point to
+unallocated inodes.  Unfortunately, that commit neglected to pass
+XFS_IGET_UNTRUSTED to xfs_iget, so we don't check the inode btree first.
+If the inode number points to something that isn't even an inode
+cluster, iget will throw corruption errors and return -EFSCORRUPTED,
+which means that we fail to mark the directory corrupt.
+
+Fixes: 4b80ac64450f ("xfs: scrub should mark a directory corrupt if any entries cannot be iget'd")
+Signed-off-by: Darrick J. Wong <djwong@kernel.org>
+Reviewed-by: Dave Chinner <dchinner@redhat.com>
+---
+ fs/xfs/scrub/dir.c | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/fs/xfs/scrub/dir.c b/fs/xfs/scrub/dir.c
+index f1cbe7b22688a..41f10e1c580c2 100644
+--- a/fs/xfs/scrub/dir.c
++++ b/fs/xfs/scrub/dir.c
+@@ -57,13 +57,15 @@ xchk_dir_check_ftype(
+ 	 * eofblocks cleanup (which allocates what would be a nested
+ 	 * transaction), we can't use DONTCACHE here because DONTCACHE
+ 	 * inodes can trigger immediate inactive cleanup of the inode.
++	 * Use UNTRUSTED here to check the allocation status of the inode in
++	 * the inode btrees.
+ 	 *
+ 	 * If _iget returns -EINVAL or -ENOENT then the child inode number is
+ 	 * garbage and the directory is corrupt.  If the _iget returns
+ 	 * -EFSCORRUPTED or -EFSBADCRC then the child is corrupt which is a
+ 	 *  cross referencing error.  Any other error is an operational error.
+ 	 */
+-	error = xfs_iget(mp, sc->tp, inum, 0, 0, &ip);
++	error = xfs_iget(mp, sc->tp, inum, XFS_IGET_UNTRUSTED, 0, &ip);
+ 	if (error == -EINVAL || error == -ENOENT) {
+ 		error = -EFSCORRUPTED;
+ 		xchk_fblock_process_error(sc, XFS_DATA_FORK, 0, &error);
+-- 
+cgit 
+

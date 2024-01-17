@@ -1,0 +1,41 @@
+From e5bce3c15ad20d7dd4f8393513b1c41373d2dc37 Mon Sep 17 00:00:00 2001
+From: Christophe JAILLET <christophe.jaillet@wanadoo.fr>
+Date: Tue, 25 Apr 2023 15:41:26 +0200
+Subject: mmc: sdhci-cadence: Fix an error handling path in sdhci_cdns_probe()
+
+If devm_reset_control_get_optional_exclusive() fails, some resources still
+need to be released. So branch to the error handling path instead of
+returning directly.
+
+Fixes: aad53d4ee756 ("mmc: sdhci-cadence: Support mmc hardware reset")
+Signed-off-by: Christophe JAILLET <christophe.jaillet@wanadoo.fr>
+Acked-by: Adrian Hunter <adrian.hunter@intel.com>
+Acked-by: Brad Larson <blarson@amd.com>
+Link: https://lore.kernel.org/r/f61599a9ef23767c2d66e5af9c975f05ef1cec6b.1682430069.git.christophe.jaillet@wanadoo.fr
+Signed-off-by: Ulf Hansson <ulf.hansson@linaro.org>
+---
+ drivers/mmc/host/sdhci-cadence.c | 8 +++++---
+ 1 file changed, 5 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/mmc/host/sdhci-cadence.c b/drivers/mmc/host/sdhci-cadence.c
+index b24aa27da50c4..d2f6250546893 100644
+--- a/drivers/mmc/host/sdhci-cadence.c
++++ b/drivers/mmc/host/sdhci-cadence.c
+@@ -540,9 +540,11 @@ static int sdhci_cdns_probe(struct platform_device *pdev)
+ 
+ 	if (host->mmc->caps & MMC_CAP_HW_RESET) {
+ 		priv->rst_hw = devm_reset_control_get_optional_exclusive(dev, NULL);
+-		if (IS_ERR(priv->rst_hw))
+-			return dev_err_probe(mmc_dev(host->mmc), PTR_ERR(priv->rst_hw),
+-					     "reset controller error\n");
++		if (IS_ERR(priv->rst_hw)) {
++			ret = dev_err_probe(mmc_dev(host->mmc), PTR_ERR(priv->rst_hw),
++					    "reset controller error\n");
++			goto free;
++		}
+ 		if (priv->rst_hw)
+ 			host->mmc_host_ops.card_hw_reset = sdhci_cdns_mmc_hw_reset;
+ 	}
+-- 
+cgit 
+

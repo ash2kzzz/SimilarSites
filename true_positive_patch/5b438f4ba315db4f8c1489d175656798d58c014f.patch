@@ -1,0 +1,191 @@
+From 5b438f4ba315db4f8c1489d175656798d58c014f Mon Sep 17 00:00:00 2001
+From: Jacob Pan <jacob.jun.pan@linux.intel.com>
+Date: Fri, 11 Jan 2019 13:04:57 +0800
+Subject: iommu/vt-d: Support page request in scalable mode
+
+VT-d Rev3.0 has made a few changes to the page request interface,
+
+1. widened PRQ descriptor from 128 bits to 256 bits;
+2. removed streaming response type;
+3. introduced private data that requires page response even the
+   request is not last request in group (LPIG).
+
+This is a supplement to commit 1c4f88b7f1f92 ("iommu/vt-d: Shared
+virtual address in scalable mode") and makes the svm code compliant
+with VT-d Rev3.0.
+
+Cc: Ashok Raj <ashok.raj@intel.com>
+Cc: Liu Yi L <yi.l.liu@intel.com>
+Cc: Kevin Tian <kevin.tian@intel.com>
+Signed-off-by: Jacob Pan <jacob.jun.pan@linux.intel.com>
+Fixes: 1c4f88b7f1f92 ("iommu/vt-d: Shared virtual address in scalable mode")
+Signed-off-by: Lu Baolu <baolu.lu@linux.intel.com>
+Signed-off-by: Joerg Roedel <jroedel@suse.de>
+---
+ drivers/iommu/intel-svm.c   | 77 ++++++++++++++++++++++++++-------------------
+ include/linux/intel-iommu.h | 21 ++++++-------
+ include/linux/intel-svm.h   |  2 +-
+ 3 files changed, 55 insertions(+), 45 deletions(-)
+
+diff --git a/drivers/iommu/intel-svm.c b/drivers/iommu/intel-svm.c
+index a2a2aa4439aaf..79add57165520 100644
+--- a/drivers/iommu/intel-svm.c
++++ b/drivers/iommu/intel-svm.c
+@@ -470,20 +470,31 @@ EXPORT_SYMBOL_GPL(intel_svm_is_pasid_valid);
+ 
+ /* Page request queue descriptor */
+ struct page_req_dsc {
+-	u64 srr:1;
+-	u64 bof:1;
+-	u64 pasid_present:1;
+-	u64 lpig:1;
+-	u64 pasid:20;
+-	u64 bus:8;
+-	u64 private:23;
+-	u64 prg_index:9;
+-	u64 rd_req:1;
+-	u64 wr_req:1;
+-	u64 exe_req:1;
+-	u64 priv_req:1;
+-	u64 devfn:8;
+-	u64 addr:52;
++	union {
++		struct {
++			u64 type:8;
++			u64 pasid_present:1;
++			u64 priv_data_present:1;
++			u64 rsvd:6;
++			u64 rid:16;
++			u64 pasid:20;
++			u64 exe_req:1;
++			u64 pm_req:1;
++			u64 rsvd2:10;
++		};
++		u64 qw_0;
++	};
++	union {
++		struct {
++			u64 rd_req:1;
++			u64 wr_req:1;
++			u64 lpig:1;
++			u64 prg_index:9;
++			u64 addr:52;
++		};
++		u64 qw_1;
++	};
++	u64 priv_data[2];
+ };
+ 
+ #define PRQ_RING_MASK ((0x1000 << PRQ_ORDER) - 0x10)
+@@ -596,7 +607,7 @@ static irqreturn_t prq_event_thread(int irq, void *d)
+ 		/* Accounting for major/minor faults? */
+ 		rcu_read_lock();
+ 		list_for_each_entry_rcu(sdev, &svm->devs, list) {
+-			if (sdev->sid == PCI_DEVID(req->bus, req->devfn))
++			if (sdev->sid == req->rid)
+ 				break;
+ 		}
+ 		/* Other devices can go away, but the drivers are not permitted
+@@ -609,33 +620,35 @@ static irqreturn_t prq_event_thread(int irq, void *d)
+ 
+ 		if (sdev && sdev->ops && sdev->ops->fault_cb) {
+ 			int rwxp = (req->rd_req << 3) | (req->wr_req << 2) |
+-				(req->exe_req << 1) | (req->priv_req);
+-			sdev->ops->fault_cb(sdev->dev, req->pasid, req->addr, req->private, rwxp, result);
++				(req->exe_req << 1) | (req->pm_req);
++			sdev->ops->fault_cb(sdev->dev, req->pasid, req->addr,
++					    req->priv_data, rwxp, result);
+ 		}
+ 		/* We get here in the error case where the PASID lookup failed,
+ 		   and these can be NULL. Do not use them below this point! */
+ 		sdev = NULL;
+ 		svm = NULL;
+ 	no_pasid:
+-		if (req->lpig) {
+-			/* Page Group Response */
++		if (req->lpig || req->priv_data_present) {
++			/*
++			 * Per VT-d spec. v3.0 ch7.7, system software must
++			 * respond with page group response if private data
++			 * is present (PDP) or last page in group (LPIG) bit
++			 * is set. This is an additional VT-d feature beyond
++			 * PCI ATS spec.
++			 */
+ 			resp.qw0 = QI_PGRP_PASID(req->pasid) |
+-				QI_PGRP_DID((req->bus << 8) | req->devfn) |
++				QI_PGRP_DID(req->rid) |
+ 				QI_PGRP_PASID_P(req->pasid_present) |
++				QI_PGRP_PDP(req->pasid_present) |
++				QI_PGRP_RESP_CODE(result) |
+ 				QI_PGRP_RESP_TYPE;
+ 			resp.qw1 = QI_PGRP_IDX(req->prg_index) |
+-				QI_PGRP_PRIV(req->private) |
+-				QI_PGRP_RESP_CODE(result);
+-		} else if (req->srr) {
+-			/* Page Stream Response */
+-			resp.qw0 = QI_PSTRM_IDX(req->prg_index) |
+-				QI_PSTRM_PRIV(req->private) |
+-				QI_PSTRM_BUS(req->bus) |
+-				QI_PSTRM_PASID(req->pasid) |
+-				QI_PSTRM_RESP_TYPE;
+-			resp.qw1 = QI_PSTRM_ADDR(address) |
+-				QI_PSTRM_DEVFN(req->devfn) |
+-				QI_PSTRM_RESP_CODE(result);
++				QI_PGRP_LPIG(req->lpig);
++
++			if (req->priv_data_present)
++				memcpy(&resp.qw2, req->priv_data,
++				       sizeof(req->priv_data));
+ 		}
+ 		resp.qw2 = 0;
+ 		resp.qw3 = 0;
+diff --git a/include/linux/intel-iommu.h b/include/linux/intel-iommu.h
+index 0605f3bf6e798..fa364de9db18e 100644
+--- a/include/linux/intel-iommu.h
++++ b/include/linux/intel-iommu.h
+@@ -374,20 +374,17 @@ enum {
+ #define QI_DEV_EIOTLB_PFSID(pfsid) (((u64)(pfsid & 0xf) << 12) | ((u64)(pfsid & 0xfff) << 52))
+ #define QI_DEV_EIOTLB_MAX_INVS	32
+ 
+-#define QI_PGRP_IDX(idx)	(((u64)(idx)) << 55)
+-#define QI_PGRP_PRIV(priv)	(((u64)(priv)) << 32)
+-#define QI_PGRP_RESP_CODE(res)	((u64)(res))
+-#define QI_PGRP_PASID(pasid)	(((u64)(pasid)) << 32)
+-#define QI_PGRP_DID(did)	(((u64)(did)) << 16)
++/* Page group response descriptor QW0 */
+ #define QI_PGRP_PASID_P(p)	(((u64)(p)) << 4)
++#define QI_PGRP_PDP(p)		(((u64)(p)) << 5)
++#define QI_PGRP_RESP_CODE(res)	(((u64)(res)) << 12)
++#define QI_PGRP_DID(rid)	(((u64)(rid)) << 16)
++#define QI_PGRP_PASID(pasid)	(((u64)(pasid)) << 32)
++
++/* Page group response descriptor QW1 */
++#define QI_PGRP_LPIG(x)		(((u64)(x)) << 2)
++#define QI_PGRP_IDX(idx)	(((u64)(idx)) << 3)
+ 
+-#define QI_PSTRM_ADDR(addr)	(((u64)(addr)) & VTD_PAGE_MASK)
+-#define QI_PSTRM_DEVFN(devfn)	(((u64)(devfn)) << 4)
+-#define QI_PSTRM_RESP_CODE(res)	((u64)(res))
+-#define QI_PSTRM_IDX(idx)	(((u64)(idx)) << 55)
+-#define QI_PSTRM_PRIV(priv)	(((u64)(priv)) << 32)
+-#define QI_PSTRM_BUS(bus)	(((u64)(bus)) << 24)
+-#define QI_PSTRM_PASID(pasid)	(((u64)(pasid)) << 4)
+ 
+ #define QI_RESP_SUCCESS		0x0
+ #define QI_RESP_INVALID		0x1
+diff --git a/include/linux/intel-svm.h b/include/linux/intel-svm.h
+index 99bc5b3ae26e1..e3f76315ca4d9 100644
+--- a/include/linux/intel-svm.h
++++ b/include/linux/intel-svm.h
+@@ -20,7 +20,7 @@ struct device;
+ 
+ struct svm_dev_ops {
+ 	void (*fault_cb)(struct device *dev, int pasid, u64 address,
+-			 u32 private, int rwxp, int response);
++			 void *private, int rwxp, int response);
+ };
+ 
+ /* Values for rxwp in fault_cb callback */
+-- 
+cgit 
+

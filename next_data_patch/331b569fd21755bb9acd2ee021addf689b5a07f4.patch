@@ -1,0 +1,54 @@
+From 331b569fd21755bb9acd2ee021addf689b5a07f4 Mon Sep 17 00:00:00 2001
+From: Krzysztof Kozlowski <krzysztof.kozlowski@linaro.org>
+Date: Sun, 26 Mar 2023 17:54:21 +0200
+Subject: dt-bindings: display: novatek,nt36672a: correct VDDIO supply
+
+The nt36672a bindings were added with a mistake on VDDIO supply calling
+it in one place vddio and in other vddi0.  Typical name is rather vddio
+which is also now used by DTS (sdm845-xiaomi-beryllium-common.dtsi) and
+Linux driver.
+
+Fixes: c2abcf30efb8 ("dt-bindings: display: novatek,nt36672a: Fix unevaluated properties warning")
+Fixes: 9528a02430df ("dt-bindings: display: panel: Add bindings for Novatek nt36672a")
+Signed-off-by: Krzysztof Kozlowski <krzysztof.kozlowski@linaro.org>
+Reviewed-by: Neil Armstrong <neil.armstrong@linaro.org>
+Link: https://lore.kernel.org/r/20230326155425.91181-2-krzysztof.kozlowski@linaro.org
+Signed-off-by: Rob Herring <robh@kernel.org>
+---
+ .../devicetree/bindings/display/panel/novatek,nt36672a.yaml         | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/Documentation/devicetree/bindings/display/panel/novatek,nt36672a.yaml b/Documentation/devicetree/bindings/display/panel/novatek,nt36672a.yaml
+index 41ee3157a1cdc..ae821f465e1c8 100644
+--- a/Documentation/devicetree/bindings/display/panel/novatek,nt36672a.yaml
++++ b/Documentation/devicetree/bindings/display/panel/novatek,nt36672a.yaml
+@@ -34,7 +34,7 @@ properties:
+     description: phandle of gpio for reset line - This should be 8mA, gpio
+       can be configured using mux, pinctrl, pinctrl-names (active high)
+ 
+-  vddi0-supply:
++  vddio-supply:
+     description: phandle of the regulator that provides the supply voltage
+       Power IC supply
+ 
+@@ -51,7 +51,7 @@ properties:
+ required:
+   - compatible
+   - reg
+-  - vddi0-supply
++  - vddio-supply
+   - vddpos-supply
+   - vddneg-supply
+   - reset-gpios
+@@ -70,7 +70,7 @@ examples:
+         panel@0 {
+             compatible = "tianma,fhd-video", "novatek,nt36672a";
+             reg = <0>;
+-            vddi0-supply = <&vreg_l14a_1p88>;
++            vddio-supply = <&vreg_l14a_1p88>;
+             vddpos-supply = <&lab>;
+             vddneg-supply = <&ibb>;
+ 
+-- 
+cgit 
+

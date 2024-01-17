@@ -1,0 +1,104 @@
+From 0f10f647f45545004ea50b73a7a7c5c3309ff286 Mon Sep 17 00:00:00 2001
+From: Bagas Sanjaya <bagasdotme@gmail.com>
+Date: Tue, 14 Mar 2023 14:44:49 +0700
+Subject: bpf, docs: Use internal linking for link to netdev subsystem doc
+
+Commit d56b0c461d19da ("bpf, docs: Fix link to netdev-FAQ target")
+attempts to fix linking problem to undefined "netdev-FAQ" label
+introduced in 287f4fa99a5281 ("docs: Update references to netdev-FAQ")
+by changing internal cross reference to netdev subsystem documentation
+(Documentation/process/maintainer-netdev.rst) to external one at
+docs.kernel.org. However, the linking problem is still not
+resolved, as the generated link points to non-existent netdev-FAQ
+section of the external doc, which when clicked, will instead going
+to the top of the doc.
+
+Revert back to internal linking by simply mention the doc path while
+massaging the leading text to the link, since the netdev subsystem
+doc contains no FAQs but rather general information about the subsystem.
+
+Fixes: d56b0c461d19 ("bpf, docs: Fix link to netdev-FAQ target")
+Fixes: 287f4fa99a52 ("docs: Update references to netdev-FAQ")
+Signed-off-by: Bagas Sanjaya <bagasdotme@gmail.com>
+Signed-off-by: Daniel Borkmann <daniel@iogearbox.net>
+Link: https://lore.kernel.org/bpf/20230314074449.23620-1-bagasdotme@gmail.com
+---
+ Documentation/bpf/bpf_devel_QA.rst | 20 ++++++++++++--------
+ 1 file changed, 12 insertions(+), 8 deletions(-)
+
+diff --git a/Documentation/bpf/bpf_devel_QA.rst b/Documentation/bpf/bpf_devel_QA.rst
+index 5f5f9ccc3862b..e151e61dff381 100644
+--- a/Documentation/bpf/bpf_devel_QA.rst
++++ b/Documentation/bpf/bpf_devel_QA.rst
+@@ -128,7 +128,8 @@ into the bpf-next tree will make their way into net-next tree. net and
+ net-next are both run by David S. Miller. From there, they will go
+ into the kernel mainline tree run by Linus Torvalds. To read up on the
+ process of net and net-next being merged into the mainline tree, see
+-the `netdev-FAQ`_.
++the documentation on netdev subsystem at
++Documentation/process/maintainer-netdev.rst.
+ 
+ 
+ 
+@@ -147,7 +148,8 @@ request)::
+ Q: How do I indicate which tree (bpf vs. bpf-next) my patch should be applied to?
+ ---------------------------------------------------------------------------------
+ 
+-A: The process is the very same as described in the `netdev-FAQ`_,
++A: The process is the very same as described in the netdev subsystem
++documentation at Documentation/process/maintainer-netdev.rst,
+ so please read up on it. The subject line must indicate whether the
+ patch is a fix or rather "next-like" content in order to let the
+ maintainers know whether it is targeted at bpf or bpf-next.
+@@ -206,8 +208,9 @@ ii) run extensive BPF test suite and
+ Once the BPF pull request was accepted by David S. Miller, then
+ the patches end up in net or net-next tree, respectively, and
+ make their way from there further into mainline. Again, see the
+-`netdev-FAQ`_ for additional information e.g. on how often they are
+-merged to mainline.
++documentation for netdev subsystem at
++Documentation/process/maintainer-netdev.rst for additional information
++e.g. on how often they are merged to mainline.
+ 
+ Q: How long do I need to wait for feedback on my BPF patches?
+ -------------------------------------------------------------
+@@ -230,7 +233,8 @@ Q: Are patches applied to bpf-next when the merge window is open?
+ -----------------------------------------------------------------
+ A: For the time when the merge window is open, bpf-next will not be
+ processed. This is roughly analogous to net-next patch processing,
+-so feel free to read up on the `netdev-FAQ`_ about further details.
++so feel free to read up on the netdev docs at
++Documentation/process/maintainer-netdev.rst about further details.
+ 
+ During those two weeks of merge window, we might ask you to resend
+ your patch series once bpf-next is open again. Once Linus released
+@@ -394,7 +398,8 @@ netdev kernel mailing list in Cc and ask for the fix to be queued up:
+   netdev@vger.kernel.org
+ 
+ The process in general is the same as on netdev itself, see also the
+-`netdev-FAQ`_.
++the documentation on networking subsystem at
++Documentation/process/maintainer-netdev.rst.
+ 
+ Q: Do you also backport to kernels not currently maintained as stable?
+ ----------------------------------------------------------------------
+@@ -410,7 +415,7 @@ Q: The BPF patch I am about to submit needs to go to stable as well
+ What should I do?
+ 
+ A: The same rules apply as with netdev patch submissions in general, see
+-the `netdev-FAQ`_.
++the netdev docs at Documentation/process/maintainer-netdev.rst.
+ 
+ Never add "``Cc: stable@vger.kernel.org``" to the patch description, but
+ ask the BPF maintainers to queue the patches instead. This can be done
+@@ -685,7 +690,6 @@ when:
+ 
+ .. Links
+ .. _Documentation/process/: https://www.kernel.org/doc/html/latest/process/
+-.. _netdev-FAQ: https://www.kernel.org/doc/html/latest/process/maintainer-netdev.html
+ .. _selftests:
+    https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/tree/tools/testing/selftests/bpf/
+ .. _Documentation/dev-tools/kselftest.rst:
+-- 
+cgit 
+

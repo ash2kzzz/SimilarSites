@@ -1,0 +1,81 @@
+From 1814cff26739de7d02db6193bc620d0a4bdea676 Mon Sep 17 00:00:00 2001
+From: Bartosz Golaszewski <bgolaszewski@baylibre.com>
+Date: Sun, 5 Jul 2020 11:55:47 +0200
+Subject: net: phy: add a Kconfig option for mdio_devres
+
+If phylib is built as a module and CONFIG_MDIO_DEVICE is 'y', the
+mdio_device and mdio_bus code will be in the phylib module, not in the
+kernel image. Meanwhile we build mdio_devres depending on the
+CONFIG_MDIO_DEVICE symbol, so if it's 'y', it will go into the kernel
+and we'll hit the following linker error:
+
+   ld: drivers/net/phy/mdio_devres.o: in function `devm_mdiobus_alloc_size':
+>> drivers/net/phy/mdio_devres.c:38: undefined reference to `mdiobus_alloc_size'
+   ld: drivers/net/phy/mdio_devres.o: in function `devm_mdiobus_free':
+>> drivers/net/phy/mdio_devres.c:16: undefined reference to `mdiobus_free'
+   ld: drivers/net/phy/mdio_devres.o: in function `__devm_mdiobus_register':
+>> drivers/net/phy/mdio_devres.c:87: undefined reference to `__mdiobus_register'
+   ld: drivers/net/phy/mdio_devres.o: in function `devm_mdiobus_unregister':
+>> drivers/net/phy/mdio_devres.c:53: undefined reference to `mdiobus_unregister'
+   ld: drivers/net/phy/mdio_devres.o: in function `devm_of_mdiobus_register':
+>> drivers/net/phy/mdio_devres.c:120: undefined reference to `of_mdiobus_register'
+
+Add a hidden Kconfig option for MDIO_DEVRES which will be currently
+selected by CONFIG_PHYLIB as there are no non-phylib users of these
+helpers.
+
+Reported-by: kernel test robot <lkp@intel.com>
+Fixes: ac3a68d56651 ("net: phy: don't abuse devres in devm_mdiobus_register()")
+Signed-off-by: Bartosz Golaszewski <bgolaszewski@baylibre.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ drivers/net/phy/Kconfig  | 4 ++++
+ drivers/net/phy/Makefile | 3 +--
+ 2 files changed, 5 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/net/phy/Kconfig b/drivers/net/phy/Kconfig
+index e351d65533aa8..7ffa8a4529a8e 100644
+--- a/drivers/net/phy/Kconfig
++++ b/drivers/net/phy/Kconfig
+@@ -21,6 +21,9 @@ config MDIO_BUS
+ 
+ if MDIO_BUS
+ 
++config MDIO_DEVRES
++	tristate
++
+ config MDIO_ASPEED
+ 	tristate "ASPEED MDIO bus controller"
+ 	depends on ARCH_ASPEED || COMPILE_TEST
+@@ -252,6 +255,7 @@ menuconfig PHYLIB
+ 	tristate "PHY Device support and infrastructure"
+ 	depends on NETDEVICES
+ 	select MDIO_DEVICE
++	select MDIO_DEVRES
+ 	help
+ 	  Ethernet controllers are usually attached to PHY
+ 	  devices.  This option provides infrastructure for
+diff --git a/drivers/net/phy/Makefile b/drivers/net/phy/Makefile
+index c9a9adf194d50..d84bab489a53c 100644
+--- a/drivers/net/phy/Makefile
++++ b/drivers/net/phy/Makefile
+@@ -4,7 +4,6 @@
+ libphy-y			:= phy.o phy-c45.o phy-core.o phy_device.o \
+ 				   linkmode.o
+ mdio-bus-y			+= mdio_bus.o mdio_device.o
+-mdio-devres-y			+= mdio_devres.o
+ 
+ ifdef CONFIG_MDIO_DEVICE
+ obj-y				+= mdio-boardinfo.o
+@@ -18,7 +17,7 @@ libphy-y			+= $(mdio-bus-y)
+ else
+ obj-$(CONFIG_MDIO_DEVICE)	+= mdio-bus.o
+ endif
+-obj-$(CONFIG_MDIO_DEVICE)	+= mdio-devres.o
++obj-$(CONFIG_MDIO_DEVRES)	+= mdio_devres.o
+ libphy-$(CONFIG_SWPHY)		+= swphy.o
+ libphy-$(CONFIG_LED_TRIGGER_PHY)	+= phy_led_triggers.o
+ 
+-- 
+cgit 
+

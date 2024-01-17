@@ -1,0 +1,69 @@
+From ead449023d3acb1424886d7b8cc672ed69bdd27e Mon Sep 17 00:00:00 2001
+From: Lorenzo Bianconi <lorenzo@kernel.org>
+Date: Sun, 28 May 2023 12:28:49 +0200
+Subject: wifi: mt76: mt7996: fix possible NULL pointer dereference in
+ mt7996_mac_write_txwi()
+
+Fix possible NULL pointer dereference on mvif pointer in
+mt7996_mac_write_txwi routine.
+
+Fixes: 15ee62e73705 ("wifi: mt76: mt7996: enable BSS_CHANGED_BASIC_RATES support")
+Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
+Reviewed-by: Simon Horman <simon.horman@corigine.com>
+Signed-off-by: Kalle Valo <kvalo@kernel.org>
+Link: https://lore.kernel.org/r/2637628a84f42ad6d7b774e706f041d5b45c8cb5.1685269638.git.lorenzo@kernel.org
+---
+ drivers/net/wireless/mediatek/mt76/mt7996/mac.c | 19 ++++++++++++-------
+ 1 file changed, 12 insertions(+), 7 deletions(-)
+
+diff --git a/drivers/net/wireless/mediatek/mt76/mt7996/mac.c b/drivers/net/wireless/mediatek/mt76/mt7996/mac.c
+index 39a4a73ef8e6a..9b0f6053e0fa6 100644
+--- a/drivers/net/wireless/mediatek/mt76/mt7996/mac.c
++++ b/drivers/net/wireless/mediatek/mt76/mt7996/mac.c
+@@ -1004,10 +1004,10 @@ void mt7996_mac_write_txwi(struct mt7996_dev *dev, __le32 *txwi,
+ {
+ 	struct ieee80211_tx_info *info = IEEE80211_SKB_CB(skb);
+ 	struct ieee80211_vif *vif = info->control.vif;
+-	struct mt7996_vif *mvif = (struct mt7996_vif *)vif->drv_priv;
+ 	u8 band_idx = (info->hw_queue & MT_TX_HW_QUEUE_PHY) >> 2;
+ 	u8 p_fmt, q_idx, omac_idx = 0, wmm_idx = 0;
+ 	bool is_8023 = info->flags & IEEE80211_TX_CTL_HW_80211_ENCAP;
++	struct mt7996_vif *mvif;
+ 	u16 tx_count = 15;
+ 	u32 val;
+ 	bool beacon = !!(changed & (BSS_CHANGED_BEACON |
+@@ -1015,7 +1015,8 @@ void mt7996_mac_write_txwi(struct mt7996_dev *dev, __le32 *txwi,
+ 	bool inband_disc = !!(changed & (BSS_CHANGED_UNSOL_BCAST_PROBE_RESP |
+ 					 BSS_CHANGED_FILS_DISCOVERY));
+ 
+-	if (vif) {
++	mvif = vif ? (struct mt7996_vif *)vif->drv_priv : NULL;
++	if (mvif) {
+ 		omac_idx = mvif->mt76.omac_idx;
+ 		wmm_idx = mvif->mt76.wmm_idx;
+ 		band_idx = mvif->mt76.band_idx;
+@@ -1081,12 +1082,16 @@ void mt7996_mac_write_txwi(struct mt7996_dev *dev, __le32 *txwi,
+ 		struct ieee80211_hdr *hdr = (struct ieee80211_hdr *)skb->data;
+ 		bool mcast = ieee80211_is_data(hdr->frame_control) &&
+ 			     is_multicast_ether_addr(hdr->addr1);
+-		u8 idx = mvif->basic_rates_idx;
++		u8 idx = MT7996_BASIC_RATES_TBL;
+ 
+-		if (mcast && mvif->mcast_rates_idx)
+-			idx = mvif->mcast_rates_idx;
+-		else if (beacon && mvif->beacon_rates_idx)
+-			idx = mvif->beacon_rates_idx;
++		if (mvif) {
++			if (mcast && mvif->mcast_rates_idx)
++				idx = mvif->mcast_rates_idx;
++			else if (beacon && mvif->beacon_rates_idx)
++				idx = mvif->beacon_rates_idx;
++			else
++				idx = mvif->basic_rates_idx;
++		}
+ 
+ 		txwi[6] |= cpu_to_le32(FIELD_PREP(MT_TXD6_TX_RATE, idx));
+ 		txwi[3] |= cpu_to_le32(MT_TXD3_BA_DISABLE);
+-- 
+cgit 
+

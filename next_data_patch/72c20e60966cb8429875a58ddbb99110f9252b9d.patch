@@ -1,0 +1,40 @@
+From 72c20e60966cb8429875a58ddbb99110f9252b9d Mon Sep 17 00:00:00 2001
+From: Avraham Stern <avraham.stern@intel.com>
+Date: Thu, 13 Apr 2023 21:40:24 +0300
+Subject: wifi: iwlwifi: mvm: fix shift-out-of-bounds
+
+The aux queue is initialized to IWL_MVM_INVALID_QUEUE. This is
+later used for a bitmask of the queue, which results in a
+shift-out-of-bounds. Fix it.
+
+Fixes: b85f7ebb2497 ("wifi: iwlwifi: mvm: avoid UB shift of snif_queue")
+Signed-off-by: Avraham Stern <avraham.stern@intel.com>
+Signed-off-by: Gregory Greenman <gregory.greenman@intel.com>
+Link: https://lore.kernel.org/r/20230413213309.c41a33c32898.Idc15f9eed005345a4137c28ef62efd80a405fad0@changeid
+Signed-off-by: Johannes Berg <johannes.berg@intel.com>
+---
+ drivers/net/wireless/intel/iwlwifi/mvm/sta.c | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/net/wireless/intel/iwlwifi/mvm/sta.c b/drivers/net/wireless/intel/iwlwifi/mvm/sta.c
+index 6b2690534f594..3e5bed885bd95 100644
+--- a/drivers/net/wireless/intel/iwlwifi/mvm/sta.c
++++ b/drivers/net/wireless/intel/iwlwifi/mvm/sta.c
+@@ -2231,11 +2231,13 @@ static int iwl_mvm_add_int_sta_with_queue(struct iwl_mvm *mvm, int macidx,
+ int iwl_mvm_add_aux_sta(struct iwl_mvm *mvm, u32 lmac_id)
+ {
+ 	int ret;
++	u32 qmask = mvm->aux_queue == IWL_MVM_INVALID_QUEUE ? 0 :
++		BIT(mvm->aux_queue);
+ 
+ 	lockdep_assert_held(&mvm->mutex);
+ 
+ 	/* Allocate aux station and assign to it the aux queue */
+-	ret = iwl_mvm_allocate_int_sta(mvm, &mvm->aux_sta, BIT(mvm->aux_queue),
++	ret = iwl_mvm_allocate_int_sta(mvm, &mvm->aux_sta, qmask,
+ 				       NL80211_IFTYPE_UNSPECIFIED,
+ 				       IWL_STA_AUX_ACTIVITY);
+ 	if (ret)
+-- 
+cgit 
+

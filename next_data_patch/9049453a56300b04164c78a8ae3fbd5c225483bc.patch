@@ -1,0 +1,54 @@
+From 9049453a56300b04164c78a8ae3fbd5c225483bc Mon Sep 17 00:00:00 2001
+From: Arnd Bergmann <arnd@arndb.de>
+Date: Mon, 6 Feb 2023 20:37:58 +0100
+Subject: soc: qcom: pmic_glink: add CONFIG_NET/CONFIG_OF dependencies
+
+QMI is a network protocol, so anything using requires CONFIG_NET
+to be enabled as well:
+
+WARNING: unmet direct dependencies detected for QCOM_QMI_HELPERS
+  Depends on [n]: NET [=n]
+  Selected by [m]:
+  - QCOM_PDR_HELPERS [=m]
+arm-linux-gnueabi-ld: drivers/soc/qcom/qmi_interface.o: in function `qmi_send_new_lookup':
+qmi_interface.c:(.text+0xf0): undefined reference to `kernel_sendmsg'
+
+Add the dependency to both QCOM_PDR_HELPERS and QCOM_PMIC_GLINK to make
+it clearly what the dependency is when another PDR user is added.
+
+pmic_glink also needs CONFIG_OF:
+
+drivers/soc/qcom/pmic_glink_altmode.c: In function 'pmic_glink_altmode_probe':
+drivers/soc/qcom/pmic_glink_altmode.c:418:33: error: 'struct drm_bridge' has no member named 'of_node'
+
+Fixes: 58ef4ece1e41 ("soc: qcom: pmic_glink: Introduce base PMIC GLINK driver")
+Signed-off-by: Arnd Bergmann <arnd@arndb.de>
+Signed-off-by: Bjorn Andersson <andersson@kernel.org>
+Link: https://lore.kernel.org/r/20230206193804.191343-1-arnd@kernel.org
+---
+ drivers/soc/qcom/Kconfig | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/drivers/soc/qcom/Kconfig b/drivers/soc/qcom/Kconfig
+index 348fde2a8aae7..a8f283086a219 100644
+--- a/drivers/soc/qcom/Kconfig
++++ b/drivers/soc/qcom/Kconfig
+@@ -91,12 +91,15 @@ config QCOM_OCMEM
+ config QCOM_PDR_HELPERS
+ 	tristate
+ 	select QCOM_QMI_HELPERS
++	depends on NET
+ 
+ config QCOM_PMIC_GLINK
+ 	tristate "Qualcomm PMIC GLINK driver"
+ 	depends on RPMSG
+ 	depends on TYPEC
+ 	depends on DRM
++	depends on NET
++	depends on OF
+ 	select AUXILIARY_BUS
+ 	select QCOM_PDR_HELPERS
+ 	help
+-- 
+cgit 
+

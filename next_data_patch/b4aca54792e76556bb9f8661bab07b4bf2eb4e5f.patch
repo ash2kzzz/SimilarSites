@@ -1,0 +1,72 @@
+From b4aca54792e76556bb9f8661bab07b4bf2eb4e5f Mon Sep 17 00:00:00 2001
+From: Steven Price <steven.price@arm.com>
+Date: Wed, 5 Apr 2023 11:38:19 +0100
+Subject: smaps: fix defined but not used smaps_shmem_walk_ops
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+When !CONFIG_SHMEM smaps_shmem_walk_ops is defined but not used,
+triggering a compiler warning.  To avoid the warning remove the #ifdef
+around the usage.  This has no effect because shmem_mapping() is a stub
+returning false when !CONFIG_SHMEM so the code will be compiled out,
+however we now need to also provide a stub for shmem_swap_usage().
+
+Link: https://lkml.kernel.org/r/20230405103819.151246-1-steven.price@arm.com
+Fixes: 7b86ac3371b7 ("pagewalk: separate function pointers from iterator data")
+Signed-off-by: Steven Price <steven.price@arm.com>
+Reported-by: kernel test robot <lkp@intel.com>
+  Link: https://lore.kernel.org/oe-kbuild-all/202304031749.UiyJpxzF-lkp@intel.com/
+Reviewed-by: Jason Gunthorpe <jgg@nvidia.com>
+Cc: Christoph Hellwig <hch@lst.de>
+Cc: Alexey Dobriyan <adobriyan@gmail.com>
+Cc: Thomas Hellström <thomas.hellstrom@linux.intel.com>
+Signed-off-by: Andrew Morton <akpm@linux-foundation.org>
+---
+ fs/proc/task_mmu.c       | 3 +--
+ include/linux/shmem_fs.h | 7 +++++++
+ 2 files changed, 8 insertions(+), 2 deletions(-)
+
+diff --git a/fs/proc/task_mmu.c b/fs/proc/task_mmu.c
+index 6a96e1713fd58..cb49479acd2e9 100644
+--- a/fs/proc/task_mmu.c
++++ b/fs/proc/task_mmu.c
+@@ -782,7 +782,6 @@ static void smap_gather_stats(struct vm_area_struct *vma,
+ 	if (start >= vma->vm_end)
+ 		return;
+ 
+-#ifdef CONFIG_SHMEM
+ 	if (vma->vm_file && shmem_mapping(vma->vm_file->f_mapping)) {
+ 		/*
+ 		 * For shared or readonly shmem mappings we know that all
+@@ -803,7 +802,7 @@ static void smap_gather_stats(struct vm_area_struct *vma,
+ 			ops = &smaps_shmem_walk_ops;
+ 		}
+ 	}
+-#endif
++
+ 	/* mmap_lock is held in m_start */
+ 	if (!start)
+ 		walk_page_vma(vma, ops, mss);
+diff --git a/include/linux/shmem_fs.h b/include/linux/shmem_fs.h
+index 3bb8d21edbb3f..b9516a9802bf8 100644
+--- a/include/linux/shmem_fs.h
++++ b/include/linux/shmem_fs.h
+@@ -96,7 +96,14 @@ int shmem_unuse(unsigned int type);
+ 
+ extern bool shmem_is_huge(struct inode *inode, pgoff_t index, bool shmem_huge_force,
+ 			  struct mm_struct *mm, unsigned long vm_flags);
++#ifdef CONFIG_SHMEM
+ extern unsigned long shmem_swap_usage(struct vm_area_struct *vma);
++#else
++static inline unsigned long shmem_swap_usage(struct vm_area_struct *vma)
++{
++	return 0;
++}
++#endif
+ extern unsigned long shmem_partial_swap_usage(struct address_space *mapping,
+ 						pgoff_t start, pgoff_t end);
+ 
+-- 
+cgit 
+

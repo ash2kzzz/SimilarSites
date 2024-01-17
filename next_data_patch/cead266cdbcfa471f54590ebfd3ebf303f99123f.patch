@@ -1,0 +1,45 @@
+From cead266cdbcfa471f54590ebfd3ebf303f99123f Mon Sep 17 00:00:00 2001
+From: Zhang Rui <rui.zhang@intel.com>
+Date: Tue, 21 Mar 2023 13:47:13 +0800
+Subject: thermal: gov_step_wise: Delete obsolete comment
+
+Commit 4102c4042a33 ("thermal/core: Remove DROP_FULL and RAISE_FULL")
+removes support for THERMAL_TREND_RAISE_FULL/DROP_FULL but leaves the
+comment unchanged.
+
+Delete the obsolte comment about THERMAL_TREND_RAISE_FULL/DROP_FULL.
+
+Fixes: 4102c4042a33 ("thermal/core: Remove DROP_FULL and RAISE_FULL")
+Signed-off-by: Zhang Rui <rui.zhang@intel.com>
+Signed-off-by: Rafael J. Wysocki <rafael.j.wysocki@intel.com>
+---
+ drivers/thermal/gov_step_wise.c | 8 --------
+ 1 file changed, 8 deletions(-)
+
+diff --git a/drivers/thermal/gov_step_wise.c b/drivers/thermal/gov_step_wise.c
+index 3d3067804df24..3f72a8eaf2f75 100644
+--- a/drivers/thermal/gov_step_wise.c
++++ b/drivers/thermal/gov_step_wise.c
+@@ -21,19 +21,11 @@
+  *    a. if the trend is THERMAL_TREND_RAISING, use higher cooling
+  *       state for this trip point
+  *    b. if the trend is THERMAL_TREND_DROPPING, do nothing
+- *    c. if the trend is THERMAL_TREND_RAISE_FULL, use upper limit
+- *       for this trip point
+- *    d. if the trend is THERMAL_TREND_DROP_FULL, use lower limit
+- *       for this trip point
+  * If the temperature is lower than a trip point,
+  *    a. if the trend is THERMAL_TREND_RAISING, do nothing
+  *    b. if the trend is THERMAL_TREND_DROPPING, use lower cooling
+  *       state for this trip point, if the cooling state already
+  *       equals lower limit, deactivate the thermal instance
+- *    c. if the trend is THERMAL_TREND_RAISE_FULL, do nothing
+- *    d. if the trend is THERMAL_TREND_DROP_FULL, use lower limit,
+- *       if the cooling state already equals lower limit,
+- *       deactivate the thermal instance
+  */
+ static unsigned long get_target_state(struct thermal_instance *instance,
+ 				enum thermal_trend trend, bool throttle)
+-- 
+cgit 
+

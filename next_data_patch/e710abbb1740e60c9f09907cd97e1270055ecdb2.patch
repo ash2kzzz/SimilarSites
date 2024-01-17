@@ -1,0 +1,59 @@
+From e710abbb1740e60c9f09907cd97e1270055ecdb2 Mon Sep 17 00:00:00 2001
+From: Bartosz Golaszewski <bartosz.golaszewski@linaro.org>
+Date: Mon, 23 Jan 2023 11:33:38 +0100
+Subject: clk: qcom: gcc-sa8775p: remove unused variables
+
+There are four struct definitions in the driver that aren't used so
+remove them.
+
+Reported-by: kernel test robot <lkp@intel.com>
+Fixes: ed432b1ed00a ("clk: qcom: add the GCC driver for sa8775p")
+Signed-off-by: Bartosz Golaszewski <bartosz.golaszewski@linaro.org>
+Reviewed-by: Stephen Boyd <sboyd@kernel.org>
+Signed-off-by: Bjorn Andersson <andersson@kernel.org>
+Link: https://lore.kernel.org/r/20230123103338.230320-1-brgl@bgdev.pl
+---
+ drivers/clk/qcom/gcc-sa8775p.c | 20 --------------------
+ 1 file changed, 20 deletions(-)
+
+diff --git a/drivers/clk/qcom/gcc-sa8775p.c b/drivers/clk/qcom/gcc-sa8775p.c
+index 6065a0faebaaa..bb94ff367abda 100644
+--- a/drivers/clk/qcom/gcc-sa8775p.c
++++ b/drivers/clk/qcom/gcc-sa8775p.c
+@@ -310,16 +310,6 @@ static const struct clk_parent_data gcc_parent_data_9[] = {
+ 	{ .index = DT_BI_TCXO },
+ };
+ 
+-static const struct parent_map gcc_parent_map_10[] = {
+-	{ P_PCIE_0_PIPE_CLK, 0 },
+-	{ P_BI_TCXO, 2 },
+-};
+-
+-static const struct clk_parent_data gcc_parent_data_10[] = {
+-	{ .index = DT_PCIE_0_PIPE_CLK },
+-	{ .index = DT_BI_TCXO },
+-};
+-
+ static const struct parent_map gcc_parent_map_11[] = {
+ 	{ P_PCIE_PHY_AUX_CLK, 1 },
+ 	{ P_BI_TCXO, 2 },
+@@ -330,16 +320,6 @@ static const struct clk_parent_data gcc_parent_data_11[] = {
+ 	{ .index = DT_BI_TCXO },
+ };
+ 
+-static const struct parent_map gcc_parent_map_12[] = {
+-	{ P_PCIE_1_PIPE_CLK, 0 },
+-	{ P_BI_TCXO, 2 },
+-};
+-
+-static const struct clk_parent_data gcc_parent_data_12[] = {
+-	{ .index = DT_PCIE_1_PIPE_CLK },
+-	{ .index = DT_BI_TCXO },
+-};
+-
+ static const struct parent_map gcc_parent_map_13[] = {
+ 	{ P_BI_TCXO, 0 },
+ 	{ P_GCC_GPLL0_OUT_MAIN, 1 },
+-- 
+cgit 
+

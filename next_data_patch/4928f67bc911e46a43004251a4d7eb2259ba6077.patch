@@ -1,0 +1,47 @@
+From 4928f67bc911e46a43004251a4d7eb2259ba6077 Mon Sep 17 00:00:00 2001
+From: Yishai Hadas <yishaih@nvidia.com>
+Date: Wed, 8 Mar 2023 17:57:23 +0200
+Subject: vfio/mlx5: Fix the report of dirty_bytes upon pre-copy
+
+Fix the report of dirty_bytes upon pre-copy to include both the existing
+data on the migration file and the device extra bytes.
+
+This gives a better close estimation to what can be passed any more as
+part of pre-copy.
+
+Fixes: 0dce165b1adf ("vfio/mlx5: Introduce vfio precopy ioctl implementation")
+Signed-off-by: Yishai Hadas <yishaih@nvidia.com>
+Link: https://lore.kernel.org/r/20230308155723.108218-1-yishaih@nvidia.com
+Signed-off-by: Alex Williamson <alex.williamson@redhat.com>
+---
+ drivers/vfio/pci/mlx5/main.c | 14 ++++----------
+ 1 file changed, 4 insertions(+), 10 deletions(-)
+
+diff --git a/drivers/vfio/pci/mlx5/main.c b/drivers/vfio/pci/mlx5/main.c
+index e897537a9e8ad..d95fd382814c8 100644
+--- a/drivers/vfio/pci/mlx5/main.c
++++ b/drivers/vfio/pci/mlx5/main.c
+@@ -442,16 +442,10 @@ static long mlx5vf_precopy_ioctl(struct file *filp, unsigned int cmd,
+ 	if (migf->pre_copy_initial_bytes > *pos) {
+ 		info.initial_bytes = migf->pre_copy_initial_bytes - *pos;
+ 	} else {
+-		buf = mlx5vf_get_data_buff_from_pos(migf, *pos, &end_of_data);
+-		if (buf) {
+-			info.dirty_bytes = buf->start_pos + buf->length - *pos;
+-		} else {
+-			if (!end_of_data) {
+-				ret = -EINVAL;
+-				goto err_migf_unlock;
+-			}
+-			info.dirty_bytes = inc_length;
+-		}
++		info.dirty_bytes = migf->max_pos - *pos;
++		if (!info.dirty_bytes)
++			end_of_data = true;
++		info.dirty_bytes += inc_length;
+ 	}
+ 
+ 	if (!end_of_data || !inc_length) {
+-- 
+cgit 
+

@@ -1,0 +1,43 @@
+From 67a00d29c360f4d7b2ca7b1ccf24b145f60d14b8 Mon Sep 17 00:00:00 2001
+From: Bob Pearson <rpearsonhpe@gmail.com>
+Date: Wed, 29 Mar 2023 14:33:09 -0500
+Subject: RDMA/rxe: Fix incorrect TASKLET_STATE_SCHED check in rxe_task.c
+
+In a previous patch TASKLET_STATE_SCHED was used as a mask but it is a bit
+position instead. Add the missing shift.
+
+Link: https://lore.kernel.org/r/20230329193308.7489-1-rpearsonhpe@gmail.com
+Reported-by: Dan Carpenter <error27@gmail.com>
+Link: https://lore.kernel.org/linux-rdma/8a054b78-6d50-4bc6-8d8a-83f85fbdb82f@kili.mountain/
+Fixes: d94671632572 ("RDMA/rxe: Rewrite rxe_task.c")
+Signed-off-by: Bob Pearson <rpearsonhpe@gmail.com>
+Signed-off-by: Jason Gunthorpe <jgg@nvidia.com>
+---
+ drivers/infiniband/sw/rxe/rxe_task.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/infiniband/sw/rxe/rxe_task.c b/drivers/infiniband/sw/rxe/rxe_task.c
+index fea9a517c8d92..fb9a6bc8e6204 100644
+--- a/drivers/infiniband/sw/rxe/rxe_task.c
++++ b/drivers/infiniband/sw/rxe/rxe_task.c
+@@ -21,7 +21,7 @@ static bool __reserve_if_idle(struct rxe_task *task)
+ {
+ 	WARN_ON(rxe_read(task->qp) <= 0);
+ 
+-	if (task->tasklet.state & TASKLET_STATE_SCHED)
++	if (task->tasklet.state & BIT(TASKLET_STATE_SCHED))
+ 		return false;
+ 
+ 	if (task->state == TASK_STATE_IDLE) {
+@@ -46,7 +46,7 @@ static bool __reserve_if_idle(struct rxe_task *task)
+  */
+ static bool __is_done(struct rxe_task *task)
+ {
+-	if (task->tasklet.state & TASKLET_STATE_SCHED)
++	if (task->tasklet.state & BIT(TASKLET_STATE_SCHED))
+ 		return false;
+ 
+ 	if (task->state == TASK_STATE_IDLE ||
+-- 
+cgit 
+

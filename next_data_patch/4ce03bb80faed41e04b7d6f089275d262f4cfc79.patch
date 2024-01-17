@@ -1,0 +1,132 @@
+From 4ce03bb80faed41e04b7d6f089275d262f4cfc79 Mon Sep 17 00:00:00 2001
+From: Marijn Suijten <marijn.suijten@somainline.org>
+Date: Tue, 10 Jan 2023 00:41:32 +0100
+Subject: arm64: dts: qcom: sdm845-tama: Add volume up and camera GPIO keys
+
+Tama has four GPIO-wired keys: two for camera focus and shutter /
+snapshot, and two more for volume up and down.  As per the comment these
+used to not work because the necessary pin bias was missing, which is
+now set via pinctrl on pm8998_gpios.
+
+The missing bias has also been added to the existing volume down button,
+which receives a node name and label cleanup at the same time to be more
+consistent with other DTS and the newly added buttons.  Its deprecated
+gpio-key,wakeup property has also been replaced with wakeup-source.
+
+Note that volume up is also available through the usual PON RESIN node,
+but unlike other platforms only triggers when the power button is held
+down at the same time making it unsuitable to serve as KEY_VOLUMEUP.
+
+Fixes: 30a7f99befc6 ("arm64: dts: qcom: Add support for SONY Xperia XZ2 / XZ2C / XZ3 (Tama platform)")
+Reviewed-by: Konrad Dybcio <konrad.dybcio@linaro.org>
+Signed-off-by: Marijn Suijten <marijn.suijten@somainline.org>
+Signed-off-by: Bjorn Andersson <andersson@kernel.org>
+Link: https://lore.kernel.org/r/20230109234133.365644-1-marijn.suijten@somainline.org
+---
+ .../boot/dts/qcom/sdm845-sony-xperia-tama.dtsi     | 72 ++++++++++++++++++++--
+ 1 file changed, 68 insertions(+), 4 deletions(-)
+
+diff --git a/arch/arm64/boot/dts/qcom/sdm845-sony-xperia-tama.dtsi b/arch/arm64/boot/dts/qcom/sdm845-sony-xperia-tama.dtsi
+index 68773a7e0e883..85ff0a0789ea8 100644
+--- a/arch/arm64/boot/dts/qcom/sdm845-sony-xperia-tama.dtsi
++++ b/arch/arm64/boot/dts/qcom/sdm845-sony-xperia-tama.dtsi
+@@ -4,6 +4,7 @@
+  */
+ 
+ #include <dt-bindings/input/input.h>
++#include <dt-bindings/pinctrl/qcom,pmic-gpio.h>
+ #include <dt-bindings/regulator/qcom,rpmh-regulator.h>
+ #include "sdm845.dtsi"
+ #include "pm8005.dtsi"
+@@ -17,14 +18,43 @@
+ 	gpio-keys {
+ 		compatible = "gpio-keys";
+ 
+-		/* Neither Camera Focus, nor Camera Shutter seem to work... */
++		pinctrl-0 = <&focus_n &snapshot_n &vol_down_n &vol_up_n>;
++		pinctrl-names = "default";
+ 
+-		key-vol-down {
+-			label = "volume_down";
++		key-camera-focus {
++			label = "Camera Focus";
++			gpios = <&pm8998_gpios 2 GPIO_ACTIVE_LOW>;
++			linux,code = <KEY_CAMERA_FOCUS>;
++			debounce-interval = <15>;
++			linux,can-disable;
++			wakeup-source;
++		};
++
++		key-camera-snapshot {
++			label = "Camera Snapshot";
++			gpios = <&pm8998_gpios 7 GPIO_ACTIVE_LOW>;
++			linux,code = <KEY_CAMERA>;
++			debounce-interval = <15>;
++			linux,can-disable;
++			wakeup-source;
++		};
++
++		key-volume-down {
++			label = "Volume Down";
+ 			gpios = <&pm8998_gpios 5 GPIO_ACTIVE_LOW>;
+ 			linux,code = <KEY_VOLUMEDOWN>;
+ 			debounce-interval = <15>;
+-			gpio-key,wakeup;
++			linux,can-disable;
++			wakeup-source;
++		};
++
++		key-volume-up {
++			label = "Volume Up";
++			gpios = <&pm8998_gpios 6 GPIO_ACTIVE_LOW>;
++			linux,code = <KEY_VOLUMEUP>;
++			debounce-interval = <15>;
++			linux,can-disable;
++			wakeup-source;
+ 		};
+ 	};
+ 
+@@ -358,6 +388,40 @@
+ 	/* AMS TCS3490 RGB+IR color sensor @ 72 */
+ };
+ 
++&pm8998_gpios {
++	focus_n: focus-n-state {
++		pins = "gpio2";
++		function = PMIC_GPIO_FUNC_NORMAL;
++		power-source = <0>;
++		bias-pull-up;
++		input-enable;
++	};
++
++	vol_down_n: vol-down-n-state {
++		pins = "gpio5";
++		function = PMIC_GPIO_FUNC_NORMAL;
++		power-source = <0>;
++		bias-pull-up;
++		input-enable;
++	};
++
++	vol_up_n: vol-up-n-state {
++		pins = "gpio6";
++		function = PMIC_GPIO_FUNC_NORMAL;
++		power-source = <0>;
++		bias-pull-up;
++		input-enable;
++	};
++
++	snapshot_n: snapshot-n-state {
++		pins = "gpio7";
++		function = PMIC_GPIO_FUNC_NORMAL;
++		power-source = <0>;
++		bias-pull-up;
++		input-enable;
++	};
++};
++
+ &qupv3_id_0 {
+ 	status = "okay";
+ };
+-- 
+cgit 
+

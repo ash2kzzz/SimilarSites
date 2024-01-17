@@ -1,0 +1,42 @@
+From f8d0dd0bc302b237dfa2ef5836e6ee375c0a1773 Mon Sep 17 00:00:00 2001
+From: Tom Rix <trix@redhat.com>
+Date: Fri, 27 Jan 2023 08:29:06 -0800
+Subject: udf: remove reporting loc in debug output
+
+clang build fails with
+fs/udf/partition.c:86:28: error: variable 'loc' is uninitialized when used here [-Werror,-Wuninitialized]
+                          sb, block, partition, loc, index);
+                                                ^~~
+
+loc is now only known when bh is valid. So remove reporting loc in debug
+output.
+
+Fixes: 4215db46d538 ("udf: Use udf_bread() in udf_get_pblock_virt15()")
+Reported-by: kernel test robot <lkp@intel.com>
+Reported-by: "kernelci.org bot" <bot@kernelci.org>
+Signed-off-by: Tom Rix <trix@redhat.com>
+Reviewed-by: Nathan Chancellor <nathan@kernel.org>
+Reviewed-by: Nick Desaulniers <ndesaulniers@google.com>
+Signed-off-by: Jan Kara <jack@suse.cz>
+---
+ fs/udf/partition.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/fs/udf/partition.c b/fs/udf/partition.c
+index 92765d2f69583..5bcfe78d5cabe 100644
+--- a/fs/udf/partition.c
++++ b/fs/udf/partition.c
+@@ -82,8 +82,8 @@ uint32_t udf_get_pblock_virt15(struct super_block *sb, uint32_t block,
+ 
+ 	bh = udf_bread(sbi->s_vat_inode, newblock, 0, &err);
+ 	if (!bh) {
+-		udf_debug("get_pblock(UDF_VIRTUAL_MAP:%p,%u,%u) VAT: %u[%u]\n",
+-			  sb, block, partition, loc, index);
++		udf_debug("get_pblock(UDF_VIRTUAL_MAP:%p,%u,%u)\n",
++			  sb, block, partition);
+ 		return 0xFFFFFFFF;
+ 	}
+ 
+-- 
+cgit 
+

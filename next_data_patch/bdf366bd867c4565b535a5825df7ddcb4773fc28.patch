@@ -1,0 +1,52 @@
+From bdf366bd867c4565b535a5825df7ddcb4773fc28 Mon Sep 17 00:00:00 2001
+From: Vladimir Oltean <vladimir.oltean@nxp.com>
+Date: Thu, 16 Feb 2023 00:46:31 +0200
+Subject: net/sched: taprio: don't allow dynamic max_sdu to go negative after
+ stab adjustment
+
+The overhead specified in the size table comes from the user. With small
+time intervals (or gates always closed), the overhead can be larger than
+the max interval for that traffic class, and their difference is
+negative.
+
+What we want to happen is for max_sdu_dynamic to have the smallest
+non-zero value possible (1) which means that all packets on that traffic
+class are dropped on enqueue. However, since max_sdu_dynamic is u32, a
+negative is represented as a large value and oversized dropping never
+happens.
+
+Use max_t with int to force a truncation of max_frm_len to no smaller
+than dev->hard_header_len + 1, which in turn makes max_sdu_dynamic no
+smaller than 1.
+
+Fixes: fed87cc6718a ("net/sched: taprio: automatically calculate queueMaxSDU based on TC gate durations")
+Signed-off-by: Vladimir Oltean <vladimir.oltean@nxp.com>
+Reviewed-by: Kurt Kanzenbach <kurt@linutronix.de>
+Signed-off-by: Paolo Abeni <pabeni@redhat.com>
+---
+ net/sched/sch_taprio.c | 8 +++++++-
+ 1 file changed, 7 insertions(+), 1 deletion(-)
+
+diff --git a/net/sched/sch_taprio.c b/net/sched/sch_taprio.c
+index 556e72ec0f38d..53ba4d6b02182 100644
+--- a/net/sched/sch_taprio.c
++++ b/net/sched/sch_taprio.c
+@@ -279,8 +279,14 @@ static void taprio_update_queue_max_sdu(struct taprio_sched *q,
+ 			u32 max_frm_len;
+ 
+ 			max_frm_len = duration_to_length(q, sched->max_open_gate_duration[tc]);
+-			if (stab)
++			/* Compensate for L1 overhead from size table,
++			 * but don't let the frame size go negative
++			 */
++			if (stab) {
+ 				max_frm_len -= stab->szopts.overhead;
++				max_frm_len = max_t(int, max_frm_len,
++						    dev->hard_header_len + 1);
++			}
+ 			max_sdu_dynamic = max_frm_len - dev->hard_header_len;
+ 		}
+ 
+-- 
+cgit 
+

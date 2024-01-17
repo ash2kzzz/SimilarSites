@@ -1,0 +1,66 @@
+From 98c2de9e7949358abff45009be44959a0bc5862b Mon Sep 17 00:00:00 2001
+From: Dmitry Baryshkov <dmitry.baryshkov@linaro.org>
+Date: Fri, 27 Jan 2023 01:03:15 +0200
+Subject: dt-bindings: mailbox: qcom: correct the list of platforms using
+ clocks
+
+The schema incorrectly lists some of the platforms in the statement
+requiring clocks/clock-names. Correct this by moving platforms not
+requiring additional clocks to the separate clause.
+
+Fixes: 0d17014e9189 ("dt-bindings: mailbox: Add binding for SDX55 APCS")
+Reviewed-by: Krzysztof Kozlowski <krzysztof.kozlowski@linaro.org>
+Signed-off-by: Dmitry Baryshkov <dmitry.baryshkov@linaro.org>
+Signed-off-by: Jassi Brar <jaswinder.singh@linaro.org>
+---
+ .../bindings/mailbox/qcom,apcs-kpss-global.yaml    | 26 +++++++++++++++-------
+ 1 file changed, 18 insertions(+), 8 deletions(-)
+
+diff --git a/Documentation/devicetree/bindings/mailbox/qcom,apcs-kpss-global.yaml b/Documentation/devicetree/bindings/mailbox/qcom,apcs-kpss-global.yaml
+index ecc286ab49ef4..5f7770036fed6 100644
+--- a/Documentation/devicetree/bindings/mailbox/qcom,apcs-kpss-global.yaml
++++ b/Documentation/devicetree/bindings/mailbox/qcom,apcs-kpss-global.yaml
+@@ -72,15 +72,7 @@ allOf:
+         compatible:
+           enum:
+             - qcom,msm8916-apcs-kpss-global
+-            - qcom,msm8994-apcs-kpss-global
+-            - qcom,msm8996-apcs-hmss-global
+-            - qcom,msm8998-apcs-hmss-global
+             - qcom,qcs404-apcs-apps-global
+-            - qcom,sc7180-apss-shared
+-            - qcom,sdm660-apcs-hmss-global
+-            - qcom,sdm845-apss-shared
+-            - qcom,sm6125-apcs-hmss-global
+-            - qcom,sm8150-apss-shared
+     then:
+       properties:
+         clocks:
+@@ -124,6 +116,24 @@ allOf:
+           items:
+             - const: pll
+             - const: xo
++
++  - if:
++      properties:
++        compatible:
++          enum:
++            - qcom,msm8994-apcs-kpss-global
++            - qcom,msm8996-apcs-hmss-global
++            - qcom,msm8998-apcs-hmss-global
++            - qcom,sc7180-apss-shared
++            - qcom,sdm660-apcs-hmss-global
++            - qcom,sdm845-apss-shared
++            - qcom,sm6125-apcs-hmss-global
++            - qcom,sm8150-apss-shared
++    then:
++      properties:
++        clocks: false
++        clock-names: false
++
+   - if:
+       properties:
+         compatible:
+-- 
+cgit 
+

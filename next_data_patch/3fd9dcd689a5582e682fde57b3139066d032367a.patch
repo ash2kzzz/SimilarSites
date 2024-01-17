@@ -1,0 +1,69 @@
+From 3fd9dcd689a5582e682fde57b3139066d032367a Mon Sep 17 00:00:00 2001
+From: Jesper Dangaard Brouer <brouer@redhat.com>
+Date: Wed, 1 Feb 2023 18:31:50 +0100
+Subject: selftests/bpf: xdp_hw_metadata clear metadata when -EOPNOTSUPP
+
+The AF_XDP userspace part of xdp_hw_metadata see non-zero as a signal of
+the availability of rx_timestamp and rx_hash in data_meta area. The
+kernel-side BPF-prog code doesn't initialize these members when kernel
+returns an error e.g. -EOPNOTSUPP.  This memory area is not guaranteed to
+be zeroed, and can contain garbage/previous values, which will be read
+and interpreted by AF_XDP userspace side.
+
+Tested this on different drivers. The experiences are that for most
+packets they will have zeroed this data_meta area, but occasionally it
+will contain garbage data.
+
+Example of failure tested on ixgbe:
+
+ poll: 1 (0)
+ xsk_ring_cons__peek: 1
+ 0x18ec788: rx_desc[0]->addr=100000000008000 addr=8100 comp_addr=8000
+ rx_hash: 3697961069
+ rx_timestamp:  9024981991734834796 (sec:9024981991.7348)
+ 0x18ec788: complete idx=8 addr=8000
+
+Converting to date:
+
+ date -d @9024981991
+ 2255-12-28T20:26:31 CET
+
+I choose a simple fix in this patch. When kfunc fails or isn't supported
+assign zero to the corresponding struct meta value.
+
+It's up to the individual BPF-programmer to do something smarter e.g.
+that fits their use-case, like getting a software timestamp and marking
+a flag that gives the type of timestamp.
+
+Fixes: 297a3f124155 ("selftests/bpf: Simple program to dump XDP RX metadata")
+Signed-off-by: Jesper Dangaard Brouer <brouer@redhat.com>
+Signed-off-by: Daniel Borkmann <daniel@iogearbox.net>
+Acked-by: Stanislav Fomichev <sdf@google.com>
+Link: https://lore.kernel.org/bpf/167527271027.937063.5177725618616476592.stgit@firesoul
+---
+ tools/testing/selftests/bpf/progs/xdp_hw_metadata.c | 6 +++++-
+ 1 file changed, 5 insertions(+), 1 deletion(-)
+
+diff --git a/tools/testing/selftests/bpf/progs/xdp_hw_metadata.c b/tools/testing/selftests/bpf/progs/xdp_hw_metadata.c
+index 25b8178735ee3..4c55b4d79d3d4 100644
+--- a/tools/testing/selftests/bpf/progs/xdp_hw_metadata.c
++++ b/tools/testing/selftests/bpf/progs/xdp_hw_metadata.c
+@@ -70,10 +70,14 @@ int rx(struct xdp_md *ctx)
+ 	}
+ 
+ 	if (!bpf_xdp_metadata_rx_timestamp(ctx, &meta->rx_timestamp))
+-		bpf_printk("populated rx_timestamp with %u", meta->rx_timestamp);
++		bpf_printk("populated rx_timestamp with %llu", meta->rx_timestamp);
++	else
++		meta->rx_timestamp = 0; /* Used by AF_XDP as not avail signal */
+ 
+ 	if (!bpf_xdp_metadata_rx_hash(ctx, &meta->rx_hash))
+ 		bpf_printk("populated rx_hash with %u", meta->rx_hash);
++	else
++		meta->rx_hash = 0; /* Used by AF_XDP as not avail signal */
+ 
+ 	return bpf_redirect_map(&xsk, ctx->rx_queue_index, XDP_PASS);
+ }
+-- 
+cgit 
+

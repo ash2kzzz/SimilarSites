@@ -1,0 +1,34 @@
+From 178e00f36f934a88682d96aa046c1f90cb6f83a7 Mon Sep 17 00:00:00 2001
+From: Sherry Sun <sherry.sun@nxp.com>
+Date: Thu, 23 Mar 2023 19:09:23 +0800
+Subject: tty: serial: fsl_lpuart: fix crash in lpuart_uport_is_active
+
+For serdev framework, tty->dev is a NULL pointer, lpuart_uport_is_active
+calling device_may_wakeup() may cause kernel NULL pointer crash, so here
+add the NULL pointer check before using it.
+
+Fixes: 4f5cb8c5e915 ("tty: serial: fsl_lpuart: enable wakeup source for lpuart")
+Cc: stable <stable@kernel.org>
+Signed-off-by: Sherry Sun <sherry.sun@nxp.com>
+Link: https://lore.kernel.org/r/20230323110923.24581-1-sherry.sun@nxp.com
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+---
+ drivers/tty/serial/fsl_lpuart.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/tty/serial/fsl_lpuart.c b/drivers/tty/serial/fsl_lpuart.c
+index edc6e35b701a4..074bfed57fc9e 100644
+--- a/drivers/tty/serial/fsl_lpuart.c
++++ b/drivers/tty/serial/fsl_lpuart.c
+@@ -2948,7 +2948,7 @@ static bool lpuart_uport_is_active(struct lpuart_port *sport)
+ 	tty = tty_port_tty_get(port);
+ 	if (tty) {
+ 		tty_dev = tty->dev;
+-		may_wake = device_may_wakeup(tty_dev);
++		may_wake = tty_dev && device_may_wakeup(tty_dev);
+ 		tty_kref_put(tty);
+ 	}
+ 
+-- 
+cgit 
+

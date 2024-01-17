@@ -1,0 +1,59 @@
+From ddaf098ea779b3c1302c7843f6ff01e89b1fd380 Mon Sep 17 00:00:00 2001
+From: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+Date: Tue, 16 May 2023 21:20:14 +0200
+Subject: driver core: class: properly reference count class_dev_iter()
+
+When class_dev_iter is initialized, the reference count for the subsys
+private structure is incremented, but never decremented, causing a
+memory leak over time.  To resolve this, save off a pointer to the
+internal structure into the class_dev_iter structure and then when the
+iterator is finished, drop the reference count.
+
+Reported-and-tested-by: syzbot+e7afd76ad060fa0d2605@syzkaller.appspotmail.com
+Fixes: 7b884b7f24b4 ("driver core: class.c: convert to only use class_to_subsys")
+Reported-by: Mirsad Goran Todorovac <mirsad.todorovac@alu.unizg.hr>
+Cc: Alan Stern <stern@rowland.harvard.edu>
+Acked-by: Rafael J. Wysocki <rafael@kernel.org>
+Tested-by: Mirsad Goran Todorovac <mirsad.todorovac@alu.unizg.hr>
+Link: https://lore.kernel.org/r/2023051610-stove-condense-9a77@gregkh
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+---
+ drivers/base/class.c         | 2 ++
+ include/linux/device/class.h | 1 +
+ 2 files changed, 3 insertions(+)
+
+diff --git a/drivers/base/class.c b/drivers/base/class.c
+index ac1808d1a2e8f..05d9df90f621b 100644
+--- a/drivers/base/class.c
++++ b/drivers/base/class.c
+@@ -320,6 +320,7 @@ void class_dev_iter_init(struct class_dev_iter *iter, const struct class *class,
+ 		start_knode = &start->p->knode_class;
+ 	klist_iter_init_node(&sp->klist_devices, &iter->ki, start_knode);
+ 	iter->type = type;
++	iter->sp = sp;
+ }
+ EXPORT_SYMBOL_GPL(class_dev_iter_init);
+ 
+@@ -361,6 +362,7 @@ EXPORT_SYMBOL_GPL(class_dev_iter_next);
+ void class_dev_iter_exit(struct class_dev_iter *iter)
+ {
+ 	klist_iter_exit(&iter->ki);
++	subsys_put(iter->sp);
+ }
+ EXPORT_SYMBOL_GPL(class_dev_iter_exit);
+ 
+diff --git a/include/linux/device/class.h b/include/linux/device/class.h
+index 9deeaeb457bba..abf3d3bfb6fe4 100644
+--- a/include/linux/device/class.h
++++ b/include/linux/device/class.h
+@@ -74,6 +74,7 @@ struct class {
+ struct class_dev_iter {
+ 	struct klist_iter		ki;
+ 	const struct device_type	*type;
++	struct subsys_private		*sp;
+ };
+ 
+ int __must_check class_register(const struct class *class);
+-- 
+cgit 
+

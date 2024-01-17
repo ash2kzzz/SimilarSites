@@ -1,0 +1,83 @@
+From da5b3ebb4527733299661229a8d035d64a4f0b1a Mon Sep 17 00:00:00 2001
+From: "Joel Fernandes (Google)" <joel@joelfernandes.org>
+Date: Sun, 5 Aug 2018 20:40:49 -0700
+Subject: tracing: irqsoff: Account for additional preempt_disable
+
+Recently we tried to make the preemptirqsoff tracer to use irqsoff
+tracepoint probes. However this causes issues as reported by Masami:
+
+[2.271078] Testing tracer preemptirqsoff: .. no entries found ..FAILED!
+[2.381015] WARNING: CPU: 0 PID: 1 at /home/mhiramat/ksrc/linux/kernel/
+trace/trace.c:1512 run_tracer_selftest+0xf3/0x154
+
+This is due to the tracepoint code increasing the preempt nesting count
+by calling an additional preempt_disable before calling into the
+preemptoff tracer which messes up the preempt_count() check in
+tracer_hardirqs_off.
+
+To fix this, make the irqsoff tracer probes balance the additional outer
+preempt_disable with a preempt_enable_notrace.
+
+The other way to fix this is to just use SRCU for all tracepoints.
+However we can't do that because we can't use NMIs from RCU context.
+
+Link: http://lkml.kernel.org/r/20180806034049.67949-1-joel@joelfernandes.org
+
+Fixes: c3bc8fd637a9 ("tracing: Centralize preemptirq tracepoints and unify their usage")
+Fixes: e6753f23d961 ("tracepoint: Make rcuidle tracepoint callers use SRCU")
+Reported-by: Masami Hiramatsu <mhiramat@kernel.org>
+Tested-by: Masami Hiramatsu <mhiramat@kernel.org>
+Signed-off-by: Joel Fernandes (Google) <joel@joelfernandes.org>
+Signed-off-by: Steven Rostedt (VMware) <rostedt@goodmis.org>
+---
+ kernel/trace/trace_irqsoff.c | 26 ++++++++++++++++++++++++++
+ 1 file changed, 26 insertions(+)
+
+diff --git a/kernel/trace/trace_irqsoff.c b/kernel/trace/trace_irqsoff.c
+index 770cd30cda401..ffbf1505d5bcb 100644
+--- a/kernel/trace/trace_irqsoff.c
++++ b/kernel/trace/trace_irqsoff.c
+@@ -603,14 +603,40 @@ static void irqsoff_tracer_stop(struct trace_array *tr)
+  */
+ static void tracer_hardirqs_on(void *none, unsigned long a0, unsigned long a1)
+ {
++	/*
++	 * Tracepoint probes are expected to be called with preempt disabled,
++	 * We don't care about being called with preempt disabled but we need
++	 * to know in the future if that changes so we can remove the next
++	 * preempt_enable.
++	 */
++	WARN_ON_ONCE(!preempt_count());
++
++	/* Tracepoint probes disable preemption atleast once, account for that */
++	preempt_enable_notrace();
++
+ 	if (!preempt_trace() && irq_trace())
+ 		stop_critical_timing(a0, a1);
++
++	preempt_disable_notrace();
+ }
+ 
+ static void tracer_hardirqs_off(void *none, unsigned long a0, unsigned long a1)
+ {
++	/*
++	 * Tracepoint probes are expected to be called with preempt disabled,
++	 * We don't care about being called with preempt disabled but we need
++	 * to know in the future if that changes so we can remove the next
++	 * preempt_enable.
++	 */
++	WARN_ON_ONCE(!preempt_count());
++
++	/* Tracepoint probes disable preemption atleast once, account for that */
++	preempt_enable_notrace();
++
+ 	if (!preempt_trace() && irq_trace())
+ 		start_critical_timing(a0, a1);
++
++	preempt_disable_notrace();
+ }
+ 
+ static int irqsoff_tracer_init(struct trace_array *tr)
+-- 
+cgit 
+

@@ -1,0 +1,57 @@
+From 751688b8be9049f558f86982966ecaa61a9cbedf Mon Sep 17 00:00:00 2001
+From: SeongJae Park <sj@kernel.org>
+Date: Sat, 4 Mar 2023 19:39:48 +0000
+Subject: mm/damon/paddr: fix folio_size() call after folio_put() in
+ damon_pa_young()
+
+Patch series "mm/damon/paddr: Fix folio-use-after-put bugs".
+
+There are two folio accesses after folio_put() in mm/damon/paddr.c file.
+Fix those.
+
+
+This patch (of 2):
+
+damon_pa_young() is accessing a folio via folio_size() after folio_put()
+for the folio has invoked.  Fix it.
+
+Link: https://lkml.kernel.org/r/20230304193949.296391-1-sj@kernel.org
+Link: https://lkml.kernel.org/r/20230304193949.296391-2-sj@kernel.org
+Fixes: 397b0c3a584b ("mm/damon/paddr: remove folio_sz field from damon_pa_access_chk_result")
+Signed-off-by: SeongJae Park <sj@kernel.org>
+Reviewed-by: Kefeng Wang <wangkefeng.wang@huawei.com>
+Reviewed-by: Matthew Wilcox (Oracle) <willy@infradead.org>
+Cc: Vishal Moola (Oracle) <vishal.moola@gmail.com>
+Cc: <stable@vger.kernel.org>	[6.2.x]
+Signed-off-by: Andrew Morton <akpm@linux-foundation.org>
+---
+ mm/damon/paddr.c | 3 +--
+ 1 file changed, 1 insertion(+), 2 deletions(-)
+
+diff --git a/mm/damon/paddr.c b/mm/damon/paddr.c
+index 6c655d9b56391..49b267b033050 100644
+--- a/mm/damon/paddr.c
++++ b/mm/damon/paddr.c
+@@ -130,7 +130,6 @@ static bool damon_pa_young(unsigned long paddr, unsigned long *folio_sz)
+ 			accessed = false;
+ 		else
+ 			accessed = true;
+-		folio_put(folio);
+ 		goto out;
+ 	}
+ 
+@@ -144,10 +143,10 @@ static bool damon_pa_young(unsigned long paddr, unsigned long *folio_sz)
+ 
+ 	if (need_lock)
+ 		folio_unlock(folio);
+-	folio_put(folio);
+ 
+ out:
+ 	*folio_sz = folio_size(folio);
++	folio_put(folio);
+ 	return accessed;
+ }
+ 
+-- 
+cgit 
+

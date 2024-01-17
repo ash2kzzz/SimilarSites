@@ -1,0 +1,30 @@
+From 41ade47c1273ca0e61c36f2cccad37473f0b2422 Mon Sep 17 00:00:00 2001
+From: Johannes Berg <johannes.berg@intel.com>
+Date: Thu, 19 Jan 2023 08:52:01 +0100
+Subject: wifi: mac80211: add kernel-doc for EHT structure
+
+Looks like this is required, even if all of the members
+are separately described. Add a line to avoid the warning.
+
+Fixes: f66c48af7a11 ("mac80211: support minimal EHT rate reporting on RX")
+Reported-by: Stephen Rothwell <sfr@canb.auug.org.au>
+Signed-off-by: Johannes Berg <johannes.berg@intel.com>
+---
+ include/net/mac80211.h | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/include/net/mac80211.h b/include/net/mac80211.h
+index e83cb9519e31d..a945f1b1b4d8e 100644
+--- a/include/net/mac80211.h
++++ b/include/net/mac80211.h
+@@ -1504,6 +1504,7 @@ enum mac80211_rx_encoding {
+  * @he_ru: HE RU, from &enum nl80211_he_ru_alloc
+  * @he_gi: HE GI, from &enum nl80211_he_gi
+  * @he_dcm: HE DCM value
++ * @eht: EHT specific rate information
+  * @eht.ru: EHT RU, from &enum nl80211_eht_ru_alloc
+  * @eht.gi: EHT GI, from &enum nl80211_eht_gi
+  * @rx_flags: internal RX flags for mac80211
+-- 
+cgit 
+

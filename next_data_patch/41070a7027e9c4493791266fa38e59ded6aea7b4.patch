@@ -1,0 +1,42 @@
+From 41070a7027e9c4493791266fa38e59ded6aea7b4 Mon Sep 17 00:00:00 2001
+From: Daniel Scally <dan.scally@ideasonboard.com>
+Date: Mon, 6 Feb 2023 15:11:31 +0000
+Subject: usb: gadget: uvc: Correct documentation formatting
+
+The documentation table added in a36afe780461 ("usb: gadget: uvc: Add
+new enable_interrupt_ep attribute") was incorrect, resulting in a new
+warning when compiling the documentation.
+
+Correct the formatting to resolve the warning.
+
+Fixes: a36afe780461 ("usb: gadget: uvc: Add new enable_interrupt_ep attribute")
+Reported-by: Stephen Rothwell <sfr@canb.auug.org.au>
+Signed-off-by: Daniel Scally <dan.scally@ideasonboard.com>
+Link: https://lore.kernel.org/r/20230206151131.863960-1-dan.scally@ideasonboard.com
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+---
+ Documentation/ABI/testing/configfs-usb-gadget-uvc | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/Documentation/ABI/testing/configfs-usb-gadget-uvc b/Documentation/ABI/testing/configfs-usb-gadget-uvc
+index fec205044c87e..9c716dd3ae6f3 100644
+--- a/Documentation/ABI/testing/configfs-usb-gadget-uvc
++++ b/Documentation/ABI/testing/configfs-usb-gadget-uvc
+@@ -17,12 +17,12 @@ Description:	Control descriptors
+ 
+ 		All attributes read only except enable_interrupt_ep:
+ 
+-		================	=============================
++		===================	=============================
+ 		bInterfaceNumber	USB interface number for this
+ 					streaming interface
+ 		enable_interrupt_ep	flag to enable the interrupt
+ 					endpoint for the VC interface
+-		================	=============================
++		===================	=============================
+ 
+ What:		/config/usb-gadget/gadget/functions/uvc.name/control/class
+ Date:		Dec 2014
+-- 
+cgit 
+

@@ -1,0 +1,45 @@
+From b27f07c50a73e34eefb6b1030b235192b7ded850 Mon Sep 17 00:00:00 2001
+From: Johannes Berg <johannes.berg@intel.com>
+Date: Fri, 24 Feb 2023 13:36:57 +0100
+Subject: wifi: nl80211: fix puncturing bitmap policy
+
+This was meant to be a u32, and while applying the patch
+I tried to use policy validation for it. However, not only
+did I copy/paste it to u8 instead of u32, but also used
+the policy range erroneously. Fix both of these issues.
+
+Fixes: d7c1a9a0ed18 ("wifi: nl80211: validate and configure puncturing bitmap")
+Signed-off-by: Johannes Berg <johannes.berg@intel.com>
+---
+ net/wireless/nl80211.c | 8 +++++++-
+ 1 file changed, 7 insertions(+), 1 deletion(-)
+
+diff --git a/net/wireless/nl80211.c b/net/wireless/nl80211.c
+index 51f6582eff7bc..6869781283e28 100644
+--- a/net/wireless/nl80211.c
++++ b/net/wireless/nl80211.c
+@@ -462,6 +462,11 @@ nl80211_sta_wme_policy[NL80211_STA_WME_MAX + 1] = {
+ 	[NL80211_STA_WME_MAX_SP] = { .type = NLA_U8 },
+ };
+ 
++static struct netlink_range_validation nl80211_punct_bitmap_range = {
++	.min = 0,
++	.max = 0xffff,
++};
++
+ static const struct nla_policy nl80211_policy[NUM_NL80211_ATTR] = {
+ 	[0] = { .strict_start_type = NL80211_ATTR_HE_OBSS_PD },
+ 	[NL80211_ATTR_WIPHY] = { .type = NLA_U32 },
+@@ -805,7 +810,8 @@ static const struct nla_policy nl80211_policy[NUM_NL80211_ATTR] = {
+ 	[NL80211_ATTR_MLD_ADDR] = NLA_POLICY_EXACT_LEN(ETH_ALEN),
+ 	[NL80211_ATTR_MLO_SUPPORT] = { .type = NLA_FLAG },
+ 	[NL80211_ATTR_MAX_NUM_AKM_SUITES] = { .type = NLA_REJECT },
+-	[NL80211_ATTR_PUNCT_BITMAP] = NLA_POLICY_RANGE(NLA_U8, 0, 0xffff),
++	[NL80211_ATTR_PUNCT_BITMAP] =
++		NLA_POLICY_FULL_RANGE(NLA_U32, &nl80211_punct_bitmap_range),
+ };
+ 
+ /* policy for the key attributes */
+-- 
+cgit 
+

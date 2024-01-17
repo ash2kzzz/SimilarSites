@@ -1,0 +1,111 @@
+From 1aa866931b8026a0dd636e9ef7b5c5dfb4cc5ce8 Mon Sep 17 00:00:00 2001
+From: Conor Dooley <conor.dooley@microchip.com>
+Date: Fri, 24 Mar 2023 10:05:38 +0000
+Subject: RISC-V: add non-alternative fallback for
+ riscv_has_extension_[un]likely()
+
+The has_fpu() check, which in turn calls riscv_has_extension_likely(),
+relies on alternatives to figure out whether the system has an FPU.
+As a result, it will malfunction on XIP kernels, as they do not support
+the alternatives mechanism.
+
+When alternatives support is not present, fall back to using
+__riscv_isa_extension_available() in riscv_has_extension_[un]likely()
+instead stead, which handily takes the same argument, so that kernels
+that do not support alternatives can accurately report the presence of
+FPU support.
+
+Fixes: 702e64550b12 ("riscv: fpu: switch has_fpu() to riscv_has_extension_likely()")
+Link: https://lore.kernel.org/all/ad445951-3d13-4644-94d9-e0989cda39c3@spud/
+Signed-off-by: Conor Dooley <conor.dooley@microchip.com>
+Reviewed-by: Andrew Jones <ajones@ventanamicro.com>
+Reviewed-by: Jason A. Donenfeld <Jason@zx2c4.com>
+Link: https://lore.kernel.org/r/20230324100538.3514663-2-conor.dooley@microchip.com
+Signed-off-by: Palmer Dabbelt <palmer@rivosinc.com>
+---
+ arch/riscv/include/asm/hwcap.h | 50 +++++++++++++++++++++++++-----------------
+ 1 file changed, 30 insertions(+), 20 deletions(-)
+
+diff --git a/arch/riscv/include/asm/hwcap.h b/arch/riscv/include/asm/hwcap.h
+index e3021b2590de0..6263a0de1c6a1 100644
+--- a/arch/riscv/include/asm/hwcap.h
++++ b/arch/riscv/include/asm/hwcap.h
+@@ -57,18 +57,31 @@ struct riscv_isa_ext_data {
+ 	unsigned int isa_ext_id;
+ };
+ 
++unsigned long riscv_isa_extension_base(const unsigned long *isa_bitmap);
++
++#define riscv_isa_extension_mask(ext) BIT_MASK(RISCV_ISA_EXT_##ext)
++
++bool __riscv_isa_extension_available(const unsigned long *isa_bitmap, int bit);
++#define riscv_isa_extension_available(isa_bitmap, ext)	\
++	__riscv_isa_extension_available(isa_bitmap, RISCV_ISA_EXT_##ext)
++
+ static __always_inline bool
+ riscv_has_extension_likely(const unsigned long ext)
+ {
+ 	compiletime_assert(ext < RISCV_ISA_EXT_MAX,
+ 			   "ext must be < RISCV_ISA_EXT_MAX");
+ 
+-	asm_volatile_goto(
+-	ALTERNATIVE("j	%l[l_no]", "nop", 0, %[ext], 1)
+-	:
+-	: [ext] "i" (ext)
+-	:
+-	: l_no);
++	if (IS_ENABLED(CONFIG_RISCV_ALTERNATIVE)) {
++		asm_volatile_goto(
++		ALTERNATIVE("j	%l[l_no]", "nop", 0, %[ext], 1)
++		:
++		: [ext] "i" (ext)
++		:
++		: l_no);
++	} else {
++		if (!__riscv_isa_extension_available(NULL, ext))
++			goto l_no;
++	}
+ 
+ 	return true;
+ l_no:
+@@ -81,26 +94,23 @@ riscv_has_extension_unlikely(const unsigned long ext)
+ 	compiletime_assert(ext < RISCV_ISA_EXT_MAX,
+ 			   "ext must be < RISCV_ISA_EXT_MAX");
+ 
+-	asm_volatile_goto(
+-	ALTERNATIVE("nop", "j	%l[l_yes]", 0, %[ext], 1)
+-	:
+-	: [ext] "i" (ext)
+-	:
+-	: l_yes);
++	if (IS_ENABLED(CONFIG_RISCV_ALTERNATIVE)) {
++		asm_volatile_goto(
++		ALTERNATIVE("nop", "j	%l[l_yes]", 0, %[ext], 1)
++		:
++		: [ext] "i" (ext)
++		:
++		: l_yes);
++	} else {
++		if (__riscv_isa_extension_available(NULL, ext))
++			goto l_yes;
++	}
+ 
+ 	return false;
+ l_yes:
+ 	return true;
+ }
+ 
+-unsigned long riscv_isa_extension_base(const unsigned long *isa_bitmap);
+-
+-#define riscv_isa_extension_mask(ext) BIT_MASK(RISCV_ISA_EXT_##ext)
+-
+-bool __riscv_isa_extension_available(const unsigned long *isa_bitmap, int bit);
+-#define riscv_isa_extension_available(isa_bitmap, ext)	\
+-	__riscv_isa_extension_available(isa_bitmap, RISCV_ISA_EXT_##ext)
+-
+ #endif
+ 
+ #endif /* _ASM_RISCV_HWCAP_H */
+-- 
+cgit 
+

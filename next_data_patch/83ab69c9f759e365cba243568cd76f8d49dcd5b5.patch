@@ -1,0 +1,1465 @@
+From ce902336d9b3472d6104316e876e1a8752531916 Mon Sep 17 00:00:00 2001
+From: Rob Clark <robdclark@chromium.org>
+Date: Tue, 18 Apr 2023 09:41:58 -0700
+Subject: drm/msm/atomic: Don't try async if crtc not active
+
+For a similar reason as commit f2c7ca890182 ("drm/atomic-helper: Don't
+set deadline for modesets"), we need the crtc to be already active in
+order to compute a target vblank time for an async commit.  Otherwise
+we get this splat reminding us that we are doing it wrong:
+
+   ------------[ cut here ]------------
+   msm_dpu ae01000.mdp: drm_WARN_ON_ONCE(drm_drv_uses_atomic_modeset(dev))
+   WARNING: CPU: 7 PID: 1923 at drivers/gpu/drm/drm_vblank.c:728 drm_crtc_vblank_helper_get_vblank_timestamp_internal+0x148/0x370
+   Modules linked in: snd_seq_dummy snd_seq snd_seq_device bridge stp llc tun vhost_vsock vhost vhost_iotlb vmw_vsock_virtio_transport_common vsock uinput rfcomm algif_hash algif_skcipher af_alg veth venus_dec venus_enc cros_ec_typec typec qcom_spmi_temp_alarm qcom_spmi_adc_tm5 qcom_spmi_adc5 xt_cgroup qcom_vadc_common qcom_stats hci_uart btqca xt_MASQUERADE venus_core 8021q coresight_tmc coresight_funnel coresight_etm4x coresight_replicator snd_soc_lpass_sc7180 coresight snd_soc_sc7180 ip6table_nat fuse ath10k_snoc ath10k_core ath mac80211 iio_trig_sysfs bluetooth cfg80211 cros_ec_sensors cros_ec_sensors_core ecdh_generic industrialio_triggered_buffer ecc kfifo_buf cros_ec_sensorhub r8153_ecm cdc_ether usbnet r8152 mii lzo_rle lzo_compress zram hid_vivaldi hid_google_hammer hid_vivaldi_common joydev
+   CPU: 7 PID: 1923 Comm: DrmThread Not tainted 5.15.107-18853-g3be267609a0b-dirty #16 a1ffc1a66e79c21c3536d8c9a42e819236e39714
+   Hardware name: Google Wormdingler rev1+ BOE panel board (DT)
+   pstate: 60400009 (nZCv daif +PAN -UAO -TCO -DIT -SSBS BTYPE=--)
+   pc : drm_crtc_vblank_helper_get_vblank_timestamp_internal+0x148/0x370
+   lr : drm_crtc_vblank_helper_get_vblank_timestamp_internal+0x144/0x370
+   sp : ffffffc012e2b800
+   x29: ffffffc012e2b840 x28: ffffff8083676094 x27: ffffffc012e2bb28
+   x26: ffffff8084539800 x25: 0000000000000000 x24: ffffff8083676000
+   x23: ffffffd3c8cdc5a0 x22: ffffff80845b9d00 x21: ffffffc012e2b8b4
+   x20: ffffffc012e2b910 x19: 0000000000000001 x18: 0000000000000000
+   x17: 0000000000000000 x16: 0000000000000010 x15: ffffffd3c8451a88
+   x14: 0000000000000003 x13: 0000000000000004 x12: 0000000000000001
+   x11: c0000000ffffdfff x10: ffffffd3c973ef58 x9 : 8ea3526b3cc95900
+   x8 : 8ea3526b3cc95900 x7 : 0000000000000000 x6 : 000000000000003a
+   x5 : ffffffd3c99676cd x4 : 0000000000000000 x3 : ffffffc012e2b4b8
+   x2 : ffffffc012e2b4c0 x1 : 00000000ffffdfff x0 : 0000000000000000
+   Call trace:
+    drm_crtc_vblank_helper_get_vblank_timestamp_internal+0x148/0x370
+    drm_crtc_vblank_helper_get_vblank_timestamp+0x20/0x30
+    drm_crtc_get_last_vbltimestamp+0x68/0xb0
+    drm_crtc_next_vblank_start+0x5c/0xa8
+    msm_atomic_commit_tail+0x264/0x664
+    commit_tail+0xac/0x160
+    drm_atomic_helper_commit+0x160/0x168
+    drm_atomic_commit+0xfc/0x128
+    drm_atomic_helper_disable_plane+0x8c/0x110
+    __setplane_atomic+0x10c/0x138
+    drm_mode_cursor_common+0x3a8/0x410
+    drm_mode_cursor_ioctl+0x48/0x70
+    drm_ioctl_kernel+0xe0/0x158
+    drm_ioctl+0x25c/0x4d8
+    __arm64_sys_ioctl+0x98/0xd0
+    invoke_syscall+0x4c/0x100
+    el0_svc_common+0x98/0x104
+    do_el0_svc+0x30/0x90
+    el0_svc+0x20/0x50
+    el0t_64_sync_handler+0x78/0x108
+    el0t_64_sync+0x1a4/0x1a8
+   ---[ end trace a0f587e1ab9589e8 ]---
+
+Fixes: 52ff0d3073d2 ("drm/msm/atomic: Switch to vblank_start helper")
+Signed-off-by: Rob Clark <robdclark@chromium.org>
+Reviewed-by: Dmitry Baryshkov <dmitry.baryshkov@linaro.org>
+Reviewed-by: Abhinav Kumar <quic_abhinavk@quicinc.com>
+Patchwork: https://patchwork.freedesktop.org/patch/532727/
+Link: https://lore.kernel.org/r/20230418164158.549873-1-robdclark@gmail.com
+---
+ drivers/gpu/drm/msm/msm_atomic.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/drivers/gpu/drm/msm/msm_atomic.c b/drivers/gpu/drm/msm/msm_atomic.c
+index d77fa9793c54d..9c45d641b5212 100644
+--- a/drivers/gpu/drm/msm/msm_atomic.c
++++ b/drivers/gpu/drm/msm/msm_atomic.c
+@@ -155,6 +155,8 @@ static bool can_do_async(struct drm_atomic_state *state,
+ 	for_each_new_crtc_in_state(state, crtc, crtc_state, i) {
+ 		if (drm_atomic_crtc_needs_modeset(crtc_state))
+ 			return false;
++		if (!crtc_state->active)
++			return false;
+ 		if (++num_crtcs > 1)
+ 			return false;
+ 		*async_crtc = crtc;
+-- 
+cgit 
+
+
+From 16eb51aba0a72b8f60c6b98d1493844230293450 Mon Sep 17 00:00:00 2001
+From: Rob Clark <robdclark@chromium.org>
+Date: Mon, 17 Apr 2023 15:55:04 -0700
+Subject: drm/msm: Fix vmap madv warning
+
+Commit d6ae7d1cd58e ("drm/msm/gem: Simplify vmap vs LRU tracking")
+introduced a splat in the pin_pages_locked() path for buffers that
+had been MADV_DONTNEED.
+
+   ------------[ cut here ]------------
+   msm_obj->madv != 0
+   WARNING: CPU: 1 PID: 144 at drivers/gpu/drm/msm/msm_gem.c:230 msm_gem_pin_pages_locked+0x9c/0xd4
+   Modules linked in: lzo_rle cros_ec_lid_angle cros_ec_sensors cros_ec_sensors_core venus_dec venus_enc videobuf2_dma_contig cdc_ether usbnet mii uvcvideo videobuf2_vmalloc hci_uart btqca qcom_spmi_adc5 uvc qcom_spmi_temp_alarm qcom_vadc_common cros_ec_sensorhub videobuf2_memops cros_ec_typec sx9324 sx_common typec joydev bluetooth industrialio_triggered_buffer ecdh_generic kfifo_buf ecc venus_core qcom_stats v4l2_mem2mem videobuf2_v4l2 videobuf2_common ath11k_ahb ath11k mac80211 cfg80211 fuse zram zsmalloc
+   CPU: 1 PID: 144 Comm: ring0 Tainted: G        W          6.3.0-rc2-debug+ #622
+   Hardware name: Google Villager (rev1+) with LTE (DT)
+   pstate: 60400009 (nZCv daif +PAN -UAO -TCO -DIT -SSBS BTYPE=--)
+   pc : msm_gem_pin_pages_locked+0x9c/0xd4
+   lr : msm_gem_pin_pages_locked+0x9c/0xd4
+   sp : ffffffc009ffbab0
+   x29: ffffffc009ffbab0 x28: ffffffee8da75008 x27: ffffff80a10274d0
+   x26: ffffff8087fe3bf8 x25: ffffff8087fe3c08 x24: 0000000000000001
+   x23: ffffff80891d5800 x22: ffffff809d0de480 x21: ffffff8081e5a080
+   x20: 0000000000000002 x19: ffffff80a3564c00 x18: 0000000000000000
+   x17: 0000000000000000 x16: 0000000000000000 x15: 00000000000a9620
+   x14: 0000000000000000 x13: 2d2d2d2d2d2d2d2d x12: 2d2d2d2d5d206572
+   x11: 656820747563205b x10: 2d2d2d2d2d2d2d2d x9 : ffffffee8c705dfc
+   x8 : ffffffee8da75000 x7 : ffffffee8d34e6d0 x6 : 0000000000000000
+   x5 : 00000000000affa8 x4 : 000000000000000d x3 : ffffffee8da75008
+   x2 : 0000000000000000 x1 : 0000000000000000 x0 : ffffff8088048040
+   Call trace:
+    msm_gem_pin_pages_locked+0x9c/0xd4
+    get_vaddr+0xb0/0x150
+    msm_gem_get_vaddr_active+0x1c/0x28
+    snapshot_buf+0x90/0x10c
+    msm_rd_dump_submit+0x30c/0x380
+    msm_gpu_submit+0x88/0x174
+    msm_job_run+0x68/0x118
+    drm_sched_main+0x2b8/0x3a0
+    kthread+0xf0/0x100
+    ret_from_fork+0x10/0x20
+   irq event stamp: 3358
+   hardirqs last  enabled at (3357): [<ffffffee8c7051f4>] __up_console_sem+0x7c/0x80
+   hardirqs last disabled at (3358): [<ffffffee8d3480b0>] el1_dbg+0x24/0x80
+   softirqs last  enabled at (3330): [<ffffffee8c610420>] __do_softirq+0x21c/0x4bc
+   softirqs last disabled at (3325): [<ffffffee8c616708>] ____do_softirq+0x18/0x24
+   ---[ end trace 0000000000000000 ]---
+
+But, as with msm_gem_get_vaddr_active(), this is a special case
+because we know that the buffer won't be purged evicted until it's
+fence is signaled.  We just forgot to propagate the logic get_vaddr()
+to pin_pages_locked().
+
+Fixes: d6ae7d1cd58e ("drm/msm/gem: Simplify vmap vs LRU tracking")
+Signed-off-by: Rob Clark <robdclark@chromium.org>
+Patchwork: https://patchwork.freedesktop.org/patch/532616/
+Link: https://lore.kernel.org/r/20230417225504.494934-1-robdclark@gmail.com
+---
+ drivers/gpu/drm/msm/msm_gem.c | 22 ++++++++--------------
+ 1 file changed, 8 insertions(+), 14 deletions(-)
+
+diff --git a/drivers/gpu/drm/msm/msm_gem.c b/drivers/gpu/drm/msm/msm_gem.c
+index db6c4e281d75d..cd39b9d8abdbe 100644
+--- a/drivers/gpu/drm/msm/msm_gem.c
++++ b/drivers/gpu/drm/msm/msm_gem.c
+@@ -219,7 +219,8 @@ static void put_pages(struct drm_gem_object *obj)
+ 	}
+ }
+ 
+-static struct page **msm_gem_pin_pages_locked(struct drm_gem_object *obj)
++static struct page **msm_gem_pin_pages_locked(struct drm_gem_object *obj,
++					      unsigned madv)
+ {
+ 	struct msm_drm_private *priv = obj->dev->dev_private;
+ 	struct msm_gem_object *msm_obj = to_msm_bo(obj);
+@@ -227,7 +228,9 @@ static struct page **msm_gem_pin_pages_locked(struct drm_gem_object *obj)
+ 
+ 	msm_gem_assert_locked(obj);
+ 
+-	if (GEM_WARN_ON(msm_obj->madv != MSM_MADV_WILLNEED)) {
++	if (GEM_WARN_ON(msm_obj->madv > madv)) {
++		DRM_DEV_ERROR(obj->dev->dev, "Invalid madv state: %u vs %u\n",
++			msm_obj->madv, madv);
+ 		return ERR_PTR(-EBUSY);
+ 	}
+ 
+@@ -248,7 +251,7 @@ struct page **msm_gem_pin_pages(struct drm_gem_object *obj)
+ 	struct page **p;
+ 
+ 	msm_gem_lock(obj);
+-	p = msm_gem_pin_pages_locked(obj);
++	p = msm_gem_pin_pages_locked(obj, MSM_MADV_WILLNEED);
+ 	msm_gem_unlock(obj);
+ 
+ 	return p;
+@@ -473,10 +476,7 @@ int msm_gem_pin_vma_locked(struct drm_gem_object *obj, struct msm_gem_vma *vma)
+ 
+ 	msm_gem_assert_locked(obj);
+ 
+-	if (GEM_WARN_ON(msm_obj->madv != MSM_MADV_WILLNEED))
+-		return -EBUSY;
+-
+-	pages = msm_gem_pin_pages_locked(obj);
++	pages = msm_gem_pin_pages_locked(obj, MSM_MADV_WILLNEED);
+ 	if (IS_ERR(pages))
+ 		return PTR_ERR(pages);
+ 
+@@ -699,13 +699,7 @@ static void *get_vaddr(struct drm_gem_object *obj, unsigned madv)
+ 	if (obj->import_attach)
+ 		return ERR_PTR(-ENODEV);
+ 
+-	if (GEM_WARN_ON(msm_obj->madv > madv)) {
+-		DRM_DEV_ERROR(obj->dev->dev, "Invalid madv state: %u vs %u\n",
+-			msm_obj->madv, madv);
+-		return ERR_PTR(-EBUSY);
+-	}
+-
+-	pages = msm_gem_pin_pages_locked(obj);
++	pages = msm_gem_pin_pages_locked(obj, madv);
+ 	if (IS_ERR(pages))
+ 		return ERR_CAST(pages);
+ 
+-- 
+cgit 
+
+
+From 85c636284cb63b7740b4ae98881ace92158068d3 Mon Sep 17 00:00:00 2001
+From: Srinivas Kandagatla <srinivas.kandagatla@linaro.org>
+Date: Fri, 21 Apr 2023 15:56:57 +0100
+Subject: drm/msm/dp: unregister audio driver during unbind
+
+while binding the code always registers a audio driver, however there
+is no corresponding unregistration done in unbind. This leads to multiple
+redundant audio platform devices if dp_display_bind and dp_display_unbind
+happens multiple times during startup. On X13s platform this resulted in
+6 to 9 audio codec device instead of just 3 codec devices for 3 dp ports.
+
+Fix this by unregistering codecs on unbind.
+
+Signed-off-by: Srinivas Kandagatla <srinivas.kandagatla@linaro.org>
+Fixes: d13e36d7d222 ("drm/msm/dp: add audio support for Display Port on MSM")
+Reviewed-by: Abhinav Kumar <quic_abhinavk@quicinc.com>
+Patchwork: https://patchwork.freedesktop.org/patch/533324/
+Link: https://lore.kernel.org/r/20230421145657.12186-1-srinivas.kandagatla@linaro.org
+Signed-off-by: Abhinav Kumar <quic_abhinavk@quicinc.com>
+---
+ drivers/gpu/drm/msm/dp/dp_audio.c   | 12 ++++++++++++
+ drivers/gpu/drm/msm/dp/dp_audio.h   |  2 ++
+ drivers/gpu/drm/msm/dp/dp_display.c |  1 +
+ 3 files changed, 15 insertions(+)
+
+diff --git a/drivers/gpu/drm/msm/dp/dp_audio.c b/drivers/gpu/drm/msm/dp/dp_audio.c
+index 6666783e1468e..1245c7aa49df8 100644
+--- a/drivers/gpu/drm/msm/dp/dp_audio.c
++++ b/drivers/gpu/drm/msm/dp/dp_audio.c
+@@ -593,6 +593,18 @@ static struct hdmi_codec_pdata codec_data = {
+ 	.i2s = 1,
+ };
+ 
++void dp_unregister_audio_driver(struct device *dev, struct dp_audio *dp_audio)
++{
++	struct dp_audio_private *audio_priv;
++
++	audio_priv = container_of(dp_audio, struct dp_audio_private, dp_audio);
++
++	if (audio_priv->audio_pdev) {
++		platform_device_unregister(audio_priv->audio_pdev);
++		audio_priv->audio_pdev = NULL;
++	}
++}
++
+ int dp_register_audio_driver(struct device *dev,
+ 		struct dp_audio *dp_audio)
+ {
+diff --git a/drivers/gpu/drm/msm/dp/dp_audio.h b/drivers/gpu/drm/msm/dp/dp_audio.h
+index 84e5f4a5d26ba..4ab78880af829 100644
+--- a/drivers/gpu/drm/msm/dp/dp_audio.h
++++ b/drivers/gpu/drm/msm/dp/dp_audio.h
+@@ -53,6 +53,8 @@ struct dp_audio *dp_audio_get(struct platform_device *pdev,
+ int dp_register_audio_driver(struct device *dev,
+ 		struct dp_audio *dp_audio);
+ 
++void dp_unregister_audio_driver(struct device *dev, struct dp_audio *dp_audio);
++
+ /**
+  * dp_audio_put()
+  *
+diff --git a/drivers/gpu/drm/msm/dp/dp_display.c b/drivers/gpu/drm/msm/dp/dp_display.c
+index 3e13acdfa7e53..99a38dbe51c0f 100644
+--- a/drivers/gpu/drm/msm/dp/dp_display.c
++++ b/drivers/gpu/drm/msm/dp/dp_display.c
+@@ -326,6 +326,7 @@ static void dp_display_unbind(struct device *dev, struct device *master,
+ 	kthread_stop(dp->ev_tsk);
+ 
+ 	dp_power_client_deinit(dp->power);
++	dp_unregister_audio_driver(dev, dp->audio);
+ 	dp_aux_unregister(dp->aux);
+ 	dp->drm_dev = NULL;
+ 	dp->aux->drm_dev = NULL;
+-- 
+cgit 
+
+
+From a432fc31f03db2546a48bcf5dd69ca28ceb732bf Mon Sep 17 00:00:00 2001
+From: Marijn Suijten <marijn.suijten@somainline.org>
+Date: Wed, 26 Apr 2023 01:11:09 +0200
+Subject: drm/msm/dpu: Assign missing writeback log_mask
+
+The WB debug log mask ended up never being assigned, leading to writes
+to this block to never be logged even if the mask is enabled in
+dpu_hw_util_log_mask via debugfs.
+
+Fixes: 84a33d0fd921 ("drm/msm/dpu: add dpu_hw_wb abstraction for writeback blocks")
+Signed-off-by: Marijn Suijten <marijn.suijten@somainline.org>
+Reviewed-by: Abhinav Kumar <quic_abhinavk@quicinc.com>
+Reviewed-by: Dmitry Baryshkov <dmitry.baryshkov@linaro.org>
+Patchwork: https://patchwork.freedesktop.org/patch/533860/
+Link: https://lore.kernel.org/r/20230418-dpu-drop-useless-for-lookup-v3-1-e8d869eea455@somainline.org
+Signed-off-by: Abhinav Kumar <quic_abhinavk@quicinc.com>
+---
+ drivers/gpu/drm/msm/disp/dpu1/dpu_hw_wb.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_wb.c b/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_wb.c
+index 2d28afdf860ef..a3e413d277175 100644
+--- a/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_wb.c
++++ b/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_wb.c
+@@ -61,6 +61,7 @@ static const struct dpu_wb_cfg *_wb_offset(enum dpu_wb wb,
+ 	for (i = 0; i < m->wb_count; i++) {
+ 		if (wb == m->wb[i].id) {
+ 			b->blk_addr = addr + m->wb[i].base;
++			b->log_mask = DPU_DBG_MASK_WB;
+ 			return &m->wb[i];
+ 		}
+ 	}
+-- 
+cgit 
+
+
+From 3f23a52fc2b890884828747111f7a3291d2a1b3d Mon Sep 17 00:00:00 2001
+From: Arnaud Vrac <avrac@freebox.fr>
+Date: Wed, 19 Apr 2023 16:41:08 +0200
+Subject: drm/msm/dpu: tweak msm8998 hw catalog values
+
+Match the values found in the downstream msm-4.4 kernel sde driver.
+
+Signed-off-by: Arnaud Vrac <avrac@freebox.fr>
+Fixes: 94391a14fc27 ("drm/msm/dpu1: Add MSM8998 to hw catalog")
+Reviewed-by: Dmitry Baryshkov <dmitry.baryshkov@linaro.org>
+Reviewed-by: Abhinav Kumar <quic_abhinavk@quicinc.com>
+Patchwork: https://patchwork.freedesktop.org/patch/532900/
+Link: https://lore.kernel.org/r/20230419-dpu-tweaks-v1-1-d1bac46db075@freebox.fr
+Signed-off-by: Abhinav Kumar <quic_abhinavk@quicinc.com>
+---
+ drivers/gpu/drm/msm/disp/dpu1/catalog/dpu_3_0_msm8998.h |  8 ++++----
+ drivers/gpu/drm/msm/disp/dpu1/dpu_hw_catalog.c          | 15 +++++----------
+ 2 files changed, 9 insertions(+), 14 deletions(-)
+
+diff --git a/drivers/gpu/drm/msm/disp/dpu1/catalog/dpu_3_0_msm8998.h b/drivers/gpu/drm/msm/disp/dpu1/catalog/dpu_3_0_msm8998.h
+index 2b3ae84057dfe..b07e8a9941f79 100644
+--- a/drivers/gpu/drm/msm/disp/dpu1/catalog/dpu_3_0_msm8998.h
++++ b/drivers/gpu/drm/msm/disp/dpu1/catalog/dpu_3_0_msm8998.h
+@@ -134,10 +134,10 @@ static const struct dpu_dspp_cfg msm8998_dspp[] = {
+ };
+ 
+ static const struct dpu_intf_cfg msm8998_intf[] = {
+-	INTF_BLK("intf_0", INTF_0, 0x6a000, 0x280, INTF_DP, 0, 25, INTF_SDM845_MASK, MDP_SSPP_TOP0_INTR, 24, 25),
+-	INTF_BLK("intf_1", INTF_1, 0x6a800, 0x280, INTF_DSI, 0, 25, INTF_SDM845_MASK, MDP_SSPP_TOP0_INTR, 26, 27),
+-	INTF_BLK("intf_2", INTF_2, 0x6b000, 0x280, INTF_DSI, 1, 25, INTF_SDM845_MASK, MDP_SSPP_TOP0_INTR, 28, 29),
+-	INTF_BLK("intf_3", INTF_3, 0x6b800, 0x280, INTF_HDMI, 0, 25, INTF_SDM845_MASK, MDP_SSPP_TOP0_INTR, 30, 31),
++	INTF_BLK("intf_0", INTF_0, 0x6a000, 0x280, INTF_DP, 0, 21, INTF_SDM845_MASK, MDP_SSPP_TOP0_INTR, 24, 25),
++	INTF_BLK("intf_1", INTF_1, 0x6a800, 0x280, INTF_DSI, 0, 21, INTF_SDM845_MASK, MDP_SSPP_TOP0_INTR, 26, 27),
++	INTF_BLK("intf_2", INTF_2, 0x6b000, 0x280, INTF_DSI, 1, 21, INTF_SDM845_MASK, MDP_SSPP_TOP0_INTR, 28, 29),
++	INTF_BLK("intf_3", INTF_3, 0x6b800, 0x280, INTF_HDMI, 0, 21, INTF_SDM845_MASK, MDP_SSPP_TOP0_INTR, 30, 31),
+ };
+ 
+ static const struct dpu_perf_cfg msm8998_perf_data = {
+diff --git a/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_catalog.c b/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_catalog.c
+index 03f162af1a50b..8d5d782a43398 100644
+--- a/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_catalog.c
++++ b/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_catalog.c
+@@ -587,12 +587,12 @@ static const u32 sdm845_nrt_pri_lvl[] = {3, 3, 3, 3, 3, 3, 3, 3};
+ 
+ static const struct dpu_vbif_dynamic_ot_cfg msm8998_ot_rdwr_cfg[] = {
+ 	{
+-		.pps = 1088 * 1920 * 30,
++		.pps = 1920 * 1080 * 30,
+ 		.ot_limit = 2,
+ 	},
+ 	{
+-		.pps = 1088 * 1920 * 60,
+-		.ot_limit = 6,
++		.pps = 1920 * 1080 * 60,
++		.ot_limit = 4,
+ 	},
+ 	{
+ 		.pps = 3840 * 2160 * 30,
+@@ -705,10 +705,7 @@ static const struct dpu_qos_lut_entry msm8998_qos_linear[] = {
+ 	{.fl = 10, .lut = 0x1555b},
+ 	{.fl = 11, .lut = 0x5555b},
+ 	{.fl = 12, .lut = 0x15555b},
+-	{.fl = 13, .lut = 0x55555b},
+-	{.fl = 14, .lut = 0},
+-	{.fl = 1,  .lut = 0x1b},
+-	{.fl = 0,  .lut = 0}
++	{.fl = 0,  .lut = 0x55555b}
+ };
+ 
+ static const struct dpu_qos_lut_entry sdm845_qos_linear[] = {
+@@ -730,9 +727,7 @@ static const struct dpu_qos_lut_entry msm8998_qos_macrotile[] = {
+ 	{.fl = 10, .lut = 0x1aaff},
+ 	{.fl = 11, .lut = 0x5aaff},
+ 	{.fl = 12, .lut = 0x15aaff},
+-	{.fl = 13, .lut = 0x55aaff},
+-	{.fl = 1,  .lut = 0x1aaff},
+-	{.fl = 0,  .lut = 0},
++	{.fl = 0,  .lut = 0x55aaff},
+ };
+ 
+ static const struct dpu_qos_lut_entry sc7180_qos_linear[] = {
+-- 
+cgit 
+
+
+From 686eb89b103631a41c7f69b8ac5fbca4a6b07fa0 Mon Sep 17 00:00:00 2001
+From: Arnaud Vrac <avrac@freebox.fr>
+Date: Wed, 19 Apr 2023 16:41:17 +0200
+Subject: drm/msm/dpu: tweak lm pairings in msm8998 hw catalog
+
+Change lm blocks pairs so that lm blocks with the same features are
+paired together:
+
+LM_0 and LM_1 with PP and DSPP
+LM_2 and LM_5 with PP
+LM_3 and LM_4
+
+This matches the sdm845 configuration and allows using pp or dspp when 2
+lm blocks are needed in the topology. In the previous config the
+reservation code could never find an lm pair without a matching feature
+set.
+
+Signed-off-by: Arnaud Vrac <avrac@freebox.fr>
+Fixes: 94391a14fc27 ("drm/msm/dpu1: Add MSM8998 to hw catalog")
+Reviewed-by: Dmitry Baryshkov <dmitry.baryshkov@linaro.org>
+Reviewed-by: Abhinav Kumar <quic_abhinavk@quicinc.com>
+Patchwork: https://patchwork.freedesktop.org/patch/532905/
+Link: https://lore.kernel.org/r/20230419-dpu-tweaks-v1-10-d1bac46db075@freebox.fr
+Signed-off-by: Abhinav Kumar <quic_abhinavk@quicinc.com>
+---
+ drivers/gpu/drm/msm/disp/dpu1/catalog/dpu_3_0_msm8998.h | 8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/gpu/drm/msm/disp/dpu1/catalog/dpu_3_0_msm8998.h b/drivers/gpu/drm/msm/disp/dpu1/catalog/dpu_3_0_msm8998.h
+index b07e8a9941f79..bdcd554fc8a80 100644
+--- a/drivers/gpu/drm/msm/disp/dpu1/catalog/dpu_3_0_msm8998.h
++++ b/drivers/gpu/drm/msm/disp/dpu1/catalog/dpu_3_0_msm8998.h
+@@ -98,17 +98,17 @@ static const struct dpu_sspp_cfg msm8998_sspp[] = {
+ 
+ static const struct dpu_lm_cfg msm8998_lm[] = {
+ 	LM_BLK("lm_0", LM_0, 0x44000, MIXER_MSM8998_MASK,
+-		&msm8998_lm_sblk, PINGPONG_0, LM_2, DSPP_0),
++		&msm8998_lm_sblk, PINGPONG_0, LM_1, DSPP_0),
+ 	LM_BLK("lm_1", LM_1, 0x45000, MIXER_MSM8998_MASK,
+-		&msm8998_lm_sblk, PINGPONG_1, LM_5, DSPP_1),
++		&msm8998_lm_sblk, PINGPONG_1, LM_0, DSPP_1),
+ 	LM_BLK("lm_2", LM_2, 0x46000, MIXER_MSM8998_MASK,
+-		&msm8998_lm_sblk, PINGPONG_2, LM_0, 0),
++		&msm8998_lm_sblk, PINGPONG_2, LM_5, 0),
+ 	LM_BLK("lm_3", LM_3, 0x47000, MIXER_MSM8998_MASK,
+ 		&msm8998_lm_sblk, PINGPONG_MAX, 0, 0),
+ 	LM_BLK("lm_4", LM_4, 0x48000, MIXER_MSM8998_MASK,
+ 		&msm8998_lm_sblk, PINGPONG_MAX, 0, 0),
+ 	LM_BLK("lm_5", LM_5, 0x49000, MIXER_MSM8998_MASK,
+-		&msm8998_lm_sblk, PINGPONG_3, LM_1, 0),
++		&msm8998_lm_sblk, PINGPONG_3, LM_2, 0),
+ };
+ 
+ static const struct dpu_pingpong_cfg msm8998_pp[] = {
+-- 
+cgit 
+
+
+From f9d5bb73c260f0478f43b07d9fb3dae7d7a8b36b Mon Sep 17 00:00:00 2001
+From: Marijn Suijten <marijn.suijten@somainline.org>
+Date: Thu, 27 Apr 2023 00:37:15 +0200
+Subject: drm/msm/dpu: Remove unused INTF0 interrupt mask from SM6115/QCM2290
+
+Neither of these SoCs has INTF0, they only have a DSI interface on index
+1.  Stop enabling an interrupt that can't fire.
+
+Fixes: 3581b7062cec ("drm/msm/disp/dpu1: add support for display on SM6115")
+Fixes: 5334087ee743 ("drm/msm: add support for QCM2290 MDSS")
+Signed-off-by: Marijn Suijten <marijn.suijten@somainline.org>
+Reviewed-by: Dmitry Baryshkov <dmitry.baryshkov@linaro.org>
+Reviewed-by: Konrad Dybcio <konrad.dybcio@linaro.org>
+Reviewed-by: Abhinav Kumar <quic_abhinavk@quicinc.com>
+Patchwork: https://patchwork.freedesktop.org/patch/534204/
+Link: https://lore.kernel.org/r/20230411-dpu-intf-te-v4-1-27ce1a5ab5c6@somainline.org
+Signed-off-by: Abhinav Kumar <quic_abhinavk@quicinc.com>
+---
+ drivers/gpu/drm/msm/disp/dpu1/catalog/dpu_6_3_sm6115.h  | 1 -
+ drivers/gpu/drm/msm/disp/dpu1/catalog/dpu_6_5_qcm2290.h | 1 -
+ 2 files changed, 2 deletions(-)
+
+diff --git a/drivers/gpu/drm/msm/disp/dpu1/catalog/dpu_6_3_sm6115.h b/drivers/gpu/drm/msm/disp/dpu1/catalog/dpu_6_3_sm6115.h
+index 6f04d8f85c925..988d820f7ef2e 100644
+--- a/drivers/gpu/drm/msm/disp/dpu1/catalog/dpu_6_3_sm6115.h
++++ b/drivers/gpu/drm/msm/disp/dpu1/catalog/dpu_6_3_sm6115.h
+@@ -122,7 +122,6 @@ const struct dpu_mdss_cfg dpu_sm6115_cfg = {
+ 	.mdss_irqs = BIT(MDP_SSPP_TOP0_INTR) | \
+ 		     BIT(MDP_SSPP_TOP0_INTR2) | \
+ 		     BIT(MDP_SSPP_TOP0_HIST_INTR) | \
+-		     BIT(MDP_INTF0_INTR) | \
+ 		     BIT(MDP_INTF1_INTR),
+ };
+ 
+diff --git a/drivers/gpu/drm/msm/disp/dpu1/catalog/dpu_6_5_qcm2290.h b/drivers/gpu/drm/msm/disp/dpu1/catalog/dpu_6_5_qcm2290.h
+index 303492d62a5ca..c9003dcc1a59b 100644
+--- a/drivers/gpu/drm/msm/disp/dpu1/catalog/dpu_6_5_qcm2290.h
++++ b/drivers/gpu/drm/msm/disp/dpu1/catalog/dpu_6_5_qcm2290.h
+@@ -112,7 +112,6 @@ const struct dpu_mdss_cfg dpu_qcm2290_cfg = {
+ 	.mdss_irqs = BIT(MDP_SSPP_TOP0_INTR) | \
+ 		     BIT(MDP_SSPP_TOP0_INTR2) | \
+ 		     BIT(MDP_SSPP_TOP0_HIST_INTR) | \
+-		     BIT(MDP_INTF0_INTR) | \
+ 		     BIT(MDP_INTF1_INTR),
+ };
+ 
+-- 
+cgit 
+
+
+From cfbc21d1c0f9bc2f74acab84031fbaefdbb49ae1 Mon Sep 17 00:00:00 2001
+From: Marijn Suijten <marijn.suijten@somainline.org>
+Date: Thu, 27 Apr 2023 00:37:16 +0200
+Subject: drm/msm/dpu: Remove TE2 block and feature from DPU >= 5.0.0 hardware
+
+No hardware beyond kona (sm8250, DPU 6.0.0) defines the TE2 PINGPONG
+sub-block offset downstream, and according to insiders no DPU >= 5.0.0
+hardware has support for it either.  Especially since neither downstream
+nor upstream utilize these registers in any way, remove the erroneous
+specification from SM8150, SC8180X, SM8250, SC7180, SM8350, SC8280XP and
+SM8450 to prevent confusion.
+
+Note that downstream enables the PPSPLIT (split-FIFO) topology (single
+LM for 2 PP and 2 INTF) based on the presence of a TE2 block.
+
+Fixes: 386fced3f76f ("drm/msm/dpu: add SM8150 to hw catalog")
+Fixes: 7bdc0c4b8126 ("msm:disp:dpu1: add support for display for SC7180 target")
+Fixes: 0e91bcbb0016 ("drm/msm/dpu: Add SM8350 to hw catalog")
+Fixes: 4a352c2fc15a ("drm/msm/dpu: Introduce SC8280XP")
+Fixes: 100d7ef6995d ("drm/msm/dpu: add support for SM8450")
+Signed-off-by: Marijn Suijten <marijn.suijten@somainline.org>
+Reviewed-by: Abhinav Kumar <quic_abhinavk@quicinc.com>
+Patchwork: https://patchwork.freedesktop.org/patch/534210/
+Link: https://lore.kernel.org/r/20230411-dpu-intf-te-v4-2-27ce1a5ab5c6@somainline.org
+Signed-off-by: Abhinav Kumar <quic_abhinavk@quicinc.com>
+---
+ .../gpu/drm/msm/disp/dpu1/catalog/dpu_5_0_sm8150.h |  4 ++--
+ .../drm/msm/disp/dpu1/catalog/dpu_5_1_sc8180x.h    |  4 ++--
+ .../gpu/drm/msm/disp/dpu1/catalog/dpu_6_0_sm8250.h |  4 ++--
+ .../gpu/drm/msm/disp/dpu1/catalog/dpu_6_2_sc7180.h |  4 ++--
+ .../gpu/drm/msm/disp/dpu1/catalog/dpu_7_0_sm8350.h |  4 ++--
+ .../drm/msm/disp/dpu1/catalog/dpu_8_0_sc8280xp.h   | 24 +++++++++++-----------
+ .../gpu/drm/msm/disp/dpu1/catalog/dpu_8_1_sm8450.h |  4 ++--
+ 7 files changed, 24 insertions(+), 24 deletions(-)
+
+diff --git a/drivers/gpu/drm/msm/disp/dpu1/catalog/dpu_5_0_sm8150.h b/drivers/gpu/drm/msm/disp/dpu1/catalog/dpu_5_0_sm8150.h
+index 282d410269ff6..42b0e58624d00 100644
+--- a/drivers/gpu/drm/msm/disp/dpu1/catalog/dpu_5_0_sm8150.h
++++ b/drivers/gpu/drm/msm/disp/dpu1/catalog/dpu_5_0_sm8150.h
+@@ -128,10 +128,10 @@ static const struct dpu_dspp_cfg sm8150_dspp[] = {
+ };
+ 
+ static const struct dpu_pingpong_cfg sm8150_pp[] = {
+-	PP_BLK_TE("pingpong_0", PINGPONG_0, 0x70000, MERGE_3D_0, sdm845_pp_sblk_te,
++	PP_BLK("pingpong_0", PINGPONG_0, 0x70000, MERGE_3D_0, sdm845_pp_sblk,
+ 			DPU_IRQ_IDX(MDP_SSPP_TOP0_INTR, 8),
+ 			DPU_IRQ_IDX(MDP_SSPP_TOP0_INTR, 12)),
+-	PP_BLK_TE("pingpong_1", PINGPONG_1, 0x70800, MERGE_3D_0, sdm845_pp_sblk_te,
++	PP_BLK("pingpong_1", PINGPONG_1, 0x70800, MERGE_3D_0, sdm845_pp_sblk,
+ 			DPU_IRQ_IDX(MDP_SSPP_TOP0_INTR, 9),
+ 			DPU_IRQ_IDX(MDP_SSPP_TOP0_INTR, 13)),
+ 	PP_BLK("pingpong_2", PINGPONG_2, 0x71000, MERGE_3D_1, sdm845_pp_sblk,
+diff --git a/drivers/gpu/drm/msm/disp/dpu1/catalog/dpu_5_1_sc8180x.h b/drivers/gpu/drm/msm/disp/dpu1/catalog/dpu_5_1_sc8180x.h
+index c57400265f288..e3bdfe7b30f1f 100644
+--- a/drivers/gpu/drm/msm/disp/dpu1/catalog/dpu_5_1_sc8180x.h
++++ b/drivers/gpu/drm/msm/disp/dpu1/catalog/dpu_5_1_sc8180x.h
+@@ -116,10 +116,10 @@ static const struct dpu_lm_cfg sc8180x_lm[] = {
+ };
+ 
+ static const struct dpu_pingpong_cfg sc8180x_pp[] = {
+-	PP_BLK_TE("pingpong_0", PINGPONG_0, 0x70000, MERGE_3D_0, sdm845_pp_sblk_te,
++	PP_BLK("pingpong_0", PINGPONG_0, 0x70000, MERGE_3D_0, sdm845_pp_sblk,
+ 			DPU_IRQ_IDX(MDP_SSPP_TOP0_INTR, 8),
+ 			DPU_IRQ_IDX(MDP_SSPP_TOP0_INTR, 12)),
+-	PP_BLK_TE("pingpong_1", PINGPONG_1, 0x70800, MERGE_3D_0, sdm845_pp_sblk_te,
++	PP_BLK("pingpong_1", PINGPONG_1, 0x70800, MERGE_3D_0, sdm845_pp_sblk,
+ 			DPU_IRQ_IDX(MDP_SSPP_TOP0_INTR, 9),
+ 			DPU_IRQ_IDX(MDP_SSPP_TOP0_INTR, 13)),
+ 	PP_BLK("pingpong_2", PINGPONG_2, 0x71000, MERGE_3D_1, sdm845_pp_sblk,
+diff --git a/drivers/gpu/drm/msm/disp/dpu1/catalog/dpu_6_0_sm8250.h b/drivers/gpu/drm/msm/disp/dpu1/catalog/dpu_6_0_sm8250.h
+index 2c40229ea5159..ed130582873c7 100644
+--- a/drivers/gpu/drm/msm/disp/dpu1/catalog/dpu_6_0_sm8250.h
++++ b/drivers/gpu/drm/msm/disp/dpu1/catalog/dpu_6_0_sm8250.h
+@@ -129,10 +129,10 @@ static const struct dpu_dspp_cfg sm8250_dspp[] = {
+ };
+ 
+ static const struct dpu_pingpong_cfg sm8250_pp[] = {
+-	PP_BLK_TE("pingpong_0", PINGPONG_0, 0x70000, MERGE_3D_0, sdm845_pp_sblk_te,
++	PP_BLK("pingpong_0", PINGPONG_0, 0x70000, MERGE_3D_0, sdm845_pp_sblk,
+ 			DPU_IRQ_IDX(MDP_SSPP_TOP0_INTR, 8),
+ 			DPU_IRQ_IDX(MDP_SSPP_TOP0_INTR, 12)),
+-	PP_BLK_TE("pingpong_1", PINGPONG_1, 0x70800, MERGE_3D_0, sdm845_pp_sblk_te,
++	PP_BLK("pingpong_1", PINGPONG_1, 0x70800, MERGE_3D_0, sdm845_pp_sblk,
+ 			DPU_IRQ_IDX(MDP_SSPP_TOP0_INTR, 9),
+ 			DPU_IRQ_IDX(MDP_SSPP_TOP0_INTR, 13)),
+ 	PP_BLK("pingpong_2", PINGPONG_2, 0x71000, MERGE_3D_1, sdm845_pp_sblk,
+diff --git a/drivers/gpu/drm/msm/disp/dpu1/catalog/dpu_6_2_sc7180.h b/drivers/gpu/drm/msm/disp/dpu1/catalog/dpu_6_2_sc7180.h
+index 8799ed7571190..a46b11730a4d4 100644
+--- a/drivers/gpu/drm/msm/disp/dpu1/catalog/dpu_6_2_sc7180.h
++++ b/drivers/gpu/drm/msm/disp/dpu1/catalog/dpu_6_2_sc7180.h
+@@ -80,8 +80,8 @@ static const struct dpu_dspp_cfg sc7180_dspp[] = {
+ };
+ 
+ static const struct dpu_pingpong_cfg sc7180_pp[] = {
+-	PP_BLK_TE("pingpong_0", PINGPONG_0, 0x70000, 0, sdm845_pp_sblk_te, -1, -1),
+-	PP_BLK_TE("pingpong_1", PINGPONG_1, 0x70800, 0, sdm845_pp_sblk_te, -1, -1),
++	PP_BLK("pingpong_0", PINGPONG_0, 0x70000, 0, sdm845_pp_sblk, -1, -1),
++	PP_BLK("pingpong_1", PINGPONG_1, 0x70800, 0, sdm845_pp_sblk, -1, -1),
+ };
+ 
+ static const struct dpu_intf_cfg sc7180_intf[] = {
+diff --git a/drivers/gpu/drm/msm/disp/dpu1/catalog/dpu_7_0_sm8350.h b/drivers/gpu/drm/msm/disp/dpu1/catalog/dpu_7_0_sm8350.h
+index ca107ca8de462..41ef0c8fc993f 100644
+--- a/drivers/gpu/drm/msm/disp/dpu1/catalog/dpu_7_0_sm8350.h
++++ b/drivers/gpu/drm/msm/disp/dpu1/catalog/dpu_7_0_sm8350.h
+@@ -127,10 +127,10 @@ static const struct dpu_dspp_cfg sm8350_dspp[] = {
+ };
+ 
+ static const struct dpu_pingpong_cfg sm8350_pp[] = {
+-	PP_BLK_TE("pingpong_0", PINGPONG_0, 0x69000, MERGE_3D_0, sdm845_pp_sblk_te,
++	PP_BLK("pingpong_0", PINGPONG_0, 0x69000, MERGE_3D_0, sdm845_pp_sblk,
+ 			DPU_IRQ_IDX(MDP_SSPP_TOP0_INTR, 8),
+ 			DPU_IRQ_IDX(MDP_SSPP_TOP0_INTR, 12)),
+-	PP_BLK_TE("pingpong_1", PINGPONG_1, 0x6a000, MERGE_3D_0, sdm845_pp_sblk_te,
++	PP_BLK("pingpong_1", PINGPONG_1, 0x6a000, MERGE_3D_0, sdm845_pp_sblk,
+ 			DPU_IRQ_IDX(MDP_SSPP_TOP0_INTR, 9),
+ 			DPU_IRQ_IDX(MDP_SSPP_TOP0_INTR, 13)),
+ 	PP_BLK("pingpong_2", PINGPONG_2, 0x6b000, MERGE_3D_1, sdm845_pp_sblk,
+diff --git a/drivers/gpu/drm/msm/disp/dpu1/catalog/dpu_8_0_sc8280xp.h b/drivers/gpu/drm/msm/disp/dpu1/catalog/dpu_8_0_sc8280xp.h
+index 9aab110b8c44d..f3d935f346b20 100644
+--- a/drivers/gpu/drm/msm/disp/dpu1/catalog/dpu_8_0_sc8280xp.h
++++ b/drivers/gpu/drm/msm/disp/dpu1/catalog/dpu_8_0_sc8280xp.h
+@@ -121,18 +121,18 @@ static const struct dpu_dspp_cfg sc8280xp_dspp[] = {
+ };
+ 
+ static const struct dpu_pingpong_cfg sc8280xp_pp[] = {
+-	PP_BLK_TE("pingpong_0", PINGPONG_0, 0x69000, MERGE_3D_0, sdm845_pp_sblk_te,
+-		  DPU_IRQ_IDX(MDP_SSPP_TOP0_INTR, 8), -1),
+-	PP_BLK_TE("pingpong_1", PINGPONG_1, 0x6a000, MERGE_3D_0, sdm845_pp_sblk_te,
+-		  DPU_IRQ_IDX(MDP_SSPP_TOP0_INTR, 9), -1),
+-	PP_BLK_TE("pingpong_2", PINGPONG_2, 0x6b000, MERGE_3D_1, sdm845_pp_sblk_te,
+-		  DPU_IRQ_IDX(MDP_SSPP_TOP0_INTR, 10), -1),
+-	PP_BLK_TE("pingpong_3", PINGPONG_3, 0x6c000, MERGE_3D_1, sdm845_pp_sblk_te,
+-		  DPU_IRQ_IDX(MDP_SSPP_TOP0_INTR, 11), -1),
+-	PP_BLK_TE("pingpong_4", PINGPONG_4, 0x6d000, MERGE_3D_2, sdm845_pp_sblk_te,
+-		  DPU_IRQ_IDX(MDP_SSPP_TOP0_INTR2, 30), -1),
+-	PP_BLK_TE("pingpong_5", PINGPONG_5, 0x6e000, MERGE_3D_2, sdm845_pp_sblk_te,
+-		  DPU_IRQ_IDX(MDP_SSPP_TOP0_INTR2, 31), -1),
++	PP_BLK("pingpong_0", PINGPONG_0, 0x69000, MERGE_3D_0, sdm845_pp_sblk,
++			DPU_IRQ_IDX(MDP_SSPP_TOP0_INTR, 8), -1),
++	PP_BLK("pingpong_1", PINGPONG_1, 0x6a000, MERGE_3D_0, sdm845_pp_sblk,
++			DPU_IRQ_IDX(MDP_SSPP_TOP0_INTR, 9), -1),
++	PP_BLK("pingpong_2", PINGPONG_2, 0x6b000, MERGE_3D_1, sdm845_pp_sblk,
++			DPU_IRQ_IDX(MDP_SSPP_TOP0_INTR, 10), -1),
++	PP_BLK("pingpong_3", PINGPONG_3, 0x6c000, MERGE_3D_1, sdm845_pp_sblk,
++			DPU_IRQ_IDX(MDP_SSPP_TOP0_INTR, 11), -1),
++	PP_BLK("pingpong_4", PINGPONG_4, 0x6d000, MERGE_3D_2, sdm845_pp_sblk,
++			DPU_IRQ_IDX(MDP_SSPP_TOP0_INTR2, 30), -1),
++	PP_BLK("pingpong_5", PINGPONG_5, 0x6e000, MERGE_3D_2, sdm845_pp_sblk,
++			DPU_IRQ_IDX(MDP_SSPP_TOP0_INTR2, 31), -1),
+ };
+ 
+ static const struct dpu_merge_3d_cfg sc8280xp_merge_3d[] = {
+diff --git a/drivers/gpu/drm/msm/disp/dpu1/catalog/dpu_8_1_sm8450.h b/drivers/gpu/drm/msm/disp/dpu1/catalog/dpu_8_1_sm8450.h
+index 02a259b6b4268..e409c119b0a2a 100644
+--- a/drivers/gpu/drm/msm/disp/dpu1/catalog/dpu_8_1_sm8450.h
++++ b/drivers/gpu/drm/msm/disp/dpu1/catalog/dpu_8_1_sm8450.h
+@@ -128,10 +128,10 @@ static const struct dpu_dspp_cfg sm8450_dspp[] = {
+ };
+ /* FIXME: interrupts */
+ static const struct dpu_pingpong_cfg sm8450_pp[] = {
+-	PP_BLK_TE("pingpong_0", PINGPONG_0, 0x69000, MERGE_3D_0, sdm845_pp_sblk_te,
++	PP_BLK("pingpong_0", PINGPONG_0, 0x69000, MERGE_3D_0, sdm845_pp_sblk,
+ 			DPU_IRQ_IDX(MDP_SSPP_TOP0_INTR, 8),
+ 			DPU_IRQ_IDX(MDP_SSPP_TOP0_INTR, 12)),
+-	PP_BLK_TE("pingpong_1", PINGPONG_1, 0x6a000, MERGE_3D_0, sdm845_pp_sblk_te,
++	PP_BLK("pingpong_1", PINGPONG_1, 0x6a000, MERGE_3D_0, sdm845_pp_sblk,
+ 			DPU_IRQ_IDX(MDP_SSPP_TOP0_INTR, 9),
+ 			DPU_IRQ_IDX(MDP_SSPP_TOP0_INTR, 13)),
+ 	PP_BLK("pingpong_2", PINGPONG_2, 0x6b000, MERGE_3D_1, sdm845_pp_sblk,
+-- 
+cgit 
+
+
+From e9d9ce5462fecdeefec87953de71df4d025cbc72 Mon Sep 17 00:00:00 2001
+From: Marijn Suijten <marijn.suijten@somainline.org>
+Date: Thu, 27 Apr 2023 00:37:17 +0200
+Subject: drm/msm/dpu: Move non-MDP_TOP INTF_INTR offsets out of hwio header
+
+These offsets do not fall under the MDP TOP block and do not fit the
+comment right above.  Move them to dpu_hw_interrupts.c next to the
+repsective MDP_INTF_x_OFF interrupt block offsets.
+
+Fixes: 25fdd5933e4c ("drm/msm: Add SDM845 DPU support")
+Signed-off-by: Marijn Suijten <marijn.suijten@somainline.org>
+Reviewed-by: Konrad Dybcio <konrad.dybcio@linaro.org>
+Reviewed-by: Dmitry Baryshkov <dmitry.baryshkov@linaro.org>
+Reviewed-by: Abhinav Kumar <quic_abhinavk@quicinc.com>
+Patchwork: https://patchwork.freedesktop.org/patch/534203/
+Link: https://lore.kernel.org/r/20230411-dpu-intf-te-v4-3-27ce1a5ab5c6@somainline.org
+Signed-off-by: Abhinav Kumar <quic_abhinavk@quicinc.com>
+---
+ drivers/gpu/drm/msm/disp/dpu1/dpu_hw_interrupts.c | 5 ++++-
+ drivers/gpu/drm/msm/disp/dpu1/dpu_hwio.h          | 3 ---
+ 2 files changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_interrupts.c b/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_interrupts.c
+index 53326f25e40ef..85c0bda3ff90e 100644
+--- a/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_interrupts.c
++++ b/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_interrupts.c
+@@ -15,7 +15,7 @@
+ 
+ /*
+  * Register offsets in MDSS register file for the interrupt registers
+- * w.r.t. to the MDP base
++ * w.r.t. the MDP base
+  */
+ #define MDP_SSPP_TOP0_OFF		0x0
+ #define MDP_INTF_0_OFF			0x6A000
+@@ -24,6 +24,9 @@
+ #define MDP_INTF_3_OFF			0x6B800
+ #define MDP_INTF_4_OFF			0x6C000
+ #define MDP_INTF_5_OFF			0x6C800
++#define INTF_INTR_EN			0x1c0
++#define INTF_INTR_STATUS		0x1c4
++#define INTF_INTR_CLEAR			0x1c8
+ #define MDP_AD4_0_OFF			0x7C000
+ #define MDP_AD4_1_OFF			0x7D000
+ #define MDP_AD4_INTR_EN_OFF		0x41c
+diff --git a/drivers/gpu/drm/msm/disp/dpu1/dpu_hwio.h b/drivers/gpu/drm/msm/disp/dpu1/dpu_hwio.h
+index feb9a729844a3..5acd5683d25a4 100644
+--- a/drivers/gpu/drm/msm/disp/dpu1/dpu_hwio.h
++++ b/drivers/gpu/drm/msm/disp/dpu1/dpu_hwio.h
+@@ -21,9 +21,6 @@
+ #define HIST_INTR_EN                    0x01c
+ #define HIST_INTR_STATUS                0x020
+ #define HIST_INTR_CLEAR                 0x024
+-#define INTF_INTR_EN                    0x1C0
+-#define INTF_INTR_STATUS                0x1C4
+-#define INTF_INTR_CLEAR                 0x1C8
+ #define SPLIT_DISPLAY_EN                0x2F4
+ #define SPLIT_DISPLAY_UPPER_PIPE_CTRL   0x2F8
+ #define DSPP_IGC_COLOR0_RAM_LUTN        0x300
+-- 
+cgit 
+
+
+From 85340c0256f9b85b47c5867e411df37d76df5858 Mon Sep 17 00:00:00 2001
+From: Marijn Suijten <marijn.suijten@somainline.org>
+Date: Thu, 27 Apr 2023 00:37:18 +0200
+Subject: drm/msm/dpu: Reindent REV_7xxx interrupt masks with tabs
+
+Use tabs for consistency with the other interrupt register definitions,
+rather than spaces.
+
+Fixes: ed6154a136e4 ("drm/msm/disp/dpu1: add intf offsets for SC7280 target")
+Fixes: 89688e2119b2 ("drm/msm/dpu: Add more of the INTF interrupt regions")
+Fixes: 4a352c2fc15a ("drm/msm/dpu: Introduce SC8280XP")
+Signed-off-by: Marijn Suijten <marijn.suijten@somainline.org>
+Reviewed-by: Abhinav Kumar <quic_abhinavk@quicinc.com>
+Reviewed-by: Dmitry Baryshkov <dmitry.baryshkov@linaro.org>
+Patchwork: https://patchwork.freedesktop.org/patch/534212/
+Link: https://lore.kernel.org/r/20230411-dpu-intf-te-v4-4-27ce1a5ab5c6@somainline.org
+Signed-off-by: Abhinav Kumar <quic_abhinavk@quicinc.com>
+---
+ drivers/gpu/drm/msm/disp/dpu1/dpu_hw_interrupts.c | 18 +++++++++---------
+ 1 file changed, 9 insertions(+), 9 deletions(-)
+
+diff --git a/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_interrupts.c b/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_interrupts.c
+index 85c0bda3ff90e..17f3e7e4f1941 100644
+--- a/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_interrupts.c
++++ b/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_interrupts.c
+@@ -32,15 +32,15 @@
+ #define MDP_AD4_INTR_EN_OFF		0x41c
+ #define MDP_AD4_INTR_CLEAR_OFF		0x424
+ #define MDP_AD4_INTR_STATUS_OFF		0x420
+-#define MDP_INTF_0_OFF_REV_7xxx             0x34000
+-#define MDP_INTF_1_OFF_REV_7xxx             0x35000
+-#define MDP_INTF_2_OFF_REV_7xxx             0x36000
+-#define MDP_INTF_3_OFF_REV_7xxx             0x37000
+-#define MDP_INTF_4_OFF_REV_7xxx             0x38000
+-#define MDP_INTF_5_OFF_REV_7xxx             0x39000
+-#define MDP_INTF_6_OFF_REV_7xxx             0x3a000
+-#define MDP_INTF_7_OFF_REV_7xxx             0x3b000
+-#define MDP_INTF_8_OFF_REV_7xxx             0x3c000
++#define MDP_INTF_0_OFF_REV_7xxx		0x34000
++#define MDP_INTF_1_OFF_REV_7xxx		0x35000
++#define MDP_INTF_2_OFF_REV_7xxx		0x36000
++#define MDP_INTF_3_OFF_REV_7xxx		0x37000
++#define MDP_INTF_4_OFF_REV_7xxx		0x38000
++#define MDP_INTF_5_OFF_REV_7xxx		0x39000
++#define MDP_INTF_6_OFF_REV_7xxx		0x3a000
++#define MDP_INTF_7_OFF_REV_7xxx		0x3b000
++#define MDP_INTF_8_OFF_REV_7xxx		0x3c000
+ 
+ /**
+  * struct dpu_intr_reg - array of DPU register sets
+-- 
+cgit 
+
+
+From 701f69183d4d52533fb2af0d6948b7d1b00d1a09 Mon Sep 17 00:00:00 2001
+From: Marijn Suijten <marijn.suijten@somainline.org>
+Date: Thu, 27 Apr 2023 00:37:19 +0200
+Subject: drm/msm/dpu: Fix PP_BLK_DIPHER -> DITHER typo
+
+SM8550 exclusively has a DITHER sub-block inside the PINGPONG block and
+no other registers, hence the DITHER name of the macro and a
+corresponding PINGPONG block length of zero.  However, the PP_BLK_ macro
+name was typo'd to DIPHER rather than DITHER.
+
+Fixes: efcd0107727c ("drm/msm/dpu: add support for SM8550")
+Signed-off-by: Marijn Suijten <marijn.suijten@somainline.org>
+Reviewed-by: Konrad Dybcio <konrad.dybcio@linaro.org>
+Reviewed-by: Dmitry Baryshkov <dmitry.baryshkov@linaro.org>
+Reviewed-by: Abhinav Kumar <quic_abhinavk@quicinc.com>
+Patchwork: https://patchwork.freedesktop.org/patch/534214/
+Link: https://lore.kernel.org/r/20230411-dpu-intf-te-v4-5-27ce1a5ab5c6@somainline.org
+Signed-off-by: Abhinav Kumar <quic_abhinavk@quicinc.com>
+---
+ drivers/gpu/drm/msm/disp/dpu1/catalog/dpu_9_0_sm8550.h | 16 ++++++++--------
+ drivers/gpu/drm/msm/disp/dpu1/dpu_hw_catalog.c         |  2 +-
+ 2 files changed, 9 insertions(+), 9 deletions(-)
+
+diff --git a/drivers/gpu/drm/msm/disp/dpu1/catalog/dpu_9_0_sm8550.h b/drivers/gpu/drm/msm/disp/dpu1/catalog/dpu_9_0_sm8550.h
+index 9e403034093fd..d0ab351b6a8b9 100644
+--- a/drivers/gpu/drm/msm/disp/dpu1/catalog/dpu_9_0_sm8550.h
++++ b/drivers/gpu/drm/msm/disp/dpu1/catalog/dpu_9_0_sm8550.h
+@@ -132,28 +132,28 @@ static const struct dpu_dspp_cfg sm8550_dspp[] = {
+ 		 &sm8150_dspp_sblk),
+ };
+ static const struct dpu_pingpong_cfg sm8550_pp[] = {
+-	PP_BLK_DIPHER("pingpong_0", PINGPONG_0, 0x69000, MERGE_3D_0, sc7280_pp_sblk,
++	PP_BLK_DITHER("pingpong_0", PINGPONG_0, 0x69000, MERGE_3D_0, sc7280_pp_sblk,
+ 			DPU_IRQ_IDX(MDP_SSPP_TOP0_INTR, 8),
+ 			-1),
+-	PP_BLK_DIPHER("pingpong_1", PINGPONG_1, 0x6a000, MERGE_3D_0, sc7280_pp_sblk,
++	PP_BLK_DITHER("pingpong_1", PINGPONG_1, 0x6a000, MERGE_3D_0, sc7280_pp_sblk,
+ 			DPU_IRQ_IDX(MDP_SSPP_TOP0_INTR, 9),
+ 			-1),
+-	PP_BLK_DIPHER("pingpong_2", PINGPONG_2, 0x6b000, MERGE_3D_1, sc7280_pp_sblk,
++	PP_BLK_DITHER("pingpong_2", PINGPONG_2, 0x6b000, MERGE_3D_1, sc7280_pp_sblk,
+ 			DPU_IRQ_IDX(MDP_SSPP_TOP0_INTR, 10),
+ 			-1),
+-	PP_BLK_DIPHER("pingpong_3", PINGPONG_3, 0x6c000, MERGE_3D_1, sc7280_pp_sblk,
++	PP_BLK_DITHER("pingpong_3", PINGPONG_3, 0x6c000, MERGE_3D_1, sc7280_pp_sblk,
+ 			DPU_IRQ_IDX(MDP_SSPP_TOP0_INTR, 11),
+ 			-1),
+-	PP_BLK_DIPHER("pingpong_4", PINGPONG_4, 0x6d000, MERGE_3D_2, sc7280_pp_sblk,
++	PP_BLK_DITHER("pingpong_4", PINGPONG_4, 0x6d000, MERGE_3D_2, sc7280_pp_sblk,
+ 			DPU_IRQ_IDX(MDP_SSPP_TOP0_INTR2, 30),
+ 			-1),
+-	PP_BLK_DIPHER("pingpong_5", PINGPONG_5, 0x6e000, MERGE_3D_2, sc7280_pp_sblk,
++	PP_BLK_DITHER("pingpong_5", PINGPONG_5, 0x6e000, MERGE_3D_2, sc7280_pp_sblk,
+ 			DPU_IRQ_IDX(MDP_SSPP_TOP0_INTR2, 31),
+ 			-1),
+-	PP_BLK_DIPHER("pingpong_6", PINGPONG_6, 0x66000, MERGE_3D_3, sc7280_pp_sblk,
++	PP_BLK_DITHER("pingpong_6", PINGPONG_6, 0x66000, MERGE_3D_3, sc7280_pp_sblk,
+ 			-1,
+ 			-1),
+-	PP_BLK_DIPHER("pingpong_7", PINGPONG_7, 0x66400, MERGE_3D_3, sc7280_pp_sblk,
++	PP_BLK_DITHER("pingpong_7", PINGPONG_7, 0x66400, MERGE_3D_3, sc7280_pp_sblk,
+ 			-1,
+ 			-1),
+ };
+diff --git a/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_catalog.c b/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_catalog.c
+index 8d5d782a43398..5d994bce696f9 100644
+--- a/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_catalog.c
++++ b/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_catalog.c
+@@ -491,7 +491,7 @@ static const struct dpu_pingpong_sub_blks sc7280_pp_sblk = {
+ 	.len = 0x20, .version = 0x20000},
+ };
+ 
+-#define PP_BLK_DIPHER(_name, _id, _base, _merge_3d, _sblk, _done, _rdptr) \
++#define PP_BLK_DITHER(_name, _id, _base, _merge_3d, _sblk, _done, _rdptr) \
+ 	{\
+ 	.name = _name, .id = _id, \
+ 	.base = _base, .len = 0, \
+-- 
+cgit 
+
+
+From fe47a3084789fd653a3465ba39ea4afe33fc6d19 Mon Sep 17 00:00:00 2001
+From: Marijn Suijten <marijn.suijten@somainline.org>
+Date: Thu, 27 Apr 2023 00:37:20 +0200
+Subject: drm/msm/dpu: Use V2 DITHER PINGPONG sub-block in SM8[34]50/SC8280XP
+
+According to downstream sources this DITHER sub-block sits at an offset
+of 0xe0 with version 0x20000. Lets fix this by using sc7280_pp_sblk
+instead of sdm845_pp_sblk.
+
+Fixes: 4a352c2fc15a ("drm/msm/dpu: Introduce SC8280XP")
+Fixes: 0e91bcbb0016 ("drm/msm/dpu: Add SM8350 to hw catalog")
+Fixes: 100d7ef6995d ("drm/msm/dpu: add support for SM8450")
+Signed-off-by: Marijn Suijten <marijn.suijten@somainline.org>
+Reviewed-by: Abhinav Kumar <quic_abhinavk@quicinc.com>
+Patchwork: https://patchwork.freedesktop.org/patch/534208/
+Link: https://lore.kernel.org/r/20230411-dpu-intf-te-v4-6-27ce1a5ab5c6@somainline.org
+[quic_abhinavk@quicinc.com: minor fix in the commit message]
+Signed-off-by: Abhinav Kumar <quic_abhinavk@quicinc.com>
+---
+ drivers/gpu/drm/msm/disp/dpu1/catalog/dpu_7_0_sm8350.h   | 12 ++++++------
+ drivers/gpu/drm/msm/disp/dpu1/catalog/dpu_8_0_sc8280xp.h | 12 ++++++------
+ drivers/gpu/drm/msm/disp/dpu1/catalog/dpu_8_1_sm8450.h   | 16 ++++++++--------
+ 3 files changed, 20 insertions(+), 20 deletions(-)
+
+diff --git a/drivers/gpu/drm/msm/disp/dpu1/catalog/dpu_7_0_sm8350.h b/drivers/gpu/drm/msm/disp/dpu1/catalog/dpu_7_0_sm8350.h
+index 41ef0c8fc993f..4c1bb88029cd3 100644
+--- a/drivers/gpu/drm/msm/disp/dpu1/catalog/dpu_7_0_sm8350.h
++++ b/drivers/gpu/drm/msm/disp/dpu1/catalog/dpu_7_0_sm8350.h
+@@ -127,22 +127,22 @@ static const struct dpu_dspp_cfg sm8350_dspp[] = {
+ };
+ 
+ static const struct dpu_pingpong_cfg sm8350_pp[] = {
+-	PP_BLK("pingpong_0", PINGPONG_0, 0x69000, MERGE_3D_0, sdm845_pp_sblk,
++	PP_BLK("pingpong_0", PINGPONG_0, 0x69000, MERGE_3D_0, sc7280_pp_sblk,
+ 			DPU_IRQ_IDX(MDP_SSPP_TOP0_INTR, 8),
+ 			DPU_IRQ_IDX(MDP_SSPP_TOP0_INTR, 12)),
+-	PP_BLK("pingpong_1", PINGPONG_1, 0x6a000, MERGE_3D_0, sdm845_pp_sblk,
++	PP_BLK("pingpong_1", PINGPONG_1, 0x6a000, MERGE_3D_0, sc7280_pp_sblk,
+ 			DPU_IRQ_IDX(MDP_SSPP_TOP0_INTR, 9),
+ 			DPU_IRQ_IDX(MDP_SSPP_TOP0_INTR, 13)),
+-	PP_BLK("pingpong_2", PINGPONG_2, 0x6b000, MERGE_3D_1, sdm845_pp_sblk,
++	PP_BLK("pingpong_2", PINGPONG_2, 0x6b000, MERGE_3D_1, sc7280_pp_sblk,
+ 			DPU_IRQ_IDX(MDP_SSPP_TOP0_INTR, 10),
+ 			DPU_IRQ_IDX(MDP_SSPP_TOP0_INTR, 14)),
+-	PP_BLK("pingpong_3", PINGPONG_3, 0x6c000, MERGE_3D_1, sdm845_pp_sblk,
++	PP_BLK("pingpong_3", PINGPONG_3, 0x6c000, MERGE_3D_1, sc7280_pp_sblk,
+ 			DPU_IRQ_IDX(MDP_SSPP_TOP0_INTR, 11),
+ 			DPU_IRQ_IDX(MDP_SSPP_TOP0_INTR, 15)),
+-	PP_BLK("pingpong_4", PINGPONG_4, 0x6d000, MERGE_3D_2, sdm845_pp_sblk,
++	PP_BLK("pingpong_4", PINGPONG_4, 0x6d000, MERGE_3D_2, sc7280_pp_sblk,
+ 			DPU_IRQ_IDX(MDP_SSPP_TOP0_INTR2, 30),
+ 			-1),
+-	PP_BLK("pingpong_5", PINGPONG_5, 0x6e000, MERGE_3D_2, sdm845_pp_sblk,
++	PP_BLK("pingpong_5", PINGPONG_5, 0x6e000, MERGE_3D_2, sc7280_pp_sblk,
+ 			DPU_IRQ_IDX(MDP_SSPP_TOP0_INTR2, 31),
+ 			-1),
+ };
+diff --git a/drivers/gpu/drm/msm/disp/dpu1/catalog/dpu_8_0_sc8280xp.h b/drivers/gpu/drm/msm/disp/dpu1/catalog/dpu_8_0_sc8280xp.h
+index f3d935f346b20..a502e173f2c04 100644
+--- a/drivers/gpu/drm/msm/disp/dpu1/catalog/dpu_8_0_sc8280xp.h
++++ b/drivers/gpu/drm/msm/disp/dpu1/catalog/dpu_8_0_sc8280xp.h
+@@ -121,17 +121,17 @@ static const struct dpu_dspp_cfg sc8280xp_dspp[] = {
+ };
+ 
+ static const struct dpu_pingpong_cfg sc8280xp_pp[] = {
+-	PP_BLK("pingpong_0", PINGPONG_0, 0x69000, MERGE_3D_0, sdm845_pp_sblk,
++	PP_BLK("pingpong_0", PINGPONG_0, 0x69000, MERGE_3D_0, sc7280_pp_sblk,
+ 			DPU_IRQ_IDX(MDP_SSPP_TOP0_INTR, 8), -1),
+-	PP_BLK("pingpong_1", PINGPONG_1, 0x6a000, MERGE_3D_0, sdm845_pp_sblk,
++	PP_BLK("pingpong_1", PINGPONG_1, 0x6a000, MERGE_3D_0, sc7280_pp_sblk,
+ 			DPU_IRQ_IDX(MDP_SSPP_TOP0_INTR, 9), -1),
+-	PP_BLK("pingpong_2", PINGPONG_2, 0x6b000, MERGE_3D_1, sdm845_pp_sblk,
++	PP_BLK("pingpong_2", PINGPONG_2, 0x6b000, MERGE_3D_1, sc7280_pp_sblk,
+ 			DPU_IRQ_IDX(MDP_SSPP_TOP0_INTR, 10), -1),
+-	PP_BLK("pingpong_3", PINGPONG_3, 0x6c000, MERGE_3D_1, sdm845_pp_sblk,
++	PP_BLK("pingpong_3", PINGPONG_3, 0x6c000, MERGE_3D_1, sc7280_pp_sblk,
+ 			DPU_IRQ_IDX(MDP_SSPP_TOP0_INTR, 11), -1),
+-	PP_BLK("pingpong_4", PINGPONG_4, 0x6d000, MERGE_3D_2, sdm845_pp_sblk,
++	PP_BLK("pingpong_4", PINGPONG_4, 0x6d000, MERGE_3D_2, sc7280_pp_sblk,
+ 			DPU_IRQ_IDX(MDP_SSPP_TOP0_INTR2, 30), -1),
+-	PP_BLK("pingpong_5", PINGPONG_5, 0x6e000, MERGE_3D_2, sdm845_pp_sblk,
++	PP_BLK("pingpong_5", PINGPONG_5, 0x6e000, MERGE_3D_2, sc7280_pp_sblk,
+ 			DPU_IRQ_IDX(MDP_SSPP_TOP0_INTR2, 31), -1),
+ };
+ 
+diff --git a/drivers/gpu/drm/msm/disp/dpu1/catalog/dpu_8_1_sm8450.h b/drivers/gpu/drm/msm/disp/dpu1/catalog/dpu_8_1_sm8450.h
+index e409c119b0a2a..ec296a52076ce 100644
+--- a/drivers/gpu/drm/msm/disp/dpu1/catalog/dpu_8_1_sm8450.h
++++ b/drivers/gpu/drm/msm/disp/dpu1/catalog/dpu_8_1_sm8450.h
+@@ -128,28 +128,28 @@ static const struct dpu_dspp_cfg sm8450_dspp[] = {
+ };
+ /* FIXME: interrupts */
+ static const struct dpu_pingpong_cfg sm8450_pp[] = {
+-	PP_BLK("pingpong_0", PINGPONG_0, 0x69000, MERGE_3D_0, sdm845_pp_sblk,
++	PP_BLK("pingpong_0", PINGPONG_0, 0x69000, MERGE_3D_0, sc7280_pp_sblk,
+ 			DPU_IRQ_IDX(MDP_SSPP_TOP0_INTR, 8),
+ 			DPU_IRQ_IDX(MDP_SSPP_TOP0_INTR, 12)),
+-	PP_BLK("pingpong_1", PINGPONG_1, 0x6a000, MERGE_3D_0, sdm845_pp_sblk,
++	PP_BLK("pingpong_1", PINGPONG_1, 0x6a000, MERGE_3D_0, sc7280_pp_sblk,
+ 			DPU_IRQ_IDX(MDP_SSPP_TOP0_INTR, 9),
+ 			DPU_IRQ_IDX(MDP_SSPP_TOP0_INTR, 13)),
+-	PP_BLK("pingpong_2", PINGPONG_2, 0x6b000, MERGE_3D_1, sdm845_pp_sblk,
++	PP_BLK("pingpong_2", PINGPONG_2, 0x6b000, MERGE_3D_1, sc7280_pp_sblk,
+ 			DPU_IRQ_IDX(MDP_SSPP_TOP0_INTR, 10),
+ 			DPU_IRQ_IDX(MDP_SSPP_TOP0_INTR, 14)),
+-	PP_BLK("pingpong_3", PINGPONG_3, 0x6c000, MERGE_3D_1, sdm845_pp_sblk,
++	PP_BLK("pingpong_3", PINGPONG_3, 0x6c000, MERGE_3D_1, sc7280_pp_sblk,
+ 			DPU_IRQ_IDX(MDP_SSPP_TOP0_INTR, 11),
+ 			DPU_IRQ_IDX(MDP_SSPP_TOP0_INTR, 15)),
+-	PP_BLK("pingpong_4", PINGPONG_4, 0x6d000, MERGE_3D_2, sdm845_pp_sblk,
++	PP_BLK("pingpong_4", PINGPONG_4, 0x6d000, MERGE_3D_2, sc7280_pp_sblk,
+ 			DPU_IRQ_IDX(MDP_SSPP_TOP0_INTR2, 30),
+ 			-1),
+-	PP_BLK("pingpong_5", PINGPONG_5, 0x6e000, MERGE_3D_2, sdm845_pp_sblk,
++	PP_BLK("pingpong_5", PINGPONG_5, 0x6e000, MERGE_3D_2, sc7280_pp_sblk,
+ 			DPU_IRQ_IDX(MDP_SSPP_TOP0_INTR2, 31),
+ 			-1),
+-	PP_BLK("pingpong_6", PINGPONG_6, 0x65800, MERGE_3D_3, sdm845_pp_sblk,
++	PP_BLK("pingpong_6", PINGPONG_6, 0x65800, MERGE_3D_3, sc7280_pp_sblk,
+ 			-1,
+ 			-1),
+-	PP_BLK("pingpong_7", PINGPONG_7, 0x65c00, MERGE_3D_3, sdm845_pp_sblk,
++	PP_BLK("pingpong_7", PINGPONG_7, 0x65c00, MERGE_3D_3, sc7280_pp_sblk,
+ 			-1,
+ 			-1),
+ };
+-- 
+cgit 
+
+
+From 7557f58b6383e560dd5dc5267aceb8372f2a4426 Mon Sep 17 00:00:00 2001
+From: Marijn Suijten <marijn.suijten@somainline.org>
+Date: Thu, 27 Apr 2023 00:37:21 +0200
+Subject: drm/msm/dpu: Set PINGPONG block length to zero for DPU >= 7.0.0
+
+Despite downstream DTS stating otherwise, the PINGPONG block has no
+registers starting with DPU revision 7.0.0.  TEAR registers are gone
+since DPU 5.0.0 after being moved to the INTF block, and DSC registers
+are gone since 7.0.0, leaving only the dither sub-block.
+
+A future patch, part of the DSC 1.2 series, should disable DSC functions
+on the PINGPONG block for all DPU >= 7.0.0 hardware.
+
+Fixes: 4a352c2fc15a ("drm/msm/dpu: Introduce SC8280XP")
+Fixes: 0e91bcbb0016 ("drm/msm/dpu: Add SM8350 to hw catalog")
+Fixes: 100d7ef6995d ("drm/msm/dpu: add support for SM8450")
+Signed-off-by: Marijn Suijten <marijn.suijten@somainline.org>
+Reviewed-by: Abhinav Kumar <quic_abhinavk@quicinc.com>
+Patchwork: https://patchwork.freedesktop.org/patch/534206/
+Link: https://lore.kernel.org/r/20230411-dpu-intf-te-v4-7-27ce1a5ab5c6@somainline.org
+Signed-off-by: Abhinav Kumar <quic_abhinavk@quicinc.com>
+---
+ drivers/gpu/drm/msm/disp/dpu1/catalog/dpu_7_0_sm8350.h   | 12 ++++++------
+ drivers/gpu/drm/msm/disp/dpu1/catalog/dpu_7_2_sc7280.h   |  8 ++++----
+ drivers/gpu/drm/msm/disp/dpu1/catalog/dpu_8_0_sc8280xp.h | 12 ++++++------
+ drivers/gpu/drm/msm/disp/dpu1/catalog/dpu_8_1_sm8450.h   | 16 ++++++++--------
+ 4 files changed, 24 insertions(+), 24 deletions(-)
+
+diff --git a/drivers/gpu/drm/msm/disp/dpu1/catalog/dpu_7_0_sm8350.h b/drivers/gpu/drm/msm/disp/dpu1/catalog/dpu_7_0_sm8350.h
+index 4c1bb88029cd3..4f6a965bcd90b 100644
+--- a/drivers/gpu/drm/msm/disp/dpu1/catalog/dpu_7_0_sm8350.h
++++ b/drivers/gpu/drm/msm/disp/dpu1/catalog/dpu_7_0_sm8350.h
+@@ -127,22 +127,22 @@ static const struct dpu_dspp_cfg sm8350_dspp[] = {
+ };
+ 
+ static const struct dpu_pingpong_cfg sm8350_pp[] = {
+-	PP_BLK("pingpong_0", PINGPONG_0, 0x69000, MERGE_3D_0, sc7280_pp_sblk,
++	PP_BLK_DITHER("pingpong_0", PINGPONG_0, 0x69000, MERGE_3D_0, sc7280_pp_sblk,
+ 			DPU_IRQ_IDX(MDP_SSPP_TOP0_INTR, 8),
+ 			DPU_IRQ_IDX(MDP_SSPP_TOP0_INTR, 12)),
+-	PP_BLK("pingpong_1", PINGPONG_1, 0x6a000, MERGE_3D_0, sc7280_pp_sblk,
++	PP_BLK_DITHER("pingpong_1", PINGPONG_1, 0x6a000, MERGE_3D_0, sc7280_pp_sblk,
+ 			DPU_IRQ_IDX(MDP_SSPP_TOP0_INTR, 9),
+ 			DPU_IRQ_IDX(MDP_SSPP_TOP0_INTR, 13)),
+-	PP_BLK("pingpong_2", PINGPONG_2, 0x6b000, MERGE_3D_1, sc7280_pp_sblk,
++	PP_BLK_DITHER("pingpong_2", PINGPONG_2, 0x6b000, MERGE_3D_1, sc7280_pp_sblk,
+ 			DPU_IRQ_IDX(MDP_SSPP_TOP0_INTR, 10),
+ 			DPU_IRQ_IDX(MDP_SSPP_TOP0_INTR, 14)),
+-	PP_BLK("pingpong_3", PINGPONG_3, 0x6c000, MERGE_3D_1, sc7280_pp_sblk,
++	PP_BLK_DITHER("pingpong_3", PINGPONG_3, 0x6c000, MERGE_3D_1, sc7280_pp_sblk,
+ 			DPU_IRQ_IDX(MDP_SSPP_TOP0_INTR, 11),
+ 			DPU_IRQ_IDX(MDP_SSPP_TOP0_INTR, 15)),
+-	PP_BLK("pingpong_4", PINGPONG_4, 0x6d000, MERGE_3D_2, sc7280_pp_sblk,
++	PP_BLK_DITHER("pingpong_4", PINGPONG_4, 0x6d000, MERGE_3D_2, sc7280_pp_sblk,
+ 			DPU_IRQ_IDX(MDP_SSPP_TOP0_INTR2, 30),
+ 			-1),
+-	PP_BLK("pingpong_5", PINGPONG_5, 0x6e000, MERGE_3D_2, sc7280_pp_sblk,
++	PP_BLK_DITHER("pingpong_5", PINGPONG_5, 0x6e000, MERGE_3D_2, sc7280_pp_sblk,
+ 			DPU_IRQ_IDX(MDP_SSPP_TOP0_INTR2, 31),
+ 			-1),
+ };
+diff --git a/drivers/gpu/drm/msm/disp/dpu1/catalog/dpu_7_2_sc7280.h b/drivers/gpu/drm/msm/disp/dpu1/catalog/dpu_7_2_sc7280.h
+index 5957de1859844..6b2c7eae71d99 100644
+--- a/drivers/gpu/drm/msm/disp/dpu1/catalog/dpu_7_2_sc7280.h
++++ b/drivers/gpu/drm/msm/disp/dpu1/catalog/dpu_7_2_sc7280.h
+@@ -87,10 +87,10 @@ static const struct dpu_dspp_cfg sc7280_dspp[] = {
+ };
+ 
+ static const struct dpu_pingpong_cfg sc7280_pp[] = {
+-	PP_BLK("pingpong_0", PINGPONG_0, 0x69000, 0, sc7280_pp_sblk, -1, -1),
+-	PP_BLK("pingpong_1", PINGPONG_1, 0x6a000, 0, sc7280_pp_sblk, -1, -1),
+-	PP_BLK("pingpong_2", PINGPONG_2, 0x6b000, 0, sc7280_pp_sblk, -1, -1),
+-	PP_BLK("pingpong_3", PINGPONG_3, 0x6c000, 0, sc7280_pp_sblk, -1, -1),
++	PP_BLK_DITHER("pingpong_0", PINGPONG_0, 0x69000, 0, sc7280_pp_sblk, -1, -1),
++	PP_BLK_DITHER("pingpong_1", PINGPONG_1, 0x6a000, 0, sc7280_pp_sblk, -1, -1),
++	PP_BLK_DITHER("pingpong_2", PINGPONG_2, 0x6b000, 0, sc7280_pp_sblk, -1, -1),
++	PP_BLK_DITHER("pingpong_3", PINGPONG_3, 0x6c000, 0, sc7280_pp_sblk, -1, -1),
+ };
+ 
+ static const struct dpu_intf_cfg sc7280_intf[] = {
+diff --git a/drivers/gpu/drm/msm/disp/dpu1/catalog/dpu_8_0_sc8280xp.h b/drivers/gpu/drm/msm/disp/dpu1/catalog/dpu_8_0_sc8280xp.h
+index a502e173f2c04..706d0f13b598e 100644
+--- a/drivers/gpu/drm/msm/disp/dpu1/catalog/dpu_8_0_sc8280xp.h
++++ b/drivers/gpu/drm/msm/disp/dpu1/catalog/dpu_8_0_sc8280xp.h
+@@ -121,17 +121,17 @@ static const struct dpu_dspp_cfg sc8280xp_dspp[] = {
+ };
+ 
+ static const struct dpu_pingpong_cfg sc8280xp_pp[] = {
+-	PP_BLK("pingpong_0", PINGPONG_0, 0x69000, MERGE_3D_0, sc7280_pp_sblk,
++	PP_BLK_DITHER("pingpong_0", PINGPONG_0, 0x69000, MERGE_3D_0, sc7280_pp_sblk,
+ 			DPU_IRQ_IDX(MDP_SSPP_TOP0_INTR, 8), -1),
+-	PP_BLK("pingpong_1", PINGPONG_1, 0x6a000, MERGE_3D_0, sc7280_pp_sblk,
++	PP_BLK_DITHER("pingpong_1", PINGPONG_1, 0x6a000, MERGE_3D_0, sc7280_pp_sblk,
+ 			DPU_IRQ_IDX(MDP_SSPP_TOP0_INTR, 9), -1),
+-	PP_BLK("pingpong_2", PINGPONG_2, 0x6b000, MERGE_3D_1, sc7280_pp_sblk,
++	PP_BLK_DITHER("pingpong_2", PINGPONG_2, 0x6b000, MERGE_3D_1, sc7280_pp_sblk,
+ 			DPU_IRQ_IDX(MDP_SSPP_TOP0_INTR, 10), -1),
+-	PP_BLK("pingpong_3", PINGPONG_3, 0x6c000, MERGE_3D_1, sc7280_pp_sblk,
++	PP_BLK_DITHER("pingpong_3", PINGPONG_3, 0x6c000, MERGE_3D_1, sc7280_pp_sblk,
+ 			DPU_IRQ_IDX(MDP_SSPP_TOP0_INTR, 11), -1),
+-	PP_BLK("pingpong_4", PINGPONG_4, 0x6d000, MERGE_3D_2, sc7280_pp_sblk,
++	PP_BLK_DITHER("pingpong_4", PINGPONG_4, 0x6d000, MERGE_3D_2, sc7280_pp_sblk,
+ 			DPU_IRQ_IDX(MDP_SSPP_TOP0_INTR2, 30), -1),
+-	PP_BLK("pingpong_5", PINGPONG_5, 0x6e000, MERGE_3D_2, sc7280_pp_sblk,
++	PP_BLK_DITHER("pingpong_5", PINGPONG_5, 0x6e000, MERGE_3D_2, sc7280_pp_sblk,
+ 			DPU_IRQ_IDX(MDP_SSPP_TOP0_INTR2, 31), -1),
+ };
+ 
+diff --git a/drivers/gpu/drm/msm/disp/dpu1/catalog/dpu_8_1_sm8450.h b/drivers/gpu/drm/msm/disp/dpu1/catalog/dpu_8_1_sm8450.h
+index ec296a52076ce..4ecb3df5cbc02 100644
+--- a/drivers/gpu/drm/msm/disp/dpu1/catalog/dpu_8_1_sm8450.h
++++ b/drivers/gpu/drm/msm/disp/dpu1/catalog/dpu_8_1_sm8450.h
+@@ -128,28 +128,28 @@ static const struct dpu_dspp_cfg sm8450_dspp[] = {
+ };
+ /* FIXME: interrupts */
+ static const struct dpu_pingpong_cfg sm8450_pp[] = {
+-	PP_BLK("pingpong_0", PINGPONG_0, 0x69000, MERGE_3D_0, sc7280_pp_sblk,
++	PP_BLK_DITHER("pingpong_0", PINGPONG_0, 0x69000, MERGE_3D_0, sc7280_pp_sblk,
+ 			DPU_IRQ_IDX(MDP_SSPP_TOP0_INTR, 8),
+ 			DPU_IRQ_IDX(MDP_SSPP_TOP0_INTR, 12)),
+-	PP_BLK("pingpong_1", PINGPONG_1, 0x6a000, MERGE_3D_0, sc7280_pp_sblk,
++	PP_BLK_DITHER("pingpong_1", PINGPONG_1, 0x6a000, MERGE_3D_0, sc7280_pp_sblk,
+ 			DPU_IRQ_IDX(MDP_SSPP_TOP0_INTR, 9),
+ 			DPU_IRQ_IDX(MDP_SSPP_TOP0_INTR, 13)),
+-	PP_BLK("pingpong_2", PINGPONG_2, 0x6b000, MERGE_3D_1, sc7280_pp_sblk,
++	PP_BLK_DITHER("pingpong_2", PINGPONG_2, 0x6b000, MERGE_3D_1, sc7280_pp_sblk,
+ 			DPU_IRQ_IDX(MDP_SSPP_TOP0_INTR, 10),
+ 			DPU_IRQ_IDX(MDP_SSPP_TOP0_INTR, 14)),
+-	PP_BLK("pingpong_3", PINGPONG_3, 0x6c000, MERGE_3D_1, sc7280_pp_sblk,
++	PP_BLK_DITHER("pingpong_3", PINGPONG_3, 0x6c000, MERGE_3D_1, sc7280_pp_sblk,
+ 			DPU_IRQ_IDX(MDP_SSPP_TOP0_INTR, 11),
+ 			DPU_IRQ_IDX(MDP_SSPP_TOP0_INTR, 15)),
+-	PP_BLK("pingpong_4", PINGPONG_4, 0x6d000, MERGE_3D_2, sc7280_pp_sblk,
++	PP_BLK_DITHER("pingpong_4", PINGPONG_4, 0x6d000, MERGE_3D_2, sc7280_pp_sblk,
+ 			DPU_IRQ_IDX(MDP_SSPP_TOP0_INTR2, 30),
+ 			-1),
+-	PP_BLK("pingpong_5", PINGPONG_5, 0x6e000, MERGE_3D_2, sc7280_pp_sblk,
++	PP_BLK_DITHER("pingpong_5", PINGPONG_5, 0x6e000, MERGE_3D_2, sc7280_pp_sblk,
+ 			DPU_IRQ_IDX(MDP_SSPP_TOP0_INTR2, 31),
+ 			-1),
+-	PP_BLK("pingpong_6", PINGPONG_6, 0x65800, MERGE_3D_3, sc7280_pp_sblk,
++	PP_BLK_DITHER("pingpong_6", PINGPONG_6, 0x65800, MERGE_3D_3, sc7280_pp_sblk,
+ 			-1,
+ 			-1),
+-	PP_BLK("pingpong_7", PINGPONG_7, 0x65c00, MERGE_3D_3, sc7280_pp_sblk,
++	PP_BLK_DITHER("pingpong_7", PINGPONG_7, 0x65c00, MERGE_3D_3, sc7280_pp_sblk,
+ 			-1,
+ 			-1),
+ };
+-- 
+cgit 
+
+
+From 202c044203ac5860e3025169105368d99f9bc6a2 Mon Sep 17 00:00:00 2001
+From: Marijn Suijten <marijn.suijten@somainline.org>
+Date: Thu, 27 Apr 2023 00:37:22 +0200
+Subject: drm/msm/dpu: Remove duplicate register defines from INTF
+
+The INTF_FRAME_LINE_COUNT_EN, INTF_FRAME_COUNT and INTF_LINE_COUNT
+registers are already defined higher up, in the right place when sorted
+numerically.
+
+Fixes: 25fdd5933e4c ("drm/msm: Add SDM845 DPU support")
+Signed-off-by: Marijn Suijten <marijn.suijten@somainline.org>
+Reviewed-by: Konrad Dybcio <konrad.dybcio@linaro.org>
+Reviewed-by: Dmitry Baryshkov <dmitry.baryshkov@linaro.org>
+Reviewed-by: Abhinav Kumar <quic_abhinavk@quicinc.com>
+Patchwork: https://patchwork.freedesktop.org/patch/534231/
+Link: https://lore.kernel.org/r/20230411-dpu-intf-te-v4-8-27ce1a5ab5c6@somainline.org
+Signed-off-by: Abhinav Kumar <quic_abhinavk@quicinc.com>
+---
+ drivers/gpu/drm/msm/disp/dpu1/dpu_hw_intf.c | 5 -----
+ 1 file changed, 5 deletions(-)
+
+diff --git a/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_intf.c b/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_intf.c
+index 84ee2efa9c664..b9dddf576c029 100644
+--- a/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_intf.c
++++ b/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_intf.c
+@@ -56,11 +56,6 @@
+ #define   INTF_TPG_RGB_MAPPING          0x11C
+ #define   INTF_PROG_FETCH_START         0x170
+ #define   INTF_PROG_ROT_START           0x174
+-
+-#define   INTF_FRAME_LINE_COUNT_EN      0x0A8
+-#define   INTF_FRAME_COUNT              0x0AC
+-#define   INTF_LINE_COUNT               0x0B0
+-
+ #define   INTF_MUX                      0x25C
+ #define   INTF_STATUS                   0x26C
+ 
+-- 
+cgit 
+
+
+From ca29699a57ecee6084a4056f5bfd6f11dd359a71 Mon Sep 17 00:00:00 2001
+From: Jianhua Lu <lujianhua000@gmail.com>
+Date: Thu, 27 Apr 2023 20:21:32 +0800
+Subject: dt-bindings: display/msm: dsi-controller-main: Document qcom,
+ master-dsi and qcom, sync-dual-dsi
+
+This fixes warning:
+  sm8250-xiaomi-elish-csot.dtb: dsi@ae94000: Unevaluated properties are not allowed ('qcom,master-dsi', 'qcom,sync-dual-dsi' were unexpected)
+
+Reviewed-by: Dmitry Baryshkov <dmitry.baryshkov@linaro.org>
+Acked-by: Rob Herring <robh@kernel.org>
+Signed-off-by: Jianhua Lu <lujianhua000@gmail.com>
+Fixes: 4dbe55c97741 ("dt-bindings: msm: dsi: add yaml schemas for DSI bindings")
+Reviewed-by: Abhinav Kumar <quic_abhinavk@quicinc.com>
+Patchwork: https://patchwork.freedesktop.org/patch/534306/
+Link: https://lore.kernel.org/r/20230427122132.24840-1-lujianhua000@gmail.com
+Signed-off-by: Abhinav Kumar <quic_abhinavk@quicinc.com>
+---
+ .../devicetree/bindings/display/msm/dsi-controller-main.yaml | 12 ++++++++++++
+ 1 file changed, 12 insertions(+)
+
+diff --git a/Documentation/devicetree/bindings/display/msm/dsi-controller-main.yaml b/Documentation/devicetree/bindings/display/msm/dsi-controller-main.yaml
+index c8884a84e73d8..51808b1d27268 100644
+--- a/Documentation/devicetree/bindings/display/msm/dsi-controller-main.yaml
++++ b/Documentation/devicetree/bindings/display/msm/dsi-controller-main.yaml
+@@ -82,6 +82,18 @@ properties:
+       Indicates if the DSI controller is driving a panel which needs
+       2 DSI links.
+ 
++  qcom,master-dsi:
++    type: boolean
++    description: |
++      Indicates if the DSI controller is the master DSI controller when
++      qcom,dual-dsi-mode enabled.
++
++  qcom,sync-dual-dsi:
++    type: boolean
++    description: |
++      Indicates if the DSI controller needs to sync the other DSI controller
++      with MIPI DCS commands when qcom,dual-dsi-mode enabled.
++
+   assigned-clocks:
+     minItems: 2
+     maxItems: 4
+-- 
+cgit 
+
+
+From db40d2928d245f3a6cba9a6a2547ec955b00f0fc Mon Sep 17 00:00:00 2001
+From: Luca Weiss <luca@z3ntu.xyz>
+Date: Mon, 8 May 2023 22:26:45 +0200
+Subject: drm/msm/iommu: Fix null pointer dereference in no-IOMMU case
+
+In the case that no IOMMU is available, msm_iommu_new can return NULL
+which should be handled. Without we will get a NULL pointer dereference
+in the next statement when we try to use the mmu variable.
+
+Fixes: 8cceb773f565 ("drm/msm/adreno: stall translation on fault for all GPU families")
+Signed-off-by: Luca Weiss <luca@z3ntu.xyz>
+Reviewed-by: Dmitry Baryshkov <dmitry.baryshkov@linaro.org>
+Patchwork: https://patchwork.freedesktop.org/patch/535915/
+Link: https://lore.kernel.org/r/20230508-6-4-drm-msm-iommu-fixup-v1-1-a7a21ec94f5b@z3ntu.xyz
+Signed-off-by: Rob Clark <robdclark@chromium.org>
+---
+ drivers/gpu/drm/msm/msm_iommu.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/msm/msm_iommu.c b/drivers/gpu/drm/msm/msm_iommu.c
+index 418e1e06cddef..5080319ae4cf2 100644
+--- a/drivers/gpu/drm/msm/msm_iommu.c
++++ b/drivers/gpu/drm/msm/msm_iommu.c
+@@ -410,7 +410,7 @@ struct msm_mmu *msm_iommu_gpu_new(struct device *dev, struct msm_gpu *gpu, unsig
+ 	struct msm_mmu *mmu;
+ 
+ 	mmu = msm_iommu_new(dev, quirks);
+-	if (IS_ERR(mmu))
++	if (IS_ERR_OR_NULL(mmu))
+ 		return mmu;
+ 
+ 	iommu = to_msm_iommu(mmu);
+-- 
+cgit 
+
+
+From 68dc6c2d5eec45515855cce99256162f45651a0b Mon Sep 17 00:00:00 2001
+From: Rob Clark <robdclark@chromium.org>
+Date: Tue, 9 May 2023 13:30:41 -0700
+Subject: drm/msm: Fix submit error-path leaks
+
+For errors after msm_submitqueue_get(), we need to drop the submitqueue
+reference.  Additionally after get_unused_fd() we need to drop the fd.
+The ordering for dropping the queue lock and put_unused_fd() is not
+important, so just move this all into out_post_unlock.
+
+v2: Only drop queue ref if submit doesn't take it
+v3: Fix unitialized submit ref in error path
+v4: IS_ERR_OR_NULL()
+
+Reported-by: pinkperfect2021@gmail.com
+Fixes: f0de40a131d9 drm/msm: ("Reorder lock vs submit alloc")
+Signed-off-by: Rob Clark <robdclark@chromium.org>
+Patchwork: https://patchwork.freedesktop.org/patch/536073/
+Link: https://lore.kernel.org/r/20230509203041.440619-1-robdclark@gmail.com
+---
+ drivers/gpu/drm/msm/msm_gem_submit.c | 25 ++++++++++++++++++-------
+ 1 file changed, 18 insertions(+), 7 deletions(-)
+
+diff --git a/drivers/gpu/drm/msm/msm_gem_submit.c b/drivers/gpu/drm/msm/msm_gem_submit.c
+index aff18c2f600ab..9f5933c75e3df 100644
+--- a/drivers/gpu/drm/msm/msm_gem_submit.c
++++ b/drivers/gpu/drm/msm/msm_gem_submit.c
+@@ -722,7 +722,7 @@ int msm_ioctl_gem_submit(struct drm_device *dev, void *data,
+ 	struct msm_drm_private *priv = dev->dev_private;
+ 	struct drm_msm_gem_submit *args = data;
+ 	struct msm_file_private *ctx = file->driver_priv;
+-	struct msm_gem_submit *submit;
++	struct msm_gem_submit *submit = NULL;
+ 	struct msm_gpu *gpu = priv->gpu;
+ 	struct msm_gpu_submitqueue *queue;
+ 	struct msm_ringbuffer *ring;
+@@ -769,13 +769,15 @@ int msm_ioctl_gem_submit(struct drm_device *dev, void *data,
+ 		out_fence_fd = get_unused_fd_flags(O_CLOEXEC);
+ 		if (out_fence_fd < 0) {
+ 			ret = out_fence_fd;
+-			return ret;
++			goto out_post_unlock;
+ 		}
+ 	}
+ 
+ 	submit = submit_create(dev, gpu, queue, args->nr_bos, args->nr_cmds);
+-	if (IS_ERR(submit))
+-		return PTR_ERR(submit);
++	if (IS_ERR(submit)) {
++		ret = PTR_ERR(submit);
++		goto out_post_unlock;
++	}
+ 
+ 	trace_msm_gpu_submit(pid_nr(submit->pid), ring->id, submit->ident,
+ 		args->nr_bos, args->nr_cmds);
+@@ -962,11 +964,20 @@ out:
+ 	if (has_ww_ticket)
+ 		ww_acquire_fini(&submit->ticket);
+ out_unlock:
+-	if (ret && (out_fence_fd >= 0))
+-		put_unused_fd(out_fence_fd);
+ 	mutex_unlock(&queue->lock);
+ out_post_unlock:
+-	msm_gem_submit_put(submit);
++	if (ret && (out_fence_fd >= 0))
++		put_unused_fd(out_fence_fd);
++
++	if (!IS_ERR_OR_NULL(submit)) {
++		msm_gem_submit_put(submit);
++	} else {
++		/*
++		 * If the submit hasn't yet taken ownership of the queue
++		 * then we need to drop the reference ourself:
++		 */
++		msm_submitqueue_put(queue);
++	}
+ 	if (!IS_ERR_OR_NULL(post_deps)) {
+ 		for (i = 0; i < args->nr_out_syncobjs; ++i) {
+ 			kfree(post_deps[i].chain);
+-- 
+cgit 
+
+
+From e36ca2fad6bb4ef0603bdb5556578e9082fe0056 Mon Sep 17 00:00:00 2001
+From: Rob Clark <robdclark@chromium.org>
+Date: Tue, 16 May 2023 15:20:36 -0700
+Subject: iommu/arm-smmu-qcom: Fix missing adreno_smmu's
+
+When the special handling of qcom,adreno-smmu was moved into
+qcom_smmu_create(), it was overlooked that we didn't have all the
+required entries in qcom_smmu_impl_of_match.  So we stopped getting
+adreno_smmu_priv on sc7180, breaking per-process pgtables.
+
+Fixes: 30b912a03d91 ("iommu/arm-smmu-qcom: Move the qcom,adreno-smmu check into qcom_smmu_create")
+Cc: <stable@vger.kernel.org>
+Suggested-by: Lepton Wu <lepton@chromium.org>
+Signed-off-by: Rob Clark <robdclark@chromium.org>
+Reviewed-by: Konrad Dybcio <konrad.dybcio@linaro.org>
+Reviewed-by: Dmitry Baryshkov <dmitry.baryshkov@linaro.org>
+Patchwork: https://patchwork.freedesktop.org/patch/537357/
+Link: https://lore.kernel.org/r/20230516222039.907690-1-robdclark@gmail.com
+---
+ drivers/iommu/arm/arm-smmu/arm-smmu-qcom.c | 10 ++++++++++
+ 1 file changed, 10 insertions(+)
+
+diff --git a/drivers/iommu/arm/arm-smmu/arm-smmu-qcom.c b/drivers/iommu/arm/arm-smmu/arm-smmu-qcom.c
+index d1b296b95c860..ec743a9ec67a5 100644
+--- a/drivers/iommu/arm/arm-smmu/arm-smmu-qcom.c
++++ b/drivers/iommu/arm/arm-smmu/arm-smmu-qcom.c
+@@ -503,6 +503,7 @@ static const struct of_device_id __maybe_unused qcom_smmu_impl_of_match[] = {
+ 	{ .compatible = "qcom,qcm2290-smmu-500", .data = &qcom_smmu_500_impl0_data },
+ 	{ .compatible = "qcom,qdu1000-smmu-500", .data = &qcom_smmu_500_impl0_data  },
+ 	{ .compatible = "qcom,sc7180-smmu-500", .data = &qcom_smmu_500_impl0_data },
++	{ .compatible = "qcom,sc7180-smmu-v2", .data = &qcom_smmu_v2_data },
+ 	{ .compatible = "qcom,sc7280-smmu-500", .data = &qcom_smmu_500_impl0_data },
+ 	{ .compatible = "qcom,sc8180x-smmu-500", .data = &qcom_smmu_500_impl0_data },
+ 	{ .compatible = "qcom,sc8280xp-smmu-500", .data = &qcom_smmu_500_impl0_data },
+@@ -547,5 +548,14 @@ struct arm_smmu_device *qcom_smmu_impl_init(struct arm_smmu_device *smmu)
+ 	if (match)
+ 		return qcom_smmu_create(smmu, match->data);
+ 
++	/*
++	 * If you hit this WARN_ON() you are missing an entry in the
++	 * qcom_smmu_impl_of_match[] table, and GPU per-process page-
++	 * tables will be broken.
++	 */
++	WARN(of_device_is_compatible(np, "qcom,adreno-smmu"),
++	     "Missing qcom_smmu_impl_of_match entry for: %s",
++	     dev_name(smmu->dev));
++
+ 	return smmu;
+ }
+-- 
+cgit 
+
+
+From 5c054db54c43a5fcb5cc81012361f5e3fac37637 Mon Sep 17 00:00:00 2001
+From: Rob Clark <robdclark@chromium.org>
+Date: Tue, 16 May 2023 15:20:37 -0700
+Subject: drm/msm: Be more shouty if per-process pgtables aren't working
+
+Otherwise it is not always obvious if a dt or iommu change is causing us
+to fall back to global pgtable.
+
+Signed-off-by: Rob Clark <robdclark@chromium.org>
+Reviewed-by: Dmitry Baryshkov <dmitry.baryshkov@linaro.org>
+Patchwork: https://patchwork.freedesktop.org/patch/537359/
+Link: https://lore.kernel.org/r/20230516222039.907690-2-robdclark@gmail.com
+---
+ drivers/gpu/drm/msm/msm_iommu.c | 7 ++++++-
+ 1 file changed, 6 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/msm/msm_iommu.c b/drivers/gpu/drm/msm/msm_iommu.c
+index 5080319ae4cf2..5cc8d358cc975 100644
+--- a/drivers/gpu/drm/msm/msm_iommu.c
++++ b/drivers/gpu/drm/msm/msm_iommu.c
+@@ -234,7 +234,12 @@ struct msm_mmu *msm_iommu_pagetable_create(struct msm_mmu *parent)
+ 	/* Get the pagetable configuration from the domain */
+ 	if (adreno_smmu->cookie)
+ 		ttbr1_cfg = adreno_smmu->get_ttbr1_cfg(adreno_smmu->cookie);
+-	if (!ttbr1_cfg)
++
++	/*
++	 * If you hit this WARN_ONCE() you are probably missing an entry in
++	 * qcom_smmu_impl_of_match[] in arm-smmu-qcom.c
++	 */
++	if (WARN_ONCE(!ttbr1_cfg, "No per-process page tables"))
+ 		return ERR_PTR(-ENODEV);
+ 
+ 	pagetable = kzalloc(sizeof(*pagetable), GFP_KERNEL);
+-- 
+cgit 
+

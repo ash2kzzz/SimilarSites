@@ -1,0 +1,84 @@
+From fc51b1cf391dd91ff9362861ed226ef51048e863 Mon Sep 17 00:00:00 2001
+From: Trond Myklebust <trond.myklebust@hammerspace.com>
+Date: Thu, 2 Apr 2020 15:27:09 -0400
+Subject: NFS: Beware when dereferencing the delegation cred
+
+When we look up the delegation cred, we are usually doing so in
+conjunction with a read of the stateid, and we want to ensure
+that the look up is atomic with that read.
+
+Fixes: 57f188e04773 ("NFSv4: nfs_update_inplace_delegation() should update delegation cred")
+[sfr@canb.auug.org.au: Fixed up borken Fixes: line from Trond :-)]
+Signed-off-by: Trond Myklebust <trond.myklebust@hammerspace.com>
+---
+ fs/nfs/delegation.c | 9 ++++++++-
+ fs/nfs/nfs4proc.c   | 3 +++
+ 2 files changed, 11 insertions(+), 1 deletion(-)
+
+diff --git a/fs/nfs/delegation.c b/fs/nfs/delegation.c
+index 01974f17afc9e..816e1427f17eb 100644
+--- a/fs/nfs/delegation.c
++++ b/fs/nfs/delegation.c
+@@ -1243,8 +1243,10 @@ restart_locked:
+ 		inode = nfs_delegation_grab_inode(delegation);
+ 		if (inode == NULL)
+ 			goto restart_locked;
++		spin_lock(&delegation->lock);
+ 		cred = get_cred_rcu(delegation->cred);
+ 		nfs4_stateid_copy(&stateid, &delegation->stateid);
++		spin_unlock(&delegation->lock);
+ 		clear_bit(NFS_DELEGATION_TEST_EXPIRED, &delegation->flags);
+ 		rcu_read_unlock();
+ 		nfs_delegation_test_free_expired(inode, &stateid, cred);
+@@ -1363,11 +1365,14 @@ bool nfs4_copy_delegation_stateid(struct inode *inode, fmode_t flags,
+ {
+ 	struct nfs_inode *nfsi = NFS_I(inode);
+ 	struct nfs_delegation *delegation;
+-	bool ret;
++	bool ret = false;
+ 
+ 	flags &= FMODE_READ|FMODE_WRITE;
+ 	rcu_read_lock();
+ 	delegation = rcu_dereference(nfsi->delegation);
++	if (!delegation)
++		goto out;
++	spin_lock(&delegation->lock);
+ 	ret = nfs4_is_valid_delegation(delegation, flags);
+ 	if (ret) {
+ 		nfs4_stateid_copy(dst, &delegation->stateid);
+@@ -1375,6 +1380,8 @@ bool nfs4_copy_delegation_stateid(struct inode *inode, fmode_t flags,
+ 		if (cred)
+ 			*cred = get_cred(delegation->cred);
+ 	}
++	spin_unlock(&delegation->lock);
++out:
+ 	rcu_read_unlock();
+ 	return ret;
+ }
+diff --git a/fs/nfs/nfs4proc.c b/fs/nfs/nfs4proc.c
+index 905c7d1bc277e..e4f8311e506c2 100644
+--- a/fs/nfs/nfs4proc.c
++++ b/fs/nfs/nfs4proc.c
+@@ -2790,16 +2790,19 @@ static int nfs41_check_delegation_stateid(struct nfs4_state *state)
+ 		return NFS_OK;
+ 	}
+ 
++	spin_lock(&delegation->lock);
+ 	nfs4_stateid_copy(&stateid, &delegation->stateid);
+ 
+ 	if (!test_and_clear_bit(NFS_DELEGATION_TEST_EXPIRED,
+ 				&delegation->flags)) {
++		spin_unlock(&delegation->lock);
+ 		rcu_read_unlock();
+ 		return NFS_OK;
+ 	}
+ 
+ 	if (delegation->cred)
+ 		cred = get_cred(delegation->cred);
++	spin_unlock(&delegation->lock);
+ 	rcu_read_unlock();
+ 	status = nfs41_test_and_free_expired_stateid(server, &stateid, cred);
+ 	trace_nfs4_test_delegation_stateid(state, NULL, status);
+-- 
+cgit 
+

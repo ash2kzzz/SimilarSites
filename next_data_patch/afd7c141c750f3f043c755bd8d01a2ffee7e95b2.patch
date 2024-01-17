@@ -1,0 +1,33 @@
+From afd7c141c750f3f043c755bd8d01a2ffee7e95b2 Mon Sep 17 00:00:00 2001
+From: Peter Ujfalusi <peter.ujfalusi@linux.intel.com>
+Date: Wed, 1 Feb 2023 13:28:45 +0200
+Subject: ASoC: SOF: topology: Add missed "else" in sof_connect_dai_widget
+
+The conversion to use generic helpers missed the else for the dai
+direction check which leads to failure when loading playback widgets
+
+Fixes: 323f09a61d43 ("ASoC: sof: use helper function")
+Signed-off-by: Peter Ujfalusi <peter.ujfalusi@linux.intel.com>
+Acked-by: Kuninori Morimoto <kuninori.morimoto.gx@renesas.com>
+Link: https://lore.kernel.org/r/20230201112846.27707-2-peter.ujfalusi@linux.intel.com
+Signed-off-by: Mark Brown <broonie@kernel.org>
+---
+ sound/soc/sof/topology.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/sound/soc/sof/topology.c b/sound/soc/sof/topology.c
+index 3cfdf782afca6..4a62ccc71fcbf 100644
+--- a/sound/soc/sof/topology.c
++++ b/sound/soc/sof/topology.c
+@@ -1065,7 +1065,7 @@ static int sof_connect_dai_widget(struct snd_soc_component *scomp,
+ 
+ 	if (w->id == snd_soc_dapm_dai_out)
+ 		stream = SNDRV_PCM_STREAM_CAPTURE;
+-	if (w->id == snd_soc_dapm_dai_in)
++	else if (w->id == snd_soc_dapm_dai_in)
+ 		stream = SNDRV_PCM_STREAM_PLAYBACK;
+ 	else
+ 		goto end;
+-- 
+cgit 
+

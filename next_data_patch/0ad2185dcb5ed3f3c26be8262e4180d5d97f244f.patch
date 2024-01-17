@@ -1,0 +1,51 @@
+From 0ad2185dcb5ed3f3c26be8262e4180d5d97f244f Mon Sep 17 00:00:00 2001
+From: Arnd Bergmann <arnd@arndb.de>
+Date: Mon, 30 Jan 2023 10:49:01 +0100
+Subject: soc: sunxi: select CONFIG_PM
+
+Selecting CONFIG_PM_GENERIC_DOMAINS without CONFIG_PM leads to a
+build failure:
+
+WARNING: unmet direct dependencies detected for PM_GENERIC_DOMAINS
+  Depends on [n]: PM [=n]
+  Selected by [y]:
+  - SUN20I_PPU [=y] && (ARCH_SUNXI [=n] || COMPILE_TEST [=y])
+
+drivers/base/power/domain_governor.c: In function 'default_suspend_ok':
+drivers/base/power/domain_governor.c:85:24: error: 'struct dev_pm_info' has no member named 'ignore_children'
+   85 |         if (!dev->power.ignore_children)
+      |                        ^
+drivers/base/power/domain.c: In function 'genpd_queue_power_off_work':
+drivers/base/power/domain.c:657:20: error: 'pm_wq' undeclared (first use in this function)
+  657 |         queue_work(pm_wq, &genpd->power_off_work);
+      |                    ^~~~~
+
+Unfortunately platforms are inconsistent between using 'select PM'
+and 'depends on PM' here. CONFIG_PM is a user-visible symbol, so
+in principle we should be using 'depends on', but on the other hand
+using 'select' here is more common among drivers/soc. Go with the
+majority for now, as this has a smaller risk of introducing circular
+dependencies. We may need to clean this up for consistency later.
+
+Fixes: 0e30ca5ab0a8 ("soc: sunxi: Add Allwinner D1 PPU driver")
+Acked-by: Jernej Skrabec <jernej.skrabec@gmail.com>
+Signed-off-by: Arnd Bergmann <arnd@arndb.de>
+---
+ drivers/soc/sunxi/Kconfig | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/drivers/soc/sunxi/Kconfig b/drivers/soc/sunxi/Kconfig
+index 29e9ba2d520d9..02d0b338feb3c 100644
+--- a/drivers/soc/sunxi/Kconfig
++++ b/drivers/soc/sunxi/Kconfig
+@@ -23,6 +23,7 @@ config SUNXI_SRAM
+ config SUN20I_PPU
+ 	bool "Allwinner D1 PPU power domain driver"
+ 	depends on ARCH_SUNXI || COMPILE_TEST
++	select PM
+ 	select PM_GENERIC_DOMAINS
+ 	help
+ 	  Say y to enable the PPU power domain driver. This saves power
+-- 
+cgit 
+

@@ -1,0 +1,34 @@
+From ca8e4cbff6d5360efc2ced519c4609e02e88cc59 Mon Sep 17 00:00:00 2001
+From: Vladimir Oltean <vladimir.oltean@nxp.com>
+Date: Mon, 6 Feb 2023 11:49:32 +0200
+Subject: ethtool: mm: fix get_mm() return code not propagating to user space
+
+If ops->get_mm() returns a non-zero error code, we goto out_complete,
+but there, we return 0. Fix that to propagate the "ret" variable to the
+caller. If ops->get_mm() succeeds, it will always return 0.
+
+Fixes: 2b30f8291a30 ("net: ethtool: add support for MAC Merge layer")
+Signed-off-by: Vladimir Oltean <vladimir.oltean@nxp.com>
+Reviewed-by: Simon Horman <simon.horman@corigine.com>
+Link: https://lore.kernel.org/r/20230206094932.446379-1-vladimir.oltean@nxp.com
+Signed-off-by: Paolo Abeni <pabeni@redhat.com>
+---
+ net/ethtool/mm.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/net/ethtool/mm.c b/net/ethtool/mm.c
+index 7e51f7633001a..e612856eed8ce 100644
+--- a/net/ethtool/mm.c
++++ b/net/ethtool/mm.c
+@@ -56,7 +56,7 @@ static int mm_prepare_data(const struct ethnl_req_info *req_base,
+ out_complete:
+ 	ethnl_ops_complete(dev);
+ 
+-	return 0;
++	return ret;
+ }
+ 
+ static int mm_reply_size(const struct ethnl_req_info *req_base,
+-- 
+cgit 
+

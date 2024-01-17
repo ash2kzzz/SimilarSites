@@ -1,0 +1,36 @@
+From eee43699217504ba69cadefc85c6992df555e33f Mon Sep 17 00:00:00 2001
+From: Abe Kohandel <abe.kohandel@intel.com>
+Date: Tue, 13 Jun 2023 09:21:03 -0700
+Subject: spi: dw: Replace incorrect spi_get_chipselect with set
+
+Commit 445164e8c136 ("spi: dw: Replace spi->chip_select references with
+function calls") replaced direct access to spi.chip_select with
+spi_*_chipselect calls but incorrectly replaced a set instance with a
+get instance, replace the incorrect instance.
+
+Fixes: 445164e8c136 ("spi: dw: Replace spi->chip_select references with function calls")
+Signed-off-by: Abe Kohandel <abe.kohandel@intel.com>
+Reviewed-by: Andy Shevchenko <andriy.shevchenko@linux.intel.com>
+Acked-by: Serge Semin <fancer.lancer@gmail.com>
+Link: https://lore.kernel.org/r/20230613162103.569812-1-abe.kohandel@intel.com
+Signed-off-by: Mark Brown <broonie@kernel.org>
+---
+ drivers/spi/spi-dw-mmio.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/spi/spi-dw-mmio.c b/drivers/spi/spi-dw-mmio.c
+index 5f2aee69c1c13..15f5e9cb54ad4 100644
+--- a/drivers/spi/spi-dw-mmio.c
++++ b/drivers/spi/spi-dw-mmio.c
+@@ -274,7 +274,7 @@ static void dw_spi_elba_set_cs(struct spi_device *spi, bool enable)
+ 	 */
+ 	spi_set_chipselect(spi, 0, 0);
+ 	dw_spi_set_cs(spi, enable);
+-	spi_get_chipselect(spi, cs);
++	spi_set_chipselect(spi, 0, cs);
+ }
+ 
+ static int dw_spi_elba_init(struct platform_device *pdev,
+-- 
+cgit 
+

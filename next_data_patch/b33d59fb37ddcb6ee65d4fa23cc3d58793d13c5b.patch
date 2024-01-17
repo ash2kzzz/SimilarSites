@@ -1,0 +1,48 @@
+From b33d59fb37ddcb6ee65d4fa23cc3d58793d13c5b Mon Sep 17 00:00:00 2001
+From: Heiko Carstens <hca@linux.ibm.com>
+Date: Wed, 4 Jan 2023 16:55:53 +0100
+Subject: s390/uaccess: avoid __ashlti3() call
+
+__cmpxchg_user_key() uses 128 bit types which, depending on compiler
+and config options, may lead to an __ashlti3() library call.
+
+Get rid of that by simply casting the 128 bit values to 32 bit values.
+
+Reported-by: kernel test robot <lkp@intel.com>
+Suggested-by: Janis Schoetterl-Glausch <scgl@linux.ibm.com>
+Fixes: 51098f0eb22e ("s390/cmpxchg: make loop condition for 1,2 byte cases precise")
+Link: https://lore.kernel.org/all/4b96b112d5415d08a81d30657feec2c8c3000f7c.camel@linux.ibm.com/
+Signed-off-by: Heiko Carstens <hca@linux.ibm.com>
+---
+ arch/s390/include/asm/uaccess.h | 8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/arch/s390/include/asm/uaccess.h b/arch/s390/include/asm/uaccess.h
+index 7c10f594e7478..8a8c64a678c4a 100644
+--- a/arch/s390/include/asm/uaccess.h
++++ b/arch/s390/include/asm/uaccess.h
+@@ -407,8 +407,8 @@ static __always_inline int __cmpxchg_user_key(unsigned long address, void *uval,
+ 
+ 		shift = (3 ^ (address & 3)) << 3;
+ 		address ^= address & 3;
+-		_old = (old & 0xff) << shift;
+-		_new = (new & 0xff) << shift;
++		_old = ((unsigned int)old & 0xff) << shift;
++		_new = ((unsigned int)new & 0xff) << shift;
+ 		mask = ~(0xff << shift);
+ 		asm volatile(
+ 			"	spka	0(%[key])\n"
+@@ -455,8 +455,8 @@ static __always_inline int __cmpxchg_user_key(unsigned long address, void *uval,
+ 
+ 		shift = (2 ^ (address & 2)) << 3;
+ 		address ^= address & 2;
+-		_old = (old & 0xffff) << shift;
+-		_new = (new & 0xffff) << shift;
++		_old = ((unsigned int)old & 0xffff) << shift;
++		_new = ((unsigned int)new & 0xffff) << shift;
+ 		mask = ~(0xffff << shift);
+ 		asm volatile(
+ 			"	spka	0(%[key])\n"
+-- 
+cgit 
+

@@ -1,0 +1,64 @@
+From 42e344f01688490cdac4bed8f5ba21817cad26ee Mon Sep 17 00:00:00 2001
+From: Phil Sutter <phil@nwl.cc>
+Date: Fri, 16 Jun 2023 17:56:11 +0200
+Subject: netfilter: nf_tables: Fix for deleting base chains with payload
+
+When deleting a base chain, iptables-nft simply submits the whole chain
+to the kernel, including the NFTA_CHAIN_HOOK attribute. The new code
+added by fixed commit then turned this into a chain update, destroying
+the hook but not the chain itself. Detect the situation by checking if
+the chain type is either netdev or inet/ingress.
+
+Fixes: 7d937b107108f ("netfilter: nf_tables: support for deleting devices in an existing netdev chain")
+Signed-off-by: Phil Sutter <phil@nwl.cc>
+Signed-off-by: Pablo Neira Ayuso <pablo@netfilter.org>
+---
+ net/netfilter/nf_tables_api.c | 16 +++++++++-------
+ 1 file changed, 9 insertions(+), 7 deletions(-)
+
+diff --git a/net/netfilter/nf_tables_api.c b/net/netfilter/nf_tables_api.c
+index c1db2f4b2aa4c..4c7937fd803f9 100644
+--- a/net/netfilter/nf_tables_api.c
++++ b/net/netfilter/nf_tables_api.c
+@@ -2811,21 +2811,18 @@ static int nf_tables_newchain(struct sk_buff *skb, const struct nfnl_info *info,
+ 	return nf_tables_addchain(&ctx, family, genmask, policy, flags, extack);
+ }
+ 
+-static int nft_delchain_hook(struct nft_ctx *ctx, struct nft_chain *chain,
++static int nft_delchain_hook(struct nft_ctx *ctx,
++			     struct nft_base_chain *basechain,
+ 			     struct netlink_ext_ack *extack)
+ {
++	const struct nft_chain *chain = &basechain->chain;
+ 	const struct nlattr * const *nla = ctx->nla;
+ 	struct nft_chain_hook chain_hook = {};
+-	struct nft_base_chain *basechain;
+ 	struct nft_hook *this, *hook;
+ 	LIST_HEAD(chain_del_list);
+ 	struct nft_trans *trans;
+ 	int err;
+ 
+-	if (!nft_is_base_chain(chain))
+-		return -EOPNOTSUPP;
+-
+-	basechain = nft_base_chain(chain);
+ 	err = nft_chain_parse_hook(ctx->net, basechain, nla, &chain_hook,
+ 				   ctx->family, chain->flags, extack);
+ 	if (err < 0)
+@@ -2910,7 +2907,12 @@ static int nf_tables_delchain(struct sk_buff *skb, const struct nfnl_info *info,
+ 		if (chain->flags & NFT_CHAIN_HW_OFFLOAD)
+ 			return -EOPNOTSUPP;
+ 
+-		return nft_delchain_hook(&ctx, chain, extack);
++		if (nft_is_base_chain(chain)) {
++			struct nft_base_chain *basechain = nft_base_chain(chain);
++
++			if (nft_base_chain_netdev(table->family, basechain->ops.hooknum))
++				return nft_delchain_hook(&ctx, basechain, extack);
++		}
+ 	}
+ 
+ 	if (info->nlh->nlmsg_flags & NLM_F_NONREC &&
+-- 
+cgit 
+

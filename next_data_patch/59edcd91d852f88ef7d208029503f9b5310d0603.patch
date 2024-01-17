@@ -1,0 +1,55 @@
+From 59edcd91d852f88ef7d208029503f9b5310d0603 Mon Sep 17 00:00:00 2001
+From: Johan Hovold <johan+linaro@kernel.org>
+Date: Wed, 14 Dec 2022 14:16:17 +0100
+Subject: thermal/drivers/qcom: Fix lock inversion
+
+The thermal-zone-device lock is held by core when setting trip points
+and the driver takes its chip lock in the corresponding callback.
+
+Fetching the thermal trip points using thermal_zone_get_trip() also
+involves taking the thermal-zone-device lock, which means that the chip
+lock can not be held when doing so.
+
+Drop the chip lock temporarily during probe to avoid the lock inversion
+that was detected by lockdep:
+
+  ======================================================
+  WARNING: possible circular locking dependency detected
+  6.1.0-next-20221213 #122 Not tainted
+  ------------------------------------------------------
+  systemd-udevd/264 is trying to acquire lock:
+  ffff741e444a0920 (&chip->lock){+.+.}-{3:3}, at: qpnp_tm_get_temp+0xb4/0x1b0 [qcom_spmi_temp_alarm]
+
+  but task is already holding lock:
+  ffff741e44341618 (&tz->lock){+.+.}-{3:3}, at: thermal_zone_device_update+0x2c/0x70
+
+  which lock already depends on the new lock.
+
+Fixes: 78c3e2429be8 ("thermal/drivers/qcom: Use generic thermal_zone_get_trip() function")
+Signed-off-by: Johan Hovold <johan+linaro@kernel.org>
+Link: https://lore.kernel.org/r/20221214131617.2447-5-johan+linaro@kernel.org
+Signed-off-by: Daniel Lezcano <daniel.lezcano@kernel.org>
+---
+ drivers/thermal/qcom/qcom-spmi-temp-alarm.c | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/drivers/thermal/qcom/qcom-spmi-temp-alarm.c b/drivers/thermal/qcom/qcom-spmi-temp-alarm.c
+index bfaec74f13b24..e2429676d0d26 100644
+--- a/drivers/thermal/qcom/qcom-spmi-temp-alarm.c
++++ b/drivers/thermal/qcom/qcom-spmi-temp-alarm.c
+@@ -348,7 +348,12 @@ static int qpnp_tm_init(struct qpnp_tm_chip *chip)
+ 	if (stage)
+ 		chip->temp = qpnp_tm_decode_temp(chip, stage);
+ 
++	mutex_unlock(&chip->lock);
++
+ 	crit_temp = qpnp_tm_get_critical_trip_temp(chip);
++
++	mutex_lock(&chip->lock);
++
+ 	ret = qpnp_tm_update_critical_trip_temp(chip, crit_temp);
+ 	if (ret < 0)
+ 		goto out;
+-- 
+cgit 
+

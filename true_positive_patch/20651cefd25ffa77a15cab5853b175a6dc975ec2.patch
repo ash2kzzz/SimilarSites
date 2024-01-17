@@ -1,0 +1,31 @@
+From 20651cefd25ffa77a15cab5853b175a6dc975ec2 Mon Sep 17 00:00:00 2001
+From: Florian Westphal <fw@strlen.de>
+Date: Tue, 9 Jan 2018 14:30:48 +0100
+Subject: netfilter: x_tables: unbreak module auto loading
+
+a typo causes module auto load support to never be compiled in.
+
+Fixes: 03d13b6868a2 ("netfilter: xtables: add and use xt_request_find_table_lock")
+Reported-by: Pablo Neira Ayuso <pablo@netfilter.org>
+Signed-off-by: Florian Westphal <fw@strlen.de>
+Signed-off-by: Pablo Neira Ayuso <pablo@netfilter.org>
+---
+ net/netfilter/x_tables.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/net/netfilter/x_tables.c b/net/netfilter/x_tables.c
+index 10c19a3f4cbdb..5b8f3b7358e65 100644
+--- a/net/netfilter/x_tables.c
++++ b/net/netfilter/x_tables.c
+@@ -1082,7 +1082,7 @@ struct xt_table *xt_request_find_table_lock(struct net *net, u_int8_t af,
+ {
+ 	struct xt_table *t = xt_find_table_lock(net, af, name);
+ 
+-#ifdef CONFIG_MODULE
++#ifdef CONFIG_MODULES
+ 	if (IS_ERR(t)) {
+ 		int err = request_module("%stable_%s", xt_prefix[af], name);
+ 		if (err)
+-- 
+cgit 
+

@@ -1,0 +1,47 @@
+From 194c3e7d7e1230201fb341f40cfd87760a30e42a Mon Sep 17 00:00:00 2001
+From: Alexander Stein <alexander.stein@ew.tq-group.com>
+Date: Thu, 23 Feb 2023 07:05:43 +0100
+Subject: arm64: dts: imx93: Fix eqos properties
+
+'macirq' is supposed to be listed first. Also only 'snps,clk-csr' is
+listed in the bindings while 'clk_csr' is only supported for legacy
+reasons. See commit 83936ea8d8ad2 ("net: stmmac: add a parse for new
+property 'snps,clk-csr'")
+
+Fixes: 1f4263ea6a4b ("arm64: dts: imx93: add eqos support")
+Signed-off-by: Alexander Stein <alexander.stein@ew.tq-group.com>
+Reviewed-by: Peng Fan <peng.fan@nxp.com>
+Signed-off-by: Shawn Guo <shawnguo@kernel.org>
+---
+ arch/arm64/boot/dts/freescale/imx93.dtsi | 8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/arch/arm64/boot/dts/freescale/imx93.dtsi b/arch/arm64/boot/dts/freescale/imx93.dtsi
+index 2076f9c9983ad..92e93c8af7f7b 100644
+--- a/arch/arm64/boot/dts/freescale/imx93.dtsi
++++ b/arch/arm64/boot/dts/freescale/imx93.dtsi
+@@ -580,9 +580,9 @@
+ 			eqos: ethernet@428a0000 {
+ 				compatible = "nxp,imx93-dwmac-eqos", "snps,dwmac-5.10a";
+ 				reg = <0x428a0000 0x10000>;
+-				interrupts = <GIC_SPI 183 IRQ_TYPE_LEVEL_HIGH>,
+-					     <GIC_SPI 184 IRQ_TYPE_LEVEL_HIGH>;
+-				interrupt-names = "eth_wake_irq", "macirq";
++				interrupts = <GIC_SPI 184 IRQ_TYPE_LEVEL_HIGH>,
++					     <GIC_SPI 183 IRQ_TYPE_LEVEL_HIGH>;
++				interrupt-names = "macirq", "eth_wake_irq";
+ 				clocks = <&clk IMX93_CLK_ENET_QOS_GATE>,
+ 					 <&clk IMX93_CLK_ENET_QOS_GATE>,
+ 					 <&clk IMX93_CLK_ENET_TIMER2>,
+@@ -595,7 +595,7 @@
+ 							 <&clk IMX93_CLK_SYS_PLL_PFD0_DIV2>;
+ 				assigned-clock-rates = <100000000>, <250000000>;
+ 				intf_mode = <&wakeupmix_gpr 0x28>;
+-				clk_csr = <0>;
++				snps,clk-csr = <0>;
+ 				status = "disabled";
+ 			};
+ 
+-- 
+cgit 
+

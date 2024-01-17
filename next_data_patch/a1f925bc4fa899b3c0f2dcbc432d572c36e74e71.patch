@@ -1,0 +1,34 @@
+From a1f925bc4fa899b3c0f2dcbc432d572c36e74e71 Mon Sep 17 00:00:00 2001
+From: Arnd Bergmann <arnd@arndb.de>
+Date: Sat, 11 Feb 2023 22:00:06 +0100
+Subject: mmc: omap: drop TPS65010 dependency
+
+The original TPS65010 dependency was only needed for MACH_OMAP_H2,
+which is now gone, but I messed up the conversion when I removed that
+symbol.
+
+Now the missing TPS65010 causes a boot failure on other machines
+such as the SX1.
+
+Reported-by: Guenter Roeck <linux@roeck-us.net>
+Fixes: 0d7bb85e9413 ("ARM: omap1: remove unused board files")
+Signed-off-by: Arnd Bergmann <arnd@arndb.de>
+---
+ drivers/mmc/host/Kconfig | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/drivers/mmc/host/Kconfig b/drivers/mmc/host/Kconfig
+index e1b88b51cc80f..e13b0b0b8ebb8 100644
+--- a/drivers/mmc/host/Kconfig
++++ b/drivers/mmc/host/Kconfig
+@@ -488,7 +488,6 @@ config MMC_SDHCI_ST
+ config MMC_OMAP
+ 	tristate "TI OMAP Multimedia Card Interface support"
+ 	depends on ARCH_OMAP
+-	depends on TPS65010
+ 	help
+ 	  This selects the TI OMAP Multimedia card Interface.
+ 	  If you have an OMAP board with a Multimedia Card slot,
+-- 
+cgit 
+

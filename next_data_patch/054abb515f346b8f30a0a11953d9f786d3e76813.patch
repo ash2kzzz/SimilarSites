@@ -1,0 +1,31 @@
+From 054abb515f346b8f30a0a11953d9f786d3e76813 Mon Sep 17 00:00:00 2001
+From: Jakub Kicinski <kuba@kernel.org>
+Date: Wed, 15 Mar 2023 16:03:49 -0700
+Subject: tools: ynl: make definitions optional again
+
+definitions are optional, commit in question breaks cli for ethtool.
+
+Fixes: 6517a60b0307 ("tools: ynl: move the enum classes to shared code")
+Reviewed-by: Chuck Lever <chuck.lever@oracle.com>
+Signed-off-by: Jakub Kicinski <kuba@kernel.org>
+---
+ tools/net/ynl/lib/nlspec.py | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/tools/net/ynl/lib/nlspec.py b/tools/net/ynl/lib/nlspec.py
+index 960a356e8225e..e01a72d066384 100644
+--- a/tools/net/ynl/lib/nlspec.py
++++ b/tools/net/ynl/lib/nlspec.py
+@@ -387,7 +387,8 @@ class SpecFamily(SpecElement):
+     def resolve(self):
+         self.resolve_up(super())
+ 
+-        for elem in self.yaml['definitions']:
++        definitions = self.yaml.get('definitions', [])
++        for elem in definitions:
+             if elem['type'] == 'enum' or elem['type'] == 'flags':
+                 self.consts[elem['name']] = self.new_enum(elem)
+             else:
+-- 
+cgit 
+

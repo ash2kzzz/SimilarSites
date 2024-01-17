@@ -1,0 +1,33 @@
+From 4048a6a7380c8be2f06c1c386dd63d1bd3cdb0a0 Mon Sep 17 00:00:00 2001
+From: Lorenzo Bianconi <lorenzo@kernel.org>
+Date: Wed, 15 Feb 2023 10:32:07 +0100
+Subject: wifi: cfg80211: remove gfp parameter from
+ cfg80211_obss_color_collision_notify description
+
+Get rid of gfp parameter from cfg80211_obss_color_collision_notify
+routine description.
+
+Fixes: 935ef47b16cc ("wifi: cfg80211: get rid of gfp in cfg80211_bss_color_notify")
+Reported-by: Stephen Rothwell <sfr@canb.auug.org.au>
+Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
+Link: https://lore.kernel.org/r/2da652e2cd5c7903191091ae9757718f1be802a1.1676453359.git.lorenzo@kernel.org
+Signed-off-by: Johannes Berg <johannes.berg@intel.com>
+---
+ include/net/cfg80211.h | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/include/net/cfg80211.h b/include/net/cfg80211.h
+index 15fb019ce28d6..f115b25503096 100644
+--- a/include/net/cfg80211.h
++++ b/include/net/cfg80211.h
+@@ -8951,7 +8951,6 @@ int cfg80211_bss_color_notify(struct net_device *dev,
+  * cfg80211_obss_color_collision_notify - notify about bss color collision
+  * @dev: network device
+  * @color_bitmap: representations of the colors that the local BSS is aware of
+- * @gfp: allocation flags
+  */
+ static inline int cfg80211_obss_color_collision_notify(struct net_device *dev,
+ 						       u64 color_bitmap)
+-- 
+cgit 
+

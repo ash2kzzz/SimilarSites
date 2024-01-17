@@ -1,0 +1,35 @@
+From 291e6b6cd7145108d45aeffbac4bb1348fece6b6 Mon Sep 17 00:00:00 2001
+From: Johan Hovold <johan+linaro@kernel.org>
+Date: Wed, 22 Mar 2023 12:33:15 +0100
+Subject: arm64: dts: qcom: sc8280xp-x13s: mark s12b regulator as always-on
+
+The s12b supply is used by several pmic regulators as well as the
+wlan/bluetooth radio which are not yet fully described in the
+devicetree.
+
+Mark the regulator as always-on for now.
+
+Fixes: f29077d86652 ("arm64: dts: qcom: sc8280xp-x13s: Add soundcard support")
+Cc: Srinivas Kandagatla <srinivas.kandagatla@linaro.org>
+Signed-off-by: Johan Hovold <johan+linaro@kernel.org>
+Signed-off-by: Bjorn Andersson <andersson@kernel.org>
+Link: https://lore.kernel.org/r/20230322113318.17908-4-johan+linaro@kernel.org
+---
+ arch/arm64/boot/dts/qcom/sc8280xp-lenovo-thinkpad-x13s.dts | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/arch/arm64/boot/dts/qcom/sc8280xp-lenovo-thinkpad-x13s.dts b/arch/arm64/boot/dts/qcom/sc8280xp-lenovo-thinkpad-x13s.dts
+index d6f6feee635ec..f327bc72463f4 100644
+--- a/arch/arm64/boot/dts/qcom/sc8280xp-lenovo-thinkpad-x13s.dts
++++ b/arch/arm64/boot/dts/qcom/sc8280xp-lenovo-thinkpad-x13s.dts
+@@ -386,6 +386,7 @@
+ 			regulator-min-microvolt = <984000>;
+ 			regulator-max-microvolt = <984000>;
+ 			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
++			regulator-always-on;
+ 		};
+ 
+ 		vreg_l3b: ldo3 {
+-- 
+cgit 
+

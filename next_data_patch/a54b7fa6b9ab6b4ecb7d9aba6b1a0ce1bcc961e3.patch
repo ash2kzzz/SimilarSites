@@ -1,0 +1,63 @@
+From a54b7fa6b9ab6b4ecb7d9aba6b1a0ce1bcc961e3 Mon Sep 17 00:00:00 2001
+From: Douglas Anderson <dianders@chromium.org>
+Date: Fri, 16 Jun 2023 08:14:40 -0700
+Subject: arm64: dts: qcom: sc7180: Mark SCM as dma-coherent for trogdor
+
+Trogdor devices use firmware backed by TF-A instead of Qualcomm's
+normal TZ. On TF-A we end up mapping memory as cacheable.
+Specifically, you can see in Trogdor's TF-A code [1] in
+qti_sip_mem_assign() that we call qti_mmap_add_dynamic_region() with
+MT_RO_DATA. This translates down to MT_MEMORY instead of
+MT_NON_CACHEABLE or MT_DEVICE. Apparently Qualcomm's normal TZ
+implementation maps the memory as non-cacheable.
+
+Let's add the "dma-coherent" attribute to the SCM for trogdor.
+
+Adding "dma-coherent" like this fixes WiFi on sc7180-trogdor
+devices. WiFi was broken as of commit 7bd6680b47fa ("Revert "Revert
+"arm64: dma: Drop cache invalidation from
+arch_dma_prep_coherent()"""). Specifically at bootup we'd get:
+
+ qcom_scm firmware:scm: Assign memory protection call failed -22
+ qcom_rmtfs_mem 94600000.memory: assign memory failed
+ qcom_rmtfs_mem: probe of 94600000.memory failed with error -22
+
+From discussion on the mailing lists [2] and over IRC [3], it was
+determined that we should always have been tagging the SCM as
+dma-coherent on trogdor but that the old "invalidate" happened to make
+things work most of the time. Tagging it properly like this is a much
+more robust solution.
+
+[1] https://chromium.googlesource.com/chromiumos/third_party/arm-trusted-firmware/+/refs/heads/firmware-trogdor-13577.B/plat/qti/common/src/qti_syscall.c
+[2] https://lore.kernel.org/r/20230614165904.1.I279773c37e2c1ed8fbb622ca6d1397aea0023526@changeid
+[3] https://oftc.irclog.whitequark.org/linux-msm/2023-06-15
+
+Fixes: 7bd6680b47fa ("Revert "Revert "arm64: dma: Drop cache invalidation from arch_dma_prep_coherent()""")
+Fixes: 7ec3e67307f8 ("arm64: dts: qcom: sc7180-trogdor: add initial trogdor and lazor dt")
+Reviewed-by: Konrad Dybcio <konrad.dybcio@linaro.org>
+Signed-off-by: Douglas Anderson <dianders@chromium.org>
+Link: https://lore.kernel.org/r/20230616081440.v2.3.Ic62daa649b47b656b313551d646c4de9a7da4bd4@changeid
+Signed-off-by: Bjorn Andersson <andersson@kernel.org>
+---
+ arch/arm64/boot/dts/qcom/sc7180-trogdor.dtsi | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/arch/arm64/boot/dts/qcom/sc7180-trogdor.dtsi b/arch/arm64/boot/dts/qcom/sc7180-trogdor.dtsi
+index ca6920de7ea87..1472e7f108311 100644
+--- a/arch/arm64/boot/dts/qcom/sc7180-trogdor.dtsi
++++ b/arch/arm64/boot/dts/qcom/sc7180-trogdor.dtsi
+@@ -892,6 +892,11 @@ hp_i2c: &i2c9 {
+ 	qcom,spare-regs = <&tcsr_regs_2 0xb3e4>;
+ };
+ 
++&scm {
++	/* TF-A firmware maps memory cached so mark dma-coherent to match. */
++	dma-coherent;
++};
++
+ &sdhc_1 {
+ 	status = "okay";
+ 
+-- 
+cgit 
+

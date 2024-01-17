@@ -1,0 +1,39 @@
+From e25c54d17914b0df4f902d1f25cd52f54e20cfbf Mon Sep 17 00:00:00 2001
+From: Richard Weinberger <richard@nod.at>
+Date: Sat, 11 Mar 2023 10:29:29 +0100
+Subject: ubi: block: Fix missing blk_mq_end_request
+
+Switching to BLK_MQ_F_BLOCKING wrongly removed the call to
+blk_mq_end_request(). Add it back to have our IOs finished
+
+Fixes: 91cc8fbcc8c7 ("ubi: block: set BLK_MQ_F_BLOCKING")
+Analyzed-by: Linus Torvalds <torvalds@linux-foundation.org>
+Reported-by: Daniel Palmer <daniel@0x0f.com>
+Link: https://lore.kernel.org/linux-mtd/CAHk-=wi29bbBNh3RqJKu3PxzpjDN5D5K17gEVtXrb7-6bfrnMQ@mail.gmail.com/
+Signed-off-by: Richard Weinberger <richard@nod.at>
+Reviewed-by: Christoph Hellwig <hch@lst.de>
+Tested-by: Daniel Palmer <daniel@0x0f.com>
+Signed-off-by: Linus Torvalds <torvalds@linux-foundation.org>
+---
+ drivers/mtd/ubi/block.c | 5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/mtd/ubi/block.c b/drivers/mtd/ubi/block.c
+index 1de87062c67b9..3711d7f746003 100644
+--- a/drivers/mtd/ubi/block.c
++++ b/drivers/mtd/ubi/block.c
+@@ -221,7 +221,10 @@ static blk_status_t ubiblock_read(struct request *req)
+ 
+ 	rq_for_each_segment(bvec, req, iter)
+ 		flush_dcache_page(bvec.bv_page);
+-	return errno_to_blk_status(ret);
++
++	blk_mq_end_request(req, errno_to_blk_status(ret));
++
++	return BLK_STS_OK;
+ }
+ 
+ static int ubiblock_open(struct block_device *bdev, fmode_t mode)
+-- 
+cgit 
+

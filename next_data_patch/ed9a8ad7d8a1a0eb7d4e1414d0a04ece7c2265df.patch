@@ -1,0 +1,97 @@
+From ed9a8ad7d8a1a0eb7d4e1414d0a04ece7c2265df Mon Sep 17 00:00:00 2001
+From: Miquel Raynal <miquel.raynal@bootlin.com>
+Date: Tue, 14 Feb 2023 14:50:35 +0100
+Subject: ieee802154: Drop device trackers
+
+In order to prevent a device from disappearing when a background job was
+started, dev_hold() and dev_put() calls were made. During the
+stabilization phase of the scan/beacon features, it was later decided
+that removing the device while a background job was ongoing was a valid use
+case, and we should instead stop the background job and then remove the
+device, rather than prevent the device from being removed. This is what
+is currently done, which means manually reference counting the device
+during background jobs is no longer needed.
+
+Fixes: ed3557c947e1 ("ieee802154: Add support for user scanning requests")
+Fixes: 9bc114504b07 ("ieee802154: Add support for user beaconing requests")
+Reported-by: Jakub Kicinski <kuba@kernel.org>
+Signed-off-by: Miquel Raynal <miquel.raynal@bootlin.com>
+Link: https://lore.kernel.org/r/20230214135035.1202471-7-miquel.raynal@bootlin.com
+Signed-off-by: Stefan Schmidt <stefan@datenfreihafen.org>
+---
+ net/ieee802154/nl802154.c | 24 ++++--------------------
+ 1 file changed, 4 insertions(+), 20 deletions(-)
+
+diff --git a/net/ieee802154/nl802154.c b/net/ieee802154/nl802154.c
+index f4a5070a9faf5..2215f576ee378 100644
+--- a/net/ieee802154/nl802154.c
++++ b/net/ieee802154/nl802154.c
+@@ -1453,20 +1453,14 @@ static int nl802154_trigger_scan(struct sk_buff *skb, struct genl_info *info)
+ 	else
+ 		request->duration = IEEE802154_MAX_SCAN_DURATION;
+ 
+-	if (wpan_dev->netdev)
+-		dev_hold(wpan_dev->netdev);
+-
+ 	err = rdev_trigger_scan(rdev, request);
+ 	if (err) {
+ 		pr_err("Failure starting scanning (%d)\n", err);
+-		goto free_device;
++		goto free_request;
+ 	}
+ 
+ 	return 0;
+ 
+-free_device:
+-	if (wpan_dev->netdev)
+-		dev_put(wpan_dev->netdev);
+ free_request:
+ 	kfree(request);
+ 
+@@ -1555,9 +1549,6 @@ int nl802154_scan_done(struct wpan_phy *wpan_phy, struct wpan_dev *wpan_dev,
+ 	if (err == -ESRCH)
+ 		err = 0;
+ 
+-	if (wpan_dev->netdev)
+-		dev_put(wpan_dev->netdev);
+-
+ 	return err;
+ }
+ EXPORT_SYMBOL_GPL(nl802154_scan_done);
+@@ -1605,21 +1596,15 @@ nl802154_send_beacons(struct sk_buff *skb, struct genl_info *info)
+ 	else
+ 		request->interval = IEEE802154_MAX_SCAN_DURATION;
+ 
+-	if (wpan_dev->netdev)
+-		dev_hold(wpan_dev->netdev);
+-
+ 	err = rdev_send_beacons(rdev, request);
+ 	if (err) {
+ 		pr_err("Failure starting sending beacons (%d)\n", err);
+-		goto free_device;
++		goto free_request;
+ 	}
+ 
+ 	return 0;
+ 
+-free_device:
+-	if (wpan_dev->netdev)
+-		dev_put(wpan_dev->netdev);
+-
++free_request:
+ 	kfree(request);
+ 
+ 	return err;
+@@ -1627,8 +1612,7 @@ free_device:
+ 
+ void nl802154_beaconing_done(struct wpan_dev *wpan_dev)
+ {
+-	if (wpan_dev->netdev)
+-		dev_put(wpan_dev->netdev);
++	/* NOP */
+ }
+ EXPORT_SYMBOL_GPL(nl802154_beaconing_done);
+ 
+-- 
+cgit 
+

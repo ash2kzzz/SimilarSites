@@ -1,0 +1,81 @@
+From 4fab64126891d413f207dacd5762a839b3470315 Mon Sep 17 00:00:00 2001
+From: Eric Dumazet <edumazet@google.com>
+Date: Fri, 10 Feb 2023 15:26:05 +0000
+Subject: net/sched: fix error recovery in qdisc_create()
+
+If TCA_STAB attribute is malformed, qdisc_get_stab() returns
+an error, and we end up calling ops->destroy() while ops->init()
+has not been called yet.
+
+While we are at it, call qdisc_put_stab() after ops->destroy().
+
+Fixes: 1f62879e3632 ("net/sched: make stab available before ops->init() call")
+Reported-by: syzbot+d44d88f1d11e6ca8576b@syzkaller.appspotmail.com
+Signed-off-by: Eric Dumazet <edumazet@google.com>
+Cc: Vladimir Oltean <vladimir.oltean@nxp.com>
+Cc: Kurt Kanzenbach <kurt@linutronix.de>
+Reviewed-by: Vladimir Oltean <vladimir.oltean@nxp.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ net/sched/sch_api.c | 15 ++++++++-------
+ 1 file changed, 8 insertions(+), 7 deletions(-)
+
+diff --git a/net/sched/sch_api.c b/net/sched/sch_api.c
+index e9780631b5b58..aba789c30a2eb 100644
+--- a/net/sched/sch_api.c
++++ b/net/sched/sch_api.c
+@@ -1286,7 +1286,7 @@ static struct Qdisc *qdisc_create(struct net_device *dev,
+ 		stab = qdisc_get_stab(tca[TCA_STAB], extack);
+ 		if (IS_ERR(stab)) {
+ 			err = PTR_ERR(stab);
+-			goto err_out4;
++			goto err_out3;
+ 		}
+ 		rcu_assign_pointer(sch->stab, stab);
+ 	}
+@@ -1294,14 +1294,14 @@ static struct Qdisc *qdisc_create(struct net_device *dev,
+ 	if (ops->init) {
+ 		err = ops->init(sch, tca[TCA_OPTIONS], extack);
+ 		if (err != 0)
+-			goto err_out5;
++			goto err_out4;
+ 	}
+ 
+ 	if (tca[TCA_RATE]) {
+ 		err = -EOPNOTSUPP;
+ 		if (sch->flags & TCQ_F_MQROOT) {
+ 			NL_SET_ERR_MSG(extack, "Cannot attach rate estimator to a multi-queue root qdisc");
+-			goto err_out5;
++			goto err_out4;
+ 		}
+ 
+ 		err = gen_new_estimator(&sch->bstats,
+@@ -1312,7 +1312,7 @@ static struct Qdisc *qdisc_create(struct net_device *dev,
+ 					tca[TCA_RATE]);
+ 		if (err) {
+ 			NL_SET_ERR_MSG(extack, "Failed to generate new estimator");
+-			goto err_out5;
++			goto err_out4;
+ 		}
+ 	}
+ 
+@@ -1321,12 +1321,13 @@ static struct Qdisc *qdisc_create(struct net_device *dev,
+ 
+ 	return sch;
+ 
+-err_out5:
+-	qdisc_put_stab(rtnl_dereference(sch->stab));
+ err_out4:
+-	/* ops->init() failed, we call ->destroy() like qdisc_create_dflt() */
++	/* Even if ops->init() failed, we call ops->destroy()
++	 * like qdisc_create_dflt().
++	 */
+ 	if (ops->destroy)
+ 		ops->destroy(sch);
++	qdisc_put_stab(rtnl_dereference(sch->stab));
+ err_out3:
+ 	netdev_put(dev, &sch->dev_tracker);
+ 	qdisc_free(sch);
+-- 
+cgit 
+

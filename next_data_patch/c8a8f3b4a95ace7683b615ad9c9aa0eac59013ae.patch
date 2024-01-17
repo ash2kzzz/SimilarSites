@@ -1,0 +1,48 @@
+From c8a8f3b4a95ace7683b615ad9c9aa0eac59013ae Mon Sep 17 00:00:00 2001
+From: David Stevens <stevensd@chromium.org>
+Date: Wed, 7 Jun 2023 14:31:35 +0900
+Subject: mm/khugepaged: fix iteration in collapse_file
+
+Remove an unnecessary call to xas_set(index) when iterating over the
+target range in collapse_file.  The extra call to xas_set reset the xas
+cursor to the top of the tree, causing the xas_next call on the next
+iteration to walk the tree to index instead of advancing to index+1.  This
+returned the same page again, which would cause collapse_file to fail
+because the page is already locked.
+
+This bug was hidden when CONFIG_DEBUG_VM was set.  When that config was
+used, the xas_load in a subsequent VM_BUG_ON assert would walk xas from
+the top of the tree to index, causing the xas_next call on the next loop
+iteration to advance the cursor as expected.
+
+Link: https://lkml.kernel.org/r/20230607053135.2087354-1-stevensd@google.com
+Fixes: a2e17cc2efc7 ("mm/khugepaged: maintain page cache uptodate flag")
+Signed-off-by: David Stevens <stevensd@chromium.org>
+Reviewed-by: Peter Xu <peterx@redhat.com>
+Cc: David Hildenbrand <david@redhat.com>
+Cc: Hugh Dickins <hughd@google.com>
+Cc: Jiaqi Yan <jiaqiyan@google.com>
+Cc: Kirill A . Shutemov <kirill@shutemov.name>
+Cc: Matthew Wilcox <willy@infradead.org>
+Cc: Yang Shi <shy828301@gmail.com>
+Cc: Mike Kravetz <mike.kravetz@oracle.com>
+Signed-off-by: Andrew Morton <akpm@linux-foundation.org>
+---
+ mm/khugepaged.c | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/mm/khugepaged.c b/mm/khugepaged.c
+index 6b9d39d65b730..2d0d58fb4e7fa 100644
+--- a/mm/khugepaged.c
++++ b/mm/khugepaged.c
+@@ -2070,7 +2070,6 @@ static int collapse_file(struct mm_struct *mm, unsigned long addr,
+ 					TTU_IGNORE_MLOCK | TTU_BATCH_FLUSH);
+ 
+ 		xas_lock_irq(&xas);
+-		xas_set(&xas, index);
+ 
+ 		VM_BUG_ON_PAGE(page != xas_load(&xas), page);
+ 
+-- 
+cgit 
+

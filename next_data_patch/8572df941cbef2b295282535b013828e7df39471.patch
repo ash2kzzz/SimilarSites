@@ -1,0 +1,45 @@
+From 8572df941cbef2b295282535b013828e7df39471 Mon Sep 17 00:00:00 2001
+From: Jens Axboe <axboe@kernel.dk>
+Date: Sat, 21 Jan 2023 19:53:41 -0700
+Subject: io_uring/msg-ring: ensure flags passing works for task_work
+ completions
+
+If the target ring is using IORING_SETUP_SINGLE_ISSUER and we're posting
+a message from a different thread, then we need to ensure that the
+fallback task_work that posts the CQE knwos about the flags passing as
+well. If not we'll always be posting 0 as the flags.
+
+Fixes: 3563d7ed58a5 ("io_uring/msg_ring: Pass custom flags to the cqe")
+Signed-off-by: Jens Axboe <axboe@kernel.dk>
+---
+ io_uring/msg_ring.c | 7 ++++++-
+ 1 file changed, 6 insertions(+), 1 deletion(-)
+
+diff --git a/io_uring/msg_ring.c b/io_uring/msg_ring.c
+index 27992bda1ffaf..8803c0979e2a9 100644
+--- a/io_uring/msg_ring.c
++++ b/io_uring/msg_ring.c
+@@ -99,6 +99,11 @@ static void io_msg_tw_complete(struct callback_head *head)
+ 	if (current->flags & PF_EXITING) {
+ 		ret = -EOWNERDEAD;
+ 	} else {
++		u32 flags = 0;
++
++		if (msg->flags & IORING_MSG_RING_FLAGS_PASS)
++			flags = msg->cqe_flags;
++
+ 		/*
+ 		 * If the target ring is using IOPOLL mode, then we need to be
+ 		 * holding the uring_lock for posting completions. Other ring
+@@ -107,7 +112,7 @@ static void io_msg_tw_complete(struct callback_head *head)
+ 		 */
+ 		if (target_ctx->flags & IORING_SETUP_IOPOLL)
+ 			mutex_lock(&target_ctx->uring_lock);
+-		if (!io_post_aux_cqe(target_ctx, msg->user_data, msg->len, 0))
++		if (!io_post_aux_cqe(target_ctx, msg->user_data, msg->len, flags))
+ 			ret = -EOVERFLOW;
+ 		if (target_ctx->flags & IORING_SETUP_IOPOLL)
+ 			mutex_unlock(&target_ctx->uring_lock);
+-- 
+cgit 
+

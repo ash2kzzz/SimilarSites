@@ -1,0 +1,40 @@
+From b32283d75335d8263fc9f5ae16c8a196f1d8b5d5 Mon Sep 17 00:00:00 2001
+From: Harshit Mogalapalli <harshit.m.mogalapalli@oracle.com>
+Date: Thu, 6 Apr 2023 00:46:07 -0700
+Subject: scsi: scsi_debug: Fix missing error code in scsi_debug_init()
+
+Smatch reports: drivers/scsi/scsi_debug.c:6996
+	scsi_debug_init() warn: missing error code 'ret'
+
+Although it is unlikely that KMEM_CACHE might fail, but if it does then ret
+might be zero. So to fix this explicitly mark ret as "-ENOMEM" and then
+goto driver_unreg.
+
+Fixes: 1107c7b24ee3 ("scsi: scsi_debug: Dynamically allocate sdebug_queued_cmd")
+Signed-off-by: Harshit Mogalapalli <harshit.m.mogalapalli@oracle.com>
+Link: https://lore.kernel.org/r/20230406074607.3637097-1-harshit.m.mogalapalli@oracle.com
+Reviewed-by: John Garry <john.g.garry@oracle.com>
+Signed-off-by: Martin K. Petersen <martin.petersen@oracle.com>
+---
+ drivers/scsi/scsi_debug.c | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/scsi/scsi_debug.c b/drivers/scsi/scsi_debug.c
+index cf3f58e8f7336..f4fa1035a191e 100644
+--- a/drivers/scsi/scsi_debug.c
++++ b/drivers/scsi/scsi_debug.c
+@@ -6992,8 +6992,10 @@ static int __init scsi_debug_init(void)
+ 	sdebug_add_host = 0;
+ 
+ 	queued_cmd_cache = KMEM_CACHE(sdebug_queued_cmd, SLAB_HWCACHE_ALIGN);
+-	if (!queued_cmd_cache)
++	if (!queued_cmd_cache) {
++		ret = -ENOMEM;
+ 		goto driver_unreg;
++	}
+ 
+ 	for (k = 0; k < hosts_to_add; k++) {
+ 		if (want_store && k == 0) {
+-- 
+cgit 
+

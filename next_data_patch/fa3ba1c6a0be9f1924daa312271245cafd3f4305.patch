@@ -1,0 +1,33 @@
+From fa3ba1c6a0be9f1924daa312271245cafd3f4305 Mon Sep 17 00:00:00 2001
+From: Krzysztof Kozlowski <krzysztof.kozlowski@linaro.org>
+Date: Tue, 24 Jan 2023 09:49:51 +0100
+Subject: arm64: dts: qcom: sm8550: drop incorrect cells from serial
+
+The serial/UART device node does not have children with unit addresses,
+so address/size cells are not correct.
+
+Fixes: 377972ac743f ("arm64: dts: qcom: sm8550: add I2C Master Hub nodes")
+Signed-off-by: Krzysztof Kozlowski <krzysztof.kozlowski@linaro.org>
+Reviewed-by: Konrad Dybcio <konrad.dybcio@linaro.org>
+Signed-off-by: Bjorn Andersson <andersson@kernel.org>
+Link: https://lore.kernel.org/r/20230124084951.38195-4-krzysztof.kozlowski@linaro.org
+---
+ arch/arm64/boot/dts/qcom/sm8550.dtsi | 2 --
+ 1 file changed, 2 deletions(-)
+
+diff --git a/arch/arm64/boot/dts/qcom/sm8550.dtsi b/arch/arm64/boot/dts/qcom/sm8550.dtsi
+index 06c8f5918f69a..9da19c38befff 100644
+--- a/arch/arm64/boot/dts/qcom/sm8550.dtsi
++++ b/arch/arm64/boot/dts/qcom/sm8550.dtsi
+@@ -1584,8 +1584,6 @@
+ 				interconnect-names = "qup-core", "qup-config";
+ 				interconnects =	<&clk_virt MASTER_QUP_CORE_1 0 &clk_virt SLAVE_QUP_CORE_1 0>,
+ 						<&gem_noc MASTER_APPSS_PROC 0 &config_noc SLAVE_QUP_1 0>;
+-				#address-cells = <1>;
+-				#size-cells = <0>;
+ 				status = "disabled";
+ 			};
+ 		};
+-- 
+cgit 
+

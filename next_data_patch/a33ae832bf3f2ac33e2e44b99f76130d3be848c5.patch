@@ -1,0 +1,42 @@
+From a33ae832bf3f2ac33e2e44b99f76130d3be848c5 Mon Sep 17 00:00:00 2001
+From: Akira Yokosawa <akiyks@gmail.com>
+Date: Tue, 10 Jan 2023 18:47:25 +0900
+Subject: docs/conf.py: Use about.html only in sidebar of alabaster theme
+
+"about.html" is available only for the alabaster theme [1].
+Unconditionally putting it to html_sidebars prevents us from
+using other themes which respect html_sidebars.
+
+Remove about.html from the initialization and insert it at the
+front for the alabaster theme.
+
+Link: [1] https://alabaster.readthedocs.io/en/latest/installation.html#sidebars
+Fixes: d5389d3145ef ("docs: Switch the default HTML theme to alabaster")
+Signed-off-by: Akira Yokosawa <akiyks@gmail.com>
+Cc: Mauro Carvalho Chehab <mchehab@kernel.org>
+Link: https://lore.kernel.org/r/4b162dbe-2a7f-1710-93e0-754cf8680aae@gmail.com
+Signed-off-by: Jonathan Corbet <corbet@lwn.net>
+---
+ Documentation/conf.py | 6 +++++-
+ 1 file changed, 5 insertions(+), 1 deletion(-)
+
+diff --git a/Documentation/conf.py b/Documentation/conf.py
+index 44899be7b2cca..d927737e3c10f 100644
+--- a/Documentation/conf.py
++++ b/Documentation/conf.py
+@@ -345,7 +345,11 @@ html_use_smartypants = False
+ 
+ # Custom sidebar templates, maps document names to template names.
+ # Note that the RTD theme ignores this
+-html_sidebars = { '**': ["about.html", 'searchbox.html', 'localtoc.html', 'sourcelink.html']}
++html_sidebars = { '**': ['searchbox.html', 'localtoc.html', 'sourcelink.html']}
++
++# about.html is available for alabaster theme. Add it at the front.
++if html_theme == 'alabaster':
++    html_sidebars['**'].insert(0, 'about.html')
+ 
+ # Output file base name for HTML help builder.
+ htmlhelp_basename = 'TheLinuxKerneldoc'
+-- 
+cgit 
+

@@ -1,0 +1,36 @@
+From 62079b6f2cf1e6356c6241cbdc5defdb0d66b4fe Mon Sep 17 00:00:00 2001
+From: Stanislaw Gruszka <stanislaw.gruszka@linux.intel.com>
+Date: Thu, 2 Feb 2023 10:21:13 +0100
+Subject: accel/ivpu: Set dma max_segment_size
+
+Avoid below spurious warning:
+
+[  264.844029] DMA-API: intel_vpu 0000:00:0b.0: mapping sg segment longer than device claims to support [len=143360] [max=65536]
+[  264.844038] WARNING: CPU: 0 PID: 1254 at kernel/dma/debug.c:1160 debug_dma_map_sg+0x6ca/0xb70
+
+Fixes: 263b2ba5fc93 ("accel/ivpu: Add Intel VPU MMU support")
+Signed-off-by: Stanislaw Gruszka <stanislaw.gruszka@linux.intel.com>
+Reviewed-by: Jeffrey Hugo <quic_jhugo@quicinc.com>
+Signed-off-by: Jacek Lawrynowicz <jacek.lawrynowicz@linux.intel.com>
+Link: https://patchwork.freedesktop.org/patch/msgid/20230202092114.2637452-4-stanislaw.gruszka@linux.intel.com
+(cherry picked from commit 07ccb63a5c4cf860754666f1de030a0cbd5193b6)
+Signed-off-by: Jacek Lawrynowicz <jacek.lawrynowicz@linux.intel.com>
+---
+ drivers/accel/ivpu/ivpu_drv.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/drivers/accel/ivpu/ivpu_drv.c b/drivers/accel/ivpu/ivpu_drv.c
+index 70c104851c6db..231f29bb50257 100644
+--- a/drivers/accel/ivpu/ivpu_drv.c
++++ b/drivers/accel/ivpu/ivpu_drv.c
+@@ -428,6 +428,7 @@ static int ivpu_pci_init(struct ivpu_device *vdev)
+ 		ivpu_err(vdev, "Failed to set DMA mask: %d\n", ret);
+ 		return ret;
+ 	}
++	dma_set_max_seg_size(vdev->drm.dev, UINT_MAX);
+ 
+ 	/* Clear any pending errors */
+ 	pcie_capability_clear_word(pdev, PCI_EXP_DEVSTA, 0x3f);
+-- 
+cgit 
+

@@ -1,0 +1,46 @@
+From d9a45969abeb641c5fb8cf3591f63f827f9932b5 Mon Sep 17 00:00:00 2001
+From: Helge Deller <deller@gmx.de>
+Date: Sat, 20 May 2023 22:43:35 +0200
+Subject: fbdev: stifb: Whitespace cleanups
+
+Missed whitespace cleanups in stifb.
+
+Fixes: 8000425739dc ("fbdev: stifb: Remove trailing whitespaces")
+Signed-off-by: Helge Deller <deller@gmx.de>
+---
+ drivers/video/fbdev/stifb.c | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/video/fbdev/stifb.c b/drivers/video/fbdev/stifb.c
+index 14c9215284c50..686a234f3899e 100644
+--- a/drivers/video/fbdev/stifb.c
++++ b/drivers/video/fbdev/stifb.c
+@@ -741,7 +741,7 @@ ngleClearOverlayPlanes(struct stifb_info *fb, int mask, int data)
+         packed_len = (fb->info.var.xres << 16) | fb->info.var.yres;
+         NGLE_SET_DSTXY(fb, packed_dst);
+ 
+-        /* Write zeroes to overlay planes */
++	/* Write zeroes to overlay planes */
+ 	NGLE_QUICK_SET_IMAGE_BITMAP_OP(fb,
+ 				       IBOvals(RopSrc, MaskAddrOffset(0),
+ 					       BitmapExtent08, StaticReg(0),
+@@ -1297,14 +1297,14 @@ static int __init stifb_init_fb(struct sti_struct *sti, int bpp_pref)
+ 		break;
+ 	default:
+ #ifdef FALLBACK_TO_1BPP
+-	       	printk(KERN_WARNING
++		printk(KERN_WARNING
+ 			"stifb: Unsupported graphics card (id=0x%08x) "
+ 				"- now trying 1bpp mode instead\n",
+ 			fb->id);
+ 		bpp = 1;	/* default to 1 bpp */
+ 		break;
+ #else
+-	       	printk(KERN_WARNING
++		printk(KERN_WARNING
+ 			"stifb: Unsupported graphics card (id=0x%08x) "
+ 				"- skipping.\n",
+ 			fb->id);
+-- 
+cgit 
+

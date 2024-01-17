@@ -1,0 +1,35 @@
+From db105c37a4d69d684c1edf2915557463d0ba172c Mon Sep 17 00:00:00 2001
+From: Arnd Bergmann <arnd@arndb.de>
+Date: Tue, 17 Jan 2023 17:50:26 +0100
+Subject: kunit: Export kunit_running()
+
+Using kunit_fail_current_test() in a loadable module causes a link
+error like:
+
+ERROR: modpost: "kunit_running" [drivers/gpu/drm/vc4/vc4.ko] undefined!
+
+Export the symbol to allow using it from modules.
+
+Fixes: da43ff045c3f ("drm/vc4: tests: Fail the current test if we access a register")
+Signed-off-by: Arnd Bergmann <arnd@arndb.de>
+Reviewed-by: David Gow <davidgow@google.com>
+Signed-off-by: Shuah Khan <skhan@linuxfoundation.org>
+---
+ lib/kunit/test.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/lib/kunit/test.c b/lib/kunit/test.c
+index c9ebf975e56b6..890ba5b3a9819 100644
+--- a/lib/kunit/test.c
++++ b/lib/kunit/test.c
+@@ -21,6 +21,7 @@
+ #include "try-catch-impl.h"
+ 
+ DEFINE_STATIC_KEY_FALSE(kunit_running);
++EXPORT_SYMBOL_GPL(kunit_running);
+ 
+ #if IS_BUILTIN(CONFIG_KUNIT)
+ /*
+-- 
+cgit 
+

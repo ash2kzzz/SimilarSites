@@ -1,0 +1,39 @@
+From 254d5a59464eea1324353d84c0f614c413e8e54f Mon Sep 17 00:00:00 2001
+From: Daniel Starke <daniel.starke@siemens.com>
+Date: Thu, 20 Apr 2023 10:50:09 +0200
+Subject: tty: n_gsm: fix redundant assignment of gsm->encoding
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+The function gsmld_open() contains a redundant assignment of gsm->encoding.
+The same value of GSM_ADV_OPT is already assigned to it during the
+initialization of the struct in gsm_alloc_mux() a few lines earlier.
+
+Fix this by removing the redundant second assignment of gsm->encoding in
+gsmld_open().
+
+Fixes: e1eaea46bb40 ("tty: n_gsm line discipline")
+Reviewed-by: Ilpo Järvinen <ilpo.jarvinen@linux.intel.com>
+Signed-off-by: Daniel Starke <daniel.starke@siemens.com>
+Link: https://lore.kernel.org/r/20230420085017.7314-1-daniel.starke@siemens.com
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+---
+ drivers/tty/n_gsm.c | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/drivers/tty/n_gsm.c b/drivers/tty/n_gsm.c
+index b7e1369a035c8..c42c8b89fd467 100644
+--- a/drivers/tty/n_gsm.c
++++ b/drivers/tty/n_gsm.c
+@@ -3585,7 +3585,6 @@ static int gsmld_open(struct tty_struct *tty)
+ 	tty->receive_room = 65536;
+ 
+ 	/* Attach the initial passive connection */
+-	gsm->encoding = GSM_ADV_OPT;
+ 	gsmld_attach_gsm(tty, gsm);
+ 
+ 	/* The mux will not be activated yet, we wait for correct
+-- 
+cgit 
+

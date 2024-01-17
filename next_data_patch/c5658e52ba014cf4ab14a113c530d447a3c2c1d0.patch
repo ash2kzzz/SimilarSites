@@ -1,0 +1,33 @@
+From c5658e52ba014cf4ab14a113c530d447a3c2c1d0 Mon Sep 17 00:00:00 2001
+From: Krzysztof Kozlowski <krzysztof.kozlowski@linaro.org>
+Date: Fri, 27 Jan 2023 13:18:43 +0100
+Subject: arm64: dts: qcom: sm8550-mtp: correct vdd-l5-l16-supply
+
+Fix typo in vdd-l5-l16 supply of qcom,pm8550-rpmh-regulators.
+
+Fixes: 71342fb91eae ("arm64: dts: qcom: Add base SM8550 MTP dts")
+Signed-off-by: Krzysztof Kozlowski <krzysztof.kozlowski@linaro.org>
+Reviewed-by: Abel Vesa <abel.vesa@linaro.org>
+Reviewed-by: Konrad Dybcio <konrad.dybcio@linaro.org>
+Signed-off-by: Bjorn Andersson <andersson@kernel.org>
+Link: https://lore.kernel.org/r/20230127121843.349738-1-krzysztof.kozlowski@linaro.org
+---
+ arch/arm64/boot/dts/qcom/sm8550-mtp.dts | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/arch/arm64/boot/dts/qcom/sm8550-mtp.dts b/arch/arm64/boot/dts/qcom/sm8550-mtp.dts
+index 725d3bc3ee72d..5db6e789e6b87 100644
+--- a/arch/arm64/boot/dts/qcom/sm8550-mtp.dts
++++ b/arch/arm64/boot/dts/qcom/sm8550-mtp.dts
+@@ -47,7 +47,7 @@
+ 		vdd-bob2-supply = <&vph_pwr>;
+ 		vdd-l2-l13-l14-supply = <&vreg_bob1>;
+ 		vdd-l3-supply = <&vreg_s4g_1p3>;
+-		vdd-l6-l16-supply = <&vreg_bob1>;
++		vdd-l5-l16-supply = <&vreg_bob1>;
+ 		vdd-l6-l7-supply = <&vreg_bob1>;
+ 		vdd-l8-l9-supply = <&vreg_bob1>;
+ 		vdd-l11-supply = <&vreg_s4g_1p3>;
+-- 
+cgit 
+

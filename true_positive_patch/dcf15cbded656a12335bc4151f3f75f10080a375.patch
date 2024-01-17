@@ -1,0 +1,110 @@
+From dcf15cbded656a12335bc4151f3f75f10080a375 Mon Sep 17 00:00:00 2001
+From: Lv Zheng <lv.zheng@intel.com>
+Date: Fri, 3 Jun 2016 10:26:12 +0800
+Subject: ACPI / EC: Fix a boot EC regresion by restoring boot EC support for
+ the DSDT EC
+
+According to the Windows probing result, during the table loading, the EC
+device described in the ECDT should be used. And the ECDT EC is also
+effective during the period the namespace objects are initialized (we can
+see a separate process executing _STA/_INI on Windows before executing
+other device specific control methods, for example, EC._REG). During the
+device enumration, the EC device described in the DSDT should be used. But
+there are differences between Linux and Windows around the device probing
+order. Thus in Linux, we should enable the DSDT EC as early as possible
+before enumerating devices in order not to trigger issues related to the
+device enumeration order differences.
+
+This patch thus converts acpi_boot_ec_enable() into acpi_ec_dsdt_probe() to
+fix the gap. This also fixes a user reported regression triggered after we
+switched the "table loading"/"ECDT support" to be ACPI spec 2.0 compliant.
+
+Fixes: 59f0aa9480cf (ACPI 2.0 / ECDT: Remove early namespace reference from EC)
+Link: https://bugzilla.kernel.org/show_bug.cgi?id=119261
+Reported-and-tested-by: Gabriele Mazzotta <gabriele.mzt@gmail.com>
+Signed-off-by: Lv Zheng <lv.zheng@intel.com>
+Signed-off-by: Rafael J. Wysocki <rafael.j.wysocki@intel.com>
+---
+ drivers/acpi/bus.c      |  2 +-
+ drivers/acpi/ec.c       | 29 ++++++++++++++++++++++-------
+ drivers/acpi/internal.h |  2 +-
+ 3 files changed, 24 insertions(+), 9 deletions(-)
+
+diff --git a/drivers/acpi/bus.c b/drivers/acpi/bus.c
+index 31e8da648fffb..262ca31b86d93 100644
+--- a/drivers/acpi/bus.c
++++ b/drivers/acpi/bus.c
+@@ -1051,7 +1051,7 @@ static int __init acpi_bus_init(void)
+ 	 * Maybe EC region is required at bus_scan/acpi_get_devices. So it
+ 	 * is necessary to enable it as early as possible.
+ 	 */
+-	acpi_boot_ec_enable();
++	acpi_ec_dsdt_probe();
+ 
+ 	printk(KERN_INFO PREFIX "Interpreter enabled\n");
+ 
+diff --git a/drivers/acpi/ec.c b/drivers/acpi/ec.c
+index 0e70181f150c9..73c76d6460647 100644
+--- a/drivers/acpi/ec.c
++++ b/drivers/acpi/ec.c
+@@ -1446,10 +1446,30 @@ ec_parse_io_ports(struct acpi_resource *resource, void *context)
+ 	return AE_OK;
+ }
+ 
+-int __init acpi_boot_ec_enable(void)
++static const struct acpi_device_id ec_device_ids[] = {
++	{"PNP0C09", 0},
++	{"", 0},
++};
++
++int __init acpi_ec_dsdt_probe(void)
+ {
+-	if (!boot_ec)
++	acpi_status status;
++
++	if (boot_ec)
+ 		return 0;
++
++	/*
++	 * Finding EC from DSDT if there is no ECDT EC available. When this
++	 * function is invoked, ACPI tables have been fully loaded, we can
++	 * walk namespace now.
++	 */
++	boot_ec = make_acpi_ec();
++	if (!boot_ec)
++		return -ENOMEM;
++	status = acpi_get_devices(ec_device_ids[0].id,
++				  ec_parse_device, boot_ec, NULL);
++	if (ACPI_FAILURE(status) || !boot_ec->handle)
++		return -ENODEV;
+ 	if (!ec_install_handlers(boot_ec)) {
+ 		first_ec = boot_ec;
+ 		return 0;
+@@ -1457,11 +1477,6 @@ int __init acpi_boot_ec_enable(void)
+ 	return -EFAULT;
+ }
+ 
+-static const struct acpi_device_id ec_device_ids[] = {
+-	{"PNP0C09", 0},
+-	{"", 0},
+-};
+-
+ #if 0
+ /*
+  * Some EC firmware variations refuses to respond QR_EC when SCI_EVT is not
+diff --git a/drivers/acpi/internal.h b/drivers/acpi/internal.h
+index 7c188472d9c27..b4733b56fed1b 100644
+--- a/drivers/acpi/internal.h
++++ b/drivers/acpi/internal.h
+@@ -180,7 +180,7 @@ typedef int (*acpi_ec_query_func) (void *data);
+ 
+ int acpi_ec_init(void);
+ int acpi_ec_ecdt_probe(void);
+-int acpi_boot_ec_enable(void);
++int acpi_ec_dsdt_probe(void);
+ void acpi_ec_block_transactions(void);
+ void acpi_ec_unblock_transactions(void);
+ void acpi_ec_unblock_transactions_early(void);
+-- 
+cgit 
+

@@ -1,0 +1,88 @@
+From 0bd939b60ceaa6cf2894678f40b96f61b2501658 Mon Sep 17 00:00:00 2001
+From: Alexander Lobakin <alexandr.lobakin@intel.com>
+Date: Fri, 10 Feb 2023 18:06:14 +0100
+Subject: ice: Fix XDP Tx ring overrun
+
+Sometimes, under heavy XDP Tx traffic, e.g. when using XDP traffic
+generator (%BPF_F_TEST_XDP_LIVE_FRAMES), the machine can catch OOM due
+to the driver not freeing all of the pages passed to it by
+.ndo_xdp_xmit().
+Turned out that during the development of the tagged commit, the check,
+which ensures that we have a free descriptor to queue a frame, moved
+into the branch happening only when a buffer has frags. Otherwise, we
+only run a cleaning cycle, but don't check anything.
+ATST, there can be situations when the driver gets new frames to send,
+but there are no buffers that can be cleaned/completed and the ring has
+no free slots. It's very rare, but still possible (> 6.5 Mpps per ring).
+The driver then fills the next buffer/descriptor, effectively
+overwriting the data, which still needs to be freed.
+
+Restore the check after the cleaning routine to make sure there is a
+slot to queue a new frame. When there are frags, there still will be a
+separate check that we can place all of them, but if the ring is full,
+there's no point in wasting any more time.
+
+(minor: make `!ready_frames` unlikely since it happens ~1-2 times per
+ billion of frames)
+
+Fixes: 3246a10752a7 ("ice: Add support for XDP multi-buffer on Tx side")
+Signed-off-by: Alexander Lobakin <alexandr.lobakin@intel.com>
+Signed-off-by: Daniel Borkmann <daniel@iogearbox.net>
+Acked-by: Maciej Fijalkowski <maciej.fijalkowski@intel.com>
+Link: https://lore.kernel.org/bpf/20230210170618.1973430-3-alexandr.lobakin@intel.com
+---
+ drivers/net/ethernet/intel/ice/ice_txrx_lib.c | 19 ++++++++++++-------
+ 1 file changed, 12 insertions(+), 7 deletions(-)
+
+diff --git a/drivers/net/ethernet/intel/ice/ice_txrx_lib.c b/drivers/net/ethernet/intel/ice/ice_txrx_lib.c
+index d1a7171e618ba..784f2f9ebb2d2 100644
+--- a/drivers/net/ethernet/intel/ice/ice_txrx_lib.c
++++ b/drivers/net/ethernet/intel/ice/ice_txrx_lib.c
+@@ -260,7 +260,7 @@ static u32 ice_clean_xdp_irq(struct ice_tx_ring *xdp_ring)
+ 			ready_frames = idx + cnt - ntc + 1;
+ 	}
+ 
+-	if (!ready_frames)
++	if (unlikely(!ready_frames))
+ 		return 0;
+ 	ret = ready_frames;
+ 
+@@ -322,17 +322,17 @@ int __ice_xmit_xdp_ring(struct xdp_buff *xdp, struct ice_tx_ring *xdp_ring)
+ 	u32 frag = 0;
+ 
+ 	free_space = ICE_DESC_UNUSED(xdp_ring);
+-
+-	if (ICE_DESC_UNUSED(xdp_ring) < ICE_RING_QUARTER(xdp_ring))
++	if (free_space < ICE_RING_QUARTER(xdp_ring))
+ 		free_space += ice_clean_xdp_irq(xdp_ring);
+ 
++	if (unlikely(!free_space))
++		goto busy;
++
+ 	if (unlikely(xdp_buff_has_frags(xdp))) {
+ 		sinfo = xdp_get_shared_info_from_buff(xdp);
+ 		nr_frags = sinfo->nr_frags;
+-		if (free_space < nr_frags + 1) {
+-			xdp_ring->ring_stats->tx_stats.tx_busy++;
+-			return ICE_XDP_CONSUMED;
+-		}
++		if (free_space < nr_frags + 1)
++			goto busy;
+ 	}
+ 
+ 	tx_desc = ICE_TX_DESC(xdp_ring, ntu);
+@@ -396,6 +396,11 @@ dma_unmap:
+ 		ntu--;
+ 	}
+ 	return ICE_XDP_CONSUMED;
++
++busy:
++	xdp_ring->ring_stats->tx_stats.tx_busy++;
++
++	return ICE_XDP_CONSUMED;
+ }
+ 
+ /**
+-- 
+cgit 
+

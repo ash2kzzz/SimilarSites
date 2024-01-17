@@ -1,0 +1,44 @@
+From 9dde12767aa19696a7fb28b2320119b87fb9d299 Mon Sep 17 00:00:00 2001
+From: Ian Rogers <irogers@google.com>
+Date: Mon, 15 May 2023 15:45:30 -0700
+Subject: perf metrics: Avoid segv with --topdown for metrics without a group
+
+Some metrics may not have a metric_group which can result in segvs
+with "perf stat --topdown". Add a condition for the no metric_group
+case.
+
+Fixes: 1647cd5b8802698f ("perf stat: Implement --topdown using json metrics")
+Reported-by: Kan Liang <kan.liang@linux.intel.com>
+Signed-off-by: Ian Rogers <irogers@google.com>
+Tested-by: Kan Liang <kan.liang@linux.intel.com>
+Cc: Adrian Hunter <adrian.hunter@intel.com>
+Cc: Alexander Shishkin <alexander.shishkin@linux.intel.com>
+Cc: Ian Rogers <irogers@google.com>
+Cc: Ingo Molnar <mingo@redhat.com>
+Cc: Jiri Olsa <jolsa@kernel.org>
+Cc: Kajol Jain <kjain@linux.ibm.com>
+Cc: Mark Rutland <mark.rutland@arm.com>
+Cc: Namhyung Kim <namhyung@kernel.org>
+Cc: Peter Zijlstra <peterz@infradead.org>
+Link: https://lore.kernel.org/r/20230515224530.671331-1-irogers@google.com
+Signed-off-by: Arnaldo Carvalho de Melo <acme@redhat.com>
+---
+ tools/perf/util/metricgroup.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/tools/perf/util/metricgroup.c b/tools/perf/util/metricgroup.c
+index 4e7d41d285b4b..5e9c657dd3f7a 100644
+--- a/tools/perf/util/metricgroup.c
++++ b/tools/perf/util/metricgroup.c
+@@ -1672,7 +1672,7 @@ static int metricgroup__topdown_max_level_callback(const struct pmu_metric *pm,
+ {
+ 	unsigned int *max_level = data;
+ 	unsigned int level;
+-	const char *p = strstr(pm->metric_group, "TopdownL");
++	const char *p = strstr(pm->metric_group ?: "", "TopdownL");
+ 
+ 	if (!p || p[8] == '\0')
+ 		return 0;
+-- 
+cgit 
+

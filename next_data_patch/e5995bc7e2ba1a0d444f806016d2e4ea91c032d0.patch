@@ -1,0 +1,85 @@
+From e5995bc7e2ba1a0d444f806016d2e4ea91c032d0 Mon Sep 17 00:00:00 2001
+From: Alexander Lobakin <aleksander.lobakin@intel.com>
+Date: Thu, 16 Mar 2023 18:50:50 +0100
+Subject: bpf, test_run: fix crashes due to XDP frame overwriting/corruption
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+syzbot and Ilya faced the splats when %XDP_PASS happens for bpf_test_run
+after skb PP recycling was enabled for {__,}xdp_build_skb_from_frame():
+
+BUG: kernel NULL pointer dereference, address: 0000000000000d28
+RIP: 0010:memset_erms+0xd/0x20 arch/x86/lib/memset_64.S:66
+[...]
+Call Trace:
+ <TASK>
+ __finalize_skb_around net/core/skbuff.c:321 [inline]
+ __build_skb_around+0x232/0x3a0 net/core/skbuff.c:379
+ build_skb_around+0x32/0x290 net/core/skbuff.c:444
+ __xdp_build_skb_from_frame+0x121/0x760 net/core/xdp.c:622
+ xdp_recv_frames net/bpf/test_run.c:248 [inline]
+ xdp_test_run_batch net/bpf/test_run.c:334 [inline]
+ bpf_test_run_xdp_live+0x1289/0x1930 net/bpf/test_run.c:362
+ bpf_prog_test_run_xdp+0xa05/0x14e0 net/bpf/test_run.c:1418
+[...]
+
+This happens due to that it calls xdp_scrub_frame(), which nullifies
+xdpf->data. bpf_test_run code doesn't reinit the frame when the XDP
+program doesn't adjust head or tail. Previously, %XDP_PASS meant the
+page will be released from the pool and returned to the MM layer, but
+now it does return to the Pool with the nullified xdpf->data, which
+doesn't get reinitialized then.
+So, in addition to checking whether the head and/or tail have been
+adjusted, check also for a potential XDP frame corruption. xdpf->data
+is 100% affected and also xdpf->flags is the field closest to the
+metadata / frame start. Checking for these two should be enough for
+non-extreme cases.
+
+Fixes: 9c94bbf9a87b ("xdp: recycle Page Pool backed skbs built from XDP frames")
+Reported-by: syzbot+e1d1b65f7c32f2a86a9f@syzkaller.appspotmail.com
+Link: https://lore.kernel.org/bpf/000000000000f1985705f6ef2243@google.com
+Reported-by: Ilya Leoshkevich <iii@linux.ibm.com>
+Link: https://lore.kernel.org/bpf/e07dd94022ad5731705891b9487cc9ed66328b94.camel@linux.ibm.com
+Signed-off-by: Alexander Lobakin <aleksander.lobakin@intel.com>
+Acked-by: Toke Høiland-Jørgensen <toke@redhat.com>
+Tested-by: Ilya Leoshkevich <iii@linux.ibm.com>
+Link: https://lore.kernel.org/r/20230316175051.922550-2-aleksander.lobakin@intel.com
+Signed-off-by: Alexei Starovoitov <ast@kernel.org>
+---
+ net/bpf/test_run.c | 12 +++++++++++-
+ 1 file changed, 11 insertions(+), 1 deletion(-)
+
+diff --git a/net/bpf/test_run.c b/net/bpf/test_run.c
+index 71226f68270d9..8d6b31209bd62 100644
+--- a/net/bpf/test_run.c
++++ b/net/bpf/test_run.c
+@@ -208,6 +208,16 @@ static void xdp_test_run_teardown(struct xdp_test_data *xdp)
+ 	kfree(xdp->skbs);
+ }
+ 
++static bool frame_was_changed(const struct xdp_page_head *head)
++{
++	/* xdp_scrub_frame() zeroes the data pointer, flags is the last field,
++	 * i.e. has the highest chances to be overwritten. If those two are
++	 * untouched, it's most likely safe to skip the context reset.
++	 */
++	return head->frm.data != head->orig_ctx.data ||
++	       head->frm.flags != head->orig_ctx.flags;
++}
++
+ static bool ctx_was_changed(struct xdp_page_head *head)
+ {
+ 	return head->orig_ctx.data != head->ctx.data ||
+@@ -217,7 +227,7 @@ static bool ctx_was_changed(struct xdp_page_head *head)
+ 
+ static void reset_ctx(struct xdp_page_head *head)
+ {
+-	if (likely(!ctx_was_changed(head)))
++	if (likely(!frame_was_changed(head) && !ctx_was_changed(head)))
+ 		return;
+ 
+ 	head->ctx.data = head->orig_ctx.data;
+-- 
+cgit 
+

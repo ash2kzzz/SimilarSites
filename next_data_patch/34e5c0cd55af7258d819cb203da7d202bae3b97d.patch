@@ -1,0 +1,38 @@
+From 34e5c0cd55af7258d819cb203da7d202bae3b97d Mon Sep 17 00:00:00 2001
+From: Emanuele Ghidoli <emanuele.ghidoli@toradex.com>
+Date: Sun, 14 May 2023 11:22:45 +0200
+Subject: arm64: dts: colibri-imx8x: fix iris pinctrl configuration
+
+Remove GPIO3_IO10 from Iris carrier board pinctrl configuration,
+this is already defined in the SOM dtsi since this is a
+standard SOM functionality (wake-up button).
+
+Duplicating it leads to the following error message
+imx8qxp-pinctrl scu:pinctrl: pin IMX8QXP_QSPI0A_DATA1 already requested
+
+Fixes: aefb5e2d974d ("arm64: dts: colibri-imx8x: Add iris carrier board")
+Signed-off-by: Emanuele Ghidoli <emanuele.ghidoli@toradex.com>
+Signed-off-by: Andrejs Cainikovs <andrejs.cainikovs@toradex.com>
+Signed-off-by: Francesco Dolcini <francesco.dolcini@toradex.com>
+Signed-off-by: Shawn Guo <shawnguo@kernel.org>
+---
+ arch/arm64/boot/dts/freescale/imx8x-colibri-iris.dtsi | 3 +--
+ 1 file changed, 1 insertion(+), 2 deletions(-)
+
+diff --git a/arch/arm64/boot/dts/freescale/imx8x-colibri-iris.dtsi b/arch/arm64/boot/dts/freescale/imx8x-colibri-iris.dtsi
+index 5f30c88855e70..f8953067bc3bb 100644
+--- a/arch/arm64/boot/dts/freescale/imx8x-colibri-iris.dtsi
++++ b/arch/arm64/boot/dts/freescale/imx8x-colibri-iris.dtsi
+@@ -48,8 +48,7 @@
+ 			   <IMX8QXP_SAI0_TXFS_LSIO_GPIO0_IO28		0x20>,		/* SODIMM 101 */
+ 			   <IMX8QXP_SAI0_RXD_LSIO_GPIO0_IO27		0x20>,		/* SODIMM  97 */
+ 			   <IMX8QXP_ENET0_RGMII_RXC_LSIO_GPIO5_IO03	0x06000020>,	/* SODIMM  85 */
+-			   <IMX8QXP_SAI0_TXC_LSIO_GPIO0_IO26		0x20>,		/* SODIMM  79 */
+-			   <IMX8QXP_QSPI0A_DATA1_LSIO_GPIO3_IO10	0x06700041>;	/* SODIMM  45 */
++			   <IMX8QXP_SAI0_TXC_LSIO_GPIO0_IO26		0x20>;		/* SODIMM  79 */
+ 	};
+ 
+ 	pinctrl_uart1_forceoff: uart1forceoffgrp {
+-- 
+cgit 
+

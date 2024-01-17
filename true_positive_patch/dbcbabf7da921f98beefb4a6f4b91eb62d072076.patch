@@ -1,0 +1,33 @@
+From dbcbabf7da921f98beefb4a6f4b91eb62d072076 Mon Sep 17 00:00:00 2001
+From: YueHaibing <yuehaibing@huawei.com>
+Date: Sat, 25 May 2019 22:09:08 +0800
+Subject: HID: logitech-dj: fix return value of
+ logi_dj_recv_query_hidpp_devices
+
+We should return 'retval' as the correct return value
+instead of always zero.
+
+Fixes: 74808f9115ce ("HID: logitech-dj: add support for non unifying receivers")
+Signed-off-by: YueHaibing <yuehaibing@huawei.com>
+Reviewed-by: Hans de Goede <hdegoede@redhat.com>
+Signed-off-by: Benjamin Tissoires <benjamin.tissoires@redhat.com>
+---
+ drivers/hid/hid-logitech-dj.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/hid/hid-logitech-dj.c b/drivers/hid/hid-logitech-dj.c
+index 1cbd898bbdc3b..d644d5a815f0e 100644
+--- a/drivers/hid/hid-logitech-dj.c
++++ b/drivers/hid/hid-logitech-dj.c
+@@ -1133,7 +1133,7 @@ static int logi_dj_recv_query_hidpp_devices(struct dj_receiver_dev *djrcv_dev)
+ 				    HID_REQ_SET_REPORT);
+ 
+ 	kfree(hidpp_report);
+-	return 0;
++	return retval;
+ }
+ 
+ static int logi_dj_recv_query_paired_devices(struct dj_receiver_dev *djrcv_dev)
+-- 
+cgit 
+

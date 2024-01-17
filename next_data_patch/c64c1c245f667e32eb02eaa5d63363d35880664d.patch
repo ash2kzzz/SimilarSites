@@ -1,0 +1,42 @@
+From c64c1c245f667e32eb02eaa5d63363d35880664d Mon Sep 17 00:00:00 2001
+From: Neil Armstrong <neil.armstrong@linaro.org>
+Date: Tue, 7 Feb 2023 11:06:57 +0100
+Subject: arm64: dts: qcom: sm8550: fix DSI controller compatible
+
+Add missing sm8550 soc specific compatible before fallback to
+match the updated bindings.
+
+Fixes: d7da51db5b81 ("arm64: dts: qcom: sm8550: add display hardware devices")
+Signed-off-by: Neil Armstrong <neil.armstrong@linaro.org>
+Reviewed-by: Dmitry Baryshkov <dmitry.baryshkov@linaro.org>
+Signed-off-by: Bjorn Andersson <andersson@kernel.org>
+Link: https://lore.kernel.org/r/20230207-topic-sm8550-upstream-sm8550-dt-fix-v1-1-698d132ab285@linaro.org
+---
+ arch/arm64/boot/dts/qcom/sm8550.dtsi | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/arch/arm64/boot/dts/qcom/sm8550.dtsi b/arch/arm64/boot/dts/qcom/sm8550.dtsi
+index 9c3dcaac03375..9910006c32aa4 100644
+--- a/arch/arm64/boot/dts/qcom/sm8550.dtsi
++++ b/arch/arm64/boot/dts/qcom/sm8550.dtsi
+@@ -2188,7 +2188,7 @@
+ 			};
+ 
+ 			mdss_dsi0: dsi@ae94000 {
+-				compatible = "qcom,mdss-dsi-ctrl";
++				compatible = "qcom,sm8550-dsi-ctrl", "qcom,mdss-dsi-ctrl";
+ 				reg = <0 0x0ae94000 0 0x400>;
+ 				reg-names = "dsi_ctrl";
+ 
+@@ -2282,7 +2282,7 @@
+ 			};
+ 
+ 			mdss_dsi1: dsi@ae96000 {
+-				compatible = "qcom,mdss-dsi-ctrl";
++				compatible = "qcom,sm8550-dsi-ctrl", "qcom,mdss-dsi-ctrl";
+ 				reg = <0 0x0ae96000 0 0x400>;
+ 				reg-names = "dsi_ctrl";
+ 
+-- 
+cgit 
+

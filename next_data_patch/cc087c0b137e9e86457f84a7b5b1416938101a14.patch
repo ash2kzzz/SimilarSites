@@ -1,0 +1,68 @@
+From cc087c0b137e9e86457f84a7b5b1416938101a14 Mon Sep 17 00:00:00 2001
+From: Bagas Sanjaya <bagasdotme@gmail.com>
+Date: Sun, 19 Mar 2023 14:49:02 +0700
+Subject: Documentation: leds: mt6370: Properly wrap hw_pattern chart
+
+The pattern diagram (chart) of /sys/class/leds/<led>/hw_pattern is
+wrapped in literal code block. However, the block indentation is
+interrupted by Icurr axis label, hence below warnings:
+
+Documentation/leds/leds-mt6370-rgb.rst:39: WARNING: Literal block ends without a blank line; unexpected unindent.
+Documentation/leds/leds-mt6370-rgb.rst:41: WARNING: Line block ends without a blank line.
+Documentation/leds/leds-mt6370-rgb.rst:46: WARNING: Unexpected indentation.
+Documentation/leds/leds-mt6370-rgb.rst:44: WARNING: Inline substitution_reference start-string without end-string.
+
+Fix the chart indentation by adding 4 more spaces so that the axis label
+is in the code block.
+
+Link: https://lore.kernel.org/oe-kbuild-all/202303182310.tB1mUzU7-lkp@intel.com/
+Fixes: 4ba9df04b7ac66 ("docs: leds: Add MT6370 RGB LED pattern document")
+Reported-by: kernel test robot <lkp@intel.com>
+Signed-off-by: Bagas Sanjaya <bagasdotme@gmail.com>
+Acked-by: Pavel Machek <pavel@ucw.cz>
+Signed-off-by: Lee Jones <lee@kernel.org>
+Link: https://lore.kernel.org/r/20230319074903.13075-3-bagasdotme@gmail.com
+---
+ Documentation/leds/leds-mt6370-rgb.rst | 26 +++++++++++++-------------
+ 1 file changed, 13 insertions(+), 13 deletions(-)
+
+diff --git a/Documentation/leds/leds-mt6370-rgb.rst b/Documentation/leds/leds-mt6370-rgb.rst
+index abf739e448428..ea782797a06df 100644
+--- a/Documentation/leds/leds-mt6370-rgb.rst
++++ b/Documentation/leds/leds-mt6370-rgb.rst
+@@ -31,19 +31,19 @@ depending on the current brightness setting.
+ 
+ Pattern diagram::
+ 
+-     "0 Tr1 0 Tr2 0 Tf1 0 Tf2 0 Ton 0 Toff" --> '0' for dummy brightness code
+-
+-      ^
+-      |           ============
+-      |          /            \                                /
+-Icurr |         /              \                              /
+-      |        /                \                            /
+-      |       /                  \                          /   .....repeat
+-      |      /                    \                        /
+-      |   ---                      ---                  ---
+-      |---                            ---            ---
+-      +----------------------------------============------------> Time
+-       < Tr1><Tr2><   Ton    ><Tf1><Tf2 ><  Toff    >< Tr1><Tr2>
++         "0 Tr1 0 Tr2 0 Tf1 0 Tf2 0 Ton 0 Toff" --> '0' for dummy brightness code
++
++          ^
++          |           ============
++          |          /            \                                /
++    Icurr |         /              \                              /
++          |        /                \                            /
++          |       /                  \                          /   .....repeat
++          |      /                    \                        /
++          |   ---                      ---                  ---
++          |---                            ---            ---
++          +----------------------------------============------------> Time
++          < Tr1><Tr2><   Ton    ><Tf1><Tf2 ><  Toff    >< Tr1><Tr2>
+ 
+ Timing description::
+ 
+-- 
+cgit 
+

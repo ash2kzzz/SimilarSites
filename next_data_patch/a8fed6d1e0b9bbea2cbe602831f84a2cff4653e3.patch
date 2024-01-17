@@ -1,0 +1,95 @@
+From a8fed6d1e0b9bbea2cbe602831f84a2cff4653e3 Mon Sep 17 00:00:00 2001
+From: Stanislaw Gruszka <stanislaw.gruszka@linux.intel.com>
+Date: Thu, 23 Mar 2023 13:55:00 +0100
+Subject: accel/ivpu: Fix power down sequence
+
+Remove FPGA workaround on power_down to skip checking for noc
+quiescent state.
+
+Put VPU in reset before powering it down and skip manipulating
+registers that are reset by the VPU reset.
+
+This fixes power down errors where VPU is powered down just after VPU
+is booted.
+
+Fixes: 35b137630f08 ("accel/ivpu: Introduce a new DRM driver for Intel VPU")
+Signed-off-by: Stanislaw Gruszka <stanislaw.gruszka@linux.intel.com>
+Reviewed-by: Jeffrey Hugo <quic_jhugo@quicinc.com>
+Signed-off-by: Jacek Lawrynowicz <jacek.lawrynowicz@linux.intel.com>
+Link: https://patchwork.freedesktop.org/patch/msgid/20230323125504.2586442-5-stanislaw.gruszka@linux.intel.com
+---
+ drivers/accel/ivpu/ivpu_hw_mtl.c | 37 ++-----------------------------------
+ 1 file changed, 2 insertions(+), 35 deletions(-)
+
+diff --git a/drivers/accel/ivpu/ivpu_hw_mtl.c b/drivers/accel/ivpu/ivpu_hw_mtl.c
+index 62bfaa9081c4f..70ca6de780601 100644
+--- a/drivers/accel/ivpu/ivpu_hw_mtl.c
++++ b/drivers/accel/ivpu/ivpu_hw_mtl.c
+@@ -403,11 +403,6 @@ static int ivpu_boot_host_ss_axi_enable(struct ivpu_device *vdev)
+ 	return ivpu_boot_host_ss_axi_drive(vdev, true);
+ }
+ 
+-static int ivpu_boot_host_ss_axi_disable(struct ivpu_device *vdev)
+-{
+-	return ivpu_boot_host_ss_axi_drive(vdev, false);
+-}
+-
+ static int ivpu_boot_host_ss_top_noc_drive(struct ivpu_device *vdev, bool enable)
+ {
+ 	int ret;
+@@ -441,11 +436,6 @@ static int ivpu_boot_host_ss_top_noc_enable(struct ivpu_device *vdev)
+ 	return ivpu_boot_host_ss_top_noc_drive(vdev, true);
+ }
+ 
+-static int ivpu_boot_host_ss_top_noc_disable(struct ivpu_device *vdev)
+-{
+-	return ivpu_boot_host_ss_top_noc_drive(vdev, false);
+-}
+-
+ static void ivpu_boot_pwr_island_trickle_drive(struct ivpu_device *vdev, bool enable)
+ {
+ 	u32 val = REGV_RD32(MTL_VPU_HOST_SS_AON_PWR_ISLAND_TRICKLE_EN0);
+@@ -504,16 +494,6 @@ static void ivpu_boot_dpu_active_drive(struct ivpu_device *vdev, bool enable)
+ 	REGV_WR32(MTL_VPU_HOST_SS_AON_DPU_ACTIVE, val);
+ }
+ 
+-static int ivpu_boot_pwr_domain_disable(struct ivpu_device *vdev)
+-{
+-	ivpu_boot_dpu_active_drive(vdev, false);
+-	ivpu_boot_pwr_island_isolation_drive(vdev, true);
+-	ivpu_boot_pwr_island_trickle_drive(vdev, false);
+-	ivpu_boot_pwr_island_drive(vdev, false);
+-
+-	return ivpu_boot_wait_for_pwr_island_status(vdev, 0x0);
+-}
+-
+ static int ivpu_boot_pwr_domain_enable(struct ivpu_device *vdev)
+ {
+ 	int ret;
+@@ -797,21 +777,8 @@ static int ivpu_hw_mtl_power_down(struct ivpu_device *vdev)
+ {
+ 	int ret = 0;
+ 
+-	/* FPGA requires manual clearing of IP_Reset bit by enabling quiescent state */
+-	if (ivpu_is_fpga(vdev)) {
+-		if (ivpu_boot_host_ss_top_noc_disable(vdev)) {
+-			ivpu_err(vdev, "Failed to disable TOP NOC\n");
+-			ret = -EIO;
+-		}
+-
+-		if (ivpu_boot_host_ss_axi_disable(vdev)) {
+-			ivpu_err(vdev, "Failed to disable AXI\n");
+-			ret = -EIO;
+-		}
+-	}
+-
+-	if (ivpu_boot_pwr_domain_disable(vdev)) {
+-		ivpu_err(vdev, "Failed to disable power domain\n");
++	if (ivpu_hw_mtl_reset(vdev)) {
++		ivpu_err(vdev, "Failed to reset the VPU\n");
+ 		ret = -EIO;
+ 	}
+ 
+-- 
+cgit 
+

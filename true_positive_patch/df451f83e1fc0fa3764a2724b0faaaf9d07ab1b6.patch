@@ -1,0 +1,40 @@
+From df451f83e1fc0fa3764a2724b0faaaf9d07ab1b6 Mon Sep 17 00:00:00 2001
+From: Andreas Kemnade <andreas@kemnade.info>
+Date: Fri, 16 Aug 2019 18:50:00 +0200
+Subject: gpio: of: fix Freescale SPI CS quirk handling
+
+On the gta04 we see:
+spi_gpio: probe of spi_lcd failed with error -2
+
+The quirk introduced in
+commit e3023bf80639 ("gpio: of: Handle the Freescale SPI CS")
+can also be triggered by a temporary -EPROBE_DEFER and
+so "convert" it to a hard -ENOENT.
+
+Disable that conversion by checking for -EPROBE_DEFER.
+
+Fixes: e3023bf80639 ("gpio: of: Handle the Freescale SPI CS")
+Suggested-by: H. Nikolaus Schaller <hns@goldelico.com>
+Signed-off-by: Andreas Kemnade <andreas@kemnade.info>
+Link: https://lore.kernel.org/r/20190816165000.32334-1-andreas@kemnade.info
+Signed-off-by: Linus Walleij <linus.walleij@linaro.org>
+---
+ drivers/gpio/gpiolib-of.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/gpio/gpiolib-of.c b/drivers/gpio/gpiolib-of.c
+index 567fb98c08927..9762dd6d99fa8 100644
+--- a/drivers/gpio/gpiolib-of.c
++++ b/drivers/gpio/gpiolib-of.c
+@@ -363,7 +363,7 @@ struct gpio_desc *of_find_gpio(struct device *dev, const char *con_id,
+ 	/* Special handling for SPI GPIOs if used */
+ 	if (IS_ERR(desc))
+ 		desc = of_find_spi_gpio(dev, con_id, &of_flags);
+-	if (IS_ERR(desc)) {
++	if (IS_ERR(desc) && PTR_ERR(desc) != -EPROBE_DEFER) {
+ 		/* This quirk looks up flags and all */
+ 		desc = of_find_spi_cs_gpio(dev, con_id, idx, flags);
+ 		if (!IS_ERR(desc))
+-- 
+cgit 
+

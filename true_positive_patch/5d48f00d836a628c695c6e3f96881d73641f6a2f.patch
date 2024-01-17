@@ -1,0 +1,49 @@
+From 5d48f00d836a628c695c6e3f96881d73641f6a2f Mon Sep 17 00:00:00 2001
+From: Stefan Richter <stefanr@s5r6.in-berlin.de>
+Date: Sun, 23 Oct 2016 16:29:03 +0200
+Subject: firewire: net: fix maximum possible MTU
+
+Commit b3e3893e1253 ("net: use core MTU range checking in misc drivers")
+mistakenly introduced an upper limit for firewire-net's MTU based on the
+local link layer controller's reception capability.  Revert this.  Neither
+RFC 2734 nor our implementation impose any particular upper limit.
+
+Actually, to be on the safe side and to make the code explicit, set
+ETH_MAX_MTU = 65535 as upper limit now.
+
+(I replaced sizeof(struct rfc2734_header) by the equivalent
+RFC2374_FRAG_HDR_SIZE in order to avoid distracting long/int conversions.)
+
+Fixes: b3e3893e1253('net: use core MTU range checking in misc drivers')
+CC: netdev@vger.kernel.org
+CC: linux1394-devel@lists.sourceforge.net
+CC: Jarod Wilson <jarod@redhat.com>
+Signed-off-by: Stefan Richter <stefanr@s5r6.in-berlin.de>
+Acked-by: Jarod Wilson <jarod@redhat.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ drivers/firewire/net.c | 7 ++++---
+ 1 file changed, 4 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/firewire/net.c b/drivers/firewire/net.c
+index 8430222151fcb..99379542b263f 100644
+--- a/drivers/firewire/net.c
++++ b/drivers/firewire/net.c
+@@ -1467,10 +1467,11 @@ static int fwnet_probe(struct fw_unit *unit,
+ 	 * Use the RFC 2734 default 1500 octets or the maximum payload
+ 	 * as initial MTU
+ 	 */
+-	net->max_mtu = (1 << (card->max_receive + 1))
+-		       - sizeof(struct rfc2734_header) - IEEE1394_GASP_HDR_SIZE;
+-	net->mtu = min(1500U, net->max_mtu);
++	net->mtu = min(1500U,
++		       (1U << (card->max_receive + 1))
++		       - RFC2374_FRAG_HDR_SIZE - IEEE1394_GASP_HDR_SIZE);
+ 	net->min_mtu = ETH_MIN_MTU;
++	net->max_mtu = ETH_MAX_MTU;
+ 
+ 	/* Set our hardware address while we're at it */
+ 	ha = (union fwnet_hwaddr *)net->dev_addr;
+-- 
+cgit 
+

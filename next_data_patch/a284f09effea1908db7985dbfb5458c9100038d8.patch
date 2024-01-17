@@ -1,0 +1,163 @@
+From a284f09effea1908db7985dbfb5458c9100038d8 Mon Sep 17 00:00:00 2001
+From: Mike Christie <michael.christie@oracle.com>
+Date: Wed, 7 Jun 2023 14:23:37 -0500
+Subject: vhost: Fix crash during early vhost_transport_send_pkt calls
+
+If userspace does VHOST_VSOCK_SET_GUEST_CID before VHOST_SET_OWNER we
+can race where:
+1. thread0 calls vhost_transport_send_pkt -> vhost_work_queue
+2. thread1 does VHOST_SET_OWNER which calls vhost_worker_create.
+3. vhost_worker_create will set the dev->worker pointer before setting
+the worker->vtsk pointer.
+4. thread0's vhost_work_queue will see the dev->worker pointer is
+set and try to call vhost_task_wake using not yet set worker->vtsk
+pointer.
+5. We then crash since vtsk is NULL.
+
+Before commit 6e890c5d5021 ("vhost: use vhost_tasks for worker
+threads"), we only had the worker pointer so we could just check it to
+see if VHOST_SET_OWNER has been done. After that commit we have the
+vhost_worker and vhost_task pointer, so we can now hit the bug above.
+
+This patch embeds the vhost_worker in the vhost_dev and moves the work
+list initialization back to vhost_dev_init, so we can just check the
+worker.vtsk pointer to check if VHOST_SET_OWNER has been done like
+before.
+
+Fixes: 6e890c5d5021 ("vhost: use vhost_tasks for worker threads")
+Signed-off-by: Mike Christie <michael.christie@oracle.com>
+Message-Id: <20230607192338.6041-2-michael.christie@oracle.com>
+Signed-off-by: Michael S. Tsirkin <mst@redhat.com>
+Reported-by: syzbot+d0d442c22fa8db45ff0e@syzkaller.appspotmail.com
+Reviewed-by: Stefano Garzarella <sgarzare@redhat.com>
+---
+ drivers/vhost/vhost.c | 50 +++++++++++++++++---------------------------------
+ drivers/vhost/vhost.h |  2 +-
+ 2 files changed, 18 insertions(+), 34 deletions(-)
+
+diff --git a/drivers/vhost/vhost.c b/drivers/vhost/vhost.c
+index ecb3b397bb388..ca1041c88c688 100644
+--- a/drivers/vhost/vhost.c
++++ b/drivers/vhost/vhost.c
+@@ -235,7 +235,7 @@ void vhost_dev_flush(struct vhost_dev *dev)
+ {
+ 	struct vhost_flush_struct flush;
+ 
+-	if (dev->worker) {
++	if (dev->worker.vtsk) {
+ 		init_completion(&flush.wait_event);
+ 		vhost_work_init(&flush.work, vhost_flush_work);
+ 
+@@ -247,7 +247,7 @@ EXPORT_SYMBOL_GPL(vhost_dev_flush);
+ 
+ void vhost_work_queue(struct vhost_dev *dev, struct vhost_work *work)
+ {
+-	if (!dev->worker)
++	if (!dev->worker.vtsk)
+ 		return;
+ 
+ 	if (!test_and_set_bit(VHOST_WORK_QUEUED, &work->flags)) {
+@@ -255,8 +255,8 @@ void vhost_work_queue(struct vhost_dev *dev, struct vhost_work *work)
+ 		 * sure it was not in the list.
+ 		 * test_and_set_bit() implies a memory barrier.
+ 		 */
+-		llist_add(&work->node, &dev->worker->work_list);
+-		vhost_task_wake(dev->worker->vtsk);
++		llist_add(&work->node, &dev->worker.work_list);
++		vhost_task_wake(dev->worker.vtsk);
+ 	}
+ }
+ EXPORT_SYMBOL_GPL(vhost_work_queue);
+@@ -264,7 +264,7 @@ EXPORT_SYMBOL_GPL(vhost_work_queue);
+ /* A lockless hint for busy polling code to exit the loop */
+ bool vhost_has_work(struct vhost_dev *dev)
+ {
+-	return dev->worker && !llist_empty(&dev->worker->work_list);
++	return !llist_empty(&dev->worker.work_list);
+ }
+ EXPORT_SYMBOL_GPL(vhost_has_work);
+ 
+@@ -456,7 +456,8 @@ void vhost_dev_init(struct vhost_dev *dev,
+ 	dev->umem = NULL;
+ 	dev->iotlb = NULL;
+ 	dev->mm = NULL;
+-	dev->worker = NULL;
++	memset(&dev->worker, 0, sizeof(dev->worker));
++	init_llist_head(&dev->worker.work_list);
+ 	dev->iov_limit = iov_limit;
+ 	dev->weight = weight;
+ 	dev->byte_weight = byte_weight;
+@@ -530,47 +531,30 @@ static void vhost_detach_mm(struct vhost_dev *dev)
+ 
+ static void vhost_worker_free(struct vhost_dev *dev)
+ {
+-	struct vhost_worker *worker = dev->worker;
+-
+-	if (!worker)
++	if (!dev->worker.vtsk)
+ 		return;
+ 
+-	dev->worker = NULL;
+-	WARN_ON(!llist_empty(&worker->work_list));
+-	vhost_task_stop(worker->vtsk);
+-	kfree(worker);
++	WARN_ON(!llist_empty(&dev->worker.work_list));
++	vhost_task_stop(dev->worker.vtsk);
++	dev->worker.kcov_handle = 0;
++	dev->worker.vtsk = NULL;
+ }
+ 
+ static int vhost_worker_create(struct vhost_dev *dev)
+ {
+-	struct vhost_worker *worker;
+ 	struct vhost_task *vtsk;
+ 	char name[TASK_COMM_LEN];
+-	int ret;
+-
+-	worker = kzalloc(sizeof(*worker), GFP_KERNEL_ACCOUNT);
+-	if (!worker)
+-		return -ENOMEM;
+ 
+-	dev->worker = worker;
+-	worker->kcov_handle = kcov_common_handle();
+-	init_llist_head(&worker->work_list);
+ 	snprintf(name, sizeof(name), "vhost-%d", current->pid);
+ 
+-	vtsk = vhost_task_create(vhost_worker, worker, name);
+-	if (!vtsk) {
+-		ret = -ENOMEM;
+-		goto free_worker;
+-	}
++	vtsk = vhost_task_create(vhost_worker, &dev->worker, name);
++	if (!vtsk)
++		return -ENOMEM;
+ 
+-	worker->vtsk = vtsk;
++	dev->worker.kcov_handle = kcov_common_handle();
++	dev->worker.vtsk = vtsk;
+ 	vhost_task_start(vtsk);
+ 	return 0;
+-
+-free_worker:
+-	kfree(worker);
+-	dev->worker = NULL;
+-	return ret;
+ }
+ 
+ /* Caller should have device mutex */
+diff --git a/drivers/vhost/vhost.h b/drivers/vhost/vhost.h
+index 0308638cdeeeb..305ec8593d46a 100644
+--- a/drivers/vhost/vhost.h
++++ b/drivers/vhost/vhost.h
+@@ -154,7 +154,7 @@ struct vhost_dev {
+ 	struct vhost_virtqueue **vqs;
+ 	int nvqs;
+ 	struct eventfd_ctx *log_ctx;
+-	struct vhost_worker *worker;
++	struct vhost_worker worker;
+ 	struct vhost_iotlb *umem;
+ 	struct vhost_iotlb *iotlb;
+ 	spinlock_t iotlb_lock;
+-- 
+cgit 
+

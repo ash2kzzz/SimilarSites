@@ -1,0 +1,41 @@
+From d035230ec9937a9138921d2a0eeb99496ea7eac0 Mon Sep 17 00:00:00 2001
+From: Peter Xu <peterx@redhat.com>
+Date: Wed, 8 Mar 2023 19:04:22 +0000
+Subject: kselftest: vm: fix unused variable warning
+
+Remove unused variable from the MDWE test.
+
+[joey.gouly@arm.com: add commit message]
+Link: https://lkml.kernel.org/r/20230308190423.46491-4-joey.gouly@arm.com
+Fixes: 4cf1fe34fd18 ("kselftest: vm: add tests for memory-deny-write-execute")
+Signed-off-by: Peter Xu <peterx@redhat.com>
+Signed-off-by: Joey Gouly <joey.gouly@arm.com>
+Acked-by: Catalin Marinas <catalin.marinas@arm.com>
+Cc: Alexey Izbyshev <izbyshev@ispras.ru>
+Cc: Arnaldo Carvalho de Melo <acme@redhat.com>
+Cc: Kees Cook <keescook@chromium.org>
+Cc: nd <nd@arm.com>
+Cc: Shuah Khan <shuah@kernel.org>
+Signed-off-by: Andrew Morton <akpm@linux-foundation.org>
+---
+ tools/testing/selftests/mm/mdwe_test.c | 3 +--
+ 1 file changed, 1 insertion(+), 2 deletions(-)
+
+diff --git a/tools/testing/selftests/mm/mdwe_test.c b/tools/testing/selftests/mm/mdwe_test.c
+index f466a099f1bf7..bc91bef5d254e 100644
+--- a/tools/testing/selftests/mm/mdwe_test.c
++++ b/tools/testing/selftests/mm/mdwe_test.c
+@@ -163,9 +163,8 @@ TEST_F(mdwe, mprotect_WRITE_EXEC)
+ 
+ TEST_F(mdwe, mmap_FIXED)
+ {
+-	void *p, *p2;
++	void *p;
+ 
+-	p2 = mmap(NULL, self->size, PROT_READ | PROT_EXEC, self->flags, 0, 0);
+ 	self->p = mmap(NULL, self->size, PROT_READ, self->flags, 0, 0);
+ 	ASSERT_NE(self->p, MAP_FAILED);
+ 
+-- 
+cgit 
+

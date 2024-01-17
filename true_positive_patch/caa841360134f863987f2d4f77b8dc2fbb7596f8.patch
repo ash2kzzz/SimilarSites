@@ -1,0 +1,108 @@
+From caa841360134f863987f2d4f77b8dc2fbb7596f8 Mon Sep 17 00:00:00 2001
+From: Nadav Amit <nadav.amit@gmail.com>
+Date: Sat, 4 May 2019 18:11:24 -0700
+Subject: x86/mm: Initialize PGD cache during mm initialization
+
+Poking-mm initialization might require to duplicate the PGD in early
+stage. Initialize the PGD cache earlier to prevent boot failures.
+
+Reported-by: kernel test robot <lkp@intel.com>
+Signed-off-by: Nadav Amit <namit@vmware.com>
+Cc: Andy Lutomirski <luto@kernel.org>
+Cc: Borislav Petkov <bp@alien8.de>
+Cc: Dave Hansen <dave.hansen@linux.intel.com>
+Cc: H. Peter Anvin <hpa@zytor.com>
+Cc: Linus Torvalds <torvalds@linux-foundation.org>
+Cc: Peter Zijlstra <peterz@infradead.org>
+Cc: Rick Edgecombe <rick.p.edgecombe@intel.com>
+Cc: Rik van Riel <riel@surriel.com>
+Cc: Stephen Rothwell <sfr@canb.auug.org.au>
+Cc: Thomas Gleixner <tglx@linutronix.de>
+Fixes: 4fc19708b165 ("x86/alternatives: Initialize temporary mm for patching")
+Link: http://lkml.kernel.org/r/20190505011124.39692-1-namit@vmware.com
+Signed-off-by: Ingo Molnar <mingo@kernel.org>
+---
+ arch/x86/mm/pgtable.c         | 10 ++++++----
+ include/asm-generic/pgtable.h |  2 ++
+ init/main.c                   |  3 +++
+ 3 files changed, 11 insertions(+), 4 deletions(-)
+
+diff --git a/arch/x86/mm/pgtable.c b/arch/x86/mm/pgtable.c
+index 7bd01709a0914..c8177045b7d4a 100644
+--- a/arch/x86/mm/pgtable.c
++++ b/arch/x86/mm/pgtable.c
+@@ -373,14 +373,14 @@ static void pgd_prepopulate_user_pmd(struct mm_struct *mm,
+ 
+ static struct kmem_cache *pgd_cache;
+ 
+-static int __init pgd_cache_init(void)
++void __init pgd_cache_init(void)
+ {
+ 	/*
+ 	 * When PAE kernel is running as a Xen domain, it does not use
+ 	 * shared kernel pmd. And this requires a whole page for pgd.
+ 	 */
+ 	if (!SHARED_KERNEL_PMD)
+-		return 0;
++		return;
+ 
+ 	/*
+ 	 * when PAE kernel is not running as a Xen domain, it uses
+@@ -390,9 +390,7 @@ static int __init pgd_cache_init(void)
+ 	 */
+ 	pgd_cache = kmem_cache_create("pgd_cache", PGD_SIZE, PGD_ALIGN,
+ 				      SLAB_PANIC, NULL);
+-	return 0;
+ }
+-core_initcall(pgd_cache_init);
+ 
+ static inline pgd_t *_pgd_alloc(void)
+ {
+@@ -420,6 +418,10 @@ static inline void _pgd_free(pgd_t *pgd)
+ }
+ #else
+ 
++void __init pgd_cache_init(void)
++{
++}
++
+ static inline pgd_t *_pgd_alloc(void)
+ {
+ 	return (pgd_t *)__get_free_pages(PGALLOC_GFP, PGD_ALLOCATION_ORDER);
+diff --git a/include/asm-generic/pgtable.h b/include/asm-generic/pgtable.h
+index fa782fba51eeb..75d9d68a6de7a 100644
+--- a/include/asm-generic/pgtable.h
++++ b/include/asm-generic/pgtable.h
+@@ -1126,6 +1126,8 @@ int phys_mem_access_prot_allowed(struct file *file, unsigned long pfn,
+ static inline void init_espfix_bsp(void) { }
+ #endif
+ 
++extern void __init pgd_cache_init(void);
++
+ #ifndef __HAVE_ARCH_PFN_MODIFY_ALLOWED
+ static inline bool pfn_modify_allowed(unsigned long pfn, pgprot_t prot)
+ {
+diff --git a/init/main.c b/init/main.c
+index 95dd9406ee31e..9dc2f3b4f7532 100644
+--- a/init/main.c
++++ b/init/main.c
+@@ -506,6 +506,8 @@ void __init __weak mem_encrypt_init(void) { }
+ 
+ void __init __weak poking_init(void) { }
+ 
++void __init __weak pgd_cache_init(void) { }
++
+ bool initcall_debug;
+ core_param(initcall_debug, initcall_debug, bool, 0644);
+ 
+@@ -537,6 +539,7 @@ static void __init mm_init(void)
+ 	init_espfix_bsp();
+ 	/* Should be run after espfix64 is set up. */
+ 	pti_init();
++	pgd_cache_init();
+ }
+ 
+ void __init __weak arch_call_rest_init(void)
+-- 
+cgit 
+

@@ -1,0 +1,36 @@
+From 2661371ace963280f34fe583d4a6697afecd87d5 Mon Sep 17 00:00:00 2001
+From: Nicolas Dichtel <nicolas.dichtel@6wind.com>
+Date: Thu, 23 Jul 2015 11:29:07 +0200
+Subject: openvswitch: fix compilation when vxlan is a module
+
+With CONFIG_VXLAN=m and CONFIG_OPENVSWITCH=y, there was the following
+compilation error:
+  LD      init/built-in.o
+  net/built-in.o: In function `vxlan_tnl_create':
+  .../net/openvswitch/vport-netdev.c:322: undefined reference to `vxlan_dev_create'
+  make: *** [vmlinux] Error 1
+
+CC: Thomas Graf <tgraf@suug.ch>
+Fixes: 614732eaa12d ("openvswitch: Use regular VXLAN net_device device")
+Signed-off-by: Nicolas Dichtel <nicolas.dichtel@6wind.com>
+Acked-by: Thomas Graf <tgraf@suug.ch>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ net/openvswitch/Kconfig | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/net/openvswitch/Kconfig b/net/openvswitch/Kconfig
+index 1119f46b80b4f..6ed1d2da9fcd2 100644
+--- a/net/openvswitch/Kconfig
++++ b/net/openvswitch/Kconfig
+@@ -5,6 +5,7 @@
+ config OPENVSWITCH
+ 	tristate "Open vSwitch"
+ 	depends on INET
++	depends on VXLAN
+ 	select LIBCRC32C
+ 	select MPLS
+ 	select NET_MPLS_GSO
+-- 
+cgit 
+

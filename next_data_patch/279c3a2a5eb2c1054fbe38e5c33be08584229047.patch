@@ -1,0 +1,73 @@
+From 279c3a2a5eb2c1054fbe38e5c33be08584229047 Mon Sep 17 00:00:00 2001
+From: Dan Carpenter <dan.carpenter@linaro.org>
+Date: Fri, 21 Apr 2023 13:41:56 +0300
+Subject: iio: adc: palmas: fix off by one bugs
+
+Valid values for "adc_chan" are zero to (PALMAS_ADC_CH_MAX - 1).
+Smatch detects some buffer overflows caused by this:
+drivers/iio/adc/palmas_gpadc.c:721 palmas_gpadc_read_event_value() error: buffer overflow 'adc->thresholds' 16 <= 16
+drivers/iio/adc/palmas_gpadc.c:758 palmas_gpadc_write_event_value() error: buffer overflow 'adc->thresholds' 16 <= 16
+
+The effect of this bug in other functions is more complicated but
+obviously we should fix all of them.
+
+Fixes: a99544c6c883 ("iio: adc: palmas: add support for iio threshold events")
+Signed-off-by: Dan Carpenter <dan.carpenter@linaro.org>
+Link: https://lore.kernel.org/r/14fee94a-7db7-4371-b7d6-e94d86b9561e@kili.mountain
+Signed-off-by: Jonathan Cameron <Jonathan.Cameron@huawei.com>
+---
+ drivers/iio/adc/palmas_gpadc.c | 10 +++++-----
+ 1 file changed, 5 insertions(+), 5 deletions(-)
+
+diff --git a/drivers/iio/adc/palmas_gpadc.c b/drivers/iio/adc/palmas_gpadc.c
+index c1c439215aeb5..7dfc9c927a23f 100644
+--- a/drivers/iio/adc/palmas_gpadc.c
++++ b/drivers/iio/adc/palmas_gpadc.c
+@@ -547,7 +547,7 @@ static int palmas_gpadc_read_raw(struct iio_dev *indio_dev,
+ 	int adc_chan = chan->channel;
+ 	int ret = 0;
+ 
+-	if (adc_chan > PALMAS_ADC_CH_MAX)
++	if (adc_chan >= PALMAS_ADC_CH_MAX)
+ 		return -EINVAL;
+ 
+ 	mutex_lock(&adc->lock);
+@@ -595,7 +595,7 @@ static int palmas_gpadc_read_event_config(struct iio_dev *indio_dev,
+ 	int adc_chan = chan->channel;
+ 	int ret = 0;
+ 
+-	if (adc_chan > PALMAS_ADC_CH_MAX || type != IIO_EV_TYPE_THRESH)
++	if (adc_chan >= PALMAS_ADC_CH_MAX || type != IIO_EV_TYPE_THRESH)
+ 		return -EINVAL;
+ 
+ 	mutex_lock(&adc->lock);
+@@ -684,7 +684,7 @@ static int palmas_gpadc_write_event_config(struct iio_dev *indio_dev,
+ 	int adc_chan = chan->channel;
+ 	int ret;
+ 
+-	if (adc_chan > PALMAS_ADC_CH_MAX || type != IIO_EV_TYPE_THRESH)
++	if (adc_chan >= PALMAS_ADC_CH_MAX || type != IIO_EV_TYPE_THRESH)
+ 		return -EINVAL;
+ 
+ 	mutex_lock(&adc->lock);
+@@ -710,7 +710,7 @@ static int palmas_gpadc_read_event_value(struct iio_dev *indio_dev,
+ 	int adc_chan = chan->channel;
+ 	int ret;
+ 
+-	if (adc_chan > PALMAS_ADC_CH_MAX || type != IIO_EV_TYPE_THRESH)
++	if (adc_chan >= PALMAS_ADC_CH_MAX || type != IIO_EV_TYPE_THRESH)
+ 		return -EINVAL;
+ 
+ 	mutex_lock(&adc->lock);
+@@ -744,7 +744,7 @@ static int palmas_gpadc_write_event_value(struct iio_dev *indio_dev,
+ 	int old;
+ 	int ret;
+ 
+-	if (adc_chan > PALMAS_ADC_CH_MAX || type != IIO_EV_TYPE_THRESH)
++	if (adc_chan >= PALMAS_ADC_CH_MAX || type != IIO_EV_TYPE_THRESH)
+ 		return -EINVAL;
+ 
+ 	mutex_lock(&adc->lock);
+-- 
+cgit 
+

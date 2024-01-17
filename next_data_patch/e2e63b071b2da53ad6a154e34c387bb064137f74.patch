@@ -1,0 +1,50 @@
+From e2e63b071b2da53ad6a154e34c387bb064137f74 Mon Sep 17 00:00:00 2001
+From: "Darrick J. Wong" <djwong@kernel.org>
+Date: Tue, 21 Mar 2023 16:33:20 -0700
+Subject: xfs: clear incore AGFL_RESET state if it's not needed
+
+Prior to commit 7ac2ff8bb371, when we loaded the incore perag structure
+with information from the AGF header, we would set or clear the
+pagf_agfl_reset field based on whether or not the AGFL list was
+misaligned within the block.  IOWs, it's an incore state bit that's
+supposed to cache something in the ondisk metadata.  Therefore, the code
+still needs to support clearing the incore bit if (somehow) the AGFL
+were to correct itself.
+
+It turns out that xfs_repair does exactly this -- phase 4 loads the AGF
+to scan the rmapbt for corrupt records, which can set NEEDS_AGFL_RESET.
+The scan unsets AGF_INIT but doesn't unset NEEDS_AGFL_RESET.  Phase 5
+totally rewrites the AGFL and fixes the alignment problem, didn't clear
+NEEDS_AGFL_RESET historically, and reloads the perag state to fix the
+freelist.  This results in the AGFL being reset based on stale data,
+which then causes the new AGFL blocks to be leaked.  A subsequent
+xfs_repair -n then complains about the leaks.
+
+One could argue that phase 5 ought to clear this bit directly when it
+reloads the perag AGF data after rewriting the AGFL, but libxfs used to
+handle this for us, so it should go back to doing that.
+
+Found by fuzzing flfirst = ones in xfs/352.
+
+Fixes: 7ac2ff8bb371 ("xfs: perags need atomic operational state")
+Signed-off-by: Darrick J. Wong <djwong@kernel.org>
+---
+ fs/xfs/libxfs/xfs_alloc.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/fs/xfs/libxfs/xfs_alloc.c b/fs/xfs/libxfs/xfs_alloc.c
+index 55ae08a6144c3..badc213384a4b 100644
+--- a/fs/xfs/libxfs/xfs_alloc.c
++++ b/fs/xfs/libxfs/xfs_alloc.c
+@@ -3045,6 +3045,8 @@ xfs_alloc_read_agf(
+ 		pag->pagf_refcount_level = be32_to_cpu(agf->agf_refcount_level);
+ 		if (xfs_agfl_needs_reset(pag->pag_mount, agf))
+ 			set_bit(XFS_AGSTATE_AGFL_NEEDS_RESET, &pag->pag_opstate);
++		else
++			clear_bit(XFS_AGSTATE_AGFL_NEEDS_RESET, &pag->pag_opstate);
+ 
+ 		/*
+ 		 * Update the in-core allocbt counter. Filter out the rmapbt
+-- 
+cgit 
+

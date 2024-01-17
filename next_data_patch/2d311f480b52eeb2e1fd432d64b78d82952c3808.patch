@@ -1,0 +1,43 @@
+From 2d311f480b52eeb2e1fd432d64b78d82952c3808 Mon Sep 17 00:00:00 2001
+From: Randy Dunlap <rdunlap@infradead.org>
+Date: Sun, 26 Feb 2023 23:20:16 -0800
+Subject: riscv, bpf: Fix patch_text implicit declaration
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+bpf_jit_comp64.c uses patch_text(), so add <asm/patch.h> to it
+to prevent the build error:
+
+../arch/riscv/net/bpf_jit_comp64.c: In function 'bpf_arch_text_poke':
+../arch/riscv/net/bpf_jit_comp64.c:691:23: error: implicit declaration of function 'patch_text'; did you mean 'path_get'? [-Werror=implicit-function-declaration]
+  691 |                 ret = patch_text(ip, new_insns, ninsns);
+      |                       ^~~~~~~~~~
+
+Fixes: 596f2e6f9cf4 ("riscv, bpf: Add bpf_arch_text_poke support for RV64")
+Reported-by: kernel test robot <lkp@intel.com>
+Signed-off-by: Randy Dunlap <rdunlap@infradead.org>
+Signed-off-by: Daniel Borkmann <daniel@iogearbox.net>
+Acked-by: Pu Lehui <pulehui@huawei.com>
+Acked-by: Björn Töpel <bjorn@rivosinc.com>
+Link: https://lore.kernel.org/r/202302271000.Aj4nMXbZ-lkp@intel.com
+Link: https://lore.kernel.org/bpf/20230227072016.14618-1-rdunlap@infradead.org
+---
+ arch/riscv/net/bpf_jit_comp64.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/arch/riscv/net/bpf_jit_comp64.c b/arch/riscv/net/bpf_jit_comp64.c
+index f5a668736c79b..acdc3f040195e 100644
+--- a/arch/riscv/net/bpf_jit_comp64.c
++++ b/arch/riscv/net/bpf_jit_comp64.c
+@@ -10,6 +10,7 @@
+ #include <linux/filter.h>
+ #include <linux/memory.h>
+ #include <linux/stop_machine.h>
++#include <asm/patch.h>
+ #include "bpf_jit.h"
+ 
+ #define RV_REG_TCC RV_REG_A6
+-- 
+cgit 
+

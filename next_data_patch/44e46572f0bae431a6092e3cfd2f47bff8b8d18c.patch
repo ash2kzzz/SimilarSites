@@ -1,0 +1,45 @@
+From 44e46572f0bae431a6092e3cfd2f47bff8b8d18c Mon Sep 17 00:00:00 2001
+From: Takashi Iwai <tiwai@suse.de>
+Date: Tue, 13 Jun 2023 13:22:40 +0200
+Subject: regmap: regcache: Don't sync read-only registers
+
+regcache_maple_sync() tries to sync all cached values no matter
+whether it's writable or not.  OTOH, regache_sync_val() does care the
+wrtability and returns -EIO for a read-only register.  This results in
+an error message like:
+  snd_hda_codec_realtek hdaudioC0D0: Unable to sync register 0x2f0009. -5
+and the sync loop is aborted incompletely.
+
+This patch adds the writable register check to regcache_sync_val() for
+addressing the bug above.
+
+Note that, although we may add the check in the caller side
+(regcache_maple_sync()), here we put in regcache_sync_val(), so that a
+similar case like this can be avoided in future.
+
+Fixes: f033c26de5a5 ("regmap: Add maple tree based register cache")
+Link: https://lore.kernel.org/r/877cs7g6f1.wl-tiwai@suse.de
+Signed-off-by: Takashi Iwai <tiwai@suse.de>
+Link: https://lore.kernel.org/r/20230613112240.3361-1-tiwai@suse.de
+Signed-off-by: Mark Brown <broonie@kernel.org>
+---
+ drivers/base/regmap/regcache.c | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/drivers/base/regmap/regcache.c b/drivers/base/regmap/regcache.c
+index 029564695dbbb..97c681fcf9f6e 100644
+--- a/drivers/base/regmap/regcache.c
++++ b/drivers/base/regmap/regcache.c
+@@ -284,6 +284,9 @@ static bool regcache_reg_needs_sync(struct regmap *map, unsigned int reg,
+ {
+ 	int ret;
+ 
++	if (!regmap_writeable(map, reg))
++		return false;
++
+ 	/* If we don't know the chip just got reset, then sync everything. */
+ 	if (!map->no_sync_defaults)
+ 		return true;
+-- 
+cgit 
+

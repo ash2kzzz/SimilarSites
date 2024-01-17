@@ -1,0 +1,46 @@
+From 5752bc4373b21c3fb1dd6db4dcdd569fae391a1d Mon Sep 17 00:00:00 2001
+From: Arnd Bergmann <arnd@arndb.de>
+Date: Mon, 8 Jul 2019 14:53:02 +0200
+Subject: mfd: rk808: Mark pm functions __maybe_unused
+
+The newly added suspend/resume functions are only used if CONFIG_PM
+is enabled:
+
+drivers/mfd/rk808.c:752:12: error: 'rk8xx_resume' defined but not used [-Werror=unused-function]
+drivers/mfd/rk808.c:732:12: error: 'rk8xx_suspend' defined but not used [-Werror=unused-function]
+
+Mark them as __maybe_unused so the compiler can silently drop them
+when they are not needed.
+
+Fixes: 586c1b4125b3 ("mfd: rk808: Add RK817 and RK809 support")
+Signed-off-by: Arnd Bergmann <arnd@arndb.de>
+Signed-off-by: Lee Jones <lee.jones@linaro.org>
+---
+ drivers/mfd/rk808.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/mfd/rk808.c b/drivers/mfd/rk808.c
+index 601cefb5c9d8e..9a9e6315ba463 100644
+--- a/drivers/mfd/rk808.c
++++ b/drivers/mfd/rk808.c
+@@ -729,7 +729,7 @@ static int rk808_remove(struct i2c_client *client)
+ 	return 0;
+ }
+ 
+-static int rk8xx_suspend(struct device *dev)
++static int __maybe_unused rk8xx_suspend(struct device *dev)
+ {
+ 	struct rk808 *rk808 = i2c_get_clientdata(rk808_i2c_client);
+ 	int ret = 0;
+@@ -749,7 +749,7 @@ static int rk8xx_suspend(struct device *dev)
+ 	return ret;
+ }
+ 
+-static int rk8xx_resume(struct device *dev)
++static int __maybe_unused rk8xx_resume(struct device *dev)
+ {
+ 	struct rk808 *rk808 = i2c_get_clientdata(rk808_i2c_client);
+ 	int ret = 0;
+-- 
+cgit 
+

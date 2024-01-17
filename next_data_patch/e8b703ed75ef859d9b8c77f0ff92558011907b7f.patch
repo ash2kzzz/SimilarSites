@@ -1,0 +1,39 @@
+From e8b703ed75ef859d9b8c77f0ff92558011907b7f Mon Sep 17 00:00:00 2001
+From: Bagas Sanjaya <bagasdotme@gmail.com>
+Date: Mon, 13 Feb 2023 17:08:00 +0700
+Subject: Documentation: powerclamp: Escape wildcard in cpumask description
+
+kernel test robot reported htmldocs warning:
+
+Documentation/admin-guide/thermal/intel_powerclamp.rst:328: WARNING: Inline emphasis start-string without end-string.
+
+The mistaken asterisk in /proc/irq/*/smp_affinity is rendered as hyperlink
+as the result.
+
+Escape the asterisk to fix above warning.
+
+Link: https://lore.kernel.org/linux-doc/202302122247.N4S791c4-lkp@intel.com/
+Fixes: ebf51971021881 ("thermal: intel: powerclamp: Add two module parameters")
+Reported-by: kernel test robot <lkp@intel.com>
+Signed-off-by: Bagas Sanjaya <bagasdotme@gmail.com>
+Signed-off-by: Rafael J. Wysocki <rafael.j.wysocki@intel.com>
+---
+ Documentation/admin-guide/thermal/intel_powerclamp.rst | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/Documentation/admin-guide/thermal/intel_powerclamp.rst b/Documentation/admin-guide/thermal/intel_powerclamp.rst
+index 2d9d2d739f025..f919fbe1cdd94 100644
+--- a/Documentation/admin-guide/thermal/intel_powerclamp.rst
++++ b/Documentation/admin-guide/thermal/intel_powerclamp.rst
+@@ -326,7 +326,7 @@ Module Parameters
+ 
+ ``cpumask`` (RW)
+ 	A bit mask of CPUs to inject idle. The format of the bitmask is same as
+-	used in other subsystems like in /proc/irq/*/smp_affinity. The mask is
++	used in other subsystems like in /proc/irq/\*/smp_affinity. The mask is
+ 	comma separated 32 bit groups. Each CPU is one bit. For example for a 256
+ 	CPU system the full mask is:
+ 	ffffffff,ffffffff,ffffffff,ffffffff,ffffffff,ffffffff,ffffffff,ffffffff
+-- 
+cgit 
+

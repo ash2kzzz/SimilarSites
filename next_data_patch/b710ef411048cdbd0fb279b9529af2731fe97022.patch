@@ -1,0 +1,33 @@
+From b710ef411048cdbd0fb279b9529af2731fe97022 Mon Sep 17 00:00:00 2001
+From: Arnd Bergmann <arnd@arndb.de>
+Date: Fri, 27 Jan 2023 10:35:05 +0100
+Subject: gpio: ep93xx: remove unused variable
+
+This one was left behind by a previous cleanup patch:
+
+drivers/gpio/gpio-ep93xx.c: In function 'ep93xx_gpio_add_bank':
+drivers/gpio/gpio-ep93xx.c:366:34: error: unused variable 'ic' [-Werror=unused-variable]
+
+Fixes: 216f37366e86 ("gpio: ep93xx: Make irqchip immutable")
+Signed-off-by: Arnd Bergmann <arnd@arndb.de>
+Signed-off-by: Bartosz Golaszewski <bartosz.golaszewski@linaro.org>
+---
+ drivers/gpio/gpio-ep93xx.c | 2 --
+ 1 file changed, 2 deletions(-)
+
+diff --git a/drivers/gpio/gpio-ep93xx.c b/drivers/gpio/gpio-ep93xx.c
+index 192be99b13923..6cedf46efec6c 100644
+--- a/drivers/gpio/gpio-ep93xx.c
++++ b/drivers/gpio/gpio-ep93xx.c
+@@ -363,8 +363,6 @@ static int ep93xx_gpio_add_bank(struct ep93xx_gpio_chip *egc,
+ 
+ 	girq = &gc->irq;
+ 	if (bank->has_irq || bank->has_hierarchical_irq) {
+-		struct irq_chip *ic;
+-
+ 		gc->set_config = ep93xx_gpio_set_config;
+ 		egc->eic = devm_kcalloc(dev, 1,
+ 					sizeof(*egc->eic),
+-- 
+cgit 
+

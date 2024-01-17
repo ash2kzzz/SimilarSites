@@ -1,0 +1,38 @@
+From 8488a831e0c4d59528d20713a14cb8958af15bfe Mon Sep 17 00:00:00 2001
+From: Daniel Scally <dan.scally@ideasonboard.com>
+Date: Thu, 9 Feb 2023 09:43:59 +0000
+Subject: usb: gadget: configfs: Fix set but not used variable warning
+
+Fix a -Wunused-but-set-variable warning in gadget_string_s_store()
+
+Fixes: 15a7cf8caabe ("usb: gadget: configfs: Support arbitrary string descriptors")
+Reported-by: kernel test robot <lkp@intel.com>
+Signed-off-by: Daniel Scally <dan.scally@ideasonboard.com>
+Link: https://lore.kernel.org/r/20230209094359.1549629-1-dan.scally@ideasonboard.com
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+---
+ drivers/usb/gadget/configfs.c | 4 +---
+ 1 file changed, 1 insertion(+), 3 deletions(-)
+
+diff --git a/drivers/usb/gadget/configfs.c b/drivers/usb/gadget/configfs.c
+index 06a0b73e05465..b9f1136aa0a26 100644
+--- a/drivers/usb/gadget/configfs.c
++++ b/drivers/usb/gadget/configfs.c
+@@ -821,13 +821,11 @@ static ssize_t gadget_string_s_store(struct config_item *item, const char *page,
+ {
+ 	struct gadget_string *string = to_gadget_string(item);
+ 	int size = min(sizeof(string->string), len + 1);
+-	int ret;
+ 
+ 	if (len > USB_MAX_STRING_LEN)
+ 		return -EINVAL;
+ 
+-	ret = strscpy(string->string, page, size);
+-	return len;
++	return strscpy(string->string, page, size);
+ }
+ CONFIGFS_ATTR(gadget_string_, s);
+ 
+-- 
+cgit 
+

@@ -1,0 +1,32 @@
+From fbe870a72fd1ddc5e08c23764e23e5766f54aa87 Mon Sep 17 00:00:00 2001
+From: Richard Guy Briggs <rgb@redhat.com>
+Date: Wed, 1 Feb 2023 15:33:33 -0500
+Subject: io_uring,audit: don't log IORING_OP_MADVISE
+
+fadvise and madvise both provide hints for caching or access pattern for
+file and memory respectively.  Skip them.
+
+Fixes: 5bd2182d58e9 ("audit,io_uring,io-wq: add some basic audit support to io_uring")
+Signed-off-by: Richard Guy Briggs <rgb@redhat.com>
+Link: https://lore.kernel.org/r/b5dfdcd541115c86dbc774aa9dd502c964849c5f.1675282642.git.rgb@redhat.com
+Acked-by: Paul Moore <paul@paul-moore.com>
+Signed-off-by: Jens Axboe <axboe@kernel.dk>
+---
+ io_uring/opdef.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/io_uring/opdef.c b/io_uring/opdef.c
+index 5238ecd7af6ab..cca7c5b552087 100644
+--- a/io_uring/opdef.c
++++ b/io_uring/opdef.c
+@@ -257,6 +257,7 @@ const struct io_issue_def io_issue_defs[] = {
+ 		.issue			= io_fadvise,
+ 	},
+ 	[IORING_OP_MADVISE] = {
++		.audit_skip		= 1,
+ 		.prep			= io_madvise_prep,
+ 		.issue			= io_madvise,
+ 	},
+-- 
+cgit 
+

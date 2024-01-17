@@ -1,0 +1,52 @@
+From ee493fa5d91dec02402239a072820b18beb36265 Mon Sep 17 00:00:00 2001
+From: Andy Shevchenko <andriy.shevchenko@linux.intel.com>
+Date: Mon, 6 Mar 2023 20:31:11 +0200
+Subject: spi: mpc5xxx-psc: Correct error check for
+ devm_platform_get_and_ioremap_resource()
+
+devm_platform_get_and_ioremap_resource() may return pointer or error
+pointer, never the NULL. Correct error check for it.
+
+Fixes: 60a6c8257f41 ("spi: mpc5xxx-psc: Use platform resources instead of parsing DT properties")
+Signed-off-by: Andy Shevchenko <andriy.shevchenko@linux.intel.com>
+Link: https://lore.kernel.org/r/20230306183115.87314-2-andriy.shevchenko@linux.intel.com
+Signed-off-by: Mark Brown <broonie@kernel.org>
+---
+ drivers/spi/spi-mpc512x-psc.c | 4 ++--
+ drivers/spi/spi-mpc52xx-psc.c | 5 +++--
+ 2 files changed, 5 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/spi/spi-mpc512x-psc.c b/drivers/spi/spi-mpc512x-psc.c
+index 5bdfe4a740e96..a2ea24a63cb41 100644
+--- a/drivers/spi/spi-mpc512x-psc.c
++++ b/drivers/spi/spi-mpc512x-psc.c
+@@ -483,8 +483,8 @@ static int mpc512x_psc_spi_of_probe(struct platform_device *pdev)
+ 	master->dev.of_node = dev->of_node;
+ 
+ 	tempp = devm_platform_get_and_ioremap_resource(pdev, 0, NULL);
+-	if (!tempp)
+-		return dev_err_probe(dev, -EFAULT, "could not ioremap I/O port range\n");
++	if (IS_ERR(tempp))
++		return dev_err_probe(dev, PTR_ERR(tempp), "could not ioremap I/O port range\n");
+ 	mps->psc = tempp;
+ 	mps->fifo =
+ 		(struct mpc512x_psc_fifo *)(tempp + sizeof(struct mpc52xx_psc));
+diff --git a/drivers/spi/spi-mpc52xx-psc.c b/drivers/spi/spi-mpc52xx-psc.c
+index 95a4a511c3881..1bf728f4d7661 100644
+--- a/drivers/spi/spi-mpc52xx-psc.c
++++ b/drivers/spi/spi-mpc52xx-psc.c
+@@ -321,8 +321,9 @@ static int mpc52xx_psc_spi_of_probe(struct platform_device *pdev)
+ 	master->dev.of_node = dev->of_node;
+ 
+ 	mps->psc = devm_platform_get_and_ioremap_resource(pdev, 0, NULL);
+-	if (!mps->psc)
+-		return dev_err_probe(dev, -EFAULT, "could not ioremap I/O port range\n");
++	if (IS_ERR(mps->psc))
++		return dev_err_probe(dev, PTR_ERR(mps->psc), "could not ioremap I/O port range\n");
++
+ 	/* On the 5200, fifo regs are immediately ajacent to the psc regs */
+ 	mps->fifo = ((void __iomem *)mps->psc) + sizeof(struct mpc52xx_psc);
+ 
+-- 
+cgit 
+

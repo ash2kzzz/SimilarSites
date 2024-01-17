@@ -1,0 +1,43 @@
+From c9c1d6d82091f05b4dabf2c624bdaeba19bdf893 Mon Sep 17 00:00:00 2001
+From: Vladimir Oltean <vladimir.oltean@nxp.com>
+Date: Tue, 3 Jan 2023 15:03:48 +0200
+Subject: iio: imu: st_lsm6dsx: fix build when CONFIG_IIO_TRIGGERED_BUFFER=m
+
+The following kernel linkage error:
+
+st_lsm6dsx_core.o: in function `st_lsm6dsx_sw_buffers_setup':
+st_lsm6dsx_core.c:2578: undefined reference to `devm_iio_triggered_buffer_setup_ext'
+
+is caused by the fact that the object owning devm_iio_triggered_buffer_setup_ext()
+(drivers/iio/buffer/industrialio-triggered-buffer.o) is allowed to be
+built as module when its user (drivers/iio/imu/st_lsm6dsx/st_lsm6dsx_core.c)
+is built-in.
+
+The st_lsm6dsx driver already has a "select IIO_BUFFER", so add another
+select for IIO_TRIGGERED_BUFFER, to make that option follow what is set
+for the st_lsm6dsx driver. This is similar to what other iio drivers do.
+
+Fixes: 2cfb2180c3e8 ("iio: imu: st_lsm6dsx: introduce sw trigger support")
+Signed-off-by: Vladimir Oltean <vladimir.oltean@nxp.com>
+Link: https://lore.kernel.org/r/20230103130348.1733467-1-vladimir.oltean@nxp.com
+Cc: <Stable@vger.kernel.org>
+Signed-off-by: Jonathan Cameron <Jonathan.Cameron@huawei.com>
+---
+ drivers/iio/imu/st_lsm6dsx/Kconfig | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/drivers/iio/imu/st_lsm6dsx/Kconfig b/drivers/iio/imu/st_lsm6dsx/Kconfig
+index f6660847fb58d..8c16cdacf2f21 100644
+--- a/drivers/iio/imu/st_lsm6dsx/Kconfig
++++ b/drivers/iio/imu/st_lsm6dsx/Kconfig
+@@ -4,6 +4,7 @@ config IIO_ST_LSM6DSX
+ 	tristate "ST_LSM6DSx driver for STM 6-axis IMU MEMS sensors"
+ 	depends on (I2C || SPI || I3C)
+ 	select IIO_BUFFER
++	select IIO_TRIGGERED_BUFFER
+ 	select IIO_KFIFO_BUF
+ 	select IIO_ST_LSM6DSX_I2C if (I2C)
+ 	select IIO_ST_LSM6DSX_SPI if (SPI_MASTER)
+-- 
+cgit 
+

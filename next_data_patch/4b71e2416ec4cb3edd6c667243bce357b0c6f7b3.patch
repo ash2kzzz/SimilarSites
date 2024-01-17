@@ -1,0 +1,55 @@
+From 4b71e2416ec4cb3edd6c667243bce357b0c6f7b3 Mon Sep 17 00:00:00 2001
+From: "Fabio M. De Francesco" <fmdefrancesco@gmail.com>
+Date: Wed, 3 May 2023 19:24:11 +0200
+Subject: NFS: Convert kmap_atomic() to kmap_local_folio()
+
+kmap_atomic() is deprecated in favor of kmap_local_{folio,page}().
+
+Therefore, replace kmap_atomic() with kmap_local_folio() in
+nfs_readdir_folio_array_append().
+
+kmap_atomic() disables page-faults and preemption (the latter only for
+!PREEMPT_RT kernels), However, the code within the mapping/un-mapping in
+nfs_readdir_folio_array_append() does not depend on the above-mentioned
+side effects.
+
+Therefore, a mere replacement of the old API with the new one is all that
+is required (i.e., there is no need to explicitly add any calls to
+pagefault_disable() and/or preempt_disable()).
+
+Tested with (x)fstests in a QEMU/KVM x86_32 VM, 6GB RAM, booting a kernel
+with HIGHMEM64GB enabled.
+
+Cc: Ira Weiny <ira.weiny@intel.com>
+Signed-off-by: Fabio M. De Francesco <fmdefrancesco@gmail.com>
+Fixes: ec108d3cc766 ("NFS: Convert readdir page array functions to use a folio")
+Signed-off-by: Anna Schumaker <Anna.Schumaker@Netapp.com>
+---
+ fs/nfs/dir.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/fs/nfs/dir.c b/fs/nfs/dir.c
+index e63c1d46f189a..8f3112e71a6a6 100644
+--- a/fs/nfs/dir.c
++++ b/fs/nfs/dir.c
+@@ -317,7 +317,7 @@ static int nfs_readdir_folio_array_append(struct folio *folio,
+ 
+ 	name = nfs_readdir_copy_name(entry->name, entry->len);
+ 
+-	array = kmap_atomic(folio_page(folio, 0));
++	array = kmap_local_folio(folio, 0);
+ 	if (!name)
+ 		goto out;
+ 	ret = nfs_readdir_array_can_expand(array);
+@@ -340,7 +340,7 @@ static int nfs_readdir_folio_array_append(struct folio *folio,
+ 		nfs_readdir_array_set_eof(array);
+ out:
+ 	*cookie = array->last_cookie;
+-	kunmap_atomic(array);
++	kunmap_local(array);
+ 	return ret;
+ }
+ 
+-- 
+cgit 
+

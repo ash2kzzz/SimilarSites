@@ -1,0 +1,41 @@
+From 2a5303b499b18de7179ee1b4ab759880fb02ec9c Mon Sep 17 00:00:00 2001
+From: Conor Dooley <conor.dooley@microchip.com>
+Date: Sun, 29 Jan 2023 23:57:01 +0000
+Subject: Documentation: riscv: fix insufficient list item indent
+
+When adding the ISA string ordering rules, I didn't sufficiently indent
+one of the list items.
+
+Reported-by: kernel test robot <lkp@intel.com>
+Link: https://lore.kernel.org/linux-doc/202301300743.bp7Dpazv-lkp@intel.com/
+Fixes: f07b2b3f9d47 ("Documentation: riscv: add a section about ISA string ordering in /proc/cpuinfo")
+Signed-off-by: Conor Dooley <conor.dooley@microchip.com>
+Reviewed-by: Bagas Sanjaya <bagasdotme@gmail.com>
+Link: https://lore.kernel.org/r/20230129235701.2393241-1-conor@kernel.org
+Signed-off-by: Palmer Dabbelt <palmer@rivosinc.com>
+---
+ Documentation/riscv/uabi.rst | 8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/Documentation/riscv/uabi.rst b/Documentation/riscv/uabi.rst
+index 2ebec4c522308..8960fac42c40f 100644
+--- a/Documentation/riscv/uabi.rst
++++ b/Documentation/riscv/uabi.rst
+@@ -21,10 +21,10 @@ so for our purposes the following rules apply:
+    single-letter extensions and before any higher-privileged extensions.
+ 
+ #. For additional standard extensions, the first letter following the 'Z'
+-  conventionally indicates the most closely related alphabetical
+-  extension category. If multiple 'Z' extensions are named, they will be ordered
+-  first by category, in canonical order, as listed above, then alphabetically
+-  within a category.
++   conventionally indicates the most closely related alphabetical
++   extension category. If multiple 'Z' extensions are named, they will be
++   ordered first by category, in canonical order, as listed above, then
++   alphabetically within a category.
+ 
+ #. Standard supervisor-level extensions (starting with 'S') will be listed
+    after standard unprivileged extensions.  If multiple supervisor-level
+-- 
+cgit 
+

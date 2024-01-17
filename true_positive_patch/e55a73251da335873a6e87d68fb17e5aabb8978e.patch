@@ -1,0 +1,56 @@
+From e55a73251da335873a6e87d68fb17e5aabb8978e Mon Sep 17 00:00:00 2001
+From: Josh Poimboeuf <jpoimboe@redhat.com>
+Date: Thu, 27 Jun 2019 20:50:47 -0500
+Subject: bpf: Fix ORC unwinding in non-JIT BPF code
+
+Objtool previously ignored ___bpf_prog_run() because it didn't understand
+the jump table.  This resulted in the ORC unwinder not being able to unwind
+through non-JIT BPF code.
+
+Now that objtool knows how to read jump tables, remove the whitelist and
+annotate the jump table so objtool can recognize it.
+
+Also add an additional "const" to the jump table definition to clarify that
+the text pointers are constant.  Otherwise GCC sets the section writable
+flag and the assembler spits out warnings.
+
+Fixes: d15d356887e7 ("perf/x86: Make perf callchains work without CONFIG_FRAME_POINTER")
+Reported-by: Song Liu <songliubraving@fb.com>
+Signed-off-by: Josh Poimboeuf <jpoimboe@redhat.com>
+Signed-off-by: Thomas Gleixner <tglx@linutronix.de>
+Acked-by: Alexei Starovoitov <ast@kernel.org>
+Cc: Peter Zijlstra <peterz@infradead.org>
+Cc: Kairui Song <kasong@redhat.com>
+Cc: Steven Rostedt <rostedt@goodmis.org>
+Cc: Borislav Petkov <bp@alien8.de>
+Cc: Daniel Borkmann <daniel@iogearbox.net>
+Link: https://lkml.kernel.org/r/881939122b88f32be4c374d248c09d7527a87e35.1561685471.git.jpoimboe@redhat.com
+Signed-off-by: Ingo Molnar <mingo@kernel.org>
+---
+ kernel/bpf/core.c | 3 +--
+ 1 file changed, 1 insertion(+), 2 deletions(-)
+
+diff --git a/kernel/bpf/core.c b/kernel/bpf/core.c
+index 080e2bb644ccd..1e12ac382a90f 100644
+--- a/kernel/bpf/core.c
++++ b/kernel/bpf/core.c
+@@ -1299,7 +1299,7 @@ static u64 ___bpf_prog_run(u64 *regs, const struct bpf_insn *insn, u64 *stack)
+ {
+ #define BPF_INSN_2_LBL(x, y)    [BPF_##x | BPF_##y] = &&x##_##y
+ #define BPF_INSN_3_LBL(x, y, z) [BPF_##x | BPF_##y | BPF_##z] = &&x##_##y##_##z
+-	static const void *jumptable[256] = {
++	static const void * const jumptable[256] __annotate_jump_table = {
+ 		[0 ... 255] = &&default_label,
+ 		/* Now overwrite non-defaults ... */
+ 		BPF_INSN_MAP(BPF_INSN_2_LBL, BPF_INSN_3_LBL),
+@@ -1558,7 +1558,6 @@ out:
+ 		BUG_ON(1);
+ 		return 0;
+ }
+-STACK_FRAME_NON_STANDARD(___bpf_prog_run); /* jump table */
+ 
+ #define PROG_NAME(stack_size) __bpf_prog_run##stack_size
+ #define DEFINE_BPF_PROG_RUN(stack_size) \
+-- 
+cgit 
+

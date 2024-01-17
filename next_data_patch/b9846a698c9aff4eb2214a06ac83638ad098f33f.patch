@@ -1,0 +1,52 @@
+From b9846a698c9aff4eb2214a06ac83638ad098f33f Mon Sep 17 00:00:00 2001
+From: Mingwei Zhang <mizhang@google.com>
+Date: Tue, 9 May 2023 03:23:48 +0000
+Subject: KVM: VMX: add MSR_IA32_TSX_CTRL into msrs_to_save
+
+Add MSR_IA32_TSX_CTRL into msrs_to_save[] to explicitly tell userspace to
+save/restore the register value during migration. Missing this may cause
+userspace that relies on KVM ioctl(KVM_GET_MSR_INDEX_LIST) fail to port the
+value to the target VM.
+
+In addition, there is no need to add MSR_IA32_TSX_CTRL when
+ARCH_CAP_TSX_CTRL_MSR is not supported in kvm_get_arch_capabilities(). So
+add the checking in kvm_probe_msr_to_save().
+
+Fixes: c11f83e0626b ("KVM: vmx: implement MSR_IA32_TSX_CTRL disable RTM functionality")
+Reported-by: Jim Mattson <jmattson@google.com>
+Signed-off-by: Mingwei Zhang <mizhang@google.com>
+Reviewed-by: Xiaoyao Li <xiaoyao.li@intel.com>
+Reviewed-by: Jim Mattson <jmattson@google.com>
+Message-Id: <20230509032348.1153070-1-mizhang@google.com>
+Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>
+---
+ arch/x86/kvm/x86.c | 6 +++++-
+ 1 file changed, 5 insertions(+), 1 deletion(-)
+
+diff --git a/arch/x86/kvm/x86.c b/arch/x86/kvm/x86.c
+index ceb7c5e9cf9e9..c0778ca39650f 100644
+--- a/arch/x86/kvm/x86.c
++++ b/arch/x86/kvm/x86.c
+@@ -1446,7 +1446,7 @@ static const u32 msrs_to_save_base[] = {
+ #endif
+ 	MSR_IA32_TSC, MSR_IA32_CR_PAT, MSR_VM_HSAVE_PA,
+ 	MSR_IA32_FEAT_CTL, MSR_IA32_BNDCFGS, MSR_TSC_AUX,
+-	MSR_IA32_SPEC_CTRL,
++	MSR_IA32_SPEC_CTRL, MSR_IA32_TSX_CTRL,
+ 	MSR_IA32_RTIT_CTL, MSR_IA32_RTIT_STATUS, MSR_IA32_RTIT_CR3_MATCH,
+ 	MSR_IA32_RTIT_OUTPUT_BASE, MSR_IA32_RTIT_OUTPUT_MASK,
+ 	MSR_IA32_RTIT_ADDR0_A, MSR_IA32_RTIT_ADDR0_B,
+@@ -7155,6 +7155,10 @@ static void kvm_probe_msr_to_save(u32 msr_index)
+ 		if (!kvm_cpu_cap_has(X86_FEATURE_XFD))
+ 			return;
+ 		break;
++	case MSR_IA32_TSX_CTRL:
++		if (!(kvm_get_arch_capabilities() & ARCH_CAP_TSX_CTRL_MSR))
++			return;
++		break;
+ 	default:
+ 		break;
+ 	}
+-- 
+cgit 
+

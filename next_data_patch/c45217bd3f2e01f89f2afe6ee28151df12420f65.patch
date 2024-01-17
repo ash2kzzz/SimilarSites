@@ -1,0 +1,158 @@
+From c45217bd3f2e01f89f2afe6ee28151df12420f65 Mon Sep 17 00:00:00 2001
+From: Johannes Berg <johannes.berg@intel.com>
+Date: Mon, 17 Apr 2023 11:41:26 +0300
+Subject: wifi: iwlwifi: mvm: only clients can be 20MHz-only
+
+Since only clients to an AP can be 20MHz-only STAs, adjust the
+code to not make the use of EHT capabilities depend on only the
+bandwidth, but also the type of interface.
+
+Fixes: 701404f1091d ("wifi: iwlwifi: rs: add support for parsing max MCS per NSS/BW in 11be")
+Signed-off-by: Johannes Berg <johannes.berg@intel.com>
+Signed-off-by: Gregory Greenman <gregory.greenman@intel.com>
+Link: https://lore.kernel.org/r/20230417113648.a3a4c931e4a3.I693a07f4d88044c889eee04793883a83bc5ee362@changeid
+Signed-off-by: Johannes Berg <johannes.berg@intel.com>
+---
+ drivers/net/wireless/intel/iwlwifi/mvm/mac80211.c |  2 +-
+ drivers/net/wireless/intel/iwlwifi/mvm/rs-fw.c    | 17 +++++++++++------
+ drivers/net/wireless/intel/iwlwifi/mvm/rs.c       |  9 ++++++---
+ drivers/net/wireless/intel/iwlwifi/mvm/rs.h       |  8 ++++++--
+ 4 files changed, 24 insertions(+), 12 deletions(-)
+
+diff --git a/drivers/net/wireless/intel/iwlwifi/mvm/mac80211.c b/drivers/net/wireless/intel/iwlwifi/mvm/mac80211.c
+index 9d5d2c6625a91..8808bb3983a49 100644
+--- a/drivers/net/wireless/intel/iwlwifi/mvm/mac80211.c
++++ b/drivers/net/wireless/intel/iwlwifi/mvm/mac80211.c
+@@ -3592,7 +3592,7 @@ static void iwl_mvm_rs_rate_init_all_links(struct iwl_mvm *mvm,
+ 		if (!conf || !link_sta || !mvmvif->link[link_id]->phy_ctxt)
+ 			continue;
+ 
+-		iwl_mvm_rs_rate_init(mvm, sta, conf, link_sta,
++		iwl_mvm_rs_rate_init(mvm, vif, sta, conf, link_sta,
+ 				     mvmvif->link[link_id]->phy_ctxt->channel->band,
+ 				     update);
+ 	}
+diff --git a/drivers/net/wireless/intel/iwlwifi/mvm/rs-fw.c b/drivers/net/wireless/intel/iwlwifi/mvm/rs-fw.c
+index c8ba2fe3e4a22..43d26a09cfcea 100644
+--- a/drivers/net/wireless/intel/iwlwifi/mvm/rs-fw.c
++++ b/drivers/net/wireless/intel/iwlwifi/mvm/rs-fw.c
+@@ -283,7 +283,8 @@ rs_fw_rs_mcs2eht_mcs(enum IWL_TLC_MCS_PER_BW bw,
+ }
+ 
+ static void
+-rs_fw_eht_set_enabled_rates(const struct ieee80211_link_sta *link_sta,
++rs_fw_eht_set_enabled_rates(struct ieee80211_vif *vif,
++			    const struct ieee80211_link_sta *link_sta,
+ 			    struct ieee80211_supported_band *sband,
+ 			    struct iwl_tlc_config_cmd_v4 *cmd)
+ {
+@@ -299,7 +300,8 @@ rs_fw_eht_set_enabled_rates(const struct ieee80211_link_sta *link_sta,
+ 	struct ieee80211_eht_mcs_nss_supp_20mhz_only mcs_tx_20;
+ 
+ 	/* peer is 20Mhz only */
+-	if (!(link_sta->he_cap.he_cap_elem.phy_cap_info[0] &
++	if (vif->type == NL80211_IFTYPE_AP &&
++	    !(link_sta->he_cap.he_cap_elem.phy_cap_info[0] &
+ 	      IEEE80211_HE_PHY_CAP0_CHANNEL_WIDTH_SET_MASK_ALL)) {
+ 		mcs_rx_20 = eht_rx_mcs->only_20mhz;
+ 	} else {
+@@ -361,7 +363,8 @@ rs_fw_eht_set_enabled_rates(const struct ieee80211_link_sta *link_sta,
+ 		       sizeof(cmd->ht_rates[IWL_TLC_NSS_2]));
+ }
+ 
+-static void rs_fw_set_supp_rates(struct ieee80211_link_sta *link_sta,
++static void rs_fw_set_supp_rates(struct ieee80211_vif *vif,
++				 struct ieee80211_link_sta *link_sta,
+ 				 struct ieee80211_supported_band *sband,
+ 				 struct iwl_tlc_config_cmd_v4 *cmd)
+ {
+@@ -383,7 +386,7 @@ static void rs_fw_set_supp_rates(struct ieee80211_link_sta *link_sta,
+ 	/* HT/VHT rates */
+ 	if (link_sta->eht_cap.has_eht) {
+ 		cmd->mode = IWL_TLC_MNG_MODE_EHT;
+-		rs_fw_eht_set_enabled_rates(link_sta, sband, cmd);
++		rs_fw_eht_set_enabled_rates(vif, link_sta, sband, cmd);
+ 	} else if (he_cap->has_he) {
+ 		cmd->mode = IWL_TLC_MNG_MODE_HE;
+ 		rs_fw_he_set_enabled_rates(link_sta, sband, cmd);
+@@ -557,7 +560,9 @@ u16 rs_fw_get_max_amsdu_len(struct ieee80211_sta *sta,
+ 	return 0;
+ }
+ 
+-void rs_fw_rate_init(struct iwl_mvm *mvm, struct ieee80211_sta *sta,
++void rs_fw_rate_init(struct iwl_mvm *mvm,
++		     struct ieee80211_vif *vif,
++		     struct ieee80211_sta *sta,
+ 		     struct ieee80211_bss_conf *link_conf,
+ 		     struct ieee80211_link_sta *link_sta,
+ 		     enum nl80211_band band, bool update)
+@@ -601,7 +606,7 @@ void rs_fw_rate_init(struct iwl_mvm *mvm, struct ieee80211_sta *sta,
+ #ifdef CONFIG_IWLWIFI_DEBUGFS
+ 	iwl_mvm_reset_frame_stats(mvm);
+ #endif
+-	rs_fw_set_supp_rates(link_sta, sband, &cfg_cmd);
++	rs_fw_set_supp_rates(vif, link_sta, sband, &cfg_cmd);
+ 
+ 	/*
+ 	 * since TLC offload works with one mode we can assume
+diff --git a/drivers/net/wireless/intel/iwlwifi/mvm/rs.c b/drivers/net/wireless/intel/iwlwifi/mvm/rs.c
+index ab82965bc0f4f..020de09b13f2a 100644
+--- a/drivers/net/wireless/intel/iwlwifi/mvm/rs.c
++++ b/drivers/net/wireless/intel/iwlwifi/mvm/rs.c
+@@ -3015,7 +3015,7 @@ static void rs_drv_rate_update(void *mvm_r,
+ 	for (tid = 0; tid < IWL_MAX_TID_COUNT; tid++)
+ 		ieee80211_stop_tx_ba_session(sta, tid);
+ 
+-	iwl_mvm_rs_rate_init(mvm, sta,
++	iwl_mvm_rs_rate_init(mvm, mvmsta->vif, sta,
+ 			     &mvmsta->vif->bss_conf, &sta->deflink,
+ 			     sband->band, true);
+ }
+@@ -4101,13 +4101,16 @@ static const struct rate_control_ops rs_mvm_ops_drv = {
+ 	.capa = RATE_CTRL_CAPA_VHT_EXT_NSS_BW,
+ };
+ 
+-void iwl_mvm_rs_rate_init(struct iwl_mvm *mvm, struct ieee80211_sta *sta,
++void iwl_mvm_rs_rate_init(struct iwl_mvm *mvm,
++			  struct ieee80211_vif *vif,
++			  struct ieee80211_sta *sta,
+ 			  struct ieee80211_bss_conf *link_conf,
+ 			  struct ieee80211_link_sta *link_sta,
+ 			  enum nl80211_band band, bool update)
+ {
+ 	if (iwl_mvm_has_tlc_offload(mvm)) {
+-		rs_fw_rate_init(mvm, sta, link_conf, link_sta, band, update);
++		rs_fw_rate_init(mvm, vif, sta, link_conf,
++				link_sta, band, update);
+ 	} else {
+ 		struct iwl_mvm_sta *mvmsta = iwl_mvm_sta_from_mac80211(sta);
+ 
+diff --git a/drivers/net/wireless/intel/iwlwifi/mvm/rs.h b/drivers/net/wireless/intel/iwlwifi/mvm/rs.h
+index f99603b0f693c..bbc05c3f13bff 100644
+--- a/drivers/net/wireless/intel/iwlwifi/mvm/rs.h
++++ b/drivers/net/wireless/intel/iwlwifi/mvm/rs.h
+@@ -394,7 +394,9 @@ struct iwl_lq_sta {
+ 				   ((_c) << RS_DRV_DATA_LQ_COLOR_POS)))
+ 
+ /* Initialize station's rate scaling information after adding station */
+-void iwl_mvm_rs_rate_init(struct iwl_mvm *mvm, struct ieee80211_sta *sta,
++void iwl_mvm_rs_rate_init(struct iwl_mvm *mvm,
++			  struct ieee80211_vif *vif,
++			  struct ieee80211_sta *sta,
+ 			  struct ieee80211_bss_conf *link_conf,
+ 			  struct ieee80211_link_sta *link_sta,
+ 			  enum nl80211_band band, bool update);
+@@ -433,7 +435,9 @@ void iwl_mvm_reset_frame_stats(struct iwl_mvm *mvm);
+ #endif
+ 
+ void iwl_mvm_rs_add_sta(struct iwl_mvm *mvm, struct iwl_mvm_sta *mvmsta);
+-void rs_fw_rate_init(struct iwl_mvm *mvm, struct ieee80211_sta *sta,
++void rs_fw_rate_init(struct iwl_mvm *mvm,
++		     struct ieee80211_vif *vif,
++		     struct ieee80211_sta *sta,
+ 		     struct ieee80211_bss_conf *link_conf,
+ 		     struct ieee80211_link_sta *link_sta,
+ 		     enum nl80211_band band, bool update);
+-- 
+cgit 
+

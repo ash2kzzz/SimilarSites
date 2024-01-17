@@ -1,0 +1,46 @@
+From d36f6efbe0cb422fe1e4475717d75f3737088832 Mon Sep 17 00:00:00 2001
+From: Harshit Mogalapalli <harshit.m.mogalapalli@oracle.com>
+Date: Thu, 27 Apr 2023 22:59:33 -0700
+Subject: module: Fix use-after-free bug in read_file_mod_stats()
+
+Smatch warns:
+	kernel/module/stats.c:394 read_file_mod_stats()
+	warn: passing freed memory 'buf'
+
+We are passing 'buf' to simple_read_from_buffer() after freeing it.
+
+Fix this by changing the order of 'simple_read_from_buffer' and 'kfree'.
+
+Fixes: df3e764d8e5c ("module: add debug stats to help identify memory pressure")
+Signed-off-by: Harshit Mogalapalli <harshit.m.mogalapalli@oracle.com>
+Signed-off-by: Luis Chamberlain <mcgrof@kernel.org>
+---
+ kernel/module/stats.c | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/kernel/module/stats.c b/kernel/module/stats.c
+index ad7b6ada29f2f..6ab2c94d6bc32 100644
+--- a/kernel/module/stats.c
++++ b/kernel/module/stats.c
+@@ -276,6 +276,7 @@ static ssize_t read_file_mod_stats(struct file *file, char __user *user_buf,
+ 	struct mod_fail_load *mod_fail;
+ 	unsigned int len, size, count_failed = 0;
+ 	char *buf;
++	int ret;
+ 	u32 live_mod_count, fkreads, fdecompress, fbecoming, floads;
+ 	unsigned long total_size, text_size, ikread_bytes, ibecoming_bytes,
+ 		idecompress_bytes, imod_bytes, total_virtual_lost;
+@@ -390,8 +391,9 @@ static ssize_t read_file_mod_stats(struct file *file, char __user *user_buf,
+ out_unlock:
+ 	mutex_unlock(&module_mutex);
+ out:
++	ret = simple_read_from_buffer(user_buf, count, ppos, buf, len);
+ 	kfree(buf);
+-        return simple_read_from_buffer(user_buf, count, ppos, buf, len);
++	return ret;
+ }
+ #undef MAX_PREAMBLE
+ #undef MAX_FAILED_MOD_PRINT
+-- 
+cgit 
+

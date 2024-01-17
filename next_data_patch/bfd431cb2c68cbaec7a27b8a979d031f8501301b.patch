@@ -1,0 +1,73 @@
+From bfd431cb2c68cbaec7a27b8a979d031f8501301b Mon Sep 17 00:00:00 2001
+From: James Clark <james.clark@arm.com>
+Date: Thu, 4 May 2023 15:48:22 +0100
+Subject: perf cs-etm: Fix contextid validation
+
+Pre 5.11 kernels don't support 'contextid1' and 'contextid2' so
+validation would be skipped. By adding an additional check for
+'contextid', old kernels will still have validation done even though
+contextid would either be contextid1 or contextid2.
+
+Additionally now that it's possible to override options, an existing bug
+in the validation is revealed. 'val' is overwritten by the contextid1
+validation, and re-used for contextid2 validation causing it to always
+fail. '!val || val != 0x4' is the same as 'val != 0x4' because 0 is also
+!= 4, so that expression can be simplified and the temp variable not
+overwritten.
+
+Fixes: 35c51f83dd1ed5db ("perf cs-etm: Validate options after applying them")
+Reviewed-by: Leo Yan <leo.yan@linaro.org>
+Signed-off-by: James Clark <james.clark@arm.com>
+Cc: Adrian Hunter <adrian.hunter@intel.com>
+Cc: Alexander Shishkin <alexander.shishkin@linux.intel.com>
+Cc: Ian Rogers <irogers@google.com>
+Cc: Ingo Molnar <mingo@redhat.com>
+Cc: James Clark <james.clark@arm.com>
+Cc: Jiri Olsa <jolsa@kernel.org>
+Cc: John Garry <john.g.garry@oracle.com>
+Cc: Mark Rutland <mark.rutland@arm.com>
+Cc: Mathieu Poirier <mathieu.poirier@linaro.org>
+Cc: Mike Leach <mike.leach@linaro.org>
+Cc: Namhyung Kim <namhyung@kernel.org>
+Cc: Peter Zijlstra <peterz@infradead.org>
+Cc: Suzuki Poulouse <suzuki.poulose@arm.com>
+Cc: Will Deacon <will@kernel.org>
+Cc: coresight@lists.linaro.org
+Cc: linux-arm-kernel@lists.infradead.org
+Link: https://lore.kernel.org/all/20230501073452.GA4660@leoy-yangtze.lan
+Link: https://lore.kernel.org/r/20230504144822.1938717-1-james.clark@arm.com
+Signed-off-by: Arnaldo Carvalho de Melo <acme@redhat.com>
+---
+ tools/perf/arch/arm/util/cs-etm.c | 9 ++++-----
+ 1 file changed, 4 insertions(+), 5 deletions(-)
+
+diff --git a/tools/perf/arch/arm/util/cs-etm.c b/tools/perf/arch/arm/util/cs-etm.c
+index 77cb03e6ff875..9ca040bfb1aa7 100644
+--- a/tools/perf/arch/arm/util/cs-etm.c
++++ b/tools/perf/arch/arm/util/cs-etm.c
+@@ -78,9 +78,9 @@ static int cs_etm_validate_context_id(struct auxtrace_record *itr,
+ 	char path[PATH_MAX];
+ 	int err;
+ 	u32 val;
+-	u64 contextid =
+-		evsel->core.attr.config &
+-		(perf_pmu__format_bits(&cs_etm_pmu->format, "contextid1") |
++	u64 contextid = evsel->core.attr.config &
++		(perf_pmu__format_bits(&cs_etm_pmu->format, "contextid") |
++		 perf_pmu__format_bits(&cs_etm_pmu->format, "contextid1") |
+ 		 perf_pmu__format_bits(&cs_etm_pmu->format, "contextid2"));
+ 
+ 	if (!contextid)
+@@ -114,8 +114,7 @@ static int cs_etm_validate_context_id(struct auxtrace_record *itr,
+ 		 *  0b00100 Maximum of 32-bit Context ID size.
+ 		 *  All other values are reserved.
+ 		 */
+-		val = BMVAL(val, 5, 9);
+-		if (!val || val != 0x4) {
++		if (BMVAL(val, 5, 9) != 0x4) {
+ 			pr_err("%s: CONTEXTIDR_EL1 isn't supported, disable with %s/contextid1=0/\n",
+ 			       CORESIGHT_ETM_PMU_NAME, CORESIGHT_ETM_PMU_NAME);
+ 			return -EINVAL;
+-- 
+cgit 
+

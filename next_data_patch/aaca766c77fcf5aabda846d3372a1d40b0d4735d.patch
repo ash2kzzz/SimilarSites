@@ -1,0 +1,95 @@
+From aaca766c77fcf5aabda846d3372a1d40b0d4735d Mon Sep 17 00:00:00 2001
+From: Elliot Berman <quic_eberman@quicinc.com>
+Date: Thu, 12 Jan 2023 10:23:12 -0800
+Subject: misc: fastrpc: Pass bitfield into qcom_scm_assign_mem
+
+The srcvm parameter of qcom_scm_assign_mem is a pointer to a bitfield of
+VMIDs. The  bitfield is updated with which VMIDs have permissions
+after the qcom_scm_assign_mem call. This makes it simpler for clients to
+make qcom_scm_assign_mem calls later, they always pass in same srcvm
+bitfield and do not need to closely track whether memory was originally
+shared.
+
+When restoring permissions to HLOS, fastrpc is incorrectly using the
+first VMID directly -- neither the BIT nor the other possible VMIDs the
+memory was already assigned to.  We already have a field intended for
+this purpose: "perms" in the struct fastrpc_channel_ctx, but it was
+never used. Start using the perms field.
+
+Cc: Abel Vesa <abel.vesa@linaro.org>
+Cc: Vamsi Krishna Gattupalli <quic_vgattupa@quicinc.com>
+Cc: Srinivas Kandagatla <srinivas.kandagatla@linaro.org>
+Fixes: e90d91190619 ("misc: fastrpc: Add support to secure memory map")
+Fixes: 0871561055e6 ("misc: fastrpc: Add support for audiopd")
+Fixes: 532ad70c6d44 ("misc: fastrpc: Add mmap request assigning for static PD pool")
+Tested-by: Srinivas Kandagatla <srinivas.kandagatla@linaro.org>
+Signed-off-by: Elliot Berman <quic_eberman@quicinc.com>
+
+drivers/misc/fastrpc.c | 15 ++++++---------
+ 1 file changed, 6 insertions(+), 9 deletions(-)
+
+Link: https://lore.kernel.org/r/20230112182313.521467-1-quic_eberman@quicinc.com
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+---
+ drivers/misc/fastrpc.c | 15 ++++++---------
+ 1 file changed, 6 insertions(+), 9 deletions(-)
+
+diff --git a/drivers/misc/fastrpc.c b/drivers/misc/fastrpc.c
+index a2a1258531d08..5310606113fe5 100644
+--- a/drivers/misc/fastrpc.c
++++ b/drivers/misc/fastrpc.c
+@@ -321,7 +321,7 @@ static void fastrpc_free_map(struct kref *ref)
+ 			perm.vmid = QCOM_SCM_VMID_HLOS;
+ 			perm.perm = QCOM_SCM_PERM_RWX;
+ 			err = qcom_scm_assign_mem(map->phys, map->size,
+-				&(map->fl->cctx->vmperms[0].vmid), &perm, 1);
++				&map->fl->cctx->perms, &perm, 1);
+ 			if (err) {
+ 				dev_err(map->fl->sctx->dev, "Failed to assign memory phys 0x%llx size 0x%llx err %d",
+ 						map->phys, map->size, err);
+@@ -798,10 +798,8 @@ static int fastrpc_map_create(struct fastrpc_user *fl, int fd,
+ 		 * If subsystem VMIDs are defined in DTSI, then do
+ 		 * hyp_assign from HLOS to those VM(s)
+ 		 */
+-		unsigned int perms = BIT(QCOM_SCM_VMID_HLOS);
+-
+ 		map->attr = attr;
+-		err = qcom_scm_assign_mem(map->phys, (u64)map->size, &perms,
++		err = qcom_scm_assign_mem(map->phys, (u64)map->size, &fl->cctx->perms,
+ 				fl->cctx->vmperms, fl->cctx->vmcount);
+ 		if (err) {
+ 			dev_err(sess->dev, "Failed to assign memory with phys 0x%llx size 0x%llx err %d",
+@@ -1268,10 +1266,9 @@ static int fastrpc_init_create_static_process(struct fastrpc_user *fl,
+ 
+ 		/* Map if we have any heap VMIDs associated with this ADSP Static Process. */
+ 		if (fl->cctx->vmcount) {
+-			unsigned int perms = BIT(QCOM_SCM_VMID_HLOS);
+-
+ 			err = qcom_scm_assign_mem(fl->cctx->remote_heap->phys,
+-							(u64)fl->cctx->remote_heap->size, &perms,
++							(u64)fl->cctx->remote_heap->size,
++							&fl->cctx->perms,
+ 							fl->cctx->vmperms, fl->cctx->vmcount);
+ 			if (err) {
+ 				dev_err(fl->sctx->dev, "Failed to assign memory with phys 0x%llx size 0x%llx err %d",
+@@ -1319,7 +1316,7 @@ err_invoke:
+ 		perm.perm = QCOM_SCM_PERM_RWX;
+ 		err = qcom_scm_assign_mem(fl->cctx->remote_heap->phys,
+ 						(u64)fl->cctx->remote_heap->size,
+-						&(fl->cctx->vmperms[0].vmid), &perm, 1);
++						&fl->cctx->perms, &perm, 1);
+ 		if (err)
+ 			dev_err(fl->sctx->dev, "Failed to assign memory phys 0x%llx size 0x%llx err %d",
+ 				fl->cctx->remote_heap->phys, fl->cctx->remote_heap->size, err);
+@@ -1901,7 +1898,7 @@ static int fastrpc_req_mmap(struct fastrpc_user *fl, char __user *argp)
+ 		perm.vmid = QCOM_SCM_VMID_HLOS;
+ 		perm.perm = QCOM_SCM_PERM_RWX;
+ 		err = qcom_scm_assign_mem(buf->phys, buf->size,
+-			&(fl->cctx->vmperms[0].vmid), &perm, 1);
++			&fl->cctx->perms, &perm, 1);
+ 		if (err) {
+ 			dev_err(fl->sctx->dev, "Failed to assign memory phys 0x%llx size 0x%llx err %d",
+ 					buf->phys, buf->size, err);
+-- 
+cgit 
+

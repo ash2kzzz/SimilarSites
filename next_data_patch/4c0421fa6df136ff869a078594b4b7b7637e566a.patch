@@ -1,0 +1,48 @@
+From 4c0421fa6df136ff869a078594b4b7b7637e566a Mon Sep 17 00:00:00 2001
+From: David Howells <dhowells@redhat.com>
+Date: Mon, 27 Feb 2023 13:04:54 +0000
+Subject: iov: Fix netfs_extract_user_to_sg()
+
+Fix the loop check in netfs_extract_user_to_sg() for extraction from
+user-backed iterators to do the body if npages > 0, not if npages < 0
+(which it can never be).
+
+This isn't currently used by cifs, which only ever extracts data from BVEC,
+KVEC and XARRAY iterators at this level, user-backed iterators having being
+decanted into BVEC iterators at a higher level to accommodate the work
+being done in a kernel thread.
+
+Found by smatch:
+	fs/netfs/iterator.c:139 netfs_extract_user_to_sg() warn: unsigned 'npages' is never less than zero.
+
+Fixes: 018584697533 ("netfs: Add a function to extract an iterator into a scatterlist")
+Reported-by: kernel test robot <lkp@intel.com>
+Link: https://lore.kernel.org/oe-kbuild-all/202302261115.P3TQi1ZO-lkp@intel.com/
+Reported-by: Dan Carpenter <error27@gmail.com>
+Link: https://lore.kernel.org/r/Y/yYnAhoAYDBKixX@kili
+Reviewed-by: Paulo Alcantara (SUSE) <pc@manguebit.com>
+Signed-off-by: David Howells <dhowells@redhat.com>
+cc: Jeff Layton <jlayton@kernel.org>
+cc: linux-cifs@vger.kernel.org
+cc: linux-cachefs@redhat.com
+Signed-off-by: Steve French <stfrench@microsoft.com>
+---
+ fs/netfs/iterator.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/fs/netfs/iterator.c b/fs/netfs/iterator.c
+index f00d43b8ac0a8..e9a45dea748a2 100644
+--- a/fs/netfs/iterator.c
++++ b/fs/netfs/iterator.c
+@@ -134,7 +134,7 @@ static ssize_t netfs_extract_user_to_sg(struct iov_iter *iter,
+ 		npages = DIV_ROUND_UP(off + len, PAGE_SIZE);
+ 		sg_max -= npages;
+ 
+-		for (; npages < 0; npages--) {
++		for (; npages > 0; npages--) {
+ 			struct page *page = *pages;
+ 			size_t seg = min_t(size_t, PAGE_SIZE - off, len);
+ 
+-- 
+cgit 
+

@@ -1,0 +1,42 @@
+From bb45bb9705372d9335ccd7e3fc5436770ec6d846 Mon Sep 17 00:00:00 2001
+From: Bjorn Andersson <quic_bjorande@quicinc.com>
+Date: Thu, 12 Jan 2023 05:50:55 -0800
+Subject: arm64: dts: qcom: sc8280xp: Use MMCX for all DP controllers
+
+While MDSS_GDSC is a subdomain of MMCX, Linux does not respect this
+relationship and sometimes invokes sync_state on the rpmhpd (MMCX)
+before the DisplayPort controller has had a chance to probe.
+
+The result when this happens is that the power is lost to the multimedia
+subsystem between the probe of msm_drv and the DisplayPort controller -
+which results in an irrecoverable state.
+
+While this is an implementation problem, this aligns the power domain
+setting of the one DP instance with that of all the others.
+
+Fixes: 57d6ef683a15 ("arm64: dts: qcom: sc8280xp: Define some of the display blocks")
+Signed-off-by: Bjorn Andersson <quic_bjorande@quicinc.com>
+Reviewed-by: Johan Hovold <johan+linaro@kernel.org>
+Reviewed-by: Konrad Dybcio <konrad.dybcio@linaro.org>
+Signed-off-by: Bjorn Andersson <andersson@kernel.org>
+Link: https://lore.kernel.org/r/20230112135055.3836555-1-quic_bjorande@quicinc.com
+---
+ arch/arm64/boot/dts/qcom/sc8280xp.dtsi | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/arch/arm64/boot/dts/qcom/sc8280xp.dtsi b/arch/arm64/boot/dts/qcom/sc8280xp.dtsi
+index 0fdfc1c9299d0..e50b75504142c 100644
+--- a/arch/arm64/boot/dts/qcom/sc8280xp.dtsi
++++ b/arch/arm64/boot/dts/qcom/sc8280xp.dtsi
+@@ -2564,7 +2564,7 @@
+ 				interrupts = <15>;
+ 				phys = <&mdss0_dp3_phy>;
+ 				phy-names = "dp";
+-				power-domains = <&dispcc0 MDSS_GDSC>;
++				power-domains = <&rpmhpd SC8280XP_MMCX>;
+ 
+ 				assigned-clocks = <&dispcc0 DISP_CC_MDSS_DPTX3_LINK_CLK_SRC>,
+ 						  <&dispcc0 DISP_CC_MDSS_DPTX3_PIXEL0_CLK_SRC>;
+-- 
+cgit 
+

@@ -1,0 +1,198 @@
+From 7ce93729091dff24e6a1c3578b58b36f4b1cf10a Mon Sep 17 00:00:00 2001
+From: Jason Baron <jbaron@akamai.com>
+Date: Fri, 10 Mar 2023 16:27:28 -0500
+Subject: dyndbg: cleanup dynamic usage in ib_srp.c
+
+Currently, in dynamic_debug.h we only provide
+DEFINE_DYNAMIC_DEBUG_METADATA() and DYNAMIC_DEBUG_BRANCH()
+definitions if CONFIG_DYNAMIC_CORE is enabled. Thus, drivers
+such as infiniband srp (see: drivers/infiniband/ulp/srp/ib_srp.c)
+must provide their own definitions for !CONFIG_DYNAMIC_CORE.
+
+Thus, let's move this !CONFIG_DYNAMIC_CORE case into dynamic_debug.h.
+However, the dynamic debug interfaces should really only be defined
+if CONFIG_DYNAMIC_DEBUG is set or CONFIG_DYNAMIC_CORE is set along
+with DYNAMIC_DEBUG_MODULE, (see:
+Documentation/admin-guide/dynamic-debug-howto.rst). Thus, the
+undefined case becomes: !((CONFIG_DYNAMIC_DEBUG ||
+(CONFIG_DYNAMIC_CORE && DYNAMIC_DEBUG_MODULE)).
+With those changes in place, we can remove the !CONFIG_DYNAMIC_CORE
+case from ib_srp.c
+
+This change was prompted by a build breakeage in ib_srp.c stemming
+from the inclusion of dynamic_debug.h unconditionally in module.h, due
+to commit 7deabd674988 ("dyndbg: use the module notifier callbacks").
+In that case, if we have CONFIG_DYNAMIC_CORE=y and
+CONFIG_DYNAMIC_DEBUG=n then the definitions for
+DEFINE_DYNAMIC_DEBUG_METADATA() and DYNAMIC_DEBUG_BRANCH() are defined
+once in ib_srp.c and then again in the dynamic_debug.h. This had been
+working prior to the above referenced commit because dynamic_debug.h
+was only pulled into ib_srp.c conditinally via printk.h if
+CONFIG_DYNAMIC_DEBUG was set.
+
+Also, the exported functions in lib/dynamic_debug.c itself may
+not have a prototype if CONFIG_DYNAMIC_DEBUG=n and
+CONFIG_DYNAMIC_CORE=y. This would trigger the -Wmissing-prototypes
+warning.
+
+The exported functions are behind (include/linux/dynamic_debug.h):
+
+if defined(CONFIG_DYNAMIC_DEBUG) || \
+ (defined(CONFIG_DYNAMIC_DEBUG_CORE) && defined(DYNAMIC_DEBUG_MODULE))
+
+Thus, by adding -DDYNAMIC_CONFIG_MODULE to the lib/Makefile we
+can ensure that the exported functions have a prototype in all cases,
+since lib/dynamic_debug.c is built whenever
+CONFIG_DYNAMIC_DEBUG_CORE=y.
+
+Fixes: 7deabd674988 ("dyndbg: use the module notifier callbacks")
+Reported-by: kernel test robot <lkp@intel.com>
+Link: https://lore.kernel.org/oe-kbuild-all/202303071444.sIbZTDCy-lkp@intel.com/
+Signed-off-by: Jason Baron <jbaron@akamai.com>
+[mcgrof: adjust commit log, and remove urldefense from URL]
+Signed-off-by: Luis Chamberlain <mcgrof@kernel.org>
+---
+ drivers/infiniband/ulp/srp/ib_srp.c |  5 ----
+ include/linux/dynamic_debug.h       | 59 +++++++++++++++++++++++--------------
+ lib/Makefile                        |  3 ++
+ 3 files changed, 40 insertions(+), 27 deletions(-)
+
+diff --git a/drivers/infiniband/ulp/srp/ib_srp.c b/drivers/infiniband/ulp/srp/ib_srp.c
+index df21b30b77351..40ba2c6927c6e 100644
+--- a/drivers/infiniband/ulp/srp/ib_srp.c
++++ b/drivers/infiniband/ulp/srp/ib_srp.c
+@@ -62,11 +62,6 @@ MODULE_AUTHOR("Roland Dreier");
+ MODULE_DESCRIPTION("InfiniBand SCSI RDMA Protocol initiator");
+ MODULE_LICENSE("Dual BSD/GPL");
+ 
+-#if !defined(CONFIG_DYNAMIC_DEBUG)
+-#define DEFINE_DYNAMIC_DEBUG_METADATA(name, fmt)
+-#define DYNAMIC_DEBUG_BRANCH(descriptor) false
+-#endif
+-
+ static unsigned int srp_sg_tablesize;
+ static unsigned int cmd_sg_entries;
+ static unsigned int indirect_sg_entries;
+diff --git a/include/linux/dynamic_debug.h b/include/linux/dynamic_debug.h
+index f401414341fbe..061dd84d09f30 100644
+--- a/include/linux/dynamic_debug.h
++++ b/include/linux/dynamic_debug.h
+@@ -128,14 +128,16 @@ struct ddebug_class_param {
+ 	const struct ddebug_class_map *map;
+ };
+ 
+-#if defined(CONFIG_DYNAMIC_DEBUG_CORE)
++/*
++ * pr_debug() and friends are globally enabled or modules have selectively
++ * enabled them.
++ */
++#if defined(CONFIG_DYNAMIC_DEBUG) || \
++	(defined(CONFIG_DYNAMIC_DEBUG_CORE) && defined(DYNAMIC_DEBUG_MODULE))
+ 
+ extern __printf(2, 3)
+ void __dynamic_pr_debug(struct _ddebug *descriptor, const char *fmt, ...);
+ 
+-extern int ddebug_dyndbg_module_param_cb(char *param, char *val,
+-					const char *modname);
+-
+ struct device;
+ 
+ extern __printf(3, 4)
+@@ -284,10 +286,6 @@ void __dynamic_ibdev_dbg(struct _ddebug *descriptor,
+ 				   KERN_DEBUG, prefix_str, prefix_type,	\
+ 				   rowsize, groupsize, buf, len, ascii)
+ 
+-struct kernel_param;
+-int param_set_dyndbg_classes(const char *instr, const struct kernel_param *kp);
+-int param_get_dyndbg_classes(char *buffer, const struct kernel_param *kp);
+-
+ /* for test only, generally expect drm.debug style macro wrappers */
+ #define __pr_debug_cls(cls, fmt, ...) do {			\
+ 	BUILD_BUG_ON_MSG(!__builtin_constant_p(cls),		\
+@@ -295,23 +293,14 @@ int param_get_dyndbg_classes(char *buffer, const struct kernel_param *kp);
+ 	dynamic_pr_debug_cls(cls, fmt, ##__VA_ARGS__);		\
+ 	} while (0)
+ 
+-#else /* !CONFIG_DYNAMIC_DEBUG_CORE */
++#else /* !(CONFIG_DYNAMIC_DEBUG || (CONFIG_DYNAMIC_DEBUG_CORE && DYNAMIC_DEBUG_MODULE)) */
+ 
+ #include <linux/string.h>
+ #include <linux/errno.h>
+ #include <linux/printk.h>
+ 
+-static inline int ddebug_dyndbg_module_param_cb(char *param, char *val,
+-						const char *modname)
+-{
+-	if (!strcmp(param, "dyndbg")) {
+-		/* avoid pr_warn(), which wants pr_fmt() fully defined */
+-		printk(KERN_WARNING "dyndbg param is supported only in "
+-			"CONFIG_DYNAMIC_DEBUG builds\n");
+-		return 0; /* allow and ignore */
+-	}
+-	return -EINVAL;
+-}
++#define DEFINE_DYNAMIC_DEBUG_METADATA(name, fmt)
++#define DYNAMIC_DEBUG_BRANCH(descriptor) false
+ 
+ #define dynamic_pr_debug(fmt, ...)					\
+ 	do { if (0) printk(KERN_DEBUG pr_fmt(fmt), ##__VA_ARGS__); } while (0)
+@@ -324,14 +313,40 @@ static inline int ddebug_dyndbg_module_param_cb(char *param, char *val,
+ 				rowsize, groupsize, buf, len, ascii);	\
+ 	} while (0)
+ 
++#endif /* CONFIG_DYNAMIC_DEBUG || (CONFIG_DYNAMIC_DEBUG_CORE && DYNAMIC_DEBUG_MODULE) */
++
++
++#ifdef CONFIG_DYNAMIC_DEBUG_CORE
++
++extern int ddebug_dyndbg_module_param_cb(char *param, char *val,
++					const char *modname);
++struct kernel_param;
++int param_set_dyndbg_classes(const char *instr, const struct kernel_param *kp);
++int param_get_dyndbg_classes(char *buffer, const struct kernel_param *kp);
++
++#else
++
++static inline int ddebug_dyndbg_module_param_cb(char *param, char *val,
++						const char *modname)
++{
++	if (!strcmp(param, "dyndbg")) {
++		/* avoid pr_warn(), which wants pr_fmt() fully defined */
++		printk(KERN_WARNING "dyndbg param is supported only in "
++			"CONFIG_DYNAMIC_DEBUG builds\n");
++		return 0; /* allow and ignore */
++	}
++	return -EINVAL;
++}
++
+ struct kernel_param;
+ static inline int param_set_dyndbg_classes(const char *instr, const struct kernel_param *kp)
+ { return 0; }
+ static inline int param_get_dyndbg_classes(char *buffer, const struct kernel_param *kp)
+ { return 0; }
+ 
+-#endif /* !CONFIG_DYNAMIC_DEBUG_CORE */
++#endif
++
+ 
+ extern const struct kernel_param_ops param_ops_dyndbg_classes;
+ 
+-#endif
++#endif /* _DYNAMIC_DEBUG_H */
+diff --git a/lib/Makefile b/lib/Makefile
+index baf2821f7a00f..7afcd85f78f61 100644
+--- a/lib/Makefile
++++ b/lib/Makefile
+@@ -231,6 +231,9 @@ lib-$(CONFIG_GENERIC_BUG) += bug.o
+ obj-$(CONFIG_HAVE_ARCH_TRACEHOOK) += syscall.o
+ 
+ obj-$(CONFIG_DYNAMIC_DEBUG_CORE) += dynamic_debug.o
++#ensure exported functions have prototypes
++CFLAGS_dynamic_debug.o := -DDYNAMIC_DEBUG_MODULE
++
+ obj-$(CONFIG_SYMBOLIC_ERRNAME) += errname.o
+ 
+ obj-$(CONFIG_NLATTR) += nlattr.o
+-- 
+cgit 
+

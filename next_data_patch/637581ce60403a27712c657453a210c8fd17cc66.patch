@@ -1,0 +1,67 @@
+From 637581ce60403a27712c657453a210c8fd17cc66 Mon Sep 17 00:00:00 2001
+From: Cong Dang <cong.dang.xn@renesas.com>
+Date: Tue, 7 Feb 2023 18:30:51 +0100
+Subject: memory: renesas-rpc-if: Remove redundant division of dummy
+
+The dummy cycles value was wrongly calculated if dummy.buswidth > 1,
+which affects QSPI, OSPI, HyperFlash on various SoCs. We're lucky in
+Single SPI case since its dummy.buswidth equals to 1, so the result of
+the division is unchanged
+
+This issue can be reproduced using something like the following commands
+A. QSPI mode: Mount device with jffs2 format
+    jffs2: CLEANMARKER node found at 0x00000004, not first node in block (0x00000000)
+
+B. QSPI mode: Write data to mtd10, where mtd10 is a parition on SPI Flash
+storage, defined properly in a device tree
+
+[Correct fragment, read from SPI Flash]
+
+  root@v3x:~# echo "hello" > /dev/mtd10
+  root@v3x:~# hexdump -C -n100 /dev/mtd10
+  00000000  68 65 6c 6c 6f 0a ff ff  ff ff ff ff ff ff ff ff  |hello...........|
+  00000010  ff ff ff ff ff ff ff ff  ff ff ff ff ff ff ff ff  |................|
+
+[Incorrect read of the same fragment: see the difference at offsets 0-3]
+
+  root@v3x:~# echo "hello" > /dev/mtd10
+  root@v3x:~# hexdump -C -n100 /dev/mtd10
+  00000000  00 00 00 00 68 65 6c 6c  6f 0a ff ff ff ff ff ff  |....hello.......|
+  00000010  ff ff ff ff ff ff ff ff  ff ff ff ff ff ff ff ff  |................|
+
+As seen from the result, 4 NULL bytes were inserted before the test data.
+Wrong calculation in rpcif_prepare() led to miss of some dummy cycle. A
+division by bus width is redundant because it had been performed already
+in spi-rpc-if.c::rpcif_spi_mem_prepare()
+
+Fix this by removing the redundant division.
+
+Fixes: ca7d8b980b67 ("memory: add Renesas RPC-IF driver")
+Signed-off-by: Cong Dang <cong.dang.xn@renesas.com>
+Signed-off-by: Hai Pham <hai.pham.ud@renesas.com>
+Signed-off-by: Wolfram Sang <wsa+renesas@sang-engineering.com>
+Link: https://lore.kernel.org/r/20230112090655.43367-1-wsa+renesas@sang-engineering.com
+Signed-off-by: Krzysztof Kozlowski <krzysztof.kozlowski@linaro.org>
+Link: https://lore.kernel.org/r/20230207173051.449151-1-krzysztof.kozlowski@linaro.org
+Signed-off-by: Arnd Bergmann <arnd@arndb.de>
+---
+ drivers/memory/renesas-rpc-if.c | 3 +--
+ 1 file changed, 1 insertion(+), 2 deletions(-)
+
+diff --git a/drivers/memory/renesas-rpc-if.c b/drivers/memory/renesas-rpc-if.c
+index 62b06041d758c..025bb628aaf33 100644
+--- a/drivers/memory/renesas-rpc-if.c
++++ b/drivers/memory/renesas-rpc-if.c
+@@ -435,8 +435,7 @@ void rpcif_prepare(struct device *dev, const struct rpcif_op *op, u64 *offs,
+ 
+ 	if (op->dummy.buswidth) {
+ 		rpc->enable |= RPCIF_SMENR_DME;
+-		rpc->dummy = RPCIF_SMDMCR_DMCYC(op->dummy.ncycles /
+-						op->dummy.buswidth);
++		rpc->dummy = RPCIF_SMDMCR_DMCYC(op->dummy.ncycles);
+ 	}
+ 
+ 	if (op->option.buswidth) {
+-- 
+cgit 
+

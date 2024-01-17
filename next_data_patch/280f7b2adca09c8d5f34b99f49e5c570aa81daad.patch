@@ -1,0 +1,76 @@
+From 280f7b2adca09c8d5f34b99f49e5c570aa81daad Mon Sep 17 00:00:00 2001
+From: Jiri Pirko <jiri@nvidia.com>
+Date: Fri, 10 Feb 2023 11:01:30 +0100
+Subject: devlink: allow to call devl_param_driverinit_value_get() without
+ holding instance lock
+
+If the driver maintains following basic sane behavior, the
+devl_param_driverinit_value_get() function could be called without
+holding instance lock:
+
+1) Driver ensures a call to devl_param_driverinit_value_get() cannot
+   race with registering/unregistering the parameter with
+   the same parameter ID.
+2) Driver ensures a call to devl_param_driverinit_value_get() cannot
+   race with devl_param_driverinit_value_set() call with
+   the same parameter ID.
+3) Driver ensures a call to devl_param_driverinit_value_get() cannot
+   race with reload operation.
+
+By the nature of params usage, these requirements should be
+trivially achievable. If the driver for some off reason
+is not able to comply, it has to take the devlink->lock while
+calling devl_param_driverinit_value_get().
+
+Remove the lock assertion and add comment describing
+the locking requirements.
+
+This fixes a splat in mlx5 driver introduced by the commit
+referenced in the "Fixes" tag.
+
+Lore: https://lore.kernel.org/netdev/719de4f0-76ac-e8b9-38a9-167ae239efc7@amd.com/
+Reported-by: Kim Phillips <kim.phillips@amd.com>
+Fixes: 075935f0ae0f ("devlink: protect devlink param list by instance lock")
+Signed-off-by: Jiri Pirko <jiri@nvidia.com>
+Reviewed-by: Simon Horman <simon.horman@corigine.com>
+Acked-by: Jakub Kicinski <kuba@kernel.org>
+Reviewed-by: Jacob Keller <jacob.e.keller@intel.com>
+Tested-by: Kim Phillips <kim.phillips@amd.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ net/devlink/leftover.c | 13 +++++++++++--
+ 1 file changed, 11 insertions(+), 2 deletions(-)
+
+diff --git a/net/devlink/leftover.c b/net/devlink/leftover.c
+index c6f0eccc700aa..d4c896f899056 100644
+--- a/net/devlink/leftover.c
++++ b/net/devlink/leftover.c
+@@ -9627,14 +9627,23 @@ EXPORT_SYMBOL_GPL(devlink_params_unregister);
+  *
+  *	This function should be used by the driver to get driverinit
+  *	configuration for initialization after reload command.
++ *
++ *	Note that lockless call of this function relies on the
++ *	driver to maintain following basic sane behavior:
++ *	1) Driver ensures a call to this function cannot race with
++ *	   registering/unregistering the parameter with the same parameter ID.
++ *	2) Driver ensures a call to this function cannot race with
++ *	   devl_param_driverinit_value_set() call with the same parameter ID.
++ *	3) Driver ensures a call to this function cannot race with
++ *	   reload operation.
++ *	If the driver is not able to comply, it has to take the devlink->lock
++ *	while calling this.
+  */
+ int devl_param_driverinit_value_get(struct devlink *devlink, u32 param_id,
+ 				    union devlink_param_value *val)
+ {
+ 	struct devlink_param_item *param_item;
+ 
+-	lockdep_assert_held(&devlink->lock);
+-
+ 	if (WARN_ON(!devlink_reload_supported(devlink->ops)))
+ 		return -EOPNOTSUPP;
+ 
+-- 
+cgit 
+

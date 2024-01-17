@@ -1,0 +1,46 @@
+From 06be62083c5308c76a891ca975d66d832e2afc07 Mon Sep 17 00:00:00 2001
+From: Michael Walle <michael@walle.cc>
+Date: Fri, 10 Mar 2023 09:48:45 +0000
+Subject: nvmem: core: return -ENOENT if nvmem cell is not found
+
+Prior to commit 5d8e6e6c10a3 ("nvmem: core: add an index parameter to
+the cell") of_nvmem_cell_get() would return -ENOENT if the cell wasn't
+found. Particularly, if of_property_match_string() returned -EINVAL,
+that return code was passed as the index to of_parse_phandle(), which
+then detected it as invalid and returned NULL. That led to an return
+code of -ENOENT.
+
+With the new code, the negative index will lead to an -EINVAL of
+of_parse_phandle_with_optional_args() which pass straight to the
+caller and break those who expect an -ENOENT.
+
+Fix it by always returning -ENOENT.
+
+Fixes: 5d8e6e6c10a3 ("nvmem: core: add an index parameter to the cell")
+Reported-by: Alexander Stein <alexander.stein@ew.tq-group.com>
+Link: https://lore.kernel.org/r/2143916.GUh0CODmnK@steina-w/
+Signed-off-by: Michael Walle <michael@walle.cc>
+Tested-by: Alexander Stein <alexander.stein@ew.tq-group.com>
+Signed-off-by: Srinivas Kandagatla <srinivas.kandagatla@linaro.org>
+Link: https://lore.kernel.org/r/20230310094845.139400-1-srinivas.kandagatla@linaro.org
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+---
+ drivers/nvmem/core.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/nvmem/core.c b/drivers/nvmem/core.c
+index 174ef3574e07f..22024b830788f 100644
+--- a/drivers/nvmem/core.c
++++ b/drivers/nvmem/core.c
+@@ -1231,7 +1231,7 @@ struct nvmem_cell *of_nvmem_cell_get(struct device_node *np, const char *id)
+ 						  "#nvmem-cell-cells",
+ 						  index, &cell_spec);
+ 	if (ret)
+-		return ERR_PTR(ret);
++		return ERR_PTR(-ENOENT);
+ 
+ 	if (cell_spec.args_count > 1)
+ 		return ERR_PTR(-EINVAL);
+-- 
+cgit 
+

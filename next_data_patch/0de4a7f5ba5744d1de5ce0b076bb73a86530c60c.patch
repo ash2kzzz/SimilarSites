@@ -1,0 +1,37 @@
+From 0de4a7f5ba5744d1de5ce0b076bb73a86530c60c Mon Sep 17 00:00:00 2001
+From: Andrey Konovalov <andreyknvl@google.com>
+Date: Wed, 4 Jan 2023 02:09:33 +0100
+Subject: kasan: mark kasan_kunit_executing as static
+
+Mark kasan_kunit_executing as static, as it is only used within
+mm/kasan/report.c.
+
+Link: https://lkml.kernel.org/r/f64778a4683b16a73bba72576f73bf4a2b45a82f.1672794398.git.andreyknvl@google.com
+Fixes: c8c7016f50c8 ("kasan: fail non-kasan KUnit tests on KASAN reports")
+Reported-by: kernel test robot <lkp@intel.com>
+Signed-off-by: Andrey Konovalov <andreyknvl@google.com>
+Reviewed-by: Marco Elver <elver@google.com>
+Cc: Alexander Potapenko <glider@google.com>
+Cc: Andrey Ryabinin <ryabinin.a.a@gmail.com>
+Cc: Dmitry Vyukov <dvyukov@google.com>
+Signed-off-by: Andrew Morton <akpm@linux-foundation.org>
+---
+ mm/kasan/report.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/mm/kasan/report.c b/mm/kasan/report.c
+index 1d02757e90a32..22598b20c7b75 100644
+--- a/mm/kasan/report.c
++++ b/mm/kasan/report.c
+@@ -119,7 +119,7 @@ EXPORT_SYMBOL_GPL(kasan_restore_multi_shot);
+  * Whether the KASAN KUnit test suite is currently being executed.
+  * Updated in kasan_test.c.
+  */
+-bool kasan_kunit_executing;
++static bool kasan_kunit_executing;
+ 
+ void kasan_kunit_test_suite_start(void)
+ {
+-- 
+cgit 
+

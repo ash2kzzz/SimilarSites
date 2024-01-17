@@ -1,0 +1,37 @@
+From 216646e4d82e847791f0ba66c439dedd36cb119f Mon Sep 17 00:00:00 2001
+From: Wei Yongjun <weiyongjun1@huawei.com>
+Date: Thu, 27 Apr 2017 15:21:13 +0000
+Subject: irqchip/mbigen: Fix return value check in mbigen_device_probe()
+
+In case of error, the function devm_ioremap() returns NULL pointer
+not ERR_PTR(). Use devm_ioremap_resource() instead of devm_ioremap()
+to fix the IS_ERR() test issue.
+
+Fixes: 76e1f77f9c26 ("irqchip/mbigen: Introduce mbigen_of_create_domain()")
+Signed-off-by: Wei Yongjun <weiyongjun1@huawei.com>
+Cc: Marc Zyngier <marc.zyngier@arm.com>
+Cc: Kefeng Wang <wangkefeng.wang@huawei.com>
+Cc: Jason Cooper <jason@lakedaemon.net>
+Link: http://lkml.kernel.org/r/20170427152113.31147-1-weiyj.lk@gmail.com
+Signed-off-by: Thomas Gleixner <tglx@linutronix.de>
+---
+ drivers/irqchip/irq-mbigen.c | 3 +--
+ 1 file changed, 1 insertion(+), 2 deletions(-)
+
+diff --git a/drivers/irqchip/irq-mbigen.c b/drivers/irqchip/irq-mbigen.c
+index 061cdb8bde8b5..d2306c821ebb5 100644
+--- a/drivers/irqchip/irq-mbigen.c
++++ b/drivers/irqchip/irq-mbigen.c
+@@ -337,8 +337,7 @@ static int mbigen_device_probe(struct platform_device *pdev)
+ 	mgn_chip->pdev = pdev;
+ 
+ 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+-	mgn_chip->base = devm_ioremap(&pdev->dev, res->start,
+-				      resource_size(res));
++	mgn_chip->base = devm_ioremap_resource(&pdev->dev, res);
+ 	if (IS_ERR(mgn_chip->base))
+ 		return PTR_ERR(mgn_chip->base);
+ 
+-- 
+cgit 
+

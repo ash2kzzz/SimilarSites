@@ -1,0 +1,49 @@
+From 5ef0ae84f02a4dbe0e09f89c6481ac13649cb19b Mon Sep 17 00:00:00 2001
+From: Joe Stringer <joe@wand.net.nz>
+Date: Mon, 15 Oct 2018 10:27:46 -0700
+Subject: bpf: Fix IPv6 dport byte-order in bpf_sk_lookup
+
+Commit 6acc9b432e67 ("bpf: Add helper to retrieve socket in BPF")
+mistakenly passed the destination port in network byte-order to the IPv6
+TCP/UDP socket lookup functions, which meant that BPF writers would need
+to either manually swap the byte-order of this field or otherwise IPv6
+sockets could not be located via this helper.
+
+Fix the issue by swapping the byte-order appropriately in the helper.
+This also makes the API more consistent with the IPv4 version.
+
+Fixes: 6acc9b432e67 ("bpf: Add helper to retrieve socket in BPF")
+Signed-off-by: Joe Stringer <joe@wand.net.nz>
+Signed-off-by: Alexei Starovoitov <ast@kernel.org>
+---
+ net/core/filter.c | 5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/net/core/filter.c b/net/core/filter.c
+index f76ba31a8cc78..2e1476536b926 100644
+--- a/net/core/filter.c
++++ b/net/core/filter.c
+@@ -4721,17 +4721,18 @@ static struct sock *sk_lookup(struct net *net, struct bpf_sock_tuple *tuple,
+ 	} else {
+ 		struct in6_addr *src6 = (struct in6_addr *)&tuple->ipv6.saddr;
+ 		struct in6_addr *dst6 = (struct in6_addr *)&tuple->ipv6.daddr;
++		u16 hnum = ntohs(tuple->ipv6.dport);
+ 		int sdif = inet6_sdif(skb);
+ 
+ 		if (proto == IPPROTO_TCP)
+ 			sk = __inet6_lookup(net, &tcp_hashinfo, skb, 0,
+ 					    src6, tuple->ipv6.sport,
+-					    dst6, tuple->ipv6.dport,
++					    dst6, hnum,
+ 					    dif, sdif, &refcounted);
+ 		else if (likely(ipv6_bpf_stub))
+ 			sk = ipv6_bpf_stub->udp6_lib_lookup(net,
+ 							    src6, tuple->ipv6.sport,
+-							    dst6, tuple->ipv6.dport,
++							    dst6, hnum,
+ 							    dif, sdif,
+ 							    &udp_table, skb);
+ #endif
+-- 
+cgit 
+

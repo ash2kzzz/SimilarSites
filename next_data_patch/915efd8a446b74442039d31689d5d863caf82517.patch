@@ -1,0 +1,158 @@
+From 915efd8a446b74442039d31689d5d863caf82517 Mon Sep 17 00:00:00 2001
+From: Jesper Dangaard Brouer <brouer@redhat.com>
+Date: Tue, 21 Mar 2023 14:52:31 +0100
+Subject: xdp: bpf_xdp_metadata use EOPNOTSUPP for no driver support
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+When driver doesn't implement a bpf_xdp_metadata kfunc the fallback
+implementation returns EOPNOTSUPP, which indicate device driver doesn't
+implement this kfunc.
+
+Currently many drivers also return EOPNOTSUPP when the hint isn't
+available, which is ambiguous from an API point of view. Instead
+change drivers to return ENODATA in these cases.
+
+There can be natural cases why a driver doesn't provide any hardware
+info for a specific hint, even on a frame to frame basis (e.g. PTP).
+Lets keep these cases as separate return codes.
+
+When describing the return values, adjust the function kernel-doc layout
+to get proper rendering for the return values.
+
+Fixes: ab46182d0dcb ("net/mlx4_en: Support RX XDP metadata")
+Fixes: bc8d405b1ba9 ("net/mlx5e: Support RX XDP metadata")
+Fixes: 306531f0249f ("veth: Support RX XDP metadata")
+Fixes: 3d76a4d3d4e5 ("bpf: XDP metadata RX kfuncs")
+Signed-off-by: Jesper Dangaard Brouer <brouer@redhat.com>
+Acked-by: Stanislav Fomichev <sdf@google.com>
+Acked-by: Toke Høiland-Jørgensen <toke@redhat.com>
+Acked-by: Tariq Toukan <tariqt@nvidia.com>
+Link: https://lore.kernel.org/r/167940675120.2718408.8176058626864184420.stgit@firesoul
+Signed-off-by: Alexei Starovoitov <ast@kernel.org>
+---
+ Documentation/networking/xdp-rx-metadata.rst     |  7 +++++--
+ drivers/net/ethernet/mellanox/mlx4/en_rx.c       |  4 ++--
+ drivers/net/ethernet/mellanox/mlx5/core/en/xdp.c |  4 ++--
+ drivers/net/veth.c                               |  4 ++--
+ net/core/xdp.c                                   | 10 ++++++++--
+ 5 files changed, 19 insertions(+), 10 deletions(-)
+
+diff --git a/Documentation/networking/xdp-rx-metadata.rst b/Documentation/networking/xdp-rx-metadata.rst
+index aac63fc2d08bd..25ce72af81c21 100644
+--- a/Documentation/networking/xdp-rx-metadata.rst
++++ b/Documentation/networking/xdp-rx-metadata.rst
+@@ -23,10 +23,13 @@ metadata is supported, this set will grow:
+ An XDP program can use these kfuncs to read the metadata into stack
+ variables for its own consumption. Or, to pass the metadata on to other
+ consumers, an XDP program can store it into the metadata area carried
+-ahead of the packet.
++ahead of the packet. Not all packets will necessary have the requested
++metadata available in which case the driver returns ``-ENODATA``.
+ 
+ Not all kfuncs have to be implemented by the device driver; when not
+-implemented, the default ones that return ``-EOPNOTSUPP`` will be used.
++implemented, the default ones that return ``-EOPNOTSUPP`` will be used
++to indicate the device driver have not implemented this kfunc.
++
+ 
+ Within an XDP frame, the metadata layout (accessed via ``xdp_buff``) is
+ as follows::
+diff --git a/drivers/net/ethernet/mellanox/mlx4/en_rx.c b/drivers/net/ethernet/mellanox/mlx4/en_rx.c
+index 0869d4fff17b1..4b5e459b6d49f 100644
+--- a/drivers/net/ethernet/mellanox/mlx4/en_rx.c
++++ b/drivers/net/ethernet/mellanox/mlx4/en_rx.c
+@@ -674,7 +674,7 @@ int mlx4_en_xdp_rx_timestamp(const struct xdp_md *ctx, u64 *timestamp)
+ 	struct mlx4_en_xdp_buff *_ctx = (void *)ctx;
+ 
+ 	if (unlikely(_ctx->ring->hwtstamp_rx_filter != HWTSTAMP_FILTER_ALL))
+-		return -EOPNOTSUPP;
++		return -ENODATA;
+ 
+ 	*timestamp = mlx4_en_get_hwtstamp(_ctx->mdev,
+ 					  mlx4_en_get_cqe_ts(_ctx->cqe));
+@@ -686,7 +686,7 @@ int mlx4_en_xdp_rx_hash(const struct xdp_md *ctx, u32 *hash)
+ 	struct mlx4_en_xdp_buff *_ctx = (void *)ctx;
+ 
+ 	if (unlikely(!(_ctx->dev->features & NETIF_F_RXHASH)))
+-		return -EOPNOTSUPP;
++		return -ENODATA;
+ 
+ 	*hash = be32_to_cpu(_ctx->cqe->immed_rss_invalid);
+ 	return 0;
+diff --git a/drivers/net/ethernet/mellanox/mlx5/core/en/xdp.c b/drivers/net/ethernet/mellanox/mlx5/core/en/xdp.c
+index bcd6370de440f..c5dae48b7932f 100644
+--- a/drivers/net/ethernet/mellanox/mlx5/core/en/xdp.c
++++ b/drivers/net/ethernet/mellanox/mlx5/core/en/xdp.c
+@@ -162,7 +162,7 @@ static int mlx5e_xdp_rx_timestamp(const struct xdp_md *ctx, u64 *timestamp)
+ 	const struct mlx5e_xdp_buff *_ctx = (void *)ctx;
+ 
+ 	if (unlikely(!mlx5e_rx_hw_stamp(_ctx->rq->tstamp)))
+-		return -EOPNOTSUPP;
++		return -ENODATA;
+ 
+ 	*timestamp =  mlx5e_cqe_ts_to_ns(_ctx->rq->ptp_cyc2time,
+ 					 _ctx->rq->clock, get_cqe_ts(_ctx->cqe));
+@@ -174,7 +174,7 @@ static int mlx5e_xdp_rx_hash(const struct xdp_md *ctx, u32 *hash)
+ 	const struct mlx5e_xdp_buff *_ctx = (void *)ctx;
+ 
+ 	if (unlikely(!(_ctx->xdp.rxq->dev->features & NETIF_F_RXHASH)))
+-		return -EOPNOTSUPP;
++		return -ENODATA;
+ 
+ 	*hash = be32_to_cpu(_ctx->cqe->rss_hash_result);
+ 	return 0;
+diff --git a/drivers/net/veth.c b/drivers/net/veth.c
+index 1bb54de7124d9..046461ee42ead 100644
+--- a/drivers/net/veth.c
++++ b/drivers/net/veth.c
+@@ -1610,7 +1610,7 @@ static int veth_xdp_rx_timestamp(const struct xdp_md *ctx, u64 *timestamp)
+ 	struct veth_xdp_buff *_ctx = (void *)ctx;
+ 
+ 	if (!_ctx->skb)
+-		return -EOPNOTSUPP;
++		return -ENODATA;
+ 
+ 	*timestamp = skb_hwtstamps(_ctx->skb)->hwtstamp;
+ 	return 0;
+@@ -1621,7 +1621,7 @@ static int veth_xdp_rx_hash(const struct xdp_md *ctx, u32 *hash)
+ 	struct veth_xdp_buff *_ctx = (void *)ctx;
+ 
+ 	if (!_ctx->skb)
+-		return -EOPNOTSUPP;
++		return -ENODATA;
+ 
+ 	*hash = skb_get_hash(_ctx->skb);
+ 	return 0;
+diff --git a/net/core/xdp.c b/net/core/xdp.c
+index 8c92fc5533177..247797168579c 100644
+--- a/net/core/xdp.c
++++ b/net/core/xdp.c
+@@ -720,7 +720,10 @@ __diag_ignore_all("-Wmissing-prototypes",
+  * @ctx: XDP context pointer.
+  * @timestamp: Return value pointer.
+  *
+- * Returns 0 on success or ``-errno`` on error.
++ * Return:
++ * * Returns 0 on success or ``-errno`` on error.
++ * * ``-EOPNOTSUPP`` : means device driver does not implement kfunc
++ * * ``-ENODATA``    : means no RX-timestamp available for this frame
+  */
+ __bpf_kfunc int bpf_xdp_metadata_rx_timestamp(const struct xdp_md *ctx, u64 *timestamp)
+ {
+@@ -732,7 +735,10 @@ __bpf_kfunc int bpf_xdp_metadata_rx_timestamp(const struct xdp_md *ctx, u64 *tim
+  * @ctx: XDP context pointer.
+  * @hash: Return value pointer.
+  *
+- * Returns 0 on success or ``-errno`` on error.
++ * Return:
++ * * Returns 0 on success or ``-errno`` on error.
++ * * ``-EOPNOTSUPP`` : means device driver doesn't implement kfunc
++ * * ``-ENODATA``    : means no RX-hash available for this frame
+  */
+ __bpf_kfunc int bpf_xdp_metadata_rx_hash(const struct xdp_md *ctx, u32 *hash)
+ {
+-- 
+cgit 
+

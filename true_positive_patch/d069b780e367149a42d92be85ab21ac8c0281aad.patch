@@ -1,0 +1,64 @@
+From d069b780e367149a42d92be85ab21ac8c0281aad Mon Sep 17 00:00:00 2001
+From: Boris Pismenny <borisp@mellanox.com>
+Date: Wed, 27 Feb 2019 17:38:06 +0200
+Subject: tls: Fix tls_device receive
+
+Currently, the receive function fails to handle records already
+decrypted by the device due to the commit mentioned below.
+
+This commit advances the TLS record sequence number and prepares the context
+to handle the next record.
+
+Fixes: fedf201e1296 ("net: tls: Refactor control message handling on recv")
+Signed-off-by: Boris Pismenny <borisp@mellanox.com>
+Reviewed-by: Eran Ben Elisha <eranbe@mellanox.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ net/tls/tls_sw.c | 25 ++++++++++++++-----------
+ 1 file changed, 14 insertions(+), 11 deletions(-)
+
+diff --git a/net/tls/tls_sw.c b/net/tls/tls_sw.c
+index 68cd026fa57cd..425351ac2a9b1 100644
+--- a/net/tls/tls_sw.c
++++ b/net/tls/tls_sw.c
+@@ -1467,23 +1467,26 @@ static int decrypt_skb_update(struct sock *sk, struct sk_buff *skb,
+ 	struct strp_msg *rxm = strp_msg(skb);
+ 	int err = 0;
+ 
++	if (!ctx->decrypted) {
+ #ifdef CONFIG_TLS_DEVICE
+-	err = tls_device_decrypted(sk, skb);
+-	if (err < 0)
+-		return err;
++		err = tls_device_decrypted(sk, skb);
++		if (err < 0)
++			return err;
+ #endif
+-	if (!ctx->decrypted) {
+-		err = decrypt_internal(sk, skb, dest, NULL, chunk, zc, async);
+-		if (err < 0) {
+-			if (err == -EINPROGRESS)
+-				tls_advance_record_sn(sk, &tls_ctx->rx,
+-						      version);
++		/* Still not decrypted after tls_device */
++		if (!ctx->decrypted) {
++			err = decrypt_internal(sk, skb, dest, NULL, chunk, zc,
++					       async);
++			if (err < 0) {
++				if (err == -EINPROGRESS)
++					tls_advance_record_sn(sk, &tls_ctx->rx,
++							      version);
+ 
+-			return err;
++				return err;
++			}
+ 		}
+ 
+ 		rxm->full_len -= padding_length(ctx, tls_ctx, skb);
+-
+ 		rxm->offset += prot->prepend_size;
+ 		rxm->full_len -= prot->overhead_size;
+ 		tls_advance_record_sn(sk, &tls_ctx->rx, version);
+-- 
+cgit 
+

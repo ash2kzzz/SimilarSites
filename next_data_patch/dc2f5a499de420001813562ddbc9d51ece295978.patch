@@ -1,0 +1,110 @@
+From dc2f5a499de420001813562ddbc9d51ece295978 Mon Sep 17 00:00:00 2001
+From: Bagas Sanjaya <bagasdotme@gmail.com>
+Date: Fri, 30 Dec 2022 20:50:30 +0700
+Subject: soc: qcom: dcc: Fix examples list on
+ /sys/kernel/debug/dcc/.../[list-number]/config documentation
+
+kernel test robot reported htmldocs warnings:
+
+Documentation/ABI/testing/debugfs-driver-dcc:34: WARNING: Unexpected indentation.
+Documentation/ABI/testing/debugfs-driver-dcc:34: WARNING: Block quote ends without a blank line; unexpected unindent.
+
+Fix these by fixing numbered list syntax on description of
+/sys/kernel/debug/dcc/.../[list-number]/config, including adding blank line
+separators as appropriate.
+
+Link: https://lore.kernel.org/linux-doc/202212300426.eMLsZsvA-lkp@intel.com/
+Fixes: 4cbe60cf5ad622 ("soc: qcom: dcc: Add driver support for Data Capture and Compare unit(DCC)")
+Reported-by: kernel test robot <lkp@intel.com>
+Signed-off-by: Bagas Sanjaya <bagasdotme@gmail.com>
+Acked-by: Souradeep Chowdhury <quic_schowdhu@quicinc.com>
+Signed-off-by: Bjorn Andersson <andersson@kernel.org>
+Link: https://lore.kernel.org/r/20221230135030.17002-2-bagasdotme@gmail.com
+---
+ Documentation/ABI/testing/debugfs-driver-dcc | 63 ++++++++++++++++++----------
+ 1 file changed, 41 insertions(+), 22 deletions(-)
+
+diff --git a/Documentation/ABI/testing/debugfs-driver-dcc b/Documentation/ABI/testing/debugfs-driver-dcc
+index a468095020593..a00f4502885b5 100644
+--- a/Documentation/ABI/testing/debugfs-driver-dcc
++++ b/Documentation/ABI/testing/debugfs-driver-dcc
+@@ -44,35 +44,54 @@ Description:
+ 		example user can jump to list x only after list y is
+ 		configured and enabled. The format for entering all
+ 		types of instructions are explained in examples as
+-		follows.
+-		Example:
+-	         i)Read Type Instruction
++		follows:
++
++	        i) Read Type Instruction
++
+ 		   echo R <1> <2> <3> >/sys/kernel/debug/dcc/../[list-number]/config
++
+ 		   1->Address to be considered for reading the value.
++
+ 		   2->The word count of the addresses, read n words
+ 		      starting from address <1>. Each word is of 32 bits.
+ 		      If not entered 1 is considered.
++
+ 		   3->Can be 'apb' or 'ahb' which indicates if it is apb or ahb
+ 		      bus respectively. If not entered ahb is considered.
+-		ii)Write Type Instruction
+-		   echo W <1> <2> <3> > /sys/kernel/debug/dcc/../[list-number]/config
+-		   1->Address to be considered for writing the value.
+-		   2->The value that needs to be written at the location.
+-		   3->Can be a 'apb' or 'ahb' which indicates if it is apb or ahb
+-		      but respectively.
+-	       iii)Read Modify Write type instruction
+-		   echo RW <1> <2> <3> > /sys/kernel/debug/dcc/../[list-number]/config
+-		   1->The address which needs to be considered for read then write.
+-		   2->The value that needs to be written on the address.
+-		   3->The mask of the value to be written.
+-		iv)Loop Type Instruction
+-		   echo L <1> <2> <3> > /sys/kernel/debug/dcc/../[list-number]/config
+-		   1->The loop count, the number of times the value of the addresses will be
+-		      captured.
+-		   2->The address count, total number of addresses to be entered in this
+-		      instruction.
+-		   3->The series of addresses to be entered separated by a space like <addr1>
+-		      <addr2>... and so on.
++
++		ii) Write Type Instruction
++
++		    echo W <1> <2> <3> > /sys/kernel/debug/dcc/../[list-number]/config
++
++		    1->Address to be considered for writing the value.
++
++		    2->The value that needs to be written at the location.
++
++		    3->Can be a 'apb' or 'ahb' which indicates if it is apb or ahb
++		       but respectively.
++
++	        iii) Read Modify Write type instruction
++
++		     echo RW <1> <2> <3> > /sys/kernel/debug/dcc/../[list-number]/config
++
++		     1->The address which needs to be considered for read then write.
++
++		     2->The value that needs to be written on the address.
++
++		     3->The mask of the value to be written.
++
++		iv) Loop Type Instruction
++
++		    echo L <1> <2> <3> > /sys/kernel/debug/dcc/../[list-number]/config
++
++		    1->The loop count, the number of times the value of the addresses will be
++		       captured.
++
++		    2->The address count, total number of addresses to be entered in this
++		       instruction.
++
++		    3->The series of addresses to be entered separated by a space like <addr1>
++		       <addr2>... and so on.
+ 
+ What:           /sys/kernel/debug/dcc/.../[list-number]/enable
+ Date:           December 2022
+-- 
+cgit 
+

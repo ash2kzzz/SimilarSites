@@ -1,0 +1,36 @@
+From a1904fa4dfc929e5ea36bd409cf0d800df56fb8b Mon Sep 17 00:00:00 2001
+From: Maxime Ripard <maxime@cerno.tech>
+Date: Mon, 2 Jan 2023 12:52:55 +0100
+Subject: firmware: raspberrypi: Fix type assignment
+
+We silently cast an unsigned int into a __le32 which makes sparse
+complain. Moreover, we never actually convert endianness between the
+CPU's and the expected little-endian value. Fix both at once by calling
+cpu_to_le32().
+
+Fixes: 40c31955e4e9 ("firmware: raspberrypi: Provide a helper to query a clock max rate")
+Reported-by: kernel test robot <lkp@intel.com>
+Link: https://lore.kernel.org/r/20221116091712.1309651-3-maxime@cerno.tech
+Signed-off-by: Maxime Ripard <maxime@cerno.tech>
+Link: https://lore.kernel.org/r/20230102115255.17802-1-maxime@cerno.tech
+Signed-off-by: Florian Fainelli <f.fainelli@gmail.com>
+---
+ include/soc/bcm2835/raspberrypi-firmware.h | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/include/soc/bcm2835/raspberrypi-firmware.h b/include/soc/bcm2835/raspberrypi-firmware.h
+index ab955591cb72c..73cac8d0287e8 100644
+--- a/include/soc/bcm2835/raspberrypi-firmware.h
++++ b/include/soc/bcm2835/raspberrypi-firmware.h
+@@ -170,7 +170,7 @@ struct rpi_firmware_clk_rate_request {
+ 
+ #define RPI_FIRMWARE_CLK_RATE_REQUEST(_id)	\
+ 	{					\
+-		.id = _id,			\
++		.id = cpu_to_le32(_id),		\
+ 	}
+ 
+ #if IS_ENABLED(CONFIG_RASPBERRYPI_FIRMWARE)
+-- 
+cgit 
+

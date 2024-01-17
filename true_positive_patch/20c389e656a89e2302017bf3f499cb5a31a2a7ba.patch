@@ -1,0 +1,37 @@
+From 20c389e656a89e2302017bf3f499cb5a31a2a7ba Mon Sep 17 00:00:00 2001
+From: Xing Zheng <zhengxing@rock-chips.com>
+Date: Tue, 2 Aug 2016 15:19:58 +0800
+Subject: clk: rockchip: fix incorrect aclk_emmc source gate bits on rk3399
+
+Dues to incorrect diagram, we need to fix incorrect bits for
+(c/g)pll_aclk_emmc_src:
+cpll_aclk_emmc_src --> G6[13]
+gpll_aclk_emmc_src --> G6[12]
+
+Fixes: 115510053e5e ("clk: rockchip: add clock controller for the RK3399")
+Signed-off-by: Xing Zheng <zhengxing@rock-chips.com>
+Reviewed-by: Shawn Lin <shawn.lin@rock-chips.com>
+Signed-off-by: Heiko Stuebner <heiko@sntech.de>
+---
+ drivers/clk/rockchip/clk-rk3399.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/clk/rockchip/clk-rk3399.c b/drivers/clk/rockchip/clk-rk3399.c
+index 314eab67bc0f4..01fa60ebd6d4b 100644
+--- a/drivers/clk/rockchip/clk-rk3399.c
++++ b/drivers/clk/rockchip/clk-rk3399.c
+@@ -923,9 +923,9 @@ static struct rockchip_clk_branch rk3399_clk_branches[] __initdata = {
+ 			RK3399_CLKGATE_CON(6), 14, GFLAGS),
+ 
+ 	GATE(0, "cpll_aclk_emmc_src", "cpll", CLK_IGNORE_UNUSED,
+-			RK3399_CLKGATE_CON(6), 12, GFLAGS),
+-	GATE(0, "gpll_aclk_emmc_src", "gpll", CLK_IGNORE_UNUSED,
+ 			RK3399_CLKGATE_CON(6), 13, GFLAGS),
++	GATE(0, "gpll_aclk_emmc_src", "gpll", CLK_IGNORE_UNUSED,
++			RK3399_CLKGATE_CON(6), 12, GFLAGS),
+ 	COMPOSITE_NOGATE(ACLK_EMMC, "aclk_emmc", mux_aclk_emmc_p, CLK_IGNORE_UNUSED,
+ 			RK3399_CLKSEL_CON(21), 7, 1, MFLAGS, 0, 5, DFLAGS),
+ 	GATE(ACLK_EMMC_CORE, "aclk_emmccore", "aclk_emmc", CLK_IGNORE_UNUSED,
+-- 
+cgit 
+

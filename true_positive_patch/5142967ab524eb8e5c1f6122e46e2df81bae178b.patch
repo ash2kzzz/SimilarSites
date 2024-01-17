@@ -1,0 +1,40 @@
+From 5142967ab524eb8e5c1f6122e46e2df81bae178b Mon Sep 17 00:00:00 2001
+From: Pablo Neira Ayuso <pablo@netfilter.org>
+Date: Fri, 24 May 2019 22:26:34 +0200
+Subject: netfilter: nf_tables: fix module autoload with inet family
+
+Use MODULE_ALIAS_NFT_EXPR() to make happy the inet family with nat.
+
+Fixes: 63ce3940f3ab ("netfilter: nft_redir: add inet support")
+Fixes: 071657d2c38c ("netfilter: nft_masq: add inet support")
+Signed-off-by: Pablo Neira Ayuso <pablo@netfilter.org>
+---
+ net/netfilter/nft_masq.c  | 3 +--
+ net/netfilter/nft_redir.c | 3 +--
+ 2 files changed, 2 insertions(+), 4 deletions(-)
+
+diff --git a/net/netfilter/nft_masq.c b/net/netfilter/nft_masq.c
+index 86fd90085eafa..8c1612d6bc2c1 100644
+--- a/net/netfilter/nft_masq.c
++++ b/net/netfilter/nft_masq.c
+@@ -307,5 +307,4 @@ module_exit(nft_masq_module_exit);
+ 
+ MODULE_LICENSE("GPL");
+ MODULE_AUTHOR("Arturo Borrero Gonzalez <arturo@debian.org>");
+-MODULE_ALIAS_NFT_AF_EXPR(AF_INET6, "masq");
+-MODULE_ALIAS_NFT_AF_EXPR(AF_INET, "masq");
++MODULE_ALIAS_NFT_EXPR("masq");
+diff --git a/net/netfilter/nft_redir.c b/net/netfilter/nft_redir.c
+index da74fdc4a6844..8787e9f8ed71a 100644
+--- a/net/netfilter/nft_redir.c
++++ b/net/netfilter/nft_redir.c
+@@ -294,5 +294,4 @@ module_exit(nft_redir_module_exit);
+ 
+ MODULE_LICENSE("GPL");
+ MODULE_AUTHOR("Arturo Borrero Gonzalez <arturo@debian.org>");
+-MODULE_ALIAS_NFT_AF_EXPR(AF_INET, "redir");
+-MODULE_ALIAS_NFT_AF_EXPR(AF_INET6, "redir");
++MODULE_ALIAS_NFT_EXPR("nat");
+-- 
+cgit 
+

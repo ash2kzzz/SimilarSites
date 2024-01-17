@@ -1,0 +1,35 @@
+From cd649ac4059bd7221e5a1c1370db749c1c9d82f8 Mon Sep 17 00:00:00 2001
+From: Johan Hovold <johan+linaro@kernel.org>
+Date: Mon, 23 Jan 2023 11:16:07 +0100
+Subject: arm64: dts: qcom: sm8550: fix USB-DP PHY resets
+
+The USB-DP PHY resets have been switched.
+
+Fixes: 7f7e5c1b037f ("arm64: dts: qcom: sm8550: Add USB PHYs and controller nodes")
+Signed-off-by: Johan Hovold <johan+linaro@kernel.org>
+Reviewed-by: Abel Vesa <abel.vesa@linaro.org>
+Reviewed-by: Konrad Dybcio <konrad.dybcio@linaro.org>
+Signed-off-by: Bjorn Andersson <andersson@kernel.org>
+Link: https://lore.kernel.org/r/20230123101607.2413-1-johan+linaro@kernel.org
+---
+ arch/arm64/boot/dts/qcom/sm8550.dtsi | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/arch/arm64/boot/dts/qcom/sm8550.dtsi b/arch/arm64/boot/dts/qcom/sm8550.dtsi
+index 1dea055a6815a..06c8f5918f69a 100644
+--- a/arch/arm64/boot/dts/qcom/sm8550.dtsi
++++ b/arch/arm64/boot/dts/qcom/sm8550.dtsi
+@@ -2410,8 +2410,8 @@
+ 
+ 			power-domains = <&gcc USB3_PHY_GDSC>;
+ 
+-			resets = <&gcc GCC_USB3_DP_PHY_PRIM_BCR>,
+-				 <&gcc GCC_USB3_PHY_PRIM_BCR>;
++			resets = <&gcc GCC_USB3_PHY_PRIM_BCR>,
++				 <&gcc GCC_USB3_DP_PHY_PRIM_BCR>;
+ 			reset-names = "phy", "common";
+ 
+ 			#clock-cells = <1>;
+-- 
+cgit 
+

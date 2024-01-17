@@ -1,0 +1,36 @@
+From 6e9d51b1a5cb8d750c3daf89db4f4cdfd1051819 Mon Sep 17 00:00:00 2001
+From: Roy Novich <royno@nvidia.com>
+Date: Wed, 1 Mar 2023 15:47:11 +0200
+Subject: net/mlx5e: Initialize link speed to zero
+
+mlx5e_port_max_linkspeed does not guarantee value assignment for speed.
+Avoid cases where link_speed might be used uninitialized. In case
+mlx5e_port_max_linkspeed fails, a default link speed of 50000 will be
+used for the calculations.
+
+Fixes: 3f6d08d196b2 ("net/mlx5e: Add RSS support for hairpin")
+Signed-off-by: Roy Novich <royno@nvidia.com>
+Reviewed-by: Tariq Toukan <tariqt@nvidia.com>
+Reviewed-by: Aya Levin <ayal@nvidia.com>
+Signed-off-by: Saeed Mahameed <saeedm@nvidia.com>
+---
+ drivers/net/ethernet/mellanox/mlx5/core/en_tc.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/net/ethernet/mellanox/mlx5/core/en_tc.c b/drivers/net/ethernet/mellanox/mlx5/core/en_tc.c
+index 6bfed633343ab..87a2850b32d09 100644
+--- a/drivers/net/ethernet/mellanox/mlx5/core/en_tc.c
++++ b/drivers/net/ethernet/mellanox/mlx5/core/en_tc.c
+@@ -1103,8 +1103,8 @@ static void
+ mlx5e_hairpin_params_init(struct mlx5e_hairpin_params *hairpin_params,
+ 			  struct mlx5_core_dev *mdev)
+ {
++	u32 link_speed = 0;
+ 	u64 link_speed64;
+-	u32 link_speed;
+ 
+ 	hairpin_params->mdev = mdev;
+ 	/* set hairpin pair per each 50Gbs share of the link */
+-- 
+cgit 
+

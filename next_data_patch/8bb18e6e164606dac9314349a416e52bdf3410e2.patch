@@ -1,0 +1,33 @@
+From 8bb18e6e164606dac9314349a416e52bdf3410e2 Mon Sep 17 00:00:00 2001
+From: Dmitry Baryshkov <dmitry.baryshkov@linaro.org>
+Date: Fri, 20 Jan 2023 08:14:14 +0200
+Subject: clk: qcom: smd-rpm: provide RPM_SMD_XO_CLK_SRC on MSM8996 platform
+
+Extend the list of RPM clocks provided on MSM8996 platform to also
+include RPM_SMD_XO_CLK_SRC and RPM_SMD_XO_A_CLK_SRC.
+
+Fixes: 7066fdd0d742 ("clk: qcom: clk-smd-rpm: add msm8996 rpmclks")
+Reviewed-by: Konrad Dybcio <konrad.dybcio@linaro.org>
+Signed-off-by: Dmitry Baryshkov <dmitry.baryshkov@linaro.org>
+Signed-off-by: Bjorn Andersson <andersson@kernel.org>
+Link: https://lore.kernel.org/r/20230120061417.2623751-6-dmitry.baryshkov@linaro.org
+---
+ drivers/clk/qcom/clk-smd-rpm.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/drivers/clk/qcom/clk-smd-rpm.c b/drivers/clk/qcom/clk-smd-rpm.c
+index 6f23ca4828f44..198886c1b6c85 100644
+--- a/drivers/clk/qcom/clk-smd-rpm.c
++++ b/drivers/clk/qcom/clk-smd-rpm.c
+@@ -812,6 +812,8 @@ static const struct rpm_smd_clk_desc rpm_clk_msm8994 = {
+ };
+ 
+ static struct clk_smd_rpm *msm8996_clks[] = {
++	[RPM_SMD_XO_CLK_SRC] = &clk_smd_rpm_branch_bi_tcxo,
++	[RPM_SMD_XO_A_CLK_SRC] = &clk_smd_rpm_branch_bi_tcxo_a,
+ 	[RPM_SMD_PCNOC_CLK] = &clk_smd_rpm_bus_0_pcnoc_clk,
+ 	[RPM_SMD_PCNOC_A_CLK] = &clk_smd_rpm_bus_0_pcnoc_a_clk,
+ 	[RPM_SMD_SNOC_CLK] = &clk_smd_rpm_bus_1_snoc_clk,
+-- 
+cgit 
+

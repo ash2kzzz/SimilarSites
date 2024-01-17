@@ -1,0 +1,49 @@
+From 338469d677e5d426f5ada88761f16f6d2c7c1981 Mon Sep 17 00:00:00 2001
+From: Pedro Tammela <pctammela@mojatatu.com>
+Date: Sat, 15 Apr 2023 12:33:09 -0300
+Subject: net/sched: clear actions pointer in miss cookie init fail
+
+Palash reports a UAF when using a modified version of syzkaller[1].
+
+When 'tcf_exts_miss_cookie_base_alloc()' fails in 'tcf_exts_init_ex()'
+a call to 'tcf_exts_destroy()' is made to free up the tcf_exts
+resources.
+In flower, a call to '__fl_put()' when 'tcf_exts_init_ex()' fails is made;
+Then calling 'tcf_exts_destroy()', which triggers an UAF since the
+already freed tcf_exts action pointer is lingering in the struct.
+
+Before the offending patch, this was not an issue since there was no
+case where the tcf_exts action pointer could linger. Therefore, restore
+the old semantic by clearing the action pointer in case of a failure to
+initialize the miss_cookie.
+
+[1] https://github.com/cmu-pasta/linux-kernel-enriched-corpus
+
+v1->v2: Fix compilation on configs without tc actions (kernel test robot)
+
+Fixes: 80cd22c35c90 ("net/sched: cls_api: Support hardware miss to tc action")
+Reported-by: Palash Oswal <oswalpalash@gmail.com>
+Acked-by: Jamal Hadi Salim <jhs@mojatatu.com>
+Signed-off-by: Pedro Tammela <pctammela@mojatatu.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ net/sched/cls_api.c | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/net/sched/cls_api.c b/net/sched/cls_api.c
+index 2a6b6be0811b8..35785a36c8029 100644
+--- a/net/sched/cls_api.c
++++ b/net/sched/cls_api.c
+@@ -3235,6 +3235,9 @@ int tcf_exts_init_ex(struct tcf_exts *exts, struct net *net, int action,
+ 
+ err_miss_alloc:
+ 	tcf_exts_destroy(exts);
++#ifdef CONFIG_NET_CLS_ACT
++	exts->actions = NULL;
++#endif
+ 	return err;
+ }
+ EXPORT_SYMBOL(tcf_exts_init_ex);
+-- 
+cgit 
+

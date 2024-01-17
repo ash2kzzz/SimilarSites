@@ -1,0 +1,107 @@
+From 89a5e15bcba87df5120d4656e0ff33d4f7cd6152 Mon Sep 17 00:00:00 2001
+From: Linus Walleij <linus.walleij@linaro.org>
+Date: Mon, 17 Dec 2018 22:36:25 +0100
+Subject: gpio/mmc/of: Respect polarity in the device tree
+
+The device tree bindings for the MMC card detect and
+write protect lines specify that these should be active
+low unless "cd-inverted" or "wp-inverted" has been
+specified.
+
+However that is not how the kernel code has worked. It
+has always respected the flags passed to the phandle in
+the device tree, but respected the "cd-inverted" and
+"wp-inverted" flags such that if those are set, the
+polarity will be the inverse of that specified in the
+device tree.
+
+Switch to behaving like the old code did and fix the
+regression.
+
+Fixes: 81c85ec15a19 ("gpio: OF: Parse MMC-specific CD and WP properties")
+Cc: Bartosz Golaszewski <bgolaszewski@baylibre.com>
+Cc: Guenter Roeck <linux@roeck-us.net>
+Reported-by: Guenter Roeck <linux@roeck-us.net>
+Signed-off-by: Linus Walleij <linus.walleij@linaro.org>
+---
+ drivers/gpio/gpiolib-of.c | 49 ++++++++++++++++-------------------------------
+ 1 file changed, 16 insertions(+), 33 deletions(-)
+
+diff --git a/drivers/gpio/gpiolib-of.c b/drivers/gpio/gpiolib-of.c
+index fa8044228f0e2..a6e1891217e26 100644
+--- a/drivers/gpio/gpiolib-of.c
++++ b/drivers/gpio/gpiolib-of.c
+@@ -54,6 +54,7 @@ static struct gpio_desc *of_xlate_and_get_gpiod_flags(struct gpio_chip *chip,
+ }
+ 
+ static void of_gpio_flags_quirks(struct device_node *np,
++				 const char *propname,
+ 				 enum of_gpio_flags *flags,
+ 				 int index)
+ {
+@@ -61,39 +62,21 @@ static void of_gpio_flags_quirks(struct device_node *np,
+ 	 * Handle MMC "cd-inverted" and "wp-inverted" semantics.
+ 	 */
+ 	if (IS_ENABLED(CONFIG_MMC)) {
+-		if (of_property_read_bool(np, "cd-gpios")) {
+-			if (of_property_read_bool(np, "cd-inverted")) {
+-				if (*flags & OF_GPIO_ACTIVE_LOW) {
+-					/* "cd-inverted" takes precedence */
+-					*flags &= ~OF_GPIO_ACTIVE_LOW;
+-					pr_warn("%s GPIO handle specifies CD active low - ignored\n",
+-						of_node_full_name(np));
+-				}
+-			} else {
+-				/*
+-				 * Active low is the default according to the
+-				 * SDHCI specification. If the GPIO handle
+-				 * specifies the same thing - good.
+-				 */
+-				*flags |= OF_GPIO_ACTIVE_LOW;
+-			}
++		/*
++		 * Active low is the default according to the
++		 * SDHCI specification and the device tree
++		 * bindings. However the code in the current
++		 * kernel was written such that the phandle
++		 * flags were always respected, and "cd-inverted"
++		 * would invert the flag from the device phandle.
++		 */
++		if (!strcmp(propname, "cd-gpios")) {
++			if (of_property_read_bool(np, "cd-inverted"))
++				*flags ^= OF_GPIO_ACTIVE_LOW;
+ 		}
+-		if (of_property_read_bool(np, "wp-gpios")) {
+-			if (of_property_read_bool(np, "wp-inverted")) {
+-				/* "wp-inverted" takes precedence */
+-				if (*flags & OF_GPIO_ACTIVE_LOW) {
+-					*flags &= ~OF_GPIO_ACTIVE_LOW;
+-					pr_warn("%s GPIO handle specifies WP active low - ignored\n",
+-						of_node_full_name(np));
+-				}
+-			} else {
+-				/*
+-				 * Active low is the default according to the
+-				 * SDHCI specification. If the GPIO handle
+-				 * specifies the same thing - good.
+-				 */
+-				*flags |= OF_GPIO_ACTIVE_LOW;
+-			}
++		if (!strcmp(propname, "wp-gpios")) {
++			if (of_property_read_bool(np, "wp-inverted"))
++				*flags ^= OF_GPIO_ACTIVE_LOW;
+ 		}
+ 	}
+ 	/*
+@@ -213,7 +196,7 @@ struct gpio_desc *of_get_named_gpiod_flags(struct device_node *np,
+ 		goto out;
+ 
+ 	if (flags)
+-		of_gpio_flags_quirks(np, flags, index);
++		of_gpio_flags_quirks(np, propname, flags, index);
+ 
+ 	pr_debug("%s: parsed '%s' property of node '%pOF[%d]' - status (%d)\n",
+ 		 __func__, propname, np, index,
+-- 
+cgit 
+

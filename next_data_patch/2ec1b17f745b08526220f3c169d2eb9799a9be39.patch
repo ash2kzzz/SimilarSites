@@ -1,0 +1,41 @@
+From 2ec1b17f745b08526220f3c169d2eb9799a9be39 Mon Sep 17 00:00:00 2001
+From: Dave Jiang <dave.jiang@intel.com>
+Date: Fri, 6 Jan 2023 09:39:49 -0700
+Subject: cxl: fix cxl_report_and_clear() RAS UE addr mis-assignment
+
+'addr' that contains RAS UE register address is re-assigned to
+RAS_CAP_CONTROL offset if there are multiple UE errors. Use different addr
+variable to avoid the reassignment mistake.
+
+Fixes: 2905cb5236cb ("cxl/pci: Add (hopeful) error handling support")
+Reported-by: Jonathan Cameron <jonathan.cameron@huawei.com>
+Signed-off-by: Dave Jiang <dave.jiang@intel.com>
+Reviewed-by: Jonathan Cameron <Jonathan.Cameron@huawei.com>
+Reviewed-by: Ira Weiny <ira.weiny@intel.com>
+Link: https://lore.kernel.org/r/167302318779.580155.15233596744650706167.stgit@djiang5-mobl3.local
+Signed-off-by: Dan Williams <dan.j.williams@intel.com>
+---
+ drivers/cxl/pci.c | 7 +++++--
+ 1 file changed, 5 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/cxl/pci.c b/drivers/cxl/pci.c
+index 33083a522fd1c..258004f34281a 100644
+--- a/drivers/cxl/pci.c
++++ b/drivers/cxl/pci.c
+@@ -554,8 +554,11 @@ static bool cxl_report_and_clear(struct cxl_dev_state *cxlds)
+ 
+ 	/* If multiple errors, log header points to first error from ctrl reg */
+ 	if (hweight32(status) > 1) {
+-		addr = cxlds->regs.ras + CXL_RAS_CAP_CONTROL_OFFSET;
+-		fe = BIT(FIELD_GET(CXL_RAS_CAP_CONTROL_FE_MASK, readl(addr)));
++		void __iomem *rcc_addr =
++			cxlds->regs.ras + CXL_RAS_CAP_CONTROL_OFFSET;
++
++		fe = BIT(FIELD_GET(CXL_RAS_CAP_CONTROL_FE_MASK,
++				   readl(rcc_addr)));
+ 	} else {
+ 		fe = status;
+ 	}
+-- 
+cgit 
+

@@ -1,0 +1,37 @@
+From 833f7d4819a88f027033e0033ea44f7ae3e45a9b Mon Sep 17 00:00:00 2001
+From: Christophe JAILLET <christophe.jaillet@wanadoo.fr>
+Date: Sun, 15 Jan 2023 12:24:17 +0100
+Subject: scsi: ufs: core: Fix an error handling path in
+ ufshcd_read_desc_param()
+
+If an error occurs, some memory may need to be freed, as in the other error
+handling paths.
+
+Before the commit in the Fixes tag, this test was done before the memory
+allocation, so there was no issue.
+
+Fixes: 16ed9d312b42 ("scsi: ufs: core: Remove ufshcd_map_desc_id_to_length()")
+Link: https://lore.kernel.org/r/2c6e42205e5ec22e5e8c7c85c6deb8fde31c74da.1673781835.git.christophe.jaillet@wanadoo.fr
+Signed-off-by: Christophe JAILLET <christophe.jaillet@wanadoo.fr>
+Signed-off-by: Martin K. Petersen <martin.petersen@oracle.com>
+---
+ drivers/ufs/core/ufshcd.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/ufs/core/ufshcd.c b/drivers/ufs/core/ufshcd.c
+index 625caccf533cf..3b3cf78d3b100 100644
+--- a/drivers/ufs/core/ufshcd.c
++++ b/drivers/ufs/core/ufshcd.c
+@@ -3537,7 +3537,8 @@ int ufshcd_read_desc_param(struct ufs_hba *hba,
+ 	if (param_offset >= buff_len) {
+ 		dev_err(hba->dev, "%s: Invalid offset 0x%x in descriptor IDN 0x%x, length 0x%x\n",
+ 			__func__, param_offset, desc_id, buff_len);
+-		return -EINVAL;
++		ret = -EINVAL;
++		goto out;
+ 	}
+ 
+ 	/* Sanity check */
+-- 
+cgit 
+

@@ -1,0 +1,43 @@
+From 10bc6a6042c900934a097988b5d50e3cf3f91781 Mon Sep 17 00:00:00 2001
+From: Heiner Kallweit <hkallweit1@gmail.com>
+Date: Thu, 20 Sep 2018 22:47:09 +0200
+Subject: r8169: fix autoneg issue on resume with RTL8168E
+
+It was reported that chip version 33 (RTL8168E) ends up with
+10MBit/Half on a 1GBit link after resuming from S3 (with different
+link partners). For whatever reason the PHY on this chip doesn't
+properly start a renegotiation when soft-reset.
+Explicitly requesting a renegotiation fixes this.
+
+Fixes: a2965f12fde6 ("r8169: remove rtl8169_set_speed_xmii")
+Signed-off-by: Heiner Kallweit <hkallweit1@gmail.com>
+Reported-by: Neil MacLeod <neil@nmacleod.com>
+Tested-by: Neil MacLeod <neil@nmacleod.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ drivers/net/ethernet/realtek/r8169.c | 9 +++++++++
+ 1 file changed, 9 insertions(+)
+
+diff --git a/drivers/net/ethernet/realtek/r8169.c b/drivers/net/ethernet/realtek/r8169.c
+index bb529ff2ca818..ab30aaeac6d37 100644
+--- a/drivers/net/ethernet/realtek/r8169.c
++++ b/drivers/net/ethernet/realtek/r8169.c
+@@ -4071,6 +4071,15 @@ static void rtl8169_init_phy(struct net_device *dev, struct rtl8169_private *tp)
+ 	phy_speed_up(dev->phydev);
+ 
+ 	genphy_soft_reset(dev->phydev);
++
++	/* It was reported that chip version 33 ends up with 10MBit/Half on a
++	 * 1GBit link after resuming from S3. For whatever reason the PHY on
++	 * this chip doesn't properly start a renegotiation when soft-reset.
++	 * Explicitly requesting a renegotiation fixes this.
++	 */
++	if (tp->mac_version == RTL_GIGA_MAC_VER_33 &&
++	    dev->phydev->autoneg == AUTONEG_ENABLE)
++		phy_restart_aneg(dev->phydev);
+ }
+ 
+ static void rtl_rar_set(struct rtl8169_private *tp, u8 *addr)
+-- 
+cgit 
+

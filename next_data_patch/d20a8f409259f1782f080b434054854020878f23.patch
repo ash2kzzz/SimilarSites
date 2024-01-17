@@ -1,0 +1,50 @@
+From d20a8f409259f1782f080b434054854020878f23 Mon Sep 17 00:00:00 2001
+From: Stanislaw Gruszka <stanislaw.gruszka@linux.intel.com>
+Date: Thu, 2 Feb 2023 10:21:14 +0100
+Subject: accel/ivpu: Fix old dma_buf api usage
+
+Update according to new dma-buf locking scheme.
+
+Remove redundant WARN_ON()'s, dma_buf functions internally
+have the same warnings already.
+
+Fixes: 647371a6609d ("accel/ivpu: Add GEM buffer object management")
+Signed-off-by: Stanislaw Gruszka <stanislaw.gruszka@linux.intel.com>
+Reviewed-by: Jeffrey Hugo <quic_jhugo@quicinc.com>
+Signed-off-by: Jacek Lawrynowicz <jacek.lawrynowicz@linux.intel.com>
+Link: https://patchwork.freedesktop.org/patch/msgid/20230202092114.2637452-5-stanislaw.gruszka@linux.intel.com
+(cherry picked from commit ec6ec9c6ca637f7678f1931cb835b2bb8ab6dfd2)
+Signed-off-by: Jacek Lawrynowicz <jacek.lawrynowicz@linux.intel.com>
+---
+ drivers/accel/ivpu/ivpu_gem.c | 8 ++------
+ 1 file changed, 2 insertions(+), 6 deletions(-)
+
+diff --git a/drivers/accel/ivpu/ivpu_gem.c b/drivers/accel/ivpu/ivpu_gem.c
+index d1f923971b4c6..01d47d3bad5bb 100644
+--- a/drivers/accel/ivpu/ivpu_gem.c
++++ b/drivers/accel/ivpu/ivpu_gem.c
+@@ -42,9 +42,7 @@ static int prime_map_pages_locked(struct ivpu_bo *bo)
+ 	struct ivpu_device *vdev = ivpu_bo_to_vdev(bo);
+ 	struct sg_table *sgt;
+ 
+-	WARN_ON(!bo->base.import_attach);
+-
+-	sgt = dma_buf_map_attachment(bo->base.import_attach, DMA_BIDIRECTIONAL);
++	sgt = dma_buf_map_attachment_unlocked(bo->base.import_attach, DMA_BIDIRECTIONAL);
+ 	if (IS_ERR(sgt)) {
+ 		ivpu_err(vdev, "Failed to map attachment: %ld\n", PTR_ERR(sgt));
+ 		return PTR_ERR(sgt);
+@@ -56,9 +54,7 @@ static int prime_map_pages_locked(struct ivpu_bo *bo)
+ 
+ static void prime_unmap_pages_locked(struct ivpu_bo *bo)
+ {
+-	WARN_ON(!bo->base.import_attach);
+-
+-	dma_buf_unmap_attachment(bo->base.import_attach, bo->sgt, DMA_BIDIRECTIONAL);
++	dma_buf_unmap_attachment_unlocked(bo->base.import_attach, bo->sgt, DMA_BIDIRECTIONAL);
+ 	bo->sgt = NULL;
+ }
+ 
+-- 
+cgit 
+

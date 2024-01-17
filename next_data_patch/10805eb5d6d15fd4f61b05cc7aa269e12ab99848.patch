@@ -1,0 +1,108 @@
+From 10805eb5d6d15fd4f61b05cc7aa269e12ab99848 Mon Sep 17 00:00:00 2001
+From: Dmitry Fomichev <dmitry.fomichev@wdc.com>
+Date: Thu, 30 Mar 2023 17:49:53 -0400
+Subject: virtio-blk: fix ZBD probe in kernels without ZBD support
+
+When the kernel is built without support for zoned block devices,
+virtio-blk probe needs to error out any host-managed device scans
+to prevent such devices from appearing in the system as non-zoned.
+The current virtio-blk code simply bypasses all ZBD checks if
+CONFIG_BLK_DEV_ZONED is not defined and this leads to host-managed
+block devices being presented as non-zoned in the OS. This is one of
+the main problems this patch series is aimed to fix.
+
+In this patch, make VIRTIO_BLK_F_ZONED feature defined even when
+CONFIG_BLK_DEV_ZONED is not. This change makes the code compliant with
+the voted revision of virtio-blk ZBD spec. Modify the probe code to
+look at the situation when VIRTIO_BLK_F_ZONED is negotiated in a kernel
+that is built without ZBD support. In this case, the code checks
+the zoned model of the device and fails the probe is the device
+is host-managed.
+
+The patch also adds the comment to clarify that the call to perform
+the zoned device probe is correctly placed after virtio_device ready().
+
+Fixes: 95bfec41bd3d ("virtio-blk: add support for zoned block devices")
+Cc: stable@vger.kernel.org
+Signed-off-by: Dmitry Fomichev <dmitry.fomichev@wdc.com>
+Reviewed-by: Stefan Hajnoczi <stefanha@redhat.com>
+Reviewed-by: Damien Le Moal <damien.lemoal@opensource.wdc.com>
+Message-Id: <20230330214953.1088216-3-dmitry.fomichev@wdc.com>
+Signed-off-by: Michael S. Tsirkin <mst@redhat.com>
+---
+ drivers/block/virtio_blk.c | 33 +++++++++++++++++----------------
+ 1 file changed, 17 insertions(+), 16 deletions(-)
+
+diff --git a/drivers/block/virtio_blk.c b/drivers/block/virtio_blk.c
+index 4f0dbbb3d4a53..2b918e28acaac 100644
+--- a/drivers/block/virtio_blk.c
++++ b/drivers/block/virtio_blk.c
+@@ -866,16 +866,12 @@ static int virtblk_probe_zoned_device(struct virtio_device *vdev,
+ 	return ret;
+ }
+ 
+-static inline bool virtblk_has_zoned_feature(struct virtio_device *vdev)
+-{
+-	return virtio_has_feature(vdev, VIRTIO_BLK_F_ZONED);
+-}
+-
+ #else
+ 
+ /*
+  * Zoned block device support is not configured in this kernel.
+- * We only need to define a few symbols to avoid compilation errors.
++ * Host-managed zoned devices can't be supported, but others are
++ * good to go as regular block devices.
+  */
+ #define virtblk_report_zones       NULL
+ 
+@@ -886,12 +882,16 @@ static inline void virtblk_revalidate_zones(struct virtio_blk *vblk)
+ static inline int virtblk_probe_zoned_device(struct virtio_device *vdev,
+ 			struct virtio_blk *vblk, struct request_queue *q)
+ {
+-	return -EOPNOTSUPP;
+-}
++	u8 model;
+ 
+-static inline bool virtblk_has_zoned_feature(struct virtio_device *vdev)
+-{
+-	return false;
++	virtio_cread(vdev, struct virtio_blk_config, zoned.model, &model);
++	if (model == VIRTIO_BLK_Z_HM) {
++		dev_err(&vdev->dev,
++			"virtio_blk: zoned devices are not supported");
++		return -EOPNOTSUPP;
++	}
++
++	return 0;
+ }
+ #endif /* CONFIG_BLK_DEV_ZONED */
+ 
+@@ -1577,7 +1577,11 @@ static int virtblk_probe(struct virtio_device *vdev)
+ 	virtblk_update_capacity(vblk, false);
+ 	virtio_device_ready(vdev);
+ 
+-	if (virtblk_has_zoned_feature(vdev)) {
++	/*
++	 * All steps that follow use the VQs therefore they need to be
++	 * placed after the virtio_device_ready() call above.
++	 */
++	if (virtio_has_feature(vdev, VIRTIO_BLK_F_ZONED)) {
+ 		err = virtblk_probe_zoned_device(vdev, vblk, q);
+ 		if (err)
+ 			goto out_cleanup_disk;
+@@ -1683,10 +1687,7 @@ static unsigned int features[] = {
+ 	VIRTIO_BLK_F_RO, VIRTIO_BLK_F_BLK_SIZE,
+ 	VIRTIO_BLK_F_FLUSH, VIRTIO_BLK_F_TOPOLOGY, VIRTIO_BLK_F_CONFIG_WCE,
+ 	VIRTIO_BLK_F_MQ, VIRTIO_BLK_F_DISCARD, VIRTIO_BLK_F_WRITE_ZEROES,
+-	VIRTIO_BLK_F_SECURE_ERASE,
+-#ifdef CONFIG_BLK_DEV_ZONED
+-	VIRTIO_BLK_F_ZONED,
+-#endif /* CONFIG_BLK_DEV_ZONED */
++	VIRTIO_BLK_F_SECURE_ERASE, VIRTIO_BLK_F_ZONED,
+ };
+ 
+ static struct virtio_driver virtio_blk = {
+-- 
+cgit 
+

@@ -1,0 +1,37 @@
+From d0610c6e97b5975b38ced92abb7258492200fe05 Mon Sep 17 00:00:00 2001
+From: Lukas Bulwahn <lukas.bulwahn@gmail.com>
+Date: Wed, 11 Jan 2023 10:28:28 +0100
+Subject: MAINTAINERS: adjust SAMSUNG SOC CLOCK DRIVERS after s3c24xx support
+ removal
+
+Commit a4946a153cb9 ("ARM: s3c: remove all s3c24xx support") removes all
+files that match the file pattern 'include/dt-bindings/clock/s3c*.h'.
+
+Hence,  ./scripts/get_maintainer.pl --self-test=patterns complains about a
+obsolete file pattern in SAMSUNG SOC CLOCK DRIVERS, as it does not match
+any file in the repository after the commit above.
+
+Remove this obsolete file entry in SAMSUNG SOC CLOCK DRIVERS.
+
+Fixes: a4946a153cb9 ("ARM: s3c: remove all s3c24xx support")
+Signed-off-by: Lukas Bulwahn <lukas.bulwahn@gmail.com>
+Signed-off-by: Arnd Bergmann <arnd@arndb.de>
+---
+ MAINTAINERS | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/MAINTAINERS b/MAINTAINERS
+index 1b90c68b688b8..33d5764899a46 100644
+--- a/MAINTAINERS
++++ b/MAINTAINERS
+@@ -18337,7 +18337,6 @@ F:	Documentation/devicetree/bindings/clock/samsung,*.yaml
+ F:	Documentation/devicetree/bindings/clock/samsung,s3c*
+ F:	drivers/clk/samsung/
+ F:	include/dt-bindings/clock/exynos*.h
+-F:	include/dt-bindings/clock/s3c*.h
+ F:	include/dt-bindings/clock/s5p*.h
+ F:	include/dt-bindings/clock/samsung,*.h
+ F:	include/linux/clk/samsung.h
+-- 
+cgit 
+

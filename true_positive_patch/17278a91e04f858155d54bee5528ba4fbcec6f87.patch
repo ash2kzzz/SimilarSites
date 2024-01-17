@@ -1,0 +1,49 @@
+From 17278a91e04f858155d54bee5528ba4fbcec6f87 Mon Sep 17 00:00:00 2001
+From: James Hogan <jhogan@kernel.org>
+Date: Tue, 14 Nov 2017 12:01:20 +0000
+Subject: MIPS: CPS: Fix r1 .set mt assembler warning
+
+MIPS CPS has a build warning on kernels configured for MIPS32R1 or
+MIPS64R1, due to the use of .set mt without a prior .set mips{32,64}r2:
+
+arch/mips/kernel/cps-vec.S Assembler messages:
+arch/mips/kernel/cps-vec.S:238: Warning: the `mt' extension requires MIPS32 revision 2 or greater
+
+Add .set MIPS_ISA_LEVEL_RAW before .set mt to silence the warning.
+
+Fixes: 245a7868d2f2 ("MIPS: smp-cps: rework core/VPE initialisation")
+Signed-off-by: James Hogan <jhogan@kernel.org>
+Cc: Paul Burton <paul.burton@mips.com>
+Cc: James Hogan <james.hogan@mips.com>
+Cc: James Hogan <jhogan@kernel.org>
+Cc: Paul Burton <paul.burton@mips.com>
+Cc: linux-mips@linux-mips.org
+Patchwork: https://patchwork.linux-mips.org/patch/17699/
+Signed-off-by: Ralf Baechle <ralf@linux-mips.org>
+---
+ arch/mips/kernel/cps-vec.S | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/arch/mips/kernel/cps-vec.S b/arch/mips/kernel/cps-vec.S
+index c7ed26029cbbc..e68e6e04063a7 100644
+--- a/arch/mips/kernel/cps-vec.S
++++ b/arch/mips/kernel/cps-vec.S
+@@ -235,6 +235,7 @@ LEAF(mips_cps_core_init)
+ 	has_mt	t0, 3f
+ 
+ 	.set	push
++	.set	MIPS_ISA_LEVEL_RAW
+ 	.set	mt
+ 
+ 	/* Only allow 1 TC per VPE to execute... */
+@@ -388,6 +389,7 @@ LEAF(mips_cps_boot_vpes)
+ #elif defined(CONFIG_MIPS_MT)
+ 
+ 	.set	push
++	.set	MIPS_ISA_LEVEL_RAW
+ 	.set	mt
+ 
+ 	/* If the core doesn't support MT then return */
+-- 
+cgit 
+

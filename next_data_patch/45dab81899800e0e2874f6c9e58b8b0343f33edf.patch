@@ -1,0 +1,146 @@
+From 45dab81899800e0e2874f6c9e58b8b0343f33edf Mon Sep 17 00:00:00 2001
+From: Sam Protsenko <semen.protsenko@linaro.org>
+Date: Wed, 22 Feb 2023 22:19:34 -0600
+Subject: clk: samsung: Remove np argument from samsung_clk_init()
+
+The code using `np' argument was removed from samsung_clk_init(). Remove
+that leftover parameter as well.
+
+No functional change.
+
+Fixes: d5e136a21b20 ("clk: samsung: Register clk provider only after registering its all clocks")
+Acked-by: Marek Szyprowski <m.szyprowski@samsung.com>
+Tested-by: Marek Szyprowski <m.szyprowski@samsung.com>
+Signed-off-by: Sam Protsenko <semen.protsenko@linaro.org>
+Link: https://lore.kernel.org/r/20230223041938.22732-3-semen.protsenko@linaro.org
+Signed-off-by: Krzysztof Kozlowski <krzysztof.kozlowski@linaro.org>
+---
+ drivers/clk/samsung/clk-exynos4.c        | 2 +-
+ drivers/clk/samsung/clk-exynos4412-isp.c | 2 +-
+ drivers/clk/samsung/clk-exynos5250.c     | 2 +-
+ drivers/clk/samsung/clk-exynos5420.c     | 2 +-
+ drivers/clk/samsung/clk-s3c64xx.c        | 2 +-
+ drivers/clk/samsung/clk-s5pv210.c        | 2 +-
+ drivers/clk/samsung/clk.c                | 6 +++---
+ drivers/clk/samsung/clk.h                | 3 +--
+ 8 files changed, 10 insertions(+), 11 deletions(-)
+
+diff --git a/drivers/clk/samsung/clk-exynos4.c b/drivers/clk/samsung/clk-exynos4.c
+index 22009cb53428a..7756b21e89254 100644
+--- a/drivers/clk/samsung/clk-exynos4.c
++++ b/drivers/clk/samsung/clk-exynos4.c
+@@ -1251,7 +1251,7 @@ static void __init exynos4_clk_init(struct device_node *np,
+ 	if (!reg_base)
+ 		panic("%s: failed to map registers\n", __func__);
+ 
+-	ctx = samsung_clk_init(np, reg_base, CLK_NR_CLKS);
++	ctx = samsung_clk_init(reg_base, CLK_NR_CLKS);
+ 	hws = ctx->clk_data.hws;
+ 
+ 	samsung_clk_of_register_fixed_ext(ctx, exynos4_fixed_rate_ext_clks,
+diff --git a/drivers/clk/samsung/clk-exynos4412-isp.c b/drivers/clk/samsung/clk-exynos4412-isp.c
+index 471a6fb826705..0b6390e04533c 100644
+--- a/drivers/clk/samsung/clk-exynos4412-isp.c
++++ b/drivers/clk/samsung/clk-exynos4412-isp.c
+@@ -121,7 +121,7 @@ static int __init exynos4x12_isp_clk_probe(struct platform_device *pdev)
+ 	if (!exynos4x12_save_isp)
+ 		return -ENOMEM;
+ 
+-	ctx = samsung_clk_init(np, reg_base, CLK_NR_ISP_CLKS);
++	ctx = samsung_clk_init(reg_base, CLK_NR_ISP_CLKS);
+ 	ctx->dev = dev;
+ 
+ 	platform_set_drvdata(pdev, ctx);
+diff --git a/drivers/clk/samsung/clk-exynos5250.c b/drivers/clk/samsung/clk-exynos5250.c
+index 113df773ee449..e77e455466f98 100644
+--- a/drivers/clk/samsung/clk-exynos5250.c
++++ b/drivers/clk/samsung/clk-exynos5250.c
+@@ -797,7 +797,7 @@ static void __init exynos5250_clk_init(struct device_node *np)
+ 		panic("%s: unable to determine soc\n", __func__);
+ 	}
+ 
+-	ctx = samsung_clk_init(np, reg_base, CLK_NR_CLKS);
++	ctx = samsung_clk_init(reg_base, CLK_NR_CLKS);
+ 	hws = ctx->clk_data.hws;
+ 
+ 	samsung_clk_of_register_fixed_ext(ctx, exynos5250_fixed_rate_ext_clks,
+diff --git a/drivers/clk/samsung/clk-exynos5420.c b/drivers/clk/samsung/clk-exynos5420.c
+index caad74dee2971..27b1c5d56bb36 100644
+--- a/drivers/clk/samsung/clk-exynos5420.c
++++ b/drivers/clk/samsung/clk-exynos5420.c
+@@ -1587,7 +1587,7 @@ static void __init exynos5x_clk_init(struct device_node *np,
+ 
+ 	exynos5x_soc = soc;
+ 
+-	ctx = samsung_clk_init(np, reg_base, CLK_NR_CLKS);
++	ctx = samsung_clk_init(reg_base, CLK_NR_CLKS);
+ 	hws = ctx->clk_data.hws;
+ 
+ 	samsung_clk_of_register_fixed_ext(ctx, exynos5x_fixed_rate_ext_clks,
+diff --git a/drivers/clk/samsung/clk-s3c64xx.c b/drivers/clk/samsung/clk-s3c64xx.c
+index d6b432a26d639..772f776572a1d 100644
+--- a/drivers/clk/samsung/clk-s3c64xx.c
++++ b/drivers/clk/samsung/clk-s3c64xx.c
+@@ -405,7 +405,7 @@ void __init s3c64xx_clk_init(struct device_node *np, unsigned long xtal_f,
+ 			panic("%s: failed to map registers\n", __func__);
+ 	}
+ 
+-	ctx = samsung_clk_init(np, reg_base, NR_CLKS);
++	ctx = samsung_clk_init(reg_base, NR_CLKS);
+ 	hws = ctx->clk_data.hws;
+ 
+ 	/* Register external clocks. */
+diff --git a/drivers/clk/samsung/clk-s5pv210.c b/drivers/clk/samsung/clk-s5pv210.c
+index 4425186bdcab5..b3e9f775ffdb0 100644
+--- a/drivers/clk/samsung/clk-s5pv210.c
++++ b/drivers/clk/samsung/clk-s5pv210.c
+@@ -743,7 +743,7 @@ static void __init __s5pv210_clk_init(struct device_node *np,
+ 	struct samsung_clk_provider *ctx;
+ 	struct clk_hw **hws;
+ 
+-	ctx = samsung_clk_init(np, reg_base, NR_CLKS);
++	ctx = samsung_clk_init(reg_base, NR_CLKS);
+ 	hws = ctx->clk_data.hws;
+ 
+ 	samsung_clk_register_mux(ctx, early_mux_clks,
+diff --git a/drivers/clk/samsung/clk.c b/drivers/clk/samsung/clk.c
+index bca4731b14ea5..c2758f4175a11 100644
+--- a/drivers/clk/samsung/clk.c
++++ b/drivers/clk/samsung/clk.c
+@@ -54,8 +54,8 @@ struct samsung_clk_reg_dump *samsung_clk_alloc_reg_dump(
+ }
+ 
+ /* setup the essentials required to support clock lookup using ccf */
+-struct samsung_clk_provider *__init samsung_clk_init(struct device_node *np,
+-			void __iomem *base, unsigned long nr_clks)
++struct samsung_clk_provider * __init samsung_clk_init(void __iomem *base,
++			unsigned long nr_clks)
+ {
+ 	struct samsung_clk_provider *ctx;
+ 	int i;
+@@ -341,7 +341,7 @@ struct samsung_clk_provider * __init samsung_cmu_register_one(
+ 		return NULL;
+ 	}
+ 
+-	ctx = samsung_clk_init(np, reg_base, cmu->nr_clk_ids);
++	ctx = samsung_clk_init(reg_base, cmu->nr_clk_ids);
+ 
+ 	if (cmu->pll_clks)
+ 		samsung_clk_register_pll(ctx, cmu->pll_clks, cmu->nr_pll_clks,
+diff --git a/drivers/clk/samsung/clk.h b/drivers/clk/samsung/clk.h
+index b46e83a2581f4..475f1d28cca61 100644
+--- a/drivers/clk/samsung/clk.h
++++ b/drivers/clk/samsung/clk.h
+@@ -337,8 +337,7 @@ struct samsung_cmu_info {
+ 	const char *clk_name;
+ };
+ 
+-struct samsung_clk_provider * samsung_clk_init(
+-			struct device_node *np, void __iomem *base,
++struct samsung_clk_provider *samsung_clk_init(void __iomem *base,
+ 			unsigned long nr_clks);
+ void samsung_clk_of_add_provider(struct device_node *np,
+ 			struct samsung_clk_provider *ctx);
+-- 
+cgit 
+

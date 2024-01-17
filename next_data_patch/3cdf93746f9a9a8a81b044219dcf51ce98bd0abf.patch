@@ -1,0 +1,36 @@
+From 3cdf93746f9a9a8a81b044219dcf51ce98bd0abf Mon Sep 17 00:00:00 2001
+From: Hou Wenlong <houwenlong.hwl@antgroup.com>
+Date: Mon, 10 Oct 2022 20:19:16 +0800
+Subject: KVM: x86/mmu: Fix wrong gfn range of tlb flushing in
+ validate_direct_spte()
+
+The spte pointing to the children SP is dropped, so the whole gfn range
+covered by the children SP should be flushed. Although, Hyper-V may
+treat a 1-page flush the same if the address points to a huge page, it
+still would be better to use the correct size of huge page.
+
+Fixes: c3134ce240eed ("KVM: Replace old tlb flush function with new one to flush a specified range.")
+Suggested-by: Sean Christopherson <seanjc@google.com>
+Signed-off-by: Hou Wenlong <houwenlong.hwl@antgroup.com>
+Link: https://lore.kernel.org/r/5f297c566f7d7ff2ea6da3c66d050f69ce1b8ede.1665214747.git.houwenlong.hwl@antgroup.com
+Signed-off-by: Sean Christopherson <seanjc@google.com>
+---
+ arch/x86/kvm/mmu/mmu.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/arch/x86/kvm/mmu/mmu.c b/arch/x86/kvm/mmu/mmu.c
+index 5e34f07e46ba8..47b15c146ba58 100644
+--- a/arch/x86/kvm/mmu/mmu.c
++++ b/arch/x86/kvm/mmu/mmu.c
+@@ -2414,7 +2414,7 @@ static void validate_direct_spte(struct kvm_vcpu *vcpu, u64 *sptep,
+ 			return;
+ 
+ 		drop_parent_pte(child, sptep);
+-		kvm_flush_remote_tlbs_with_address(vcpu->kvm, child->gfn, 1);
++		kvm_flush_remote_tlbs_sptep(vcpu->kvm, sptep);
+ 	}
+ }
+ 
+-- 
+cgit 
+

@@ -1,0 +1,51 @@
+From e8c8361cfdbf450f760e8a2bdbd4222d1947366b Mon Sep 17 00:00:00 2001
+From: Alexei Starovoitov <ast@kernel.org>
+Date: Fri, 10 Mar 2023 12:47:51 -0800
+Subject: selftests/bpf: Fix progs/test_deny_namespace.c issues.
+
+The following build error can be seen:
+progs/test_deny_namespace.c:22:19: error: call to undeclared function 'BIT_LL'; ISO C99 and later do not support implicit function declarations [-Wimplicit-function-declaration]
+        __u64 cap_mask = BIT_LL(CAP_SYS_ADMIN);
+
+The struct kernel_cap_struct no longer exists in the kernel as well.
+Adjust bpf prog to fix both issues.
+
+Fixes: f122a08b197d ("capability: just use a 'u64' instead of a 'u32[2]' array")
+Signed-off-by: Alexei Starovoitov <ast@kernel.org>
+---
+ tools/testing/selftests/bpf/progs/test_deny_namespace.c | 10 ++++------
+ 1 file changed, 4 insertions(+), 6 deletions(-)
+
+diff --git a/tools/testing/selftests/bpf/progs/test_deny_namespace.c b/tools/testing/selftests/bpf/progs/test_deny_namespace.c
+index 591104e79812e..e96b901a733c5 100644
+--- a/tools/testing/selftests/bpf/progs/test_deny_namespace.c
++++ b/tools/testing/selftests/bpf/progs/test_deny_namespace.c
+@@ -5,12 +5,10 @@
+ #include <errno.h>
+ #include <linux/capability.h>
+ 
+-struct kernel_cap_struct {
+-	__u64 val;
+-} __attribute__((preserve_access_index));
++typedef struct { unsigned long long val; } kernel_cap_t;
+ 
+ struct cred {
+-	struct kernel_cap_struct cap_effective;
++	kernel_cap_t cap_effective;
+ } __attribute__((preserve_access_index));
+ 
+ char _license[] SEC("license") = "GPL";
+@@ -18,8 +16,8 @@ char _license[] SEC("license") = "GPL";
+ SEC("lsm.s/userns_create")
+ int BPF_PROG(test_userns_create, const struct cred *cred, int ret)
+ {
+-	struct kernel_cap_struct caps = cred->cap_effective;
+-	__u64 cap_mask = BIT_LL(CAP_SYS_ADMIN);
++	kernel_cap_t caps = cred->cap_effective;
++	__u64 cap_mask = 1ULL << CAP_SYS_ADMIN;
+ 
+ 	if (ret)
+ 		return 0;
+-- 
+cgit 
+

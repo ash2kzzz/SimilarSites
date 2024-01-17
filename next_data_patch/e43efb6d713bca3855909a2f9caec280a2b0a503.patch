@@ -1,0 +1,42 @@
+From e43efb6d713bca3855909a2f9caec280a2b0a503 Mon Sep 17 00:00:00 2001
+From: Conor Dooley <conor.dooley@microchip.com>
+Date: Thu, 16 Feb 2023 13:15:12 +0000
+Subject: dt-bindings: riscv: correct starfive visionfive 2 compatibles
+
+Using "va" and "vb" doesn't match what's written on the board, or the
+communications from StarFive.
+Switching to using the silkscreened version number will ease confusion &
+the risk of another spin of the board containing a "conflicting" version
+identifier.
+As the binding has not made it into mainline yet, take the opportunity
+to "correct" things.
+
+Suggested-by: Emil Renner Berthing <emil.renner.berthing@canonical.com>
+Link: https://lore.kernel.org/linux-riscv/Y+4AxDSDLyL1WAqh@wendy/
+Fixes: 97b7ed072784 ("dt-bindings: riscv: Add StarFive JH7110 SoC and VisionFive 2 board")
+Signed-off-by: Conor Dooley <conor.dooley@microchip.com>
+Acked-by: Krzysztof Kozlowski <krzysztof.kozlowski@linaro.org>
+Link: https://lore.kernel.org/r/20230216131511.3327943-1-conor.dooley@microchip.com
+Signed-off-by: Arnd Bergmann <arnd@arndb.de>
+---
+ Documentation/devicetree/bindings/riscv/starfive.yaml | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/Documentation/devicetree/bindings/riscv/starfive.yaml b/Documentation/devicetree/bindings/riscv/starfive.yaml
+index 60c7c03fcdce9..cc4d92f0a1bf8 100644
+--- a/Documentation/devicetree/bindings/riscv/starfive.yaml
++++ b/Documentation/devicetree/bindings/riscv/starfive.yaml
+@@ -26,8 +26,8 @@ properties:
+ 
+       - items:
+           - enum:
+-              - starfive,visionfive-2-va
+-              - starfive,visionfive-2-vb
++              - starfive,visionfive-2-v1.2a
++              - starfive,visionfive-2-v1.3b
+           - const: starfive,jh7110
+ 
+ additionalProperties: true
+-- 
+cgit 
+

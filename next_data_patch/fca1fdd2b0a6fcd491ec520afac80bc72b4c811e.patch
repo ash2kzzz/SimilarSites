@@ -1,0 +1,37 @@
+From fca1fdd2b0a6fcd491ec520afac80bc72b4c811e Mon Sep 17 00:00:00 2001
+From: "Kirill A. Shutemov" <kirill.shutemov@linux.intel.com>
+Date: Mon, 3 Apr 2023 14:10:19 +0300
+Subject: x86/mm/iommu/sva: Fix error code for LAM enabling failure due to SVA
+
+Normally, LAM and SVA are mutually exclusive. LAM enabling will fail if
+SVA is already in use.
+
+Correct error code for the failure. EINTR is nonsensical there.
+
+Fixes: 23e5d9ec2bab ("x86/mm/iommu/sva: Make LAM and SVA mutually exclusive")
+Reported-by: Dmitry Vyukov <dvyukov@google.com>
+Signed-off-by: Kirill A. Shutemov <kirill.shutemov@linux.intel.com>
+Signed-off-by: Dave Hansen <dave.hansen@linux.intel.com>
+Reviewed-by: Dmitry Vyukov <dvyukov@google.com>
+Link: https://lore.kernel.org/all/CACT4Y+YfqSMsZArhh25TESmG-U4jO5Hjphz87wKSnTiaw2Wrfw@mail.gmail.com
+Link: https://lore.kernel.org/all/20230403111020.3136-2-kirill.shutemov%40linux.intel.com
+---
+ arch/x86/kernel/process_64.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/arch/x86/kernel/process_64.c b/arch/x86/kernel/process_64.c
+index b46924c9e46d9..bc2ac5652f884 100644
+--- a/arch/x86/kernel/process_64.c
++++ b/arch/x86/kernel/process_64.c
+@@ -758,7 +758,7 @@ static int prctl_enable_tagged_addr(struct mm_struct *mm, unsigned long nr_bits)
+ 
+ 	if (mm_valid_pasid(mm) &&
+ 	    !test_bit(MM_CONTEXT_FORCE_TAGGED_SVA, &mm->context.flags))
+-		return -EINTR;
++		return -EINVAL;
+ 
+ 	if (mmap_write_lock_killable(mm))
+ 		return -EINTR;
+-- 
+cgit 
+

@@ -1,0 +1,125 @@
+From a506fdd22342606d22645a6bf90a2d848e92e5d7 Mon Sep 17 00:00:00 2001
+From: Vitaly Kuznetsov <vkuznets@redhat.com>
+Date: Fri, 10 Jul 2020 16:11:55 +0200
+Subject: KVM: nSVM: implement nested_svm_load_cr3() and use it for host->guest
+ switch
+
+Undesired triple fault gets injected to L1 guest on SVM when L2 is
+launched with certain CR3 values. #TF is raised by mmu_check_root()
+check in fast_pgd_switch() and the root cause is that when
+kvm_set_cr3() is called from nested_prepare_vmcb_save() with NPT
+enabled CR3 points to a nGPA so we can't check it with
+kvm_is_visible_gfn().
+
+Using generic kvm_set_cr3() when switching to nested guest is not
+a great idea as we'll have to distinguish between 'real' CR3s and
+'nested' CR3s to e.g. not call kvm_mmu_new_pgd() with nGPA. Following
+nVMX implement nested-specific nested_svm_load_cr3() doing the job.
+
+To support the change, nested_svm_load_cr3() needs to be re-ordered
+with nested_svm_init_mmu_context().
+
+Note: the current implementation is sub-optimal as we always do TLB
+flush/MMU sync but this is still an improvement as we at least stop doing
+kvm_mmu_reset_context().
+
+Fixes: 7c390d350f8b ("kvm: x86: Add fast CR3 switch code path")
+Signed-off-by: Vitaly Kuznetsov <vkuznets@redhat.com>
+Message-Id: <20200710141157.1640173-8-vkuznets@redhat.com>
+Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>
+---
+ arch/x86/kvm/mmu/mmu.c    |  2 ++
+ arch/x86/kvm/svm/nested.c | 38 +++++++++++++++++++++++++++++---------
+ 2 files changed, 31 insertions(+), 9 deletions(-)
+
+diff --git a/arch/x86/kvm/mmu/mmu.c b/arch/x86/kvm/mmu/mmu.c
+index 78c88e8aecfa7..61c35fec5219c 100644
+--- a/arch/x86/kvm/mmu/mmu.c
++++ b/arch/x86/kvm/mmu/mmu.c
+@@ -4952,6 +4952,8 @@ void kvm_init_shadow_npt_mmu(struct kvm_vcpu *vcpu, u32 cr0, u32 cr4, u32 efer,
+ 	union kvm_mmu_role new_role =
+ 		kvm_calc_shadow_mmu_root_page_role(vcpu, false);
+ 
++	__kvm_mmu_new_pgd(vcpu, nested_cr3, new_role.base, false, false);
++
+ 	if (new_role.as_u64 != context->mmu_role.as_u64)
+ 		shadow_mmu_init_context(vcpu, context, cr0, cr4, efer, new_role);
+ }
+diff --git a/arch/x86/kvm/svm/nested.c b/arch/x86/kvm/svm/nested.c
+index 381e94d15a34b..f7d5bafd3b14b 100644
+--- a/arch/x86/kvm/svm/nested.c
++++ b/arch/x86/kvm/svm/nested.c
+@@ -348,7 +348,28 @@ static inline bool nested_npt_enabled(struct vcpu_svm *svm)
+ static int nested_svm_load_cr3(struct kvm_vcpu *vcpu, unsigned long cr3,
+ 			       bool nested_npt)
+ {
+-	return kvm_set_cr3(vcpu, cr3);
++	if (cr3 & rsvd_bits(cpuid_maxphyaddr(vcpu), 63))
++		return -EINVAL;
++
++	if (!nested_npt && is_pae_paging(vcpu) &&
++	    (cr3 != kvm_read_cr3(vcpu) || pdptrs_changed(vcpu))) {
++		if (!load_pdptrs(vcpu, vcpu->arch.walk_mmu, cr3))
++			return -EINVAL;
++	}
++
++	/*
++	 * TODO: optimize unconditional TLB flush/MMU sync here and in
++	 * kvm_init_shadow_npt_mmu().
++	 */
++	if (!nested_npt)
++		kvm_mmu_new_pgd(vcpu, cr3, false, false);
++
++	vcpu->arch.cr3 = cr3;
++	kvm_register_mark_available(vcpu, VCPU_EXREG_CR3);
++
++	kvm_init_mmu(vcpu, false);
++
++	return 0;
+ }
+ 
+ static void nested_prepare_vmcb_save(struct vcpu_svm *svm, struct vmcb *nested_vmcb)
+@@ -364,9 +385,6 @@ static void nested_prepare_vmcb_save(struct vcpu_svm *svm, struct vmcb *nested_v
+ 	svm_set_efer(&svm->vcpu, nested_vmcb->save.efer);
+ 	svm_set_cr0(&svm->vcpu, nested_vmcb->save.cr0);
+ 	svm_set_cr4(&svm->vcpu, nested_vmcb->save.cr4);
+-	(void)nested_svm_load_cr3(&svm->vcpu, nested_vmcb->save.cr3,
+-				  nested_npt_enabled(svm));
+-
+ 	svm->vmcb->save.cr2 = svm->vcpu.arch.cr2 = nested_vmcb->save.cr2;
+ 	kvm_rax_write(&svm->vcpu, nested_vmcb->save.rax);
+ 	kvm_rsp_write(&svm->vcpu, nested_vmcb->save.rsp);
+@@ -388,11 +406,6 @@ static void nested_prepare_vmcb_control(struct vcpu_svm *svm)
+ 	if (nested_npt_enabled(svm))
+ 		nested_svm_init_mmu_context(&svm->vcpu);
+ 
+-	/* Guest paging mode is active - reset mmu */
+-	kvm_mmu_reset_context(&svm->vcpu);
+-
+-	svm_flush_tlb(&svm->vcpu);
+-
+ 	svm->vmcb->control.tsc_offset = svm->vcpu.arch.tsc_offset =
+ 		svm->vcpu.arch.l1_tsc_offset + svm->nested.ctl.tsc_offset;
+ 
+@@ -424,11 +437,18 @@ static void nested_prepare_vmcb_control(struct vcpu_svm *svm)
+ int enter_svm_guest_mode(struct vcpu_svm *svm, u64 vmcb_gpa,
+ 			  struct vmcb *nested_vmcb)
+ {
++	int ret;
++
+ 	svm->nested.vmcb = vmcb_gpa;
+ 	load_nested_vmcb_control(svm, &nested_vmcb->control);
+ 	nested_prepare_vmcb_save(svm, nested_vmcb);
+ 	nested_prepare_vmcb_control(svm);
+ 
++	ret = nested_svm_load_cr3(&svm->vcpu, nested_vmcb->save.cr3,
++				  nested_npt_enabled(svm));
++	if (ret)
++		return ret;
++
+ 	svm_set_gif(svm, true);
+ 
+ 	return 0;
+-- 
+cgit 
+

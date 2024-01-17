@@ -1,0 +1,90 @@
+From c730fce7c70cfce831f4bdc9e49880ba1f61a092 Mon Sep 17 00:00:00 2001
+From: Ilya Leoshkevich <iii@linux.ibm.com>
+Date: Fri, 14 Apr 2023 17:47:55 +0200
+Subject: s390/bpf: Fix bpf_arch_text_poke() with new_addr == NULL
+
+Thomas Richter reported a crash in linux-next with a backtrace similar
+to the following one:
+
+	 [<0000000000000000>] 0x0
+	([<000000000031a182>] bpf_trace_run4+0xc2/0x218)
+	 [<00000000001d59f4>] __bpf_trace_sched_switch+0x1c/0x28
+	 [<0000000000c44a3a>] __schedule+0x43a/0x890
+	 [<0000000000c44ef8>] schedule+0x68/0x110
+	 [<0000000000c4e5ca>] do_nanosleep+0xa2/0x168
+	 [<000000000026e7fe>] hrtimer_nanosleep+0xf6/0x1c0
+	 [<000000000026eb6e>] __s390x_sys_nanosleep+0xb6/0xf0
+	 [<0000000000c3b81c>] __do_syscall+0x1e4/0x208
+	 [<0000000000c50510>] system_call+0x70/0x98
+	Last Breaking-Event-Address:
+	 [<000003ff7fda1814>] bpf_prog_65e887c70a835bbf_on_switch+0x1a4/0x1f0
+
+The problem is that bpf_arch_text_poke() with new_addr == NULL is
+susceptible to the following race condition:
+
+	T1                 T2
+        -----------------  -------------------
+	plt.target = NULL
+	                   entry: brcl 0xf,plt
+	entry.mask = 0
+	                   lgrl %r1,plt.target
+	                   br %r1
+
+Fix by setting PLT target to the instruction following `brcl 0xf,plt`
+instead of 0. This way T2 will simply resume the execution of the eBPF
+program, which is the desired effect of passing new_addr == NULL.
+
+Fixes: f1d5df84cd8c ("s390/bpf: Implement bpf_arch_text_poke()")
+Reported-by: Thomas Richter <tmricht@linux.ibm.com>
+Signed-off-by: Ilya Leoshkevich <iii@linux.ibm.com>
+Signed-off-by: Daniel Borkmann <daniel@iogearbox.net>
+Reviewed-by: Heiko Carstens <hca@linux.ibm.com>
+Link: https://lore.kernel.org/bpf/20230414154755.184502-1-iii@linux.ibm.com
+---
+ arch/s390/net/bpf_jit_comp.c | 11 ++++++++---
+ 1 file changed, 8 insertions(+), 3 deletions(-)
+
+diff --git a/arch/s390/net/bpf_jit_comp.c b/arch/s390/net/bpf_jit_comp.c
+index d0846ba818eea..6b1876e4ad3f5 100644
+--- a/arch/s390/net/bpf_jit_comp.c
++++ b/arch/s390/net/bpf_jit_comp.c
+@@ -539,7 +539,7 @@ static void bpf_jit_plt(void *plt, void *ret, void *target)
+ {
+ 	memcpy(plt, bpf_plt, BPF_PLT_SIZE);
+ 	*(void **)((char *)plt + (bpf_plt_ret - bpf_plt)) = ret;
+-	*(void **)((char *)plt + (bpf_plt_target - bpf_plt)) = target;
++	*(void **)((char *)plt + (bpf_plt_target - bpf_plt)) = target ?: ret;
+ }
+ 
+ /*
+@@ -2010,7 +2010,9 @@ int bpf_arch_text_poke(void *ip, enum bpf_text_poke_type t,
+ 	} __packed insn;
+ 	char expected_plt[BPF_PLT_SIZE];
+ 	char current_plt[BPF_PLT_SIZE];
++	char new_plt[BPF_PLT_SIZE];
+ 	char *plt;
++	char *ret;
+ 	int err;
+ 
+ 	/* Verify the branch to be patched. */
+@@ -2032,12 +2034,15 @@ int bpf_arch_text_poke(void *ip, enum bpf_text_poke_type t,
+ 		err = copy_from_kernel_nofault(current_plt, plt, BPF_PLT_SIZE);
+ 		if (err < 0)
+ 			return err;
+-		bpf_jit_plt(expected_plt, (char *)ip + 6, old_addr);
++		ret = (char *)ip + 6;
++		bpf_jit_plt(expected_plt, ret, old_addr);
+ 		if (memcmp(current_plt, expected_plt, BPF_PLT_SIZE))
+ 			return -EINVAL;
+ 		/* Adjust the call address. */
++		bpf_jit_plt(new_plt, ret, new_addr);
+ 		s390_kernel_write(plt + (bpf_plt_target - bpf_plt),
+-				  &new_addr, sizeof(void *));
++				  new_plt + (bpf_plt_target - bpf_plt),
++				  sizeof(void *));
+ 	}
+ 
+ 	/* Adjust the mask of the branch. */
+-- 
+cgit 
+

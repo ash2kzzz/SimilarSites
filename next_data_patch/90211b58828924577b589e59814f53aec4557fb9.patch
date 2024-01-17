@@ -1,0 +1,40 @@
+From 90211b58828924577b589e59814f53aec4557fb9 Mon Sep 17 00:00:00 2001
+From: Xingyu Wu <xingyu.wu@starfivetech.com>
+Date: Wed, 26 Apr 2023 11:12:16 +0800
+Subject: watchdog: starfive: Fix the probe return error if PM and early_enable
+ are both disabled
+
+When the starfive watchdog driver uses 'pm_runtime_put_sync()' as probe
+return value at last and 'early_enable' is disabled, it could return the
+error '-ENOSYS' if the CONFIG_PM is disabled, but the driver should works
+normally.
+
+Drop the 'return' and keep the 'pm_runtime_put_sync()', but do not use it
+as the return value.
+
+Fixes: db728ea9c7be ("drivers: watchdog: Add StarFive Watchdog driver")
+Signed-off-by: Xingyu Wu <xingyu.wu@starfivetech.com>
+Reviewed-by: Guenter Roeck <linux@roeck-us.net>
+Link: https://lore.kernel.org/r/20230426031216.37981-1-xingyu.wu@starfivetech.com
+Signed-off-by: Guenter Roeck <linux@roeck-us.net>
+Signed-off-by: Wim Van Sebroeck <wim@linux-watchdog.org>
+---
+ drivers/watchdog/starfive-wdt.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/watchdog/starfive-wdt.c b/drivers/watchdog/starfive-wdt.c
+index 1995cceca51e4..8f378900624de 100644
+--- a/drivers/watchdog/starfive-wdt.c
++++ b/drivers/watchdog/starfive-wdt.c
+@@ -492,7 +492,7 @@ static int starfive_wdt_probe(struct platform_device *pdev)
+ 		goto err_exit;
+ 
+ 	if (!early_enable)
+-		return pm_runtime_put_sync(&pdev->dev);
++		pm_runtime_put_sync(&pdev->dev);
+ 
+ 	return 0;
+ 
+-- 
+cgit 
+

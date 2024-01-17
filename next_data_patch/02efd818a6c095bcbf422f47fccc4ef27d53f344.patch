@@ -1,0 +1,50 @@
+From 02efd818a6c095bcbf422f47fccc4ef27d53f344 Mon Sep 17 00:00:00 2001
+From: Sean Christopherson <seanjc@google.com>
+Date: Sat, 7 Jan 2023 01:10:25 +0000
+Subject: KVM: VMX: Intercept reads to invalid and write-only x2APIC registers
+
+Intercept reads to invalid (non-existent) and write-only x2APIC registers
+when configuring VMX's MSR bitmaps for x2APIC+APICv.  When APICv is fully
+enabled, Intel hardware doesn't validate the registers on RDMSR and
+instead blindly retrieves data from the vAPIC page, i.e. it's software's
+responsibility to intercept reads to non-existent and write-only MSRs.
+
+Fixes: 8d14695f9542 ("x86, apicv: add virtual x2apic support")
+Reviewed-by: Maxim Levitsky <mlevitsk@redhat.com>
+Link: https://lore.kernel.org/r/20230107011025.565472-7-seanjc@google.com
+Signed-off-by: Sean Christopherson <seanjc@google.com>
+---
+ arch/x86/kvm/vmx/vmx.c | 8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/arch/x86/kvm/vmx/vmx.c b/arch/x86/kvm/vmx/vmx.c
+index 82c61c16f8f53..1be2bc7185be0 100644
+--- a/arch/x86/kvm/vmx/vmx.c
++++ b/arch/x86/kvm/vmx/vmx.c
+@@ -4031,7 +4031,7 @@ static void vmx_update_msr_bitmap_x2apic(struct kvm_vcpu *vcpu)
+ 	u64 *msr_bitmap = (u64 *)vmx->vmcs01.msr_bitmap;
+ 	u8 mode;
+ 
+-	if (!cpu_has_vmx_msr_bitmap())
++	if (!cpu_has_vmx_msr_bitmap() || WARN_ON_ONCE(!lapic_in_kernel(vcpu)))
+ 		return;
+ 
+ 	if (cpu_has_secondary_exec_ctrls() &&
+@@ -4053,11 +4053,11 @@ static void vmx_update_msr_bitmap_x2apic(struct kvm_vcpu *vcpu)
+ 	 * Reset the bitmap for MSRs 0x800 - 0x83f.  Leave AMD's uber-extended
+ 	 * registers (0x840 and above) intercepted, KVM doesn't support them.
+ 	 * Intercept all writes by default and poke holes as needed.  Pass
+-	 * through all reads by default in x2APIC+APICv mode, as all registers
+-	 * except the current timer count are passed through for read.
++	 * through reads for all valid registers by default in x2APIC+APICv
++	 * mode, only the current timer count needs on-demand emulation by KVM.
+ 	 */
+ 	if (mode & MSR_BITMAP_MODE_X2APIC_APICV)
+-		msr_bitmap[read_idx] = 0;
++		msr_bitmap[read_idx] = ~kvm_lapic_readable_reg_mask(vcpu->arch.apic);
+ 	else
+ 		msr_bitmap[read_idx] = ~0ull;
+ 	msr_bitmap[write_idx] = ~0ull;
+-- 
+cgit 
+

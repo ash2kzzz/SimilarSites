@@ -1,0 +1,35 @@
+From 1a5a23b9bdf6bde0e5185ca834ff6e806cc2aaaf Mon Sep 17 00:00:00 2001
+From: Yang Yingliang <yangyingliang@huawei.com>
+Date: Fri, 30 Dec 2022 14:54:27 +0800
+Subject: usb: fotg210-udc: fix error return code in fotg210_udc_probe()
+
+After commit  5f217ccd520f ("fotg210-udc: Support optional external PHY"),
+the error code is re-assigned to 0 in fotg210_udc_probe(), if allocate or
+map memory fails after the assignment, it can't return an error code. Set
+the error code to -ENOMEM to fix this problem.
+
+Fixes: 5f217ccd520f ("fotg210-udc: Support optional external PHY")
+Signed-off-by: Yang Yingliang <yangyingliang@huawei.com>
+Reviewed-by: Linus Walleij <linus.walleij@linaro.org>
+Link: https://lore.kernel.org/r/20221230065427.944586-1-yangyingliang@huawei.com
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+---
+ drivers/usb/fotg210/fotg210-udc.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/drivers/usb/fotg210/fotg210-udc.c b/drivers/usb/fotg210/fotg210-udc.c
+index 66e1b7ee3346e..87cca81bf4ac9 100644
+--- a/drivers/usb/fotg210/fotg210-udc.c
++++ b/drivers/usb/fotg210/fotg210-udc.c
+@@ -1201,6 +1201,8 @@ int fotg210_udc_probe(struct platform_device *pdev)
+ 		dev_info(dev, "found and initialized PHY\n");
+ 	}
+ 
++	ret = -ENOMEM;
++
+ 	for (i = 0; i < FOTG210_MAX_NUM_EP; i++) {
+ 		fotg210->ep[i] = kzalloc(sizeof(struct fotg210_ep), GFP_KERNEL);
+ 		if (!fotg210->ep[i])
+-- 
+cgit 
+

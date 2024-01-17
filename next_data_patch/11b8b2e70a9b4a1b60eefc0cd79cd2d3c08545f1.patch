@@ -1,0 +1,54 @@
+From 11b8b2e70a9b4a1b60eefc0cd79cd2d3c08545f1 Mon Sep 17 00:00:00 2001
+From: Vlad Buslov <vladbu@nvidia.com>
+Date: Mon, 12 Jun 2023 09:57:12 +0200
+Subject: selftests/tc-testing: Remove configs that no longer exist
+
+Some qdiscs and classifiers have recently been retired from kernel.
+However, tc-testing config is still cluttered with them which causes noise
+when using merge_config.sh script to update existing config for tc-testing
+compatibility. Remove the config settings for affected qdiscs and
+classifiers.
+
+Fixes: fb38306ceb9e ("net/sched: Retire ATM qdisc")
+Fixes: 051d44209842 ("net/sched: Retire CBQ qdisc")
+Fixes: bbe77c14ee61 ("net/sched: Retire dsmark qdisc")
+Fixes: 265b4da82dbf ("net/sched: Retire rsvp classifier")
+Fixes: 8c710f75256b ("net/sched: Retire tcindex classifier")
+Signed-off-by: Vlad Buslov <vladbu@nvidia.com>
+Reviewed-by: Pedro Tammela <pctammela@mojatatu.com>
+Signed-off-by: Jakub Kicinski <kuba@kernel.org>
+---
+ tools/testing/selftests/tc-testing/config | 5 -----
+ 1 file changed, 5 deletions(-)
+
+diff --git a/tools/testing/selftests/tc-testing/config b/tools/testing/selftests/tc-testing/config
+index aec4de8bea78b..6e73b09c20c81 100644
+--- a/tools/testing/selftests/tc-testing/config
++++ b/tools/testing/selftests/tc-testing/config
+@@ -13,14 +13,11 @@ CONFIG_NET_SCHED=y
+ #
+ # Queueing/Scheduling
+ #
+-CONFIG_NET_SCH_ATM=m
+ CONFIG_NET_SCH_CAKE=m
+-CONFIG_NET_SCH_CBQ=m
+ CONFIG_NET_SCH_CBS=m
+ CONFIG_NET_SCH_CHOKE=m
+ CONFIG_NET_SCH_CODEL=m
+ CONFIG_NET_SCH_DRR=m
+-CONFIG_NET_SCH_DSMARK=m
+ CONFIG_NET_SCH_ETF=m
+ CONFIG_NET_SCH_FQ=m
+ CONFIG_NET_SCH_FQ_CODEL=m
+@@ -58,8 +55,6 @@ CONFIG_NET_CLS_FLOW=m
+ CONFIG_NET_CLS_FLOWER=m
+ CONFIG_NET_CLS_MATCHALL=m
+ CONFIG_NET_CLS_ROUTE4=m
+-CONFIG_NET_CLS_RSVP=m
+-CONFIG_NET_CLS_TCINDEX=m
+ CONFIG_NET_EMATCH=y
+ CONFIG_NET_EMATCH_STACK=32
+ CONFIG_NET_EMATCH_CMP=m
+-- 
+cgit 
+

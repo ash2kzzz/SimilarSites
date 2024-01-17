@@ -1,0 +1,99 @@
+From 2c870e61132c082a03769d2ac0a2849ba33c10e3 Mon Sep 17 00:00:00 2001
+From: Arnd Bergmann <arnd@arndb.de>
+Date: Tue, 24 Jul 2018 11:48:45 +0200
+Subject: arm64: fix ACPI dependencies
+
+Kconfig reports a warning on x86 builds after the ARM64 dependency
+was added.
+
+drivers/acpi/Kconfig:6:error: recursive dependency detected!
+drivers/acpi/Kconfig:6:       symbol ACPI depends on EFI
+
+This rephrases the dependency to keep the ARM64 details out of the
+shared Kconfig file, so Kconfig no longer gets confused by it.
+
+For consistency, all three architectures that support ACPI now
+select ARCH_SUPPORTS_ACPI in exactly the configuration in which
+they allow it. We still need the 'default x86', as each one
+wants a different default: default-y on x86, default-n on arm64,
+and always-y on ia64.
+
+Fixes: 5bcd44083a08 ("drivers: acpi: add dependency of EFI for arm64")
+Reviewed-by: Rafael J. Wysocki <rafael.j.wysocki@intel.com>
+Acked-by: Will Deacon <will.deacon@arm.com>
+Signed-off-by: Arnd Bergmann <arnd@arndb.de>
+Signed-off-by: Will Deacon <will.deacon@arm.com>
+---
+ arch/arm64/Kconfig   | 1 +
+ arch/ia64/Kconfig    | 1 +
+ arch/x86/Kconfig     | 1 +
+ drivers/acpi/Kconfig | 8 +++++---
+ 4 files changed, 8 insertions(+), 3 deletions(-)
+
+diff --git a/arch/arm64/Kconfig b/arch/arm64/Kconfig
+index e2823362c324d..27fd50e86dfef 100644
+--- a/arch/arm64/Kconfig
++++ b/arch/arm64/Kconfig
+@@ -1262,6 +1262,7 @@ config EFI
+ 	bool "UEFI runtime support"
+ 	depends on OF && !CPU_BIG_ENDIAN
+ 	depends on KERNEL_MODE_NEON
++	select ARCH_SUPPORTS_ACPI
+ 	select LIBFDT
+ 	select UCS2_STRING
+ 	select EFI_PARAMS_FROM_FDT
+diff --git a/arch/ia64/Kconfig b/arch/ia64/Kconfig
+index ff861420b8f56..02eb68d5d1c07 100644
+--- a/arch/ia64/Kconfig
++++ b/arch/ia64/Kconfig
+@@ -16,6 +16,7 @@ config IA64
+ 	select ARCH_MIGHT_HAVE_PC_SERIO
+ 	select PCI if (!IA64_HP_SIM)
+ 	select ACPI if (!IA64_HP_SIM)
++	select ARCH_SUPPORTS_ACPI if (!IA64_HP_SIM)
+ 	select ACPI_SYSTEM_POWER_STATES_SUPPORT if ACPI
+ 	select ARCH_MIGHT_HAVE_ACPI_PDC if ACPI
+ 	select HAVE_UNSTABLE_SCHED_CLOCK
+diff --git a/arch/x86/Kconfig b/arch/x86/Kconfig
+index f1dbb4ee19d78..ee99f52965708 100644
+--- a/arch/x86/Kconfig
++++ b/arch/x86/Kconfig
+@@ -75,6 +75,7 @@ config X86
+ 	select ARCH_MIGHT_HAVE_ACPI_PDC		if ACPI
+ 	select ARCH_MIGHT_HAVE_PC_PARPORT
+ 	select ARCH_MIGHT_HAVE_PC_SERIO
++	select ARCH_SUPPORTS_ACPI
+ 	select ARCH_SUPPORTS_ATOMIC_RMW
+ 	select ARCH_SUPPORTS_NUMA_BALANCING	if X86_64
+ 	select ARCH_USE_BUILTIN_BSWAP
+diff --git a/drivers/acpi/Kconfig b/drivers/acpi/Kconfig
+index 15ab1daaa8081..4a46344bf0e3f 100644
+--- a/drivers/acpi/Kconfig
++++ b/drivers/acpi/Kconfig
+@@ -5,11 +5,10 @@
+ 
+ menuconfig ACPI
+ 	bool "ACPI (Advanced Configuration and Power Interface) Support"
+-	depends on !IA64_HP_SIM
+-	depends on IA64 || X86 || (ARM64 && EFI)
++	depends on ARCH_SUPPORTS_ACPI
+ 	depends on PCI
+ 	select PNP
+-	default y if (IA64 || X86)
++	default y if X86
+ 	help
+ 	  Advanced Configuration and Power Interface (ACPI) support for 
+ 	  Linux requires an ACPI-compliant platform (hardware/firmware),
+@@ -41,6 +40,9 @@ menuconfig ACPI
+ 	  <http://www.acpi.info>
+ 	  <http://www.uefi.org/acpi/specs>
+ 
++config ARCH_SUPPORTS_ACPI
++	bool
++
+ if ACPI
+ 
+ config ACPI_LEGACY_TABLES_LOOKUP
+-- 
+cgit 
+

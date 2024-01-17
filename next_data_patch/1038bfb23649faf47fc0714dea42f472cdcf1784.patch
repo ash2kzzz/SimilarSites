@@ -1,0 +1,71 @@
+From 1038bfb23649faf47fc0714dea42f472cdcf1784 Mon Sep 17 00:00:00 2001
+From: Piergiorgio Beruto <piergiorgio.beruto@gmail.com>
+Date: Wed, 18 Jan 2023 16:47:31 +0100
+Subject: net: phy: fix use of uninit variable when setting PLCA config
+
+Coverity reported the following:
+
+*** CID 1530573:    (UNINIT)
+drivers/net/phy/phy-c45.c:1036 in genphy_c45_plca_set_cfg()
+1030     				return ret;
+1031
+1032     			val = ret;
+1033     		}
+1034
+1035     		if (plca_cfg->node_cnt >= 0)
+vvv     CID 1530573:    (UNINIT)
+vvv     Using uninitialized value "val".
+1036     			val = (val & ~MDIO_OATC14_PLCA_NCNT) |
+1037     			      (plca_cfg->node_cnt << 8);
+1038
+1039     		if (plca_cfg->node_id >= 0)
+1040     			val = (val & ~MDIO_OATC14_PLCA_ID) |
+1041     			      (plca_cfg->node_id);
+drivers/net/phy/phy-c45.c:1076 in genphy_c45_plca_set_cfg()
+1070     				return ret;
+1071
+1072     			val = ret;
+1073     		}
+1074
+1075     		if (plca_cfg->burst_cnt >= 0)
+vvv     CID 1530573:    (UNINIT)
+vvv     Using uninitialized value "val".
+1076     			val = (val & ~MDIO_OATC14_PLCA_MAXBC) |
+1077     			      (plca_cfg->burst_cnt << 8);
+1078
+1079     		if (plca_cfg->burst_tmr >= 0)
+1080     			val = (val & ~MDIO_OATC14_PLCA_BTMR) |
+1081     			      (plca_cfg->burst_tmr);
+
+This is not actually creating a real problem because the path leading to
+'val' being used uninitialized will eventually override the full content
+of that variable before actually using it for writing the register.
+However, the fix is simple and comes at basically no cost.
+
+Reported-by: coverity-bot <keescook+coverity-bot@chromium.org>
+Fixes: 493323416fed ("drivers/net/phy: add helpers to get/set PLCA configuration")
+Signed-off-by: Piergiorgio Beruto <piergiorgio.beruto@gmail.com>
+Reviewed-by: Jacob Keller <jacob.e.keller@intel.com>
+Link: https://lore.kernel.org/r/f22f1864165a8dbac8b7a2277f341bc8e7a7b70d.1674056765.git.piergiorgio.beruto@gmail.com
+Signed-off-by: Jakub Kicinski <kuba@kernel.org>
+---
+ drivers/net/phy/phy-c45.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/net/phy/phy-c45.c b/drivers/net/phy/phy-c45.c
+index cff83220595c9..9f9565a4819de 100644
+--- a/drivers/net/phy/phy-c45.c
++++ b/drivers/net/phy/phy-c45.c
+@@ -999,8 +999,8 @@ EXPORT_SYMBOL_GPL(genphy_c45_plca_get_cfg);
+ int genphy_c45_plca_set_cfg(struct phy_device *phydev,
+ 			    const struct phy_plca_cfg *plca_cfg)
+ {
++	u16 val = 0;
+ 	int ret;
+-	u16 val;
+ 
+ 	// PLCA IDVER is read-only
+ 	if (plca_cfg->version >= 0)
+-- 
+cgit 
+

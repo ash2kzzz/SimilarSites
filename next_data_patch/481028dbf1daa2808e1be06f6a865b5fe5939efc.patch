@@ -1,0 +1,55 @@
+From 481028dbf1daa2808e1be06f6a865b5fe5939efc Mon Sep 17 00:00:00 2001
+From: Jesus Sanchez-Palencia <jesussanp@google.com>
+Date: Wed, 4 Jan 2023 11:34:14 -0800
+Subject: perf tools: Fix build on uClibc systems by adding missing sys/types.h
+ include
+
+Not all libc implementations define ssize_t as part of stdio.h like
+glibc does since the standard only requires this type to be defined by
+unistd.h and sys/types.h. For this reason the perf build is currently
+broken for toolchains based on uClibc, for instance.
+
+Include sys/types.h explicitly to fix that.
+
+Committer notes:
+
+In addition, in the past this worked in uClibc test systems as there was
+another way to get to sys/types.h that got removed in that cset:
+
+  tools/perf/util/trace-event.h
+    /usr/include/traceevent/event_parse.h # This got removed from util/trace-event.h in 378ef0f5d9d7f465
+      /usr/include/regex.h
+        /usr/include/sys/types.h
+          typedef __ssize_t ssize_t;
+
+So the size_t that is used in tools/perf/util/trace-event.h was being
+obtained indirectly, by chance.
+
+Fixes: 378ef0f5d9d7f465 ("perf build: Use libtraceevent from the system")
+Signed-off-by: Jesus Sanchez-Palencia <jesussanp@google.com>
+Cc: Alexander Shishkin <alexander.shishkin@linux.intel.com>
+Cc: Ian Rogers <irogers@google.com>
+Cc: Jiri Olsa <jolsa@kernel.org>
+Cc: Mark Rutland <mark.rutland@arm.com>
+Cc: Namhyung Kim <namhyung@kernel.org>
+Link: http://lore.kernel.org/lkml/20230104193414.606905-1-jesussanp@google.com
+Signed-off-by: Arnaldo Carvalho de Melo <acme@redhat.com>
+---
+ tools/perf/util/trace-event.h | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/tools/perf/util/trace-event.h b/tools/perf/util/trace-event.h
+index add6c5d9531cd..9b3cd79cca121 100644
+--- a/tools/perf/util/trace-event.h
++++ b/tools/perf/util/trace-event.h
+@@ -4,6 +4,7 @@
+ 
+ #include <stdbool.h>
+ #include <stdio.h>
++#include <sys/types.h>
+ #include <linux/types.h>
+ 
+ struct evlist;
+-- 
+cgit 
+

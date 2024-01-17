@@ -1,0 +1,122 @@
+From eede42c9459b58b71edc99303dad65216a655810 Mon Sep 17 00:00:00 2001
+From: Bartosz Golaszewski <bartosz.golaszewski@linaro.org>
+Date: Mon, 16 Jan 2023 15:41:49 +0100
+Subject: spi: spidev: fix a recursive locking error
+
+When calling spidev_message() from the one of the ioctl() callbacks, the
+spi_lock is already taken. When we then end up calling spidev_sync(), we
+get the following splat:
+
+[  214.047619]
+[  214.049198] ============================================
+[  214.054533] WARNING: possible recursive locking detected
+[  214.059858] 6.2.0-rc3-0.0.0-devel+git.97ec4d559d93 #1 Not tainted
+[  214.065969] --------------------------------------------
+[  214.071290] spidev_test/1454 is trying to acquire lock:
+[  214.076530] c4925dbc (&spidev->spi_lock){+.+.}-{3:3}, at: spidev_ioctl+0x8e0/0xab8
+[  214.084164]
+[  214.084164] but task is already holding lock:
+[  214.090007] c4925dbc (&spidev->spi_lock){+.+.}-{3:3}, at: spidev_ioctl+0x44/0xab8
+[  214.097537]
+[  214.097537] other info that might help us debug this:
+[  214.104075]  Possible unsafe locking scenario:
+[  214.104075]
+[  214.110004]        CPU0
+[  214.112461]        ----
+[  214.114916]   lock(&spidev->spi_lock);
+[  214.118687]   lock(&spidev->spi_lock);
+[  214.122457]
+[  214.122457]  *** DEADLOCK ***
+[  214.122457]
+[  214.128386]  May be due to missing lock nesting notation
+[  214.128386]
+[  214.135183] 2 locks held by spidev_test/1454:
+[  214.139553]  #0: c4925dbc (&spidev->spi_lock){+.+.}-{3:3}, at: spidev_ioctl+0x44/0xab8
+[  214.147524]  #1: c4925e14 (&spidev->buf_lock){+.+.}-{3:3}, at: spidev_ioctl+0x70/0xab8
+[  214.155493]
+[  214.155493] stack backtrace:
+[  214.159861] CPU: 0 PID: 1454 Comm: spidev_test Not tainted 6.2.0-rc3-0.0.0-devel+git.97ec4d559d93 #1
+[  214.169012] Hardware name: Freescale i.MX6 Quad/DualLite (Device Tree)
+[  214.175555]  unwind_backtrace from show_stack+0x10/0x14
+[  214.180819]  show_stack from dump_stack_lvl+0x60/0x90
+[  214.185900]  dump_stack_lvl from __lock_acquire+0x874/0x2858
+[  214.191584]  __lock_acquire from lock_acquire+0xfc/0x378
+[  214.196918]  lock_acquire from __mutex_lock+0x9c/0x8a8
+[  214.202083]  __mutex_lock from mutex_lock_nested+0x1c/0x24
+[  214.207597]  mutex_lock_nested from spidev_ioctl+0x8e0/0xab8
+[  214.213284]  spidev_ioctl from sys_ioctl+0x4d0/0xe2c
+[  214.218277]  sys_ioctl from ret_fast_syscall+0x0/0x1c
+[  214.223351] Exception stack(0xe75cdfa8 to 0xe75cdff0)
+[  214.228422] dfa0:                   00000000 00001000 00000003 40206b00 bee266e8 bee266e0
+[  214.236617] dfc0: 00000000 00001000 006a71a0 00000036 004c0040 004bfd18 00000000 00000003
+[  214.244809] dfe0: 00000036 bee266c8 b6f16dc5 b6e8e5f6
+
+Fix it by introducing an unlocked variant of spidev_sync() and calling it
+from spidev_message() while other users who don't check the spidev->spi's
+existence keep on using the locking flavor.
+
+Reported-by: Francesco Dolcini <francesco@dolcini.it>
+Fixes: 1f4d2dd45b6e ("spi: spidev: fix a race condition when accessing spidev->spi")
+Signed-off-by: Bartosz Golaszewski <bartosz.golaszewski@linaro.org>
+Tested-by: Max Krummenacher <max.krummenacher@toradex.com>
+Link: https://lore.kernel.org/r/20230116144149.305560-1-brgl@bgdev.pl
+Signed-off-by: Mark Brown <broonie@kernel.org>
+---
+ drivers/spi/spidev.c | 22 ++++++++++++++++------
+ 1 file changed, 16 insertions(+), 6 deletions(-)
+
+diff --git a/drivers/spi/spidev.c b/drivers/spi/spidev.c
+index 1935ca6134470..a1ea093795cfb 100644
+--- a/drivers/spi/spidev.c
++++ b/drivers/spi/spidev.c
+@@ -89,10 +89,22 @@ MODULE_PARM_DESC(bufsiz, "data bytes in biggest supported SPI message");
+ 
+ /*-------------------------------------------------------------------------*/
+ 
++static ssize_t
++spidev_sync_unlocked(struct spi_device *spi, struct spi_message *message)
++{
++	ssize_t status;
++
++	status = spi_sync(spi, message);
++	if (status == 0)
++		status = message->actual_length;
++
++	return status;
++}
++
+ static ssize_t
+ spidev_sync(struct spidev_data *spidev, struct spi_message *message)
+ {
+-	int status;
++	ssize_t status;
+ 	struct spi_device *spi;
+ 
+ 	mutex_lock(&spidev->spi_lock);
+@@ -101,12 +113,10 @@ spidev_sync(struct spidev_data *spidev, struct spi_message *message)
+ 	if (spi == NULL)
+ 		status = -ESHUTDOWN;
+ 	else
+-		status = spi_sync(spi, message);
+-
+-	if (status == 0)
+-		status = message->actual_length;
++		status = spidev_sync_unlocked(spi, message);
+ 
+ 	mutex_unlock(&spidev->spi_lock);
++
+ 	return status;
+ }
+ 
+@@ -294,7 +304,7 @@ static int spidev_message(struct spidev_data *spidev,
+ 		spi_message_add_tail(k_tmp, &msg);
+ 	}
+ 
+-	status = spidev_sync(spidev, &msg);
++	status = spidev_sync_unlocked(spidev->spi, &msg);
+ 	if (status < 0)
+ 		goto done;
+ 
+-- 
+cgit 
+

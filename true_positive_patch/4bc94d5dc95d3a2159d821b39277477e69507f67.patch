@@ -1,0 +1,167 @@
+From 4bc94d5dc95d3a2159d821b39277477e69507f67 Mon Sep 17 00:00:00 2001
+From: Alex Williamson <alex.williamson@redhat.com>
+Date: Fri, 24 Jul 2015 15:14:04 -0600
+Subject: vfio: Fix lockdep issue
+
+When we open a device file descriptor, we currently have the
+following:
+
+vfio_group_get_device_fd()
+  mutex_lock(&group->device_lock);
+    open()
+    ...
+    if (ret)
+      release()
+
+If we hit that error case, we call the backend driver release path,
+which for vfio-pci looks like this:
+
+vfio_pci_release()
+  vfio_pci_disable()
+    vfio_pci_try_bus_reset()
+      vfio_pci_get_devs()
+        vfio_device_get_from_dev()
+          vfio_group_get_device()
+            mutex_lock(&group->device_lock);
+
+Whoops, we've stumbled back onto group.device_lock and created a
+deadlock.  There's a low likelihood of ever seeing this play out, but
+obviously it needs to be fixed.  To do that we can use a reference to
+the vfio_device for vfio_group_get_device_fd() rather than holding the
+lock.  There was a loop in this function, theoretically allowing
+multiple devices with the same name, but in practice we don't expect
+such a thing to happen and the code is already aborting from the loop
+with break on any sort of error rather than continuing and only
+parsing the first match anyway, so the loop was effectively unused
+already.
+
+Signed-off-by: Alex Williamson <alex.williamson@redhat.com>
+Fixes: 20f300175a1e ("vfio/pci: Fix racy vfio_device_get_from_dev() call")
+Reported-by: Joerg Roedel <joro@8bytes.org>
+Tested-by: Joerg Roedel <jroedel@suse.de>
+---
+ drivers/vfio/vfio.c | 91 +++++++++++++++++++++++++++++++----------------------
+ 1 file changed, 54 insertions(+), 37 deletions(-)
+
+diff --git a/drivers/vfio/vfio.c b/drivers/vfio/vfio.c
+index 2fb29dfeffbd7..563c510f285c4 100644
+--- a/drivers/vfio/vfio.c
++++ b/drivers/vfio/vfio.c
+@@ -689,6 +689,23 @@ struct vfio_device *vfio_device_get_from_dev(struct device *dev)
+ }
+ EXPORT_SYMBOL_GPL(vfio_device_get_from_dev);
+ 
++static struct vfio_device *vfio_device_get_from_name(struct vfio_group *group,
++						     char *buf)
++{
++	struct vfio_device *device;
++
++	mutex_lock(&group->device_lock);
++	list_for_each_entry(device, &group->device_list, group_next) {
++		if (!strcmp(dev_name(device->dev), buf)) {
++			vfio_device_get(device);
++			break;
++		}
++	}
++	mutex_unlock(&group->device_lock);
++
++	return device;
++}
++
+ /*
+  * Caller must hold a reference to the vfio_device
+  */
+@@ -1198,53 +1215,53 @@ static int vfio_group_get_device_fd(struct vfio_group *group, char *buf)
+ {
+ 	struct vfio_device *device;
+ 	struct file *filep;
+-	int ret = -ENODEV;
++	int ret;
+ 
+ 	if (0 == atomic_read(&group->container_users) ||
+ 	    !group->container->iommu_driver || !vfio_group_viable(group))
+ 		return -EINVAL;
+ 
+-	mutex_lock(&group->device_lock);
+-	list_for_each_entry(device, &group->device_list, group_next) {
+-		if (strcmp(dev_name(device->dev), buf))
+-			continue;
++	device = vfio_device_get_from_name(group, buf);
++	if (!device)
++		return -ENODEV;
+ 
+-		ret = device->ops->open(device->device_data);
+-		if (ret)
+-			break;
+-		/*
+-		 * We can't use anon_inode_getfd() because we need to modify
+-		 * the f_mode flags directly to allow more than just ioctls
+-		 */
+-		ret = get_unused_fd_flags(O_CLOEXEC);
+-		if (ret < 0) {
+-			device->ops->release(device->device_data);
+-			break;
+-		}
++	ret = device->ops->open(device->device_data);
++	if (ret) {
++		vfio_device_put(device);
++		return ret;
++	}
+ 
+-		filep = anon_inode_getfile("[vfio-device]", &vfio_device_fops,
+-					   device, O_RDWR);
+-		if (IS_ERR(filep)) {
+-			put_unused_fd(ret);
+-			ret = PTR_ERR(filep);
+-			device->ops->release(device->device_data);
+-			break;
+-		}
++	/*
++	 * We can't use anon_inode_getfd() because we need to modify
++	 * the f_mode flags directly to allow more than just ioctls
++	 */
++	ret = get_unused_fd_flags(O_CLOEXEC);
++	if (ret < 0) {
++		device->ops->release(device->device_data);
++		vfio_device_put(device);
++		return ret;
++	}
+ 
+-		/*
+-		 * TODO: add an anon_inode interface to do this.
+-		 * Appears to be missing by lack of need rather than
+-		 * explicitly prevented.  Now there's need.
+-		 */
+-		filep->f_mode |= (FMODE_LSEEK | FMODE_PREAD | FMODE_PWRITE);
++	filep = anon_inode_getfile("[vfio-device]", &vfio_device_fops,
++				   device, O_RDWR);
++	if (IS_ERR(filep)) {
++		put_unused_fd(ret);
++		ret = PTR_ERR(filep);
++		device->ops->release(device->device_data);
++		vfio_device_put(device);
++		return ret;
++	}
++
++	/*
++	 * TODO: add an anon_inode interface to do this.
++	 * Appears to be missing by lack of need rather than
++	 * explicitly prevented.  Now there's need.
++	 */
++	filep->f_mode |= (FMODE_LSEEK | FMODE_PREAD | FMODE_PWRITE);
+ 
+-		vfio_device_get(device);
+-		atomic_inc(&group->container_users);
++	atomic_inc(&group->container_users);
+ 
+-		fd_install(ret, filep);
+-		break;
+-	}
+-	mutex_unlock(&group->device_lock);
++	fd_install(ret, filep);
+ 
+ 	return ret;
+ }
+-- 
+cgit 
+

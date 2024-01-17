@@ -1,0 +1,72 @@
+From dffaa98c8bcf973e94a58d8f29c0254e003b538c Mon Sep 17 00:00:00 2001
+From: Andrzej Kacprowski <andrzej.kacprowski@linux.intel.com>
+Date: Thu, 2 Feb 2023 10:21:12 +0100
+Subject: accel/ivpu: Send VPU_JSM_MSG_CONTEXT_DELETE when deleting context
+
+The VPU_JSM_MSG_CONTEXT_DELETE will remove any resources associated
+with the SSID, that included any blobs create by the user space
+application.
+
+The command can also remove doorbell registrations, but since this
+does not work in HW scheduling case, we do not depend on this
+capability and unregister the doorbells explicitly.
+
+Fixes: cd7272215c44 ("accel/ivpu: Add command buffer submission logic")
+Signed-off-by: Andrzej Kacprowski <andrzej.kacprowski@linux.intel.com>
+Signed-off-by: Stanislaw Gruszka <stanislaw.gruszka@linux.intel.com>
+Reviewed-by: Jeffrey Hugo <quic_jhugo@quicinc.com>
+Signed-off-by: Jacek Lawrynowicz <jacek.lawrynowicz@linux.intel.com>
+Link: https://patchwork.freedesktop.org/patch/msgid/20230202092114.2637452-3-stanislaw.gruszka@linux.intel.com
+(cherry picked from commit 38257f514d85cd9d3f7586e768cec4f246635f77)
+Signed-off-by: Jacek Lawrynowicz <jacek.lawrynowicz@linux.intel.com>
+---
+ drivers/accel/ivpu/ivpu_drv.c     |  1 +
+ drivers/accel/ivpu/ivpu_jsm_msg.c | 11 +++++++++++
+ drivers/accel/ivpu/ivpu_jsm_msg.h |  2 +-
+ 3 files changed, 13 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/accel/ivpu/ivpu_drv.c b/drivers/accel/ivpu/ivpu_drv.c
+index a29e8ee0dce6c..70c104851c6db 100644
+--- a/drivers/accel/ivpu/ivpu_drv.c
++++ b/drivers/accel/ivpu/ivpu_drv.c
+@@ -90,6 +90,7 @@ static void file_priv_release(struct kref *ref)
+ 
+ 	ivpu_cmdq_release_all(file_priv);
+ 	ivpu_bo_remove_all_bos_from_context(&file_priv->ctx);
++	ivpu_jsm_context_release(vdev, file_priv->ctx.id);
+ 	ivpu_mmu_user_context_fini(vdev, &file_priv->ctx);
+ 	drm_WARN_ON(&vdev->drm, xa_erase_irq(&vdev->context_xa, file_priv->ctx.id) != file_priv);
+ 	mutex_destroy(&file_priv->lock);
+diff --git a/drivers/accel/ivpu/ivpu_jsm_msg.c b/drivers/accel/ivpu/ivpu_jsm_msg.c
+index af77dafac97ed..831bfd2b2d39d 100644
+--- a/drivers/accel/ivpu/ivpu_jsm_msg.c
++++ b/drivers/accel/ivpu/ivpu_jsm_msg.c
+@@ -167,3 +167,14 @@ int ivpu_jsm_trace_set_config(struct ivpu_device *vdev, u32 trace_level, u32 tra
+ 
+ 	return ret;
+ }
++
++int ivpu_jsm_context_release(struct ivpu_device *vdev, u32 host_ssid)
++{
++	struct vpu_jsm_msg req = { .type = VPU_JSM_MSG_SSID_RELEASE };
++	struct vpu_jsm_msg resp;
++
++	req.payload.ssid_release.host_ssid = host_ssid;
++
++	return ivpu_ipc_send_receive(vdev, &req, VPU_JSM_MSG_SSID_RELEASE_DONE, &resp,
++				     VPU_IPC_CHAN_ASYNC_CMD, vdev->timeout.jsm);
++}
+diff --git a/drivers/accel/ivpu/ivpu_jsm_msg.h b/drivers/accel/ivpu/ivpu_jsm_msg.h
+index 1a3e2e2740bd8..ab50d7b017c1b 100644
+--- a/drivers/accel/ivpu/ivpu_jsm_msg.h
++++ b/drivers/accel/ivpu/ivpu_jsm_msg.h
+@@ -19,5 +19,5 @@ int ivpu_jsm_trace_get_capability(struct ivpu_device *vdev, u32 *trace_destinati
+ 				  u64 *trace_hw_component_mask);
+ int ivpu_jsm_trace_set_config(struct ivpu_device *vdev, u32 trace_level, u32 trace_destination_mask,
+ 			      u64 trace_hw_component_mask);
+-
++int ivpu_jsm_context_release(struct ivpu_device *vdev, u32 host_ssid);
+ #endif
+-- 
+cgit 
+

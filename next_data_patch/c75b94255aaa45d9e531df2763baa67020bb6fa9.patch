@@ -1,0 +1,51 @@
+From c75b94255aaa45d9e531df2763baa67020bb6fa9 Mon Sep 17 00:00:00 2001
+From: Leon Romanovsky <leonro@nvidia.com>
+Date: Mon, 5 Jun 2023 11:09:51 +0300
+Subject: net/mlx5e: Drop XFRM state lock when modifying flow steering
+
+XFRM state which is changed to be XFRM_STATE_EXPIRED doesn't really
+need to hold lock while modifying flow steering rules to drop traffic.
+
+That state can be deleted only and as such mlx5e_ipsec_handle_tx_limit()
+work will be canceled anyway and won't run in parallel.
+
+Fixes: b2f7b01d36a9 ("net/mlx5e: Simulate missing IPsec TX limits hardware functionality")
+Signed-off-by: Leon Romanovsky <leonro@nvidia.com>
+Reviewed-by: Simon Horman <simon.horman@corigine.com>
+Signed-off-by: Saeed Mahameed <saeedm@nvidia.com>
+---
+ drivers/net/ethernet/mellanox/mlx5/core/en_accel/ipsec.c | 13 ++++++++-----
+ 1 file changed, 8 insertions(+), 5 deletions(-)
+
+diff --git a/drivers/net/ethernet/mellanox/mlx5/core/en_accel/ipsec.c b/drivers/net/ethernet/mellanox/mlx5/core/en_accel/ipsec.c
+index d1c801723d35a..891d39b4bfd4f 100644
+--- a/drivers/net/ethernet/mellanox/mlx5/core/en_accel/ipsec.c
++++ b/drivers/net/ethernet/mellanox/mlx5/core/en_accel/ipsec.c
+@@ -61,16 +61,19 @@ static void mlx5e_ipsec_handle_tx_limit(struct work_struct *_work)
+ 	struct mlx5e_ipsec_sa_entry *sa_entry = dwork->sa_entry;
+ 	struct xfrm_state *x = sa_entry->x;
+ 
+-	spin_lock(&x->lock);
++	if (sa_entry->attrs.drop)
++		return;
++
++	spin_lock_bh(&x->lock);
+ 	xfrm_state_check_expire(x);
+ 	if (x->km.state == XFRM_STATE_EXPIRED) {
+ 		sa_entry->attrs.drop = true;
+-		mlx5e_accel_ipsec_fs_modify(sa_entry);
+-	}
+-	spin_unlock(&x->lock);
++		spin_unlock_bh(&x->lock);
+ 
+-	if (sa_entry->attrs.drop)
++		mlx5e_accel_ipsec_fs_modify(sa_entry);
+ 		return;
++	}
++	spin_unlock_bh(&x->lock);
+ 
+ 	queue_delayed_work(sa_entry->ipsec->wq, &dwork->dwork,
+ 			   MLX5_IPSEC_RESCHED);
+-- 
+cgit 
+

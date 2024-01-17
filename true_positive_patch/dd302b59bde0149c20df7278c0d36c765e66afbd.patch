@@ -1,0 +1,60 @@
+From dd302b59bde0149c20df7278c0d36c765e66afbd Mon Sep 17 00:00:00 2001
+From: Florian Westphal <fw@strlen.de>
+Date: Tue, 30 Jun 2015 22:27:51 +0200
+Subject: netfilter: bridge: don't leak skb in error paths
+
+br_nf_dev_queue_xmit must free skb in its error path.
+NF_DROP is misleading -- its an okfn, not a netfilter hook.
+
+Fixes: 462fb2af9788a ("bridge : Sanitize skb before it enters the IP stack")
+Fixes: efb6de9b4ba00 ("netfilter: bridge: forward IPv6 fragmented packets")
+Signed-off-by: Florian Westphal <fw@strlen.de>
+Signed-off-by: Pablo Neira Ayuso <pablo@netfilter.org>
+---
+ net/bridge/br_netfilter_hooks.c | 12 ++++++++----
+ 1 file changed, 8 insertions(+), 4 deletions(-)
+
+diff --git a/net/bridge/br_netfilter_hooks.c b/net/bridge/br_netfilter_hooks.c
+index 8a394bd3af83b..c8b9bcfe997e4 100644
+--- a/net/bridge/br_netfilter_hooks.c
++++ b/net/bridge/br_netfilter_hooks.c
+@@ -744,7 +744,7 @@ static int br_nf_dev_queue_xmit(struct sock *sk, struct sk_buff *skb)
+ 		struct brnf_frag_data *data;
+ 
+ 		if (br_validate_ipv4(skb))
+-			return NF_DROP;
++			goto drop;
+ 
+ 		IPCB(skb)->frag_max_size = nf_bridge->frag_max_size;
+ 
+@@ -769,7 +769,7 @@ static int br_nf_dev_queue_xmit(struct sock *sk, struct sk_buff *skb)
+ 		struct brnf_frag_data *data;
+ 
+ 		if (br_validate_ipv6(skb))
+-			return NF_DROP;
++			goto drop;
+ 
+ 		IP6CB(skb)->frag_max_size = nf_bridge->frag_max_size;
+ 
+@@ -784,12 +784,16 @@ static int br_nf_dev_queue_xmit(struct sock *sk, struct sk_buff *skb)
+ 
+ 		if (v6ops)
+ 			return v6ops->fragment(sk, skb, br_nf_push_frag_xmit);
+-		else
+-			return -EMSGSIZE;
++
++		kfree_skb(skb);
++		return -EMSGSIZE;
+ 	}
+ #endif
+ 	nf_bridge_info_free(skb);
+ 	return br_dev_queue_push_xmit(sk, skb);
++ drop:
++	kfree_skb(skb);
++	return 0;
+ }
+ 
+ /* PF_BRIDGE/POST_ROUTING ********************************************/
+-- 
+cgit 
+

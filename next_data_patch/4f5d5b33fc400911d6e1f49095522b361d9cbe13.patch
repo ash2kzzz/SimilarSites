@@ -1,0 +1,31 @@
+From 4f5d5b33fc400911d6e1f49095522b361d9cbe13 Mon Sep 17 00:00:00 2001
+From: Dan Carpenter <error27@gmail.com>
+Date: Thu, 6 Apr 2023 11:55:47 +0300
+Subject: cifs: double lock in cifs_reconnect_tcon()
+
+This lock was supposed to be an unlock.
+
+Fixes: 6cc041e90c17 ("cifs: avoid races in parallel reconnects in smb1")
+Signed-off-by: Dan Carpenter <error27@gmail.com>
+Reviewed-by: Paulo Alcantara (SUSE) <pc@manguebit.com>
+Signed-off-by: Steve French <stfrench@microsoft.com>
+---
+ fs/cifs/cifssmb.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/fs/cifs/cifssmb.c b/fs/cifs/cifssmb.c
+index 0d30b17494e4a..9d963caec35c8 100644
+--- a/fs/cifs/cifssmb.c
++++ b/fs/cifs/cifssmb.c
+@@ -120,7 +120,7 @@ again:
+ 	spin_lock(&server->srv_lock);
+ 	if (server->tcpStatus == CifsNeedReconnect) {
+ 		spin_unlock(&server->srv_lock);
+-		mutex_lock(&ses->session_mutex);
++		mutex_unlock(&ses->session_mutex);
+ 
+ 		if (tcon->retry)
+ 			goto again;
+-- 
+cgit 
+

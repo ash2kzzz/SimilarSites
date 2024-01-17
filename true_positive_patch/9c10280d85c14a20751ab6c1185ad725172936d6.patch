@@ -1,0 +1,71 @@
+From 9c10280d85c14a20751ab6c1185ad725172936d6 Mon Sep 17 00:00:00 2001
+From: Linus Walleij <linus.walleij@linaro.org>
+Date: Wed, 25 May 2016 10:56:03 +0200
+Subject: gpio: flush direction status in gpiochip_lock_as_irq()
+
+As irqchip and gpiochip functions are orthogonal, the IRQ
+set-up or something else can have changed the direction of
+the GPIO line from what the GPIO descriptor knows when we
+get into gpiochip_lock_as_irq(). Make sure to re-read the
+direction setting if we have the .get_direction() callback
+enabled for the chip.
+
+Else we get problems like this:
+
+iio iio:device2: interrupts on the rising edge
+gpio gpiochip2: (8012e080.gpio): gpiochip_lock_as_irq:
+  tried to flag a GPIO set as output for IRQ
+gpio gpiochip2: (8012e080.gpio): unable to lock HW IRQ 0 for IRQ
+genirq: Failed to request resources for l3g4200d-trigger
+  (irq 111) on irqchip nmk1-32-63
+iio iio:device2: failed to request trigger IRQ.
+st-gyro-i2c: probe of 2-0068 failed with error -22
+
+Fixes: 72d320006177 ("gpio: set up initial state from .get_direction()")
+Signed-off-by: Linus Walleij <linus.walleij@linaro.org>
+---
+ drivers/gpio/gpiolib.c | 21 +++++++++++++++++----
+ 1 file changed, 17 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/gpio/gpiolib.c b/drivers/gpio/gpiolib.c
+index d407f904a31cf..e901d2666b46a 100644
+--- a/drivers/gpio/gpiolib.c
++++ b/drivers/gpio/gpiolib.c
+@@ -2066,17 +2066,30 @@ EXPORT_SYMBOL_GPL(gpiod_to_irq);
+  */
+ int gpiochip_lock_as_irq(struct gpio_chip *chip, unsigned int offset)
+ {
+-	if (offset >= chip->ngpio)
+-		return -EINVAL;
++	struct gpio_desc *desc;
++
++	desc = gpiochip_get_desc(chip, offset);
++	if (IS_ERR(desc))
++		return PTR_ERR(desc);
++
++	/* Flush direction if something changed behind our back */
++	if (chip->get_direction) {
++		int dir = chip->get_direction(chip, offset);
++
++		if (dir)
++			clear_bit(FLAG_IS_OUT, &desc->flags);
++		else
++			set_bit(FLAG_IS_OUT, &desc->flags);
++	}
+ 
+-	if (test_bit(FLAG_IS_OUT, &chip->gpiodev->descs[offset].flags)) {
++	if (test_bit(FLAG_IS_OUT, &desc->flags)) {
+ 		chip_err(chip,
+ 			  "%s: tried to flag a GPIO set as output for IRQ\n",
+ 			  __func__);
+ 		return -EIO;
+ 	}
+ 
+-	set_bit(FLAG_USED_AS_IRQ, &chip->gpiodev->descs[offset].flags);
++	set_bit(FLAG_USED_AS_IRQ, &desc->flags);
+ 	return 0;
+ }
+ EXPORT_SYMBOL_GPL(gpiochip_lock_as_irq);
+-- 
+cgit 
+

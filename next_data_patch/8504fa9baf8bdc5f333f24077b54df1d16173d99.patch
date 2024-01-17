@@ -1,0 +1,42 @@
+From 8504fa9baf8bdc5f333f24077b54df1d16173d99 Mon Sep 17 00:00:00 2001
+From: Krzysztof Kozlowski <krzysztof.kozlowski@linaro.org>
+Date: Wed, 22 Mar 2023 18:35:58 +0100
+Subject: dt-bindings: mailbox: qcom,apcs-kpss-global: correct SDX55 clocks
+
+SDX55 and SDX65 DTS takes clocks in a bit different order.  Adjust
+bindings to the DTS.
+
+Fixes: 0d17014e9189 ("dt-bindings: mailbox: Add binding for SDX55 APCS")
+Signed-off-by: Krzysztof Kozlowski <krzysztof.kozlowski@linaro.org>
+Acked-by: Rob Herring <robh@kernel.org>
+Acked-by: Manivannan Sadhasivam <mani@kernel.org>
+Signed-off-by: Bjorn Andersson <andersson@kernel.org>
+Link: https://lore.kernel.org/r/20230322173559.809805-1-krzysztof.kozlowski@linaro.org
+---
+ Documentation/devicetree/bindings/mailbox/qcom,apcs-kpss-global.yaml | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/Documentation/devicetree/bindings/mailbox/qcom,apcs-kpss-global.yaml b/Documentation/devicetree/bindings/mailbox/qcom,apcs-kpss-global.yaml
+index d888ead092825..2992227631c49 100644
+--- a/Documentation/devicetree/bindings/mailbox/qcom,apcs-kpss-global.yaml
++++ b/Documentation/devicetree/bindings/mailbox/qcom,apcs-kpss-global.yaml
+@@ -97,14 +97,14 @@ allOf:
+       properties:
+         clocks:
+           items:
++            - description: reference clock
+             - description: primary pll parent of the clock driver
+             - description: auxiliary parent
+-            - description: reference clock
+         clock-names:
+           items:
++            - const: ref
+             - const: pll
+             - const: aux
+-            - const: ref
+   - if:
+       properties:
+         compatible:
+-- 
+cgit 
+

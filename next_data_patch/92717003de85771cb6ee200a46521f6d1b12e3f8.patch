@@ -1,0 +1,55 @@
+From 92717003de85771cb6ee200a46521f6d1b12e3f8 Mon Sep 17 00:00:00 2001
+From: Arnd Bergmann <arnd@arndb.de>
+Date: Mon, 20 Mar 2023 10:13:42 +0100
+Subject: clk: mediatek: mt81xx: Ensure fhctl code is available
+
+Just like in commit eddc63094855 ("clk: mediatek: Ensure fhctl code is
+available for COMMON_CLK_MT6795"), these three need the shared driver
+code, otherwise they run into link errors such as:
+
+aarch64-linux/bin/aarch64-linux-ld: drivers/clk/mediatek/clk-mt8192-apmixedsys.o: in function `clk_mt8192_apmixed_probe':
+clk-mt8192-apmixedsys.c:(.text+0x134): undefined reference to `fhctl_parse_dt'
+
+Fixes: 45a5cbe05d1f ("clk: mediatek: mt8173: Add support for frequency hopping through FHCTL")
+Fixes: 4d586e10c428 ("clk: mediatek: mt8192: Add support for frequency hopping through FHCTL")
+Fixes: da4a82dc67b0 ("clk: mediatek: mt8195: Add support for frequency hopping through FHCTL")
+Signed-off-by: Arnd Bergmann <arnd@arndb.de>
+Link: https://lore.kernel.org/r/20230320091353.1918439-1-arnd@kernel.org
+Reviewed-by: AngeloGioacchino Del Regno <angelogioacchino.delregno@collabora.com>
+Reported-by: kernel test robot <lkp@intel.com>
+Signed-off-by: Stephen Boyd <sboyd@kernel.org>
+---
+ drivers/clk/mediatek/Kconfig | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/drivers/clk/mediatek/Kconfig b/drivers/clk/mediatek/Kconfig
+index c707c6fe45a35..61e3266d23468 100644
+--- a/drivers/clk/mediatek/Kconfig
++++ b/drivers/clk/mediatek/Kconfig
+@@ -478,6 +478,7 @@ config COMMON_CLK_MT8173
+ 	tristate "Clock driver for MediaTek MT8173"
+ 	depends on ARM64 || COMPILE_TEST
+ 	select COMMON_CLK_MEDIATEK
++	select COMMON_CLK_MEDIATEK_FHCTL
+ 	default ARCH_MEDIATEK
+ 	help
+ 	  This driver supports MediaTek MT8173 basic clocks and clocks
+@@ -686,6 +687,7 @@ config COMMON_CLK_MT8192
+ 	tristate "Clock driver for MediaTek MT8192"
+ 	depends on ARM64 || COMPILE_TEST
+ 	select COMMON_CLK_MEDIATEK
++	select COMMON_CLK_MEDIATEK_FHCTL
+ 	default ARM64
+ 	help
+ 	  This driver supports MediaTek MT8192 basic clocks.
+@@ -766,6 +768,7 @@ config COMMON_CLK_MT8195
+         bool "Clock driver for MediaTek MT8195"
+         depends on ARM64 || COMPILE_TEST
+         select COMMON_CLK_MEDIATEK
++	select COMMON_CLK_MEDIATEK_FHCTL
+         default ARCH_MEDIATEK
+         help
+           This driver supports MediaTek MT8195 clocks.
+-- 
+cgit 
+

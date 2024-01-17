@@ -1,0 +1,106 @@
+From f52cc627b832e08a7bcf1b7e81e650ec308fe1d8 Mon Sep 17 00:00:00 2001
+From: Jakub Kicinski <kuba@kernel.org>
+Date: Thu, 13 Apr 2023 15:25:47 -0700
+Subject: Revert "net/mlx5: Enable management PF initialization"
+
+This reverts commit fe998a3c77b9f989a30a2a01fb00d3729a6d53a4.
+
+Paul reports that it causes a regression with IB on CX4
+and FW 12.18.1000. In addition I think that the concept
+of "management PF" is not fully accepted and requires
+a discussion.
+
+Fixes: fe998a3c77b9 ("net/mlx5: Enable management PF initialization")
+Reported-by: Paul Moore <paul@paul-moore.com>
+Link: https://lore.kernel.org/all/CAHC9VhQ7A4+msL38WpbOMYjAqLp0EtOjeLh4Dc6SQtD6OUvCQg@mail.gmail.com/
+Link: https://lore.kernel.org/r/20230413222547.56901-1-kuba@kernel.org
+Signed-off-by: Jakub Kicinski <kuba@kernel.org>
+---
+ drivers/net/ethernet/mellanox/mlx5/core/dev.c     | 6 ------
+ drivers/net/ethernet/mellanox/mlx5/core/ecpf.c    | 8 --------
+ drivers/net/ethernet/mellanox/mlx5/core/eswitch.c | 2 +-
+ include/linux/mlx5/driver.h                       | 5 -----
+ 4 files changed, 1 insertion(+), 20 deletions(-)
+
+diff --git a/drivers/net/ethernet/mellanox/mlx5/core/dev.c b/drivers/net/ethernet/mellanox/mlx5/core/dev.c
+index 445fe30c3d0bc..2e7806001fdc5 100644
+--- a/drivers/net/ethernet/mellanox/mlx5/core/dev.c
++++ b/drivers/net/ethernet/mellanox/mlx5/core/dev.c
+@@ -59,9 +59,6 @@ bool mlx5_eth_supported(struct mlx5_core_dev *dev)
+ 	if (!IS_ENABLED(CONFIG_MLX5_CORE_EN))
+ 		return false;
+ 
+-	if (mlx5_core_is_management_pf(dev))
+-		return false;
+-
+ 	if (MLX5_CAP_GEN(dev, port_type) != MLX5_CAP_PORT_TYPE_ETH)
+ 		return false;
+ 
+@@ -201,9 +198,6 @@ bool mlx5_rdma_supported(struct mlx5_core_dev *dev)
+ 	if (!IS_ENABLED(CONFIG_MLX5_INFINIBAND))
+ 		return false;
+ 
+-	if (mlx5_core_is_management_pf(dev))
+-		return false;
+-
+ 	if (dev->priv.flags & MLX5_PRIV_FLAGS_DISABLE_IB_ADEV)
+ 		return false;
+ 
+diff --git a/drivers/net/ethernet/mellanox/mlx5/core/ecpf.c b/drivers/net/ethernet/mellanox/mlx5/core/ecpf.c
+index 7c9c4e40c019b..d000236ddbac5 100644
+--- a/drivers/net/ethernet/mellanox/mlx5/core/ecpf.c
++++ b/drivers/net/ethernet/mellanox/mlx5/core/ecpf.c
+@@ -75,10 +75,6 @@ int mlx5_ec_init(struct mlx5_core_dev *dev)
+ 	if (!mlx5_core_is_ecpf(dev))
+ 		return 0;
+ 
+-	/* Management PF don't have a peer PF */
+-	if (mlx5_core_is_management_pf(dev))
+-		return 0;
+-
+ 	return mlx5_host_pf_init(dev);
+ }
+ 
+@@ -89,10 +85,6 @@ void mlx5_ec_cleanup(struct mlx5_core_dev *dev)
+ 	if (!mlx5_core_is_ecpf(dev))
+ 		return;
+ 
+-	/* Management PF don't have a peer PF */
+-	if (mlx5_core_is_management_pf(dev))
+-		return;
+-
+ 	mlx5_host_pf_cleanup(dev);
+ 
+ 	err = mlx5_wait_for_pages(dev, &dev->priv.page_counters[MLX5_HOST_PF]);
+diff --git a/drivers/net/ethernet/mellanox/mlx5/core/eswitch.c b/drivers/net/ethernet/mellanox/mlx5/core/eswitch.c
+index 8bdf28762f412..19fed514fc173 100644
+--- a/drivers/net/ethernet/mellanox/mlx5/core/eswitch.c
++++ b/drivers/net/ethernet/mellanox/mlx5/core/eswitch.c
+@@ -1488,7 +1488,7 @@ int mlx5_esw_sf_max_hpf_functions(struct mlx5_core_dev *dev, u16 *max_sfs, u16 *
+ 	void *hca_caps;
+ 	int err;
+ 
+-	if (!mlx5_core_is_ecpf(dev) || mlx5_core_is_management_pf(dev)) {
++	if (!mlx5_core_is_ecpf(dev)) {
+ 		*max_sfs = 0;
+ 		return 0;
+ 	}
+diff --git a/include/linux/mlx5/driver.h b/include/linux/mlx5/driver.h
+index f33389b42209e..7e225e41d55b8 100644
+--- a/include/linux/mlx5/driver.h
++++ b/include/linux/mlx5/driver.h
+@@ -1211,11 +1211,6 @@ static inline bool mlx5_core_is_vf(const struct mlx5_core_dev *dev)
+ 	return dev->coredev_type == MLX5_COREDEV_VF;
+ }
+ 
+-static inline bool mlx5_core_is_management_pf(const struct mlx5_core_dev *dev)
+-{
+-	return MLX5_CAP_GEN(dev, num_ports) == 1 && !MLX5_CAP_GEN(dev, native_port_num);
+-}
+-
+ static inline bool mlx5_core_is_ecpf(const struct mlx5_core_dev *dev)
+ {
+ 	return dev->caps.embedded_cpu;
+-- 
+cgit 
+

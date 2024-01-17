@@ -1,0 +1,58 @@
+From f187e989305a2d57dc0f750ebb63959151b66924 Mon Sep 17 00:00:00 2001
+From: Andrew Halaney <ahalaney@redhat.com>
+Date: Mon, 30 Jan 2023 09:48:22 -0600
+Subject: arm64: dts: qcom: sa8540p-ride: Fix some i2c pinctrl settings
+
+Some of the pinctrl groups were invalid for the selected pins. Select
+the proper qup group to fix these warnings:
+
+[    6.523566] sc8280xp-tlmm f100000.pinctrl: invalid group "gpio135" for function "qup15"
+[    6.535042] sc8280xp-tlmm f100000.pinctrl: invalid group "gpio136" for function "qup15"
+[    6.597536] sc8280xp-tlmm f100000.pinctrl: invalid group "gpio158" for function "qup15"
+[    6.597544] sc8280xp-tlmm f100000.pinctrl: invalid group "gpio159" for function "qup15"
+[    6.597991] sc8280xp-tlmm f100000.pinctrl: invalid group "gpio0" for function "qup15"
+[    6.597996] sc8280xp-tlmm f100000.pinctrl: invalid group "gpio1" for function "qup15"
+
+Fixes: e073899ec3e1 ("arm64: dts: qcom: sa8540p-ride: add i2c nodes")
+Reviewed-by: Shazad Hussain <quic_shazhuss@quicinc.com>
+Reviewed-by: Konrad Dybcio <konrad.dybcio@linaro.org>
+Reviewed-by: Brian Masney <bmasney@redhat.com>
+Signed-off-by: Andrew Halaney <ahalaney@redhat.com>
+Signed-off-by: Bjorn Andersson <andersson@kernel.org>
+Link: https://lore.kernel.org/r/20230130154823.117542-1-ahalaney@redhat.com
+---
+ arch/arm64/boot/dts/qcom/sa8540p-ride.dts | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/arch/arm64/boot/dts/qcom/sa8540p-ride.dts b/arch/arm64/boot/dts/qcom/sa8540p-ride.dts
+index eacc1764255b2..cb9fbdeb5a9eb 100644
+--- a/arch/arm64/boot/dts/qcom/sa8540p-ride.dts
++++ b/arch/arm64/boot/dts/qcom/sa8540p-ride.dts
+@@ -318,21 +318,21 @@
+ &tlmm {
+ 	i2c0_default: i2c0-default-state {
+ 		pins = "gpio135", "gpio136";
+-		function = "qup15";
++		function = "qup0";
+ 		drive-strength = <2>;
+ 		bias-pull-up;
+ 	};
+ 
+ 	i2c1_default: i2c1-default-state {
+ 		pins = "gpio158", "gpio159";
+-		function = "qup15";
++		function = "qup1";
+ 		drive-strength = <2>;
+ 		bias-pull-up;
+ 	};
+ 
+ 	i2c12_default: i2c12-default-state {
+ 		pins = "gpio0", "gpio1";
+-		function = "qup15";
++		function = "qup12";
+ 		drive-strength = <2>;
+ 		bias-pull-up;
+ 	};
+-- 
+cgit 
+

@@ -1,0 +1,73 @@
+From f6477ec62fda59561826b29339a04097bfb46a80 Mon Sep 17 00:00:00 2001
+From: Gavrilov Ilia <Ilia.Gavrilov@infotecs.ru>
+Date: Mon, 23 Jan 2023 14:31:54 +0000
+Subject: netfilter: conntrack: remote a return value of the 'seq_print_acct'
+ function.
+
+The static 'seq_print_acct' function always returns 0.
+
+Change the return value to 'void' and remove unnecessary checks.
+
+Found by InfoTeCS on behalf of Linux Verification Center
+(linuxtesting.org) with SVACE.
+
+Fixes: 1ca9e41770cb ("netfilter: Remove uses of seq_<foo> return values")
+Signed-off-by: Ilia.Gavrilov <Ilia.Gavrilov@infotecs.ru>
+Reviewed-by: Leon Romanovsky <leonro@nvidia.com>
+Signed-off-by: Pablo Neira Ayuso <pablo@netfilter.org>
+---
+ net/netfilter/nf_conntrack_standalone.c | 12 ++++--------
+ 1 file changed, 4 insertions(+), 8 deletions(-)
+
+diff --git a/net/netfilter/nf_conntrack_standalone.c b/net/netfilter/nf_conntrack_standalone.c
+index 460294bd4b606..57f6724c99a76 100644
+--- a/net/netfilter/nf_conntrack_standalone.c
++++ b/net/netfilter/nf_conntrack_standalone.c
+@@ -275,7 +275,7 @@ static const char* l4proto_name(u16 proto)
+ 	return "unknown";
+ }
+ 
+-static unsigned int
++static void
+ seq_print_acct(struct seq_file *s, const struct nf_conn *ct, int dir)
+ {
+ 	struct nf_conn_acct *acct;
+@@ -283,14 +283,12 @@ seq_print_acct(struct seq_file *s, const struct nf_conn *ct, int dir)
+ 
+ 	acct = nf_conn_acct_find(ct);
+ 	if (!acct)
+-		return 0;
++		return;
+ 
+ 	counter = acct->counter;
+ 	seq_printf(s, "packets=%llu bytes=%llu ",
+ 		   (unsigned long long)atomic64_read(&counter[dir].packets),
+ 		   (unsigned long long)atomic64_read(&counter[dir].bytes));
+-
+-	return 0;
+ }
+ 
+ /* return 0 on success, 1 in case of error */
+@@ -342,8 +340,7 @@ static int ct_seq_show(struct seq_file *s, void *v)
+ 	if (seq_has_overflowed(s))
+ 		goto release;
+ 
+-	if (seq_print_acct(s, ct, IP_CT_DIR_ORIGINAL))
+-		goto release;
++	seq_print_acct(s, ct, IP_CT_DIR_ORIGINAL);
+ 
+ 	if (!(test_bit(IPS_SEEN_REPLY_BIT, &ct->status)))
+ 		seq_puts(s, "[UNREPLIED] ");
+@@ -352,8 +349,7 @@ static int ct_seq_show(struct seq_file *s, void *v)
+ 
+ 	ct_show_zone(s, ct, NF_CT_ZONE_DIR_REPL);
+ 
+-	if (seq_print_acct(s, ct, IP_CT_DIR_REPLY))
+-		goto release;
++	seq_print_acct(s, ct, IP_CT_DIR_REPLY);
+ 
+ 	if (test_bit(IPS_HW_OFFLOAD_BIT, &ct->status))
+ 		seq_puts(s, "[HW_OFFLOAD] ");
+-- 
+cgit 
+

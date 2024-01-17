@@ -1,0 +1,31 @@
+From 5023adc364df004bd8e57afe89a4bd8019485c3d Mon Sep 17 00:00:00 2001
+From: Dan Carpenter <error27@gmail.com>
+Date: Tue, 29 Nov 2022 12:45:16 +0300
+Subject: misc: fastrpc: fix error code in fastrpc_req_mmap()
+
+The "err" variable shadows an earlier global variable so this code
+returns success instead of a negative error code.
+
+Fixes: 532ad70c6d44 ("misc: fastrpc: Add mmap request assigning for static PD pool")
+Signed-off-by: Dan Carpenter <error27@gmail.com>
+Link: https://lore.kernel.org/r/Y4XUrMETCl1O6t0A@kili
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+---
+ drivers/misc/fastrpc.c | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/drivers/misc/fastrpc.c b/drivers/misc/fastrpc.c
+index c9902a1dcf5d3..876f0f146b16e 100644
+--- a/drivers/misc/fastrpc.c
++++ b/drivers/misc/fastrpc.c
+@@ -1894,7 +1894,6 @@ static int fastrpc_req_mmap(struct fastrpc_user *fl, char __user *argp)
+ 	/* Add memory to static PD pool, protection thru hypervisor */
+ 	if (req.flags != ADSP_MMAP_REMOTE_HEAP_ADDR && fl->cctx->vmcount) {
+ 		struct qcom_scm_vmperm perm;
+-		int err = 0;
+ 
+ 		perm.vmid = QCOM_SCM_VMID_HLOS;
+ 		perm.perm = QCOM_SCM_PERM_RWX;
+-- 
+cgit 
+

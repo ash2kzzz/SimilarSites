@@ -1,0 +1,42 @@
+From e70bb54d7a51299e7feca9169c07d79f9a3fc01d Mon Sep 17 00:00:00 2001
+From: sunliming <sunliming@kylinos.cn>
+Date: Thu, 25 May 2023 16:52:32 +0800
+Subject: tracing: Modify print_fields() for fields output order
+
+Now the print_fields() print trace event fields in reverse order. Modify
+it to the positive sequence.
+
+Example outputs for a user event:
+	test0 u32 count1; u32 count2
+
+Output before:
+	example-2547    [000] .....   325.666387: test0: count2=0x2 (2) count1=0x1 (1)
+
+Output after:
+	example-2742    [002] .....   429.769370: test0: count1=0x1 (1) count2=0x2 (2)
+
+Link: https://lore.kernel.org/linux-trace-kernel/20230525085232.5096-1-sunliming@kylinos.cn
+
+Fixes: 80a76994b2d88 ("tracing: Add "fields" option to show raw trace event fields")
+Signed-off-by: sunliming <sunliming@kylinos.cn>
+Signed-off-by: Steven Rostedt (Google) <rostedt@goodmis.org>
+---
+ kernel/trace/trace_output.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/kernel/trace/trace_output.c b/kernel/trace/trace_output.c
+index 15f05faaae44d..1e33f367783eb 100644
+--- a/kernel/trace/trace_output.c
++++ b/kernel/trace/trace_output.c
+@@ -847,7 +847,7 @@ static void print_fields(struct trace_iterator *iter, struct trace_event_call *c
+ 	int ret;
+ 	void *pos;
+ 
+-	list_for_each_entry(field, head, link) {
++	list_for_each_entry_reverse(field, head, link) {
+ 		trace_seq_printf(&iter->seq, " %s=", field->name);
+ 		if (field->offset + field->size > iter->ent_size) {
+ 			trace_seq_puts(&iter->seq, "<OVERFLOW>");
+-- 
+cgit 
+

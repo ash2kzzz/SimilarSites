@@ -1,0 +1,48 @@
+From b1211978ecf19bceb63a04f53fea4b5d73832a4a Mon Sep 17 00:00:00 2001
+From: Jonathan Derrick <jonathan.derrick@linux.dev>
+Date: Mon, 24 Apr 2023 19:14:38 -0600
+Subject: md: Fix bitmap offset type in sb writer
+
+Bitmap offset is allowed to be negative, indicating that bitmap precedes
+metadata. Change the type back from sector_t to loff_t to satisfy
+conditionals and calculations.
+
+Reported-by: Dan Carpenter <dan.carpenter@linaro.org>
+Link: https://lore.kernel.org/linux-raid/CAPhsuW6HuaUJ5WcyPajVgUfkQFYp2D_cy1g6qxN4CU_gP2=z7g@mail.gmail.com/
+Fixes: 10172f200b67 ("md: Fix types in sb writer")
+Signed-off-by: Jonathan Derrick <jonathan.derrick@linux.dev>
+Suggested-by: Yu Kuai <yukuai3@huawei.com>
+Reviewed-by: Yu Kuai <yukuai3@huawei.com>
+Signed-off-by: Song Liu <song@kernel.org>
+Link: https://lore.kernel.org/r/20230425011438.71046-1-jonathan.derrick@linux.dev
+---
+ drivers/md/md-bitmap.c | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/md/md-bitmap.c b/drivers/md/md-bitmap.c
+index 920bb68156d27..bc8d7565171d4 100644
+--- a/drivers/md/md-bitmap.c
++++ b/drivers/md/md-bitmap.c
+@@ -219,7 +219,7 @@ static unsigned int optimal_io_size(struct block_device *bdev,
+ }
+ 
+ static unsigned int bitmap_io_size(unsigned int io_size, unsigned int opt_size,
+-				   sector_t start, sector_t boundary)
++				   loff_t start, loff_t boundary)
+ {
+ 	if (io_size != opt_size &&
+ 	    start + opt_size / SECTOR_SIZE <= boundary)
+@@ -237,8 +237,8 @@ static int __write_sb_page(struct md_rdev *rdev, struct bitmap *bitmap,
+ 	struct block_device *bdev;
+ 	struct mddev *mddev = bitmap->mddev;
+ 	struct bitmap_storage *store = &bitmap->storage;
+-	sector_t offset = mddev->bitmap_info.offset;
+-	sector_t ps, sboff, doff;
++	loff_t sboff, offset = mddev->bitmap_info.offset;
++	sector_t ps, doff;
+ 	unsigned int size = PAGE_SIZE;
+ 	unsigned int opt_size = PAGE_SIZE;
+ 
+-- 
+cgit 
+

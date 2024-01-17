@@ -1,0 +1,75 @@
+From 8fc6f1f042b2d383f57110ab808b788592550b25 Mon Sep 17 00:00:00 2001
+From: Miquel Raynal <miquel.raynal@bootlin.com>
+Date: Fri, 13 Nov 2020 13:34:20 +0100
+Subject: mtd: rawnand: pasemi: Move the ECC initialization to ->attach_chip()
+
+The probe function is only supposed to initialize the controller
+hardware but not the ECC engine. Indeed, we don't know anything about
+the NAND chip(s) at this stage. Let's move the logic initializing the
+ECC engine, even pretty simple, to the ->attach_chip() hook which gets
+called during nand_scan() routine, after the NAND chip discovery. As
+the previously mentioned logic is supposed to parse the DT for us, it
+is likely that the chip->ecc.* entries be overwritten. So let's avoid
+this by moving these lines to ->attach_chip().
+
+Fixes: d7157ff49a5b ("mtd: rawnand: Use the ECC framework user input parsing bits")
+Signed-off-by: Miquel Raynal <miquel.raynal@bootlin.com>
+Link: https://lore.kernel.org/linux-mtd/20201113123424.32233-16-miquel.raynal@bootlin.com
+---
+ drivers/mtd/nand/raw/pasemi_nand.c | 19 +++++++++++++++++--
+ 1 file changed, 17 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/mtd/nand/raw/pasemi_nand.c b/drivers/mtd/nand/raw/pasemi_nand.c
+index 2b8f155cc0c5b..4dfff34800f4e 100644
+--- a/drivers/mtd/nand/raw/pasemi_nand.c
++++ b/drivers/mtd/nand/raw/pasemi_nand.c
+@@ -29,6 +29,7 @@
+ 
+ static unsigned int lpcctl;
+ static struct mtd_info *pasemi_nand_mtd;
++static struct nand_controller controller;
+ static const char driver_name[] = "pasemi-nand";
+ 
+ static void pasemi_read_buf(struct nand_chip *chip, u_char *buf, int len)
+@@ -73,6 +74,18 @@ static int pasemi_device_ready(struct nand_chip *chip)
+ 	return !!(inl(lpcctl) & LBICTRL_LPCCTL_NR);
+ }
+ 
++static int pasemi_attach_chip(struct nand_chip *chip)
++{
++	chip->ecc.engine_type = NAND_ECC_ENGINE_TYPE_SOFT;
++	chip->ecc.algo = NAND_ECC_ALGO_HAMMING;
++
++	return 0;
++}
++
++static const struct nand_controller_ops pasemi_ops = {
++	.attach_chip = pasemi_attach_chip,
++};
++
+ static int pasemi_nand_probe(struct platform_device *ofdev)
+ {
+ 	struct device *dev = &ofdev->dev;
+@@ -100,6 +113,10 @@ static int pasemi_nand_probe(struct platform_device *ofdev)
+ 		goto out;
+ 	}
+ 
++	controller.ops = &pasemi_ops;
++	nand_controller_init(&controller);
++	chip->controller = &controller;
++
+ 	pasemi_nand_mtd = nand_to_mtd(chip);
+ 
+ 	/* Link the private data with the MTD structure */
+@@ -132,8 +149,6 @@ static int pasemi_nand_probe(struct platform_device *ofdev)
+ 	chip->legacy.read_buf = pasemi_read_buf;
+ 	chip->legacy.write_buf = pasemi_write_buf;
+ 	chip->legacy.chip_delay = 0;
+-	chip->ecc.engine_type = NAND_ECC_ENGINE_TYPE_SOFT;
+-	chip->ecc.algo = NAND_ECC_ALGO_HAMMING;
+ 
+ 	/* Enable the following for a flash based bad block table */
+ 	chip->bbt_options = NAND_BBT_USE_FLASH;
+-- 
+cgit 
+

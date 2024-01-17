@@ -1,0 +1,33 @@
+From 49854d3ccc55efd7e6873e0c39f360bdbe251c51 Mon Sep 17 00:00:00 2001
+From: Jan Kara <jack@suse.cz>
+Date: Mon, 27 Feb 2023 19:32:19 +0100
+Subject: udf: Fix lost writes in udf_adinicb_writepage()
+
+The patch converting udf_adinicb_writepage() to avoid manually kmapping
+the page used memcpy_to_page() however that copies in the wrong
+direction (effectively overwriting file data with the old contents).
+What we should be using is memcpy_from_page() to copy data from the page
+into the inode and then mark inode dirty to store the data.
+
+Fixes: 5cfc45321a6d ("udf: Convert udf_adinicb_writepage() to memcpy_to_page()")
+Signed-off-by: Jan Kara <jack@suse.cz>
+---
+ fs/udf/inode.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/fs/udf/inode.c b/fs/udf/inode.c
+index f7a9607c2b957..facaf3a206251 100644
+--- a/fs/udf/inode.c
++++ b/fs/udf/inode.c
+@@ -193,7 +193,7 @@ static int udf_adinicb_writepage(struct folio *folio,
+ 	struct udf_inode_info *iinfo = UDF_I(inode);
+ 
+ 	BUG_ON(!PageLocked(page));
+-	memcpy_to_page(page, 0, iinfo->i_data + iinfo->i_lenEAttr,
++	memcpy_from_page(iinfo->i_data + iinfo->i_lenEAttr, page, 0,
+ 		       i_size_read(inode));
+ 	unlock_page(page);
+ 	mark_inode_dirty(inode);
+-- 
+cgit 
+

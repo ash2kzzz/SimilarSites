@@ -1,0 +1,55 @@
+From fb131c472df92b2885262e747906c0a4038c82e5 Mon Sep 17 00:00:00 2001
+From: Hans de Goede <hdegoede@redhat.com>
+Date: Tue, 4 Apr 2023 13:19:55 +0200
+Subject: platform/x86: apple-gmux: Fix iomem_base __iomem annotation
+
+Fix the __iomem annotation of the iomem_base pointers in the apple-gmux
+code. The __iomem should go before the *.
+
+This fixes a bunch of sparse warnings like this one:
+
+drivers/platform/x86/apple-gmux.c:224:48: sparse:
+ expected void const [noderef] __iomem *
+ got unsigned char [usertype] *
+
+Fixes: 0c18184de990 ("platform/x86: apple-gmux: support MMIO gmux on T2 Macs")
+Reported-by: kernel test robot <lkp@intel.com>
+Link: https://lore.kernel.org/oe-kbuild-all/202304040401.IMxt7Ubi-lkp@intel.com/
+Suggested-by: Dan Carpenter <error27@gmail.com>
+Signed-off-by: Hans de Goede <hdegoede@redhat.com>
+Reviewed-by: Orlando Chamberlain <orlandoch.dev@gmail.com>
+Link: https://lore.kernel.org/r/20230404111955.43266-1-hdegoede@redhat.com
+---
+ drivers/platform/x86/apple-gmux.c | 2 +-
+ include/linux/apple-gmux.h        | 2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/platform/x86/apple-gmux.c b/drivers/platform/x86/apple-gmux.c
+index 4c311e1dedad4..e02b4aea4f1e4 100644
+--- a/drivers/platform/x86/apple-gmux.c
++++ b/drivers/platform/x86/apple-gmux.c
+@@ -57,7 +57,7 @@
+ struct apple_gmux_config;
+ 
+ struct apple_gmux_data {
+-	u8 *__iomem iomem_base;
++	u8 __iomem *iomem_base;
+ 	unsigned long iostart;
+ 	unsigned long iolen;
+ 	const struct apple_gmux_config *config;
+diff --git a/include/linux/apple-gmux.h b/include/linux/apple-gmux.h
+index a7a7d430024b8..206d97ffda79a 100644
+--- a/include/linux/apple-gmux.h
++++ b/include/linux/apple-gmux.h
+@@ -66,7 +66,7 @@ static inline bool apple_gmux_is_indexed(unsigned long iostart)
+ 
+ static inline bool apple_gmux_is_mmio(unsigned long iostart)
+ {
+-	u8 *__iomem iomem_base = ioremap(iostart, 16);
++	u8 __iomem *iomem_base = ioremap(iostart, 16);
+ 	u8 val;
+ 
+ 	if (!iomem_base)
+-- 
+cgit 
+

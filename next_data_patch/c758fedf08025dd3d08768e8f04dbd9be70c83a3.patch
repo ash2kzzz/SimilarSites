@@ -1,0 +1,31 @@
+From c758fedf08025dd3d08768e8f04dbd9be70c83a3 Mon Sep 17 00:00:00 2001
+From: Lorenzo Bianconi <lorenzo@kernel.org>
+Date: Sun, 12 Feb 2023 10:54:43 +0100
+Subject: net: stmmac: add missing NETDEV_XDP_ACT_XSK_ZEROCOPY bit to
+ xdp_features
+
+Add missing xsk zero-copy bit to xdp_features capability flag.
+
+Fixes: 66c0e13ad236 ("drivers: net: turn on XDP features")
+Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
+Link: https://lore.kernel.org/r/c8949baafdf617188dcedb9033ce5a9ca6e9e5ff.1676195440.git.lorenzo@kernel.org
+Signed-off-by: Jakub Kicinski <kuba@kernel.org>
+---
+ drivers/net/ethernet/stmicro/stmmac/stmmac_main.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/drivers/net/ethernet/stmicro/stmmac/stmmac_main.c b/drivers/net/ethernet/stmicro/stmmac/stmmac_main.c
+index 868f59ec8439c..c05f16140320e 100644
+--- a/drivers/net/ethernet/stmicro/stmmac/stmmac_main.c
++++ b/drivers/net/ethernet/stmicro/stmmac/stmmac_main.c
+@@ -7154,6 +7154,7 @@ int stmmac_dvr_probe(struct device *device,
+ 	ndev->hw_features = NETIF_F_SG | NETIF_F_IP_CSUM | NETIF_F_IPV6_CSUM |
+ 			    NETIF_F_RXCSUM;
+ 	ndev->xdp_features = NETDEV_XDP_ACT_BASIC | NETDEV_XDP_ACT_REDIRECT |
++			     NETDEV_XDP_ACT_XSK_ZEROCOPY |
+ 			     NETDEV_XDP_ACT_NDO_XMIT;
+ 
+ 	ret = stmmac_tc_init(priv, priv);
+-- 
+cgit 
+

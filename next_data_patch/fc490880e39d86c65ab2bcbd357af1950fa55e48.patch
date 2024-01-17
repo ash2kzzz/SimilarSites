@@ -1,0 +1,30 @@
+From fc490880e39d86c65ab2bcbd357af1950fa55e48 Mon Sep 17 00:00:00 2001
+From: Chuck Lever <chuck.lever@oracle.com>
+Date: Thu, 11 May 2023 11:48:45 -0400
+Subject: net/handshake: handshake_genl_notify() shouldn't ignore @flags
+
+Reported-by: Dan Carpenter <dan.carpenter@linaro.org>
+Fixes: 3b3009ea8abb ("net/handshake: Create a NETLINK service for handling handshake requests")
+Reviewed-by: Simon Horman <simon.horman@corigine.com>
+Signed-off-by: Chuck Lever <chuck.lever@oracle.com>
+Signed-off-by: Jakub Kicinski <kuba@kernel.org>
+---
+ net/handshake/netlink.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/net/handshake/netlink.c b/net/handshake/netlink.c
+index 16a4bde648bac..1086653e1fada 100644
+--- a/net/handshake/netlink.c
++++ b/net/handshake/netlink.c
+@@ -48,7 +48,7 @@ int handshake_genl_notify(struct net *net, const struct handshake_proto *proto,
+ 				proto->hp_handler_class))
+ 		return -ESRCH;
+ 
+-	msg = genlmsg_new(GENLMSG_DEFAULT_SIZE, GFP_KERNEL);
++	msg = genlmsg_new(GENLMSG_DEFAULT_SIZE, flags);
+ 	if (!msg)
+ 		return -ENOMEM;
+ 
+-- 
+cgit 
+

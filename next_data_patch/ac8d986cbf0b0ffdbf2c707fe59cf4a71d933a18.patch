@@ -1,0 +1,245 @@
+From de8a6b15d9654c3e4f672d76da9d9df8ee06331d Mon Sep 17 00:00:00 2001
+From: Jeremy Kerr <jk@codeconstruct.com.au>
+Date: Tue, 24 Jan 2023 10:01:03 +0800
+Subject: net: mctp: add an explicit reference from a mctp_sk_key to sock
+
+Currently, we correlate the mctp_sk_key lifetime to the sock lifetime
+through the sock hash/unhash operations, but this is pretty tenuous, and
+there are cases where we may have a temporary reference to an unhashed
+sk.
+
+This change makes the reference more explicit, by adding a hold on the
+sock when it's associated with a mctp_sk_key, released on final key
+unref.
+
+Fixes: 73c618456dc5 ("mctp: locking, lifetime and validity changes for sk_keys")
+Signed-off-by: Jeremy Kerr <jk@codeconstruct.com.au>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ net/mctp/route.c | 14 ++++++++------
+ 1 file changed, 8 insertions(+), 6 deletions(-)
+
+diff --git a/net/mctp/route.c b/net/mctp/route.c
+index f9a80b82dc511..ce10ba7ae8393 100644
+--- a/net/mctp/route.c
++++ b/net/mctp/route.c
+@@ -147,6 +147,7 @@ static struct mctp_sk_key *mctp_key_alloc(struct mctp_sock *msk,
+ 	key->valid = true;
+ 	spin_lock_init(&key->lock);
+ 	refcount_set(&key->refs, 1);
++	sock_hold(key->sk);
+ 
+ 	return key;
+ }
+@@ -165,6 +166,7 @@ void mctp_key_unref(struct mctp_sk_key *key)
+ 	mctp_dev_release_key(key->dev, key);
+ 	spin_unlock_irqrestore(&key->lock, flags);
+ 
++	sock_put(key->sk);
+ 	kfree(key);
+ }
+ 
+@@ -419,14 +421,14 @@ static int mctp_route_input(struct mctp_route *route, struct sk_buff *skb)
+ 			 * this function.
+ 			 */
+ 			rc = mctp_key_add(key, msk);
+-			if (rc) {
+-				kfree(key);
+-			} else {
++			if (!rc)
+ 				trace_mctp_key_acquire(key);
+ 
+-				/* we don't need to release key->lock on exit */
+-				mctp_key_unref(key);
+-			}
++			/* we don't need to release key->lock on exit, so
++			 * clean up here and suppress the unlock via
++			 * setting to NULL
++			 */
++			mctp_key_unref(key);
+ 			key = NULL;
+ 
+ 		} else {
+-- 
+cgit 
+
+
+From 5f41ae6fca9d40ab3cb9b0507931ef7a9b3ea50b Mon Sep 17 00:00:00 2001
+From: Jeremy Kerr <jk@codeconstruct.com.au>
+Date: Tue, 24 Jan 2023 10:01:04 +0800
+Subject: net: mctp: move expiry timer delete to unhash
+
+Currently, we delete the key expiry timer (in sk->close) before
+unhashing the sk. This means that another thread may find the sk through
+its presence on the key list, and re-queue the timer.
+
+This change moves the timer deletion to the unhash, after we have made
+the key no longer observable, so the timer cannot be re-queued.
+
+Fixes: 7b14e15ae6f4 ("mctp: Implement a timeout for tags")
+Signed-off-by: Jeremy Kerr <jk@codeconstruct.com.au>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ net/mctp/af_mctp.c | 9 ++++++---
+ 1 file changed, 6 insertions(+), 3 deletions(-)
+
+diff --git a/net/mctp/af_mctp.c b/net/mctp/af_mctp.c
+index fc9e728b6333a..fb6ae3110528a 100644
+--- a/net/mctp/af_mctp.c
++++ b/net/mctp/af_mctp.c
+@@ -544,9 +544,6 @@ static int mctp_sk_init(struct sock *sk)
+ 
+ static void mctp_sk_close(struct sock *sk, long timeout)
+ {
+-	struct mctp_sock *msk = container_of(sk, struct mctp_sock, sk);
+-
+-	del_timer_sync(&msk->key_expiry);
+ 	sk_common_release(sk);
+ }
+ 
+@@ -581,6 +578,12 @@ static void mctp_sk_unhash(struct sock *sk)
+ 		__mctp_key_remove(key, net, fl2, MCTP_TRACE_KEY_CLOSED);
+ 	}
+ 	spin_unlock_irqrestore(&net->mctp.keys_lock, flags);
++
++	/* Since there are no more tag allocations (we have removed all of the
++	 * keys), stop any pending expiry events. the timer cannot be re-queued
++	 * as the sk is no longer observable
++	 */
++	del_timer_sync(&msk->key_expiry);
+ }
+ 
+ static struct proto mctp_proto = {
+-- 
+cgit 
+
+
+From 6e54ea37e344f145665c2dc3cc534b92529e8de5 Mon Sep 17 00:00:00 2001
+From: Paolo Abeni <pabeni@redhat.com>
+Date: Tue, 24 Jan 2023 10:01:05 +0800
+Subject: net: mctp: hold key reference when looking up a general key
+
+Currently, we have a race where we look up a sock through a "general"
+(ie, not directly associated with the (src,dest,tag) tuple) key, then
+drop the key reference while still holding the key's sock.
+
+This change expands the key reference until we've finished using the
+sock, and hence the sock reference too.
+
+Commit message changes from Jeremy Kerr <jk@codeconstruct.com.au>.
+
+Reported-by: Noam Rathaus <noamr@ssd-disclosure.com>
+Fixes: 73c618456dc5 ("mctp: locking, lifetime and validity changes for sk_keys")
+Signed-off-by: Paolo Abeni <pabeni@redhat.com>
+Signed-off-by: Jeremy Kerr <jk@codeconstruct.com.au>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ net/mctp/route.c | 14 +++++++-------
+ 1 file changed, 7 insertions(+), 7 deletions(-)
+
+diff --git a/net/mctp/route.c b/net/mctp/route.c
+index ce10ba7ae8393..06c0de21984d9 100644
+--- a/net/mctp/route.c
++++ b/net/mctp/route.c
+@@ -317,8 +317,8 @@ static int mctp_frag_queue(struct mctp_sk_key *key, struct sk_buff *skb)
+ 
+ static int mctp_route_input(struct mctp_route *route, struct sk_buff *skb)
+ {
++	struct mctp_sk_key *key, *any_key = NULL;
+ 	struct net *net = dev_net(skb->dev);
+-	struct mctp_sk_key *key;
+ 	struct mctp_sock *msk;
+ 	struct mctp_hdr *mh;
+ 	unsigned long f;
+@@ -363,13 +363,11 @@ static int mctp_route_input(struct mctp_route *route, struct sk_buff *skb)
+ 			 * key for reassembly - we'll create a more specific
+ 			 * one for future packets if required (ie, !EOM).
+ 			 */
+-			key = mctp_lookup_key(net, skb, MCTP_ADDR_ANY, &f);
+-			if (key) {
+-				msk = container_of(key->sk,
++			any_key = mctp_lookup_key(net, skb, MCTP_ADDR_ANY, &f);
++			if (any_key) {
++				msk = container_of(any_key->sk,
+ 						   struct mctp_sock, sk);
+-				spin_unlock_irqrestore(&key->lock, f);
+-				mctp_key_unref(key);
+-				key = NULL;
++				spin_unlock_irqrestore(&any_key->lock, f);
+ 			}
+ 		}
+ 
+@@ -475,6 +473,8 @@ out_unlock:
+ 		spin_unlock_irqrestore(&key->lock, f);
+ 		mctp_key_unref(key);
+ 	}
++	if (any_key)
++		mctp_key_unref(any_key);
+ out:
+ 	if (rc)
+ 		kfree_skb(skb);
+-- 
+cgit 
+
+
+From b98e1a04e27fddfdc808bf46fe78eca30db89ab3 Mon Sep 17 00:00:00 2001
+From: Jeremy Kerr <jk@codeconstruct.com.au>
+Date: Tue, 24 Jan 2023 10:01:06 +0800
+Subject: net: mctp: mark socks as dead on unhash, prevent re-add
+
+Once a socket has been unhashed, we want to prevent it from being
+re-used in a sk_key entry as part of a routing operation.
+
+This change marks the sk as SOCK_DEAD on unhash, which prevents addition
+into the net's key list.
+
+We need to do this during the key add path, rather than key lookup, as
+we release the net keys_lock between those operations.
+
+Fixes: 4a992bbd3650 ("mctp: Implement message fragmentation & reassembly")
+Signed-off-by: Jeremy Kerr <jk@codeconstruct.com.au>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ net/mctp/af_mctp.c | 1 +
+ net/mctp/route.c   | 6 ++++++
+ 2 files changed, 7 insertions(+)
+
+diff --git a/net/mctp/af_mctp.c b/net/mctp/af_mctp.c
+index fb6ae3110528a..45bbe3e54cc28 100644
+--- a/net/mctp/af_mctp.c
++++ b/net/mctp/af_mctp.c
+@@ -577,6 +577,7 @@ static void mctp_sk_unhash(struct sock *sk)
+ 		spin_lock_irqsave(&key->lock, fl2);
+ 		__mctp_key_remove(key, net, fl2, MCTP_TRACE_KEY_CLOSED);
+ 	}
++	sock_set_flag(sk, SOCK_DEAD);
+ 	spin_unlock_irqrestore(&net->mctp.keys_lock, flags);
+ 
+ 	/* Since there are no more tag allocations (we have removed all of the
+diff --git a/net/mctp/route.c b/net/mctp/route.c
+index 06c0de21984d9..f51a05ec71624 100644
+--- a/net/mctp/route.c
++++ b/net/mctp/route.c
+@@ -179,6 +179,11 @@ static int mctp_key_add(struct mctp_sk_key *key, struct mctp_sock *msk)
+ 
+ 	spin_lock_irqsave(&net->mctp.keys_lock, flags);
+ 
++	if (sock_flag(&msk->sk, SOCK_DEAD)) {
++		rc = -EINVAL;
++		goto out_unlock;
++	}
++
+ 	hlist_for_each_entry(tmp, &net->mctp.keys, hlist) {
+ 		if (mctp_key_match(tmp, key->local_addr, key->peer_addr,
+ 				   key->tag)) {
+@@ -200,6 +205,7 @@ static int mctp_key_add(struct mctp_sk_key *key, struct mctp_sock *msk)
+ 		hlist_add_head(&key->sklist, &msk->keys);
+ 	}
+ 
++out_unlock:
+ 	spin_unlock_irqrestore(&net->mctp.keys_lock, flags);
+ 
+ 	return rc;
+-- 
+cgit 
+

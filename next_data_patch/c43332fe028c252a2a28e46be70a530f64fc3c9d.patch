@@ -1,0 +1,71 @@
+From c43332fe028c252a2a28e46be70a530f64fc3c9d Mon Sep 17 00:00:00 2001
+From: Christoph Hellwig <hch@lst.de>
+Date: Wed, 8 Feb 2023 07:35:14 +0100
+Subject: blk-cgroup: delay calling blkcg_exit_disk until disk_release
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+While del_gendisk ensures there is no outstanding I/O on the queue,
+it can't prevent block layer users from building new I/O.
+
+This leads to a NULL ->root_blkg reference in bio_associate_blkg when
+allocating a new bio on a shut down file system.  Delay freeing the
+blk-cgroup subsystems from del_gendisk until disk_release to make
+sure the blkg and throttle information is still avaіlable for bio
+submitters, even if those bios will immediately fail.
+
+This now can cause a case where disk_release is called on a disk
+that hasn't been added.  That's mostly harmless, except for a case
+in blk_throttl_exit that now needs to check for a NULL ->td pointer.
+
+Fixes: 178fa7d49815 ("blk-cgroup: delay blk-cgroup initialization until add_disk")
+Reported-by: Ming Lei <ming.lei@redhat.com>
+Signed-off-by: Christoph Hellwig <hch@lst.de>
+Reviewed-by: Ming Lei <ming.lei@redhat.com>
+Link: https://lore.kernel.org/r/20230208063514.171485-1-hch@lst.de
+Signed-off-by: Jens Axboe <axboe@kernel.dk>
+---
+ block/blk-throttle.c | 3 ++-
+ block/genhd.c        | 4 ++--
+ 2 files changed, 4 insertions(+), 3 deletions(-)
+
+diff --git a/block/blk-throttle.c b/block/blk-throttle.c
+index 902203bdddb4b..e7bd7050d6840 100644
+--- a/block/blk-throttle.c
++++ b/block/blk-throttle.c
+@@ -2411,7 +2411,8 @@ void blk_throtl_exit(struct gendisk *disk)
+ {
+ 	struct request_queue *q = disk->queue;
+ 
+-	BUG_ON(!q->td);
++	if (!q->td)
++		return;
+ 	del_timer_sync(&q->td->service_queue.pending_timer);
+ 	throtl_shutdown_wq(q);
+ 	blkcg_deactivate_policy(disk, &blkcg_policy_throtl);
+diff --git a/block/genhd.c b/block/genhd.c
+index 7e031559bf514..65373738c70b0 100644
+--- a/block/genhd.c
++++ b/block/genhd.c
+@@ -668,8 +668,6 @@ void del_gendisk(struct gendisk *disk)
+ 	rq_qos_exit(q);
+ 	blk_mq_unquiesce_queue(q);
+ 
+-	blkcg_exit_disk(disk);
+-
+ 	/*
+ 	 * If the disk does not own the queue, allow using passthrough requests
+ 	 * again.  Else leave the queue frozen to fail all I/O.
+@@ -1166,6 +1164,8 @@ static void disk_release(struct device *dev)
+ 	might_sleep();
+ 	WARN_ON_ONCE(disk_live(disk));
+ 
++	blkcg_exit_disk(disk);
++
+ 	/*
+ 	 * To undo the all initialization from blk_mq_init_allocated_queue in
+ 	 * case of a probe failure where add_disk is never called we have to
+-- 
+cgit 
+

@@ -1,0 +1,36 @@
+From 21ef9c91f0ab4f11d31fddbdc6d886fed114be74 Mon Sep 17 00:00:00 2001
+From: Yang Yingliang <yangyingliang@huawei.com>
+Date: Mon, 30 Jan 2023 20:06:33 +0800
+Subject: usb: fotg210: fix return value check in fotg210_probe()
+
+devm_platform_get_and_ioremap_resource() never returns NULL pointer,
+it will return ERR_PTR() when it fails, so replace the check with
+IS_ERR().
+
+Fixes: baef5330d35b ("usb: fotg210: Acquire memory resource in core")
+Signed-off-by: Yang Yingliang <yangyingliang@huawei.com>
+Reviewed-by: Linus Walleij <linus.walleij@linaro.org>
+Link: https://lore.kernel.org/r/20230130120633.3342285-1-yangyingliang@huawei.com
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+---
+ drivers/usb/fotg210/fotg210-core.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/usb/fotg210/fotg210-core.c b/drivers/usb/fotg210/fotg210-core.c
+index 202d80adca2c4..cb75464ab2905 100644
+--- a/drivers/usb/fotg210/fotg210-core.c
++++ b/drivers/usb/fotg210/fotg210-core.c
+@@ -136,8 +136,8 @@ static int fotg210_probe(struct platform_device *pdev)
+ 	fotg->dev = dev;
+ 
+ 	fotg->base = devm_platform_get_and_ioremap_resource(pdev, 0, &fotg->res);
+-	if (!fotg->base)
+-		return -ENOMEM;
++	if (IS_ERR(fotg->base))
++		return PTR_ERR(fotg->base);
+ 
+ 	fotg->pclk = devm_clk_get_optional_enabled(dev, "PCLK");
+ 	if (IS_ERR(fotg->pclk))
+-- 
+cgit 
+

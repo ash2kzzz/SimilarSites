@@ -1,0 +1,47 @@
+From b65a0a8edba2c0a03e8fdb03b6807132e4166483 Mon Sep 17 00:00:00 2001
+From: Charles Keepax <ckeepax@opensource.cirrus.com>
+Date: Thu, 23 Mar 2023 13:20:47 +0000
+Subject: regulator: arizona-micsupp: Use PROBE_FORCE_SYNCHRONOUS
+
+Restore synchronous probing for Arizona regulators as the main MFD
+relies on the ordering of the devices probing.
+
+As these regulators are built into the CODEC and typically have no DT
+representation the regulator framework is unaware of their existence
+until the driver probes. These means the probing of the driver needs to
+be synchronous to ensure the regulators are not substitued for the dummy
+later when the users request them.
+
+Fixes: 259b93b21a9f ("regulator: Set PROBE_PREFER_ASYNCHRONOUS for drivers that existed in 4.14")
+Signed-off-by: Charles Keepax <ckeepax@opensource.cirrus.com>
+Link: https://lore.kernel.org/r/20230323132047.833737-2-ckeepax@opensource.cirrus.com
+Signed-off-by: Mark Brown <broonie@kernel.org>
+---
+ drivers/regulator/arizona-micsupp.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/regulator/arizona-micsupp.c b/drivers/regulator/arizona-micsupp.c
+index ffd8416487eb9..e250e5f3fcbcb 100644
+--- a/drivers/regulator/arizona-micsupp.c
++++ b/drivers/regulator/arizona-micsupp.c
+@@ -365,7 +365,7 @@ static struct platform_driver arizona_micsupp_driver = {
+ 	.probe = arizona_micsupp_probe,
+ 	.driver		= {
+ 		.name	= "arizona-micsupp",
+-		.probe_type = PROBE_PREFER_ASYNCHRONOUS,
++		.probe_type = PROBE_FORCE_SYNCHRONOUS,
+ 	},
+ };
+ 
+@@ -373,7 +373,7 @@ static struct platform_driver madera_micsupp_driver = {
+ 	.probe = madera_micsupp_probe,
+ 	.driver		= {
+ 		.name	= "madera-micsupp",
+-		.probe_type = PROBE_PREFER_ASYNCHRONOUS,
++		.probe_type = PROBE_FORCE_SYNCHRONOUS,
+ 	},
+ };
+ 
+-- 
+cgit 
+

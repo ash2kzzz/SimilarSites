@@ -1,0 +1,92 @@
+From 6d2ed653185baa5ba601306cbd6cd7192642045d Mon Sep 17 00:00:00 2001
+From: Randy Dunlap <rdunlap@infradead.org>
+Date: Thu, 27 Apr 2023 20:09:16 -0700
+Subject: lsm: move hook comments docs to security/security.c
+
+Fix one kernel-doc warning, but invesigating that led to other
+kernel-doc movement (lsm_hooks.h to security.c) that needs to be
+fixed also.
+
+include/linux/lsm_hooks.h:1: warning: no structured comments found
+
+Fixes: e261301c851a ("lsm: move the remaining LSM hook comments to security/security.c")
+Fixes: 1cd2aca64a5d ("lsm: move the io_uring hook comments to security/security.c")
+Fixes: 452b670c7222 ("lsm: move the perf hook comments to security/security.c")
+Fixes: 55e853201a9e ("lsm: move the bpf hook comments to security/security.c")
+Fixes: b14faf9c94a6 ("lsm: move the audit hook comments to security/security.c")
+Fixes: 1427ddbe5cc1 ("lsm: move the binder hook comments to security/security.c")
+Fixes: 43fad2821876 ("lsm: move the sysv hook comments to security/security.c")
+Fixes: ecc419a44535 ("lsm: move the key hook comments to security/security.c")
+Fixes: 742b99456e86 ("lsm: move the xfrm hook comments to security/security.c")
+Fixes: ac318aed5498 ("lsm: move the Infiniband hook comments to security/security.c")
+Fixes: 4a49f592e931 ("lsm: move the SCTP hook comments to security/security.c")
+Fixes: 6b6bbe8c02a1 ("lsm: move the socket hook comments to security/security.c")
+Fixes: 2c2442fd46cd ("lsm: move the AF_UNIX hook comments to security/security.c")
+Fixes: 2bcf51bf2f03 ("lsm: move the netlink hook comments to security/security.c")
+Fixes: 130c53bfee4b ("lsm: move the task hook comments to security/security.c")
+Fixes: a0fd6480de48 ("lsm: move the file hook comments to security/security.c")
+Fixes: 9348944b775d ("lsm: move the kernfs hook comments to security/security.c")
+Fixes: 916e32584dfa ("lsm: move the inode hook comments to security/security.c")
+Fixes: 08526a902cc4 ("lsm: move the filesystem hook comments to security/security.c")
+Fixes: 36819f185590 ("lsm: move the fs_context hook comments to security/security.c")
+Fixes: 1661372c912d ("lsm: move the program execution hook comments to security/security.c")
+Signed-off-by: Randy Dunlap <rdunlap@infradead.org>
+Cc: Paul Moore <paul@paul-moore.com>
+Cc: James Morris <jmorris@namei.org>
+Cc: "Serge E. Hallyn" <serge@hallyn.com>
+Cc: linux-security-module@vger.kernel.org
+Cc: Jonathan Corbet <corbet@lwn.net>
+Cc: linux-doc@vger.kernel.org
+Cc: KP Singh <kpsingh@kernel.org>
+Cc: bpf@vger.kernel.org
+Signed-off-by: Paul Moore <paul@paul-moore.com>
+---
+ Documentation/bpf/prog_lsm.rst             | 2 +-
+ Documentation/security/lsm-development.rst | 6 +++---
+ Documentation/security/lsm.rst             | 2 +-
+ 3 files changed, 5 insertions(+), 5 deletions(-)
+
+diff --git a/Documentation/bpf/prog_lsm.rst b/Documentation/bpf/prog_lsm.rst
+index 0dc3fb0d95446..ad2be02f30c2d 100644
+--- a/Documentation/bpf/prog_lsm.rst
++++ b/Documentation/bpf/prog_lsm.rst
+@@ -18,7 +18,7 @@ LSM hook:
+ .. c:function:: int file_mprotect(struct vm_area_struct *vma, unsigned long reqprot, unsigned long prot);
+ 
+ Other LSM hooks which can be instrumented can be found in
+-``include/linux/lsm_hooks.h``.
++``security/security.c``.
+ 
+ eBPF programs that use Documentation/bpf/btf.rst do not need to include kernel
+ headers for accessing information from the attached eBPF program's context.
+diff --git a/Documentation/security/lsm-development.rst b/Documentation/security/lsm-development.rst
+index ac53e5065f79e..5895e529da7ff 100644
+--- a/Documentation/security/lsm-development.rst
++++ b/Documentation/security/lsm-development.rst
+@@ -11,7 +11,7 @@ that end users and distros can make a more informed decision about which
+ LSMs suit their requirements.
+ 
+ For extensive documentation on the available LSM hook interfaces, please
+-see ``include/linux/lsm_hooks.h`` and associated structures:
++see ``security/security.c`` and associated structures:
+ 
+-.. kernel-doc:: include/linux/lsm_hooks.h
+-   :internal:
++.. kernel-doc:: security/security.c
++   :export:
+diff --git a/Documentation/security/lsm.rst b/Documentation/security/lsm.rst
+index 6a2a2e973080f..c20c7c72e2d66 100644
+--- a/Documentation/security/lsm.rst
++++ b/Documentation/security/lsm.rst
+@@ -98,7 +98,7 @@ associate these values with real security attributes.
+ LSM hooks are maintained in lists. A list is maintained for each
+ hook, and the hooks are called in the order specified by CONFIG_LSM.
+ Detailed documentation for each hook is
+-included in the `include/linux/lsm_hooks.h` header file.
++included in the `security/security.c` source file.
+ 
+ The LSM framework provides for a close approximation of
+ general security module stacking. It defines
+-- 
+cgit 
+

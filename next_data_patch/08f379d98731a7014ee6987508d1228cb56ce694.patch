@@ -1,0 +1,31 @@
+From 08f379d98731a7014ee6987508d1228cb56ce694 Mon Sep 17 00:00:00 2001
+From: Andy Shevchenko <andriy.shevchenko@linux.intel.com>
+Date: Fri, 27 Jan 2023 17:02:25 +0200
+Subject: dt-bindings: Fix .gitignore
+
+The tracked files should not be ignored.
+
+Fixes: 44ec8b20d1e9 ("dt-bindings: Add running yamllint to dt_binding_check")
+Signed-off-by: Andy Shevchenko <andriy.shevchenko@linux.intel.com>
+Link: https://lore.kernel.org/r/20230127150225.18148-1-andriy.shevchenko@linux.intel.com
+Signed-off-by: Rob Herring <robh@kernel.org>
+---
+ Documentation/devicetree/bindings/.gitignore | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/Documentation/devicetree/bindings/.gitignore b/Documentation/devicetree/bindings/.gitignore
+index a77719968a7e1..51ddb26d93f02 100644
+--- a/Documentation/devicetree/bindings/.gitignore
++++ b/Documentation/devicetree/bindings/.gitignore
+@@ -2,3 +2,8 @@
+ *.example.dts
+ /processed-schema*.yaml
+ /processed-schema*.json
++
++#
++# We don't want to ignore the following even if they are dot-files
++#
++!.yamllint
+-- 
+cgit 
+

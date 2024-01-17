@@ -1,0 +1,45 @@
+From 0e163e54c34c12369ccf6562e74e8f0a800f4aad Mon Sep 17 00:00:00 2001
+From: Tom Rix <trix@redhat.com>
+Date: Wed, 17 May 2023 10:56:05 -0600
+Subject: accel/qaic: initialize ret variable to 0
+
+clang static analysis reports
+drivers/accel/qaic/qaic_data.c:610:2: warning: Undefined or garbage
+  value returned to caller [core.uninitialized.UndefReturn]
+        return ret;
+        ^~~~~~~~~~
+
+From a code analysis of the function, the ret variable is only set some
+of the time but is always returned.  This suggests ret can return
+uninitialized garbage. However BO allocation will ensure ret is always
+set in reality.
+
+Initialize ret to 0 to silence the warning.
+
+Fixes: ff13be830333 ("accel/qaic: Add datapath")
+Signed-off-by: Tom Rix <trix@redhat.com>
+[jhugo: Reword commit text]
+Signed-off-by: Jeffrey Hugo <quic_jhugo@quicinc.com>
+Reviewed-by: Carl Vanderlip <quic_carlv@quicinc.com>
+Reviewed-by: Pranjal Ramajor Asha Kanojiya <quic_pkanojiy@quicinc.com>
+Link: https://patchwork.freedesktop.org/patch/msgid/20230517165605.16770-1-quic_jhugo@quicinc.com
+---
+ drivers/accel/qaic/qaic_data.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/accel/qaic/qaic_data.c b/drivers/accel/qaic/qaic_data.c
+index c0a574cd1b35c..b46a16fb30806 100644
+--- a/drivers/accel/qaic/qaic_data.c
++++ b/drivers/accel/qaic/qaic_data.c
+@@ -591,7 +591,7 @@ static int qaic_gem_object_mmap(struct drm_gem_object *obj, struct vm_area_struc
+ 	struct qaic_bo *bo = to_qaic_bo(obj);
+ 	unsigned long offset = 0;
+ 	struct scatterlist *sg;
+-	int ret;
++	int ret = 0;
+ 
+ 	if (obj->import_attach)
+ 		return -EINVAL;
+-- 
+cgit 
+

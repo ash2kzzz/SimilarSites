@@ -1,0 +1,57 @@
+From 9da667e50c7e62266f3c2f8ad57b32fca40716b1 Mon Sep 17 00:00:00 2001
+From: Stefano Garzarella <sgarzare@redhat.com>
+Date: Wed, 29 Mar 2023 18:03:21 +0200
+Subject: vdpa_sim_net: complete the initialization before register the device
+
+Initialization must be completed before calling _vdpa_register_device()
+since it can connect the device to the vDPA bus, so requests can arrive
+after that call.
+
+So for example vdpasim_net_work(), which uses the net->*_stats variables,
+can be scheduled before they are initialized.
+
+Let's move _vdpa_register_device() to the end of vdpasim_net_dev_add()
+and add a comment to avoid future issues.
+
+Fixes: 0899774cb360 ("vdpa_sim_net: vendor satistics")
+Signed-off-by: Stefano Garzarella <sgarzare@redhat.com>
+Message-Id: <20230329160321.187176-1-sgarzare@redhat.com>
+Signed-off-by: Michael S. Tsirkin <mst@redhat.com>
+Acked-by: Jason Wang <jasowang@redhat.com>
+---
+ drivers/vdpa/vdpa_sim/vdpa_sim_net.c | 13 +++++++++----
+ 1 file changed, 9 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/vdpa/vdpa_sim/vdpa_sim_net.c b/drivers/vdpa/vdpa_sim/vdpa_sim_net.c
+index 862f405362de2..dfe2ce3418035 100644
+--- a/drivers/vdpa/vdpa_sim/vdpa_sim_net.c
++++ b/drivers/vdpa/vdpa_sim/vdpa_sim_net.c
+@@ -466,16 +466,21 @@ static int vdpasim_net_dev_add(struct vdpa_mgmt_dev *mdev, const char *name,
+ 
+ 	vdpasim_net_setup_config(simdev, config);
+ 
+-	ret = _vdpa_register_device(&simdev->vdpa, VDPASIM_NET_VQ_NUM);
+-	if (ret)
+-		goto reg_err;
+-
+ 	net = sim_to_net(simdev);
+ 
+ 	u64_stats_init(&net->tx_stats.syncp);
+ 	u64_stats_init(&net->rx_stats.syncp);
+ 	u64_stats_init(&net->cq_stats.syncp);
+ 
++	/*
++	 * Initialization must be completed before this call, since it can
++	 * connect the device to the vDPA bus, so requests can arrive after
++	 * this call.
++	 */
++	ret = _vdpa_register_device(&simdev->vdpa, VDPASIM_NET_VQ_NUM);
++	if (ret)
++		goto reg_err;
++
+ 	return 0;
+ 
+ reg_err:
+-- 
+cgit 
+

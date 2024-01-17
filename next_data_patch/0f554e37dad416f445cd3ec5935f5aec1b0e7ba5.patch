@@ -1,0 +1,35 @@
+From 0f554e37dad416f445cd3ec5935f5aec1b0e7ba5 Mon Sep 17 00:00:00 2001
+From: Frank Li <Frank.Li@nxp.com>
+Date: Mon, 15 May 2023 12:20:53 -0400
+Subject: arm64: dts: imx8: fix USB 3.0 Gadget Failure in QM & QXPB0 at super
+ speed
+
+Resolve USB 3.0 gadget failure for QM and QXPB0 in super speed mode with
+single IN and OUT endpoints, like mass storage devices, due to incorrect
+ACTUAL_MEM_SIZE in ep_cap2 (32k instead of actual 18k). Implement dt
+property cdns,on-chip-buff-size to override ep_cap2 and set it to 18k for
+imx8QM and imx8QXP chips. No adverse effects for 8QXP C0.
+
+Cc: stable@vger.kernel.org
+Fixes: dce49449e04f ("usb: cdns3: allocate TX FIFO size according to composite EP number")
+Signed-off-by: Frank Li <Frank.Li@nxp.com>
+Signed-off-by: Shawn Guo <shawnguo@kernel.org>
+---
+ arch/arm64/boot/dts/freescale/imx8-ss-conn.dtsi | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/arch/arm64/boot/dts/freescale/imx8-ss-conn.dtsi b/arch/arm64/boot/dts/freescale/imx8-ss-conn.dtsi
+index 2209c1ac6e9b0..e62a43591361b 100644
+--- a/arch/arm64/boot/dts/freescale/imx8-ss-conn.dtsi
++++ b/arch/arm64/boot/dts/freescale/imx8-ss-conn.dtsi
+@@ -171,6 +171,7 @@ conn_subsys: bus@5b000000 {
+ 			interrupt-names = "host", "peripheral", "otg", "wakeup";
+ 			phys = <&usb3_phy>;
+ 			phy-names = "cdns3,usb3-phy";
++			cdns,on-chip-buff-size = /bits/ 16 <18>;
+ 			status = "disabled";
+ 		};
+ 	};
+-- 
+cgit 
+

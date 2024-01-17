@@ -1,0 +1,82 @@
+From 2719aa217e0d025dbfce74ac777815776ccec072 Mon Sep 17 00:00:00 2001
+From: Jens Axboe <axboe@fb.com>
+Date: Wed, 3 May 2017 11:08:14 -0600
+Subject: blk-mq: don't use sync workqueue flushing from drivers
+
+A previous commit introduced the sync flush, which we need from
+internal callers like blk_mq_quiesce_queue(). However, we also
+call the stop helpers from drivers, particularly from ->queue_rq()
+when we have to stop processing for a bit. We can't block from
+those locations, and we don't have to guarantee that we're
+fully flushed.
+
+Fixes: 9f993737906b ("blk-mq: unify hctx delayed_run_work and run_work")
+Reviewed-by: Bart Van Assche <Bart.VanAssche@sandisk.com>
+Signed-off-by: Jens Axboe <axboe@fb.com>
+---
+ block/blk-mq.c | 25 ++++++++++++++++++++-----
+ 1 file changed, 20 insertions(+), 5 deletions(-)
+
+diff --git a/block/blk-mq.c b/block/blk-mq.c
+index e339247a2570c..dec70ca0aafda 100644
+--- a/block/blk-mq.c
++++ b/block/blk-mq.c
+@@ -41,6 +41,7 @@ static LIST_HEAD(all_q_list);
+ 
+ static void blk_mq_poll_stats_start(struct request_queue *q);
+ static void blk_mq_poll_stats_fn(struct blk_stat_callback *cb);
++static void __blk_mq_stop_hw_queues(struct request_queue *q, bool sync);
+ 
+ static int blk_mq_poll_stats_bkt(const struct request *rq)
+ {
+@@ -166,7 +167,7 @@ void blk_mq_quiesce_queue(struct request_queue *q)
+ 	unsigned int i;
+ 	bool rcu = false;
+ 
+-	blk_mq_stop_hw_queues(q);
++	__blk_mq_stop_hw_queues(q, true);
+ 
+ 	queue_for_each_hw_ctx(q, hctx, i) {
+ 		if (hctx->flags & BLK_MQ_F_BLOCKING)
+@@ -1218,20 +1219,34 @@ bool blk_mq_queue_stopped(struct request_queue *q)
+ }
+ EXPORT_SYMBOL(blk_mq_queue_stopped);
+ 
+-void blk_mq_stop_hw_queue(struct blk_mq_hw_ctx *hctx)
++static void __blk_mq_stop_hw_queue(struct blk_mq_hw_ctx *hctx, bool sync)
+ {
+-	cancel_delayed_work_sync(&hctx->run_work);
++	if (sync)
++		cancel_delayed_work_sync(&hctx->run_work);
++	else
++		cancel_delayed_work(&hctx->run_work);
++
+ 	set_bit(BLK_MQ_S_STOPPED, &hctx->state);
+ }
++
++void blk_mq_stop_hw_queue(struct blk_mq_hw_ctx *hctx)
++{
++	__blk_mq_stop_hw_queue(hctx, false);
++}
+ EXPORT_SYMBOL(blk_mq_stop_hw_queue);
+ 
+-void blk_mq_stop_hw_queues(struct request_queue *q)
++void __blk_mq_stop_hw_queues(struct request_queue *q, bool sync)
+ {
+ 	struct blk_mq_hw_ctx *hctx;
+ 	int i;
+ 
+ 	queue_for_each_hw_ctx(q, hctx, i)
+-		blk_mq_stop_hw_queue(hctx);
++		__blk_mq_stop_hw_queue(hctx, sync);
++}
++
++void blk_mq_stop_hw_queues(struct request_queue *q)
++{
++	__blk_mq_stop_hw_queues(q, false);
+ }
+ EXPORT_SYMBOL(blk_mq_stop_hw_queues);
+ 
+-- 
+cgit 
+

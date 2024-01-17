@@ -1,0 +1,41 @@
+From 38c8e3dfb2a1be863b7f5aad7755d5e9727da8a5 Mon Sep 17 00:00:00 2001
+From: Ming Lei <ming.lei@redhat.com>
+Date: Tue, 25 Apr 2023 11:41:54 +0800
+Subject: block: sync part's ->bd_has_submit_bio with disk's
+
+submit_bio() always uses bio->bi_bdev->bd_has_submit_bio to decide if
+disk's ->submit_bio() is called, and bio->bi_bdev could point to one
+partition device.
+
+So we have to sync part bdev's ->bd_has_submit_bio with disk's.
+
+Reported-by: Changhui Zhong <czhong@redhat.com>
+Link: https://lore.kernel.org/linux-block/ZEdItaPqif8fp85H@ovpn-8-24.pek2.redhat.com/T/#t
+Fixes: 9f4107b07b17 ("block: store bdev->bd_disk->fops->submit_bio state in bdev")
+Signed-off-by: Ming Lei <ming.lei@redhat.com>
+Link: https://lore.kernel.org/r/20230425034154.110099-1-ming.lei@redhat.com
+Signed-off-by: Jens Axboe <axboe@kernel.dk>
+---
+ block/bdev.c | 5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/block/bdev.c b/block/bdev.c
+index 717089a5726f0..21c63bfef3237 100644
+--- a/block/bdev.c
++++ b/block/bdev.c
+@@ -418,8 +418,11 @@ struct block_device *bdev_alloc(struct gendisk *disk, u8 partno)
+ 	bdev->bd_partno = partno;
+ 	bdev->bd_inode = inode;
+ 	bdev->bd_queue = disk->queue;
++	if (partno)
++		bdev->bd_has_submit_bio = disk->part0->bd_has_submit_bio;
++	else
++		bdev->bd_has_submit_bio = false;
+ 	bdev->bd_stats = alloc_percpu(struct disk_stats);
+-	bdev->bd_has_submit_bio = false;
+ 	if (!bdev->bd_stats) {
+ 		iput(inode);
+ 		return NULL;
+-- 
+cgit 
+

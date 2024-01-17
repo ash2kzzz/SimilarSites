@@ -1,0 +1,82 @@
+From 85c2ce9104eb93517db2037699471c517e81f9b4 Mon Sep 17 00:00:00 2001
+From: Peter Zijlstra <peterz@infradead.org>
+Date: Tue, 30 Jun 2020 16:49:05 +0200
+Subject: sched, vmlinux.lds: Increase STRUCT_ALIGNMENT to 64 bytes for GCC-4.9
+
+For some mysterious reason GCC-4.9 has a 64 byte section alignment for
+structures, all other GCC versions (and Clang) tested (including 4.8
+and 5.0) are fine with the 32 bytes alignment.
+
+Getting this right is important for the new SCHED_DATA macro that
+creates an explicitly ordered array of 'struct sched_class' in the
+linker script and expect pointer arithmetic to work.
+
+Fixes: c3a340f7e7ea ("sched: Have sched_class_highest define by vmlinux.lds.h")
+Reported-by: kernel test robot <lkp@intel.com>
+Signed-off-by: Peter Zijlstra (Intel) <peterz@infradead.org>
+Link: https://lkml.kernel.org/r/20200630144905.GX4817@hirez.programming.kicks-ass.net
+---
+ include/asm-generic/vmlinux.lds.h | 18 +++++++++++-------
+ kernel/sched/sched.h              |  3 ++-
+ 2 files changed, 13 insertions(+), 8 deletions(-)
+
+diff --git a/include/asm-generic/vmlinux.lds.h b/include/asm-generic/vmlinux.lds.h
+index 66fb84c3dc7ee..3ceb4b7279ec2 100644
+--- a/include/asm-generic/vmlinux.lds.h
++++ b/include/asm-generic/vmlinux.lds.h
+@@ -108,6 +108,17 @@
+ #define SBSS_MAIN .sbss
+ #endif
+ 
++/*
++ * GCC 4.5 and later have a 32 bytes section alignment for structures.
++ * Except GCC 4.9, that feels the need to align on 64 bytes.
++ */
++#if __GNUC__ == 4 && __GNUC_MINOR__ == 9
++#define STRUCT_ALIGNMENT 64
++#else
++#define STRUCT_ALIGNMENT 32
++#endif
++#define STRUCT_ALIGN() . = ALIGN(STRUCT_ALIGNMENT)
++
+ /*
+  * The order of the sched class addresses are important, as they are
+  * used to determine the order of the priority of each sched class in
+@@ -123,13 +134,6 @@
+ 	*(__stop_sched_class)			\
+ 	__end_sched_classes = .;
+ 
+-/*
+- * Align to a 32 byte boundary equal to the
+- * alignment gcc 4.5 uses for a struct
+- */
+-#define STRUCT_ALIGNMENT 32
+-#define STRUCT_ALIGN() . = ALIGN(STRUCT_ALIGNMENT)
+-
+ /* The actual configuration determine if the init/exit sections
+  * are handled as text/data or they can be discarded (which
+  * often happens at runtime)
+diff --git a/kernel/sched/sched.h b/kernel/sched/sched.h
+index 5aa6661ecaf15..9bef2dd01247d 100644
+--- a/kernel/sched/sched.h
++++ b/kernel/sched/sched.h
+@@ -67,6 +67,7 @@
+ #include <linux/tsacct_kern.h>
+ 
+ #include <asm/tlb.h>
++#include <asm-generic/vmlinux.lds.h>
+ 
+ #ifdef CONFIG_PARAVIRT
+ # include <asm/paravirt.h>
+@@ -1810,7 +1811,7 @@ struct sched_class {
+ #ifdef CONFIG_FAIR_GROUP_SCHED
+ 	void (*task_change_group)(struct task_struct *p, int type);
+ #endif
+-} __aligned(32); /* STRUCT_ALIGN(), vmlinux.lds.h */
++} __aligned(STRUCT_ALIGNMENT); /* STRUCT_ALIGN(), vmlinux.lds.h */
+ 
+ static inline void put_prev_task(struct rq *rq, struct task_struct *prev)
+ {
+-- 
+cgit 
+

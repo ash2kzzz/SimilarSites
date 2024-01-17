@@ -1,0 +1,52 @@
+From 0feeb4fd4c93efde2ac265d192392639fb4e253a Mon Sep 17 00:00:00 2001
+From: Hamza Mahfooz <hamza.mahfooz@amd.com>
+Date: Tue, 17 Jan 2023 15:12:49 -0500
+Subject: drm/amd/display: fix issues with driver unload
+
+Currently, we run into a number of WARN()s when attempting to unload the
+amdgpu driver (e.g. using "modprobe -r amdgpu"). These all stem from
+calling drm_encoder_cleanup() too early. So, to fix this we can stop
+calling drm_encoder_cleanup() from amdgpu_dm_fini() and instead have it
+be called from amdgpu_dm_encoder_destroy(). Also, we don't need to free
+in amdgpu_dm_encoder_destroy() since mst_encoders[] isn't explicitly
+allocated by the slab allocator.
+
+Fixes: f74367e492ba ("drm/amdgpu/display: create fake mst encoders ahead of time (v4)")
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Hamza Mahfooz <hamza.mahfooz@amd.com>
+Signed-off-by: Alex Deucher <alexander.deucher@amd.com>
+---
+ drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c           | 4 ----
+ drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm_mst_types.c | 1 -
+ 2 files changed, 5 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c b/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c
+index e13308ba36162..0083703e6a8ba 100644
+--- a/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c
++++ b/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm.c
+@@ -1732,10 +1732,6 @@ static void amdgpu_dm_fini(struct amdgpu_device *adev)
+ 		adev->dm.vblank_control_workqueue = NULL;
+ 	}
+ 
+-	for (i = 0; i < adev->dm.display_indexes_num; i++) {
+-		drm_encoder_cleanup(&adev->dm.mst_encoders[i].base);
+-	}
+-
+ 	amdgpu_dm_destroy_drm_device(&adev->dm);
+ 
+ #if defined(CONFIG_DRM_AMD_SECURE_DISPLAY)
+diff --git a/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm_mst_types.c b/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm_mst_types.c
+index bbeeee7c5d7c5..5fa9bab950384 100644
+--- a/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm_mst_types.c
++++ b/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm_mst_types.c
+@@ -492,7 +492,6 @@ static const struct drm_connector_helper_funcs dm_dp_mst_connector_helper_funcs
+ static void amdgpu_dm_encoder_destroy(struct drm_encoder *encoder)
+ {
+ 	drm_encoder_cleanup(encoder);
+-	kfree(encoder);
+ }
+ 
+ static const struct drm_encoder_funcs amdgpu_dm_encoder_funcs = {
+-- 
+cgit 
+

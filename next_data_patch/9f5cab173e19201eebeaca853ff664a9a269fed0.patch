@@ -1,0 +1,36 @@
+From 9f5cab173e19201eebeaca853ff664a9a269fed0 Mon Sep 17 00:00:00 2001
+From: Tom Rix <trix@redhat.com>
+Date: Mon, 17 Apr 2023 19:09:57 -0400
+Subject: module: remove use of uninitialized variable len
+
+clang build reports
+kernel/module/stats.c:307:34: error: variable
+  'len' is uninitialized when used here [-Werror,-Wuninitialized]
+        len = scnprintf(buf + 0, size - len,
+                                        ^~~
+At the start of this sequence, neither the '+ 0', nor the '- len' are needed.
+So remove them and fix using 'len' uninitalized.
+
+Fixes: df3e764d8e5c ("module: add debug stats to help identify memory pressure")
+Signed-off-by: Tom Rix <trix@redhat.com>
+Signed-off-by: Luis Chamberlain <mcgrof@kernel.org>
+---
+ kernel/module/stats.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/kernel/module/stats.c b/kernel/module/stats.c
+index a1f5454791743..6eeb35cc8d9f5 100644
+--- a/kernel/module/stats.c
++++ b/kernel/module/stats.c
+@@ -302,7 +302,7 @@ static ssize_t read_file_mod_stats(struct file *file, char __user *user_buf,
+ 		return -ENOMEM;
+ 
+ 	/* The beginning of our debug preamble */
+-	len = scnprintf(buf + 0, size - len, "%25s\t%u\n", "Mods ever loaded", live_mod_count);
++	len = scnprintf(buf, size, "%25s\t%u\n", "Mods ever loaded", live_mod_count);
+ 
+ 	len += scnprintf(buf + len, size - len, "%25s\t%u\n", "Mods failed on kread", fkreads);
+ 
+-- 
+cgit 
+

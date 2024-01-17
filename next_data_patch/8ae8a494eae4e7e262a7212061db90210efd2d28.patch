@@ -1,0 +1,33 @@
+From 8ae8a494eae4e7e262a7212061db90210efd2d28 Mon Sep 17 00:00:00 2001
+From: Herbert Xu <herbert@gondor.apana.org.au>
+Date: Sun, 9 Apr 2023 15:46:59 +0800
+Subject: crypto: ixp4xx - Do not check word size when compile testing
+
+The BUILD_BUG_ON preventing compilation on foreign architectures
+should be disabled when we're doing compile testing.
+
+Fixes: 1bc7fdbf2677 ("crypto: ixp4xx - Move driver to...")
+Reported-by: kernel test robot <lkp@intel.com>
+Link: https://lore.kernel.org/oe-kbuild-all/202304061846.G6cpPXiQ-lkp@intel.com/
+Signed-off-by: Herbert Xu <herbert@gondor.apana.org.au>
+---
+ drivers/crypto/intel/ixp4xx/ixp4xx_crypto.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/crypto/intel/ixp4xx/ixp4xx_crypto.c b/drivers/crypto/intel/ixp4xx/ixp4xx_crypto.c
+index b63e2359a1332..5d640f13ad1c0 100644
+--- a/drivers/crypto/intel/ixp4xx/ixp4xx_crypto.c
++++ b/drivers/crypto/intel/ixp4xx/ixp4xx_crypto.c
+@@ -263,7 +263,8 @@ static int setup_crypt_desc(void)
+ {
+ 	struct device *dev = &pdev->dev;
+ 
+-	BUILD_BUG_ON(sizeof(struct crypt_ctl) != 64);
++	BUILD_BUG_ON(!IS_ENABLED(CONFIG_COMPILE_TEST) &&
++		     sizeof(struct crypt_ctl) != 64);
+ 	crypt_virt = dma_alloc_coherent(dev,
+ 					NPE_QLEN * sizeof(struct crypt_ctl),
+ 					&crypt_phys, GFP_ATOMIC);
+-- 
+cgit 
+

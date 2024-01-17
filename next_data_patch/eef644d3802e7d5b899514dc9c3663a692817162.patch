@@ -1,0 +1,33 @@
+From eef644d3802e7d5b899514dc9c3663a692817162 Mon Sep 17 00:00:00 2001
+From: Marek Szyprowski <m.szyprowski@samsung.com>
+Date: Thu, 23 Mar 2023 09:33:12 +0100
+Subject: regulator: wm8994: Use PROBE_FORCE_SYNCHRONOUS
+
+Restore synchronous probing for wm8994 regulators because otherwise the
+sound device is never initialized on Exynos5250-based Arndale board.
+
+Fixes: 259b93b21a9f ("regulator: Set PROBE_PREFER_ASYNCHRONOUS for drivers that existed in 4.14")
+Signed-off-by: Marek Szyprowski <m.szyprowski@samsung.com>
+Acked-by: Charles Keepax <ckeepax@opensource.cirrus.com>
+Link: https://lore.kernel.org/r/20230323083312.199189-1-m.szyprowski@samsung.com
+Signed-off-by: Mark Brown <broonie@kernel.org>
+---
+ drivers/regulator/wm8994-regulator.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/regulator/wm8994-regulator.c b/drivers/regulator/wm8994-regulator.c
+index 8921051a00e92..2946db448aeca 100644
+--- a/drivers/regulator/wm8994-regulator.c
++++ b/drivers/regulator/wm8994-regulator.c
+@@ -227,7 +227,7 @@ static struct platform_driver wm8994_ldo_driver = {
+ 	.probe = wm8994_ldo_probe,
+ 	.driver		= {
+ 		.name	= "wm8994-ldo",
+-		.probe_type = PROBE_PREFER_ASYNCHRONOUS,
++		.probe_type = PROBE_FORCE_SYNCHRONOUS,
+ 	},
+ };
+ 
+-- 
+cgit 
+

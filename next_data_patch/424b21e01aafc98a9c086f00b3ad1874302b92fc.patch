@@ -1,0 +1,40 @@
+From 424b21e01aafc98a9c086f00b3ad1874302b92fc Mon Sep 17 00:00:00 2001
+From: Arnd Bergmann <arnd@arndb.de>
+Date: Wed, 8 Mar 2023 15:52:53 +0100
+Subject: mips: ar7: include linux/gpio/driver.h
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+The change to remove the implicit gpio/driver.h include was done
+after fixing all the other users, but the ar7 file still needs
+the same change.
+
+Reported-by: Naresh Kamboju <naresh.kamboju@linaro.org>
+Fixes: 21d9526d13b5 ("gpiolib: Make the legacy <linux/gpio.h> consumer-only")
+Signed-off-by: Arnd Bergmann <arnd@arndb.de>
+Reviewed-by: Florian Fainelli <f.fainelli@gmail.com>
+Reviewed-by: Philippe Mathieu-Daudé <philmd@linaro.org>
+Reviewed-by: Linus Walleij <linus.walleij@linaro.org>
+Reviewed-by: Andy Shevchenko <andriy.shevchenko@linux.intel.com>
+Signed-off-by: Andy Shevchenko <andriy.shevchenko@linux.intel.com>
+---
+ arch/mips/ar7/gpio.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/arch/mips/ar7/gpio.c b/arch/mips/ar7/gpio.c
+index ae0e01b9438ff..4ed833b9cc2f7 100644
+--- a/arch/mips/ar7/gpio.c
++++ b/arch/mips/ar7/gpio.c
+@@ -7,7 +7,7 @@
+ 
+ #include <linux/init.h>
+ #include <linux/export.h>
+-#include <linux/gpio.h>
++#include <linux/gpio/driver.h>
+ 
+ #include <asm/mach-ar7/ar7.h>
+ 
+-- 
+cgit 
+

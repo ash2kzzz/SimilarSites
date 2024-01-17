@@ -1,0 +1,163 @@
+From 25abe0db92437fde463204c3e4eb5a71b62d6e5d Mon Sep 17 00:00:00 2001
+From: Alexandre Ghiti <alexghiti@rivosinc.com>
+Date: Tue, 6 Jun 2023 15:04:44 +0200
+Subject: riscv: Fix kfence now that the linear mapping can be backed by
+ PUD/P4D/PGD
+
+RISC-V Kfence implementation used to rely on the fact the linear mapping
+was backed by at most PMD hugepages, which is not true anymore since
+commit 3335068f8721 ("riscv: Use PUD/P4D/PGD pages for the linear
+mapping").
+
+Instead of splitting PUD/P4D/PGD mappings afterwards, directly map the
+kfence pool region using PTE mappings by allocating this region before
+setup_vm_final().
+
+Reported-by: syzbot+a74d57bddabbedd75135@syzkaller.appspotmail.com
+Closes: https://syzkaller.appspot.com/bug?extid=a74d57bddabbedd75135
+Fixes: 3335068f8721 ("riscv: Use PUD/P4D/PGD pages for the linear mapping")
+Signed-off-by: Alexandre Ghiti <alexghiti@rivosinc.com>
+Link: https://lore.kernel.org/r/20230606130444.25090-1-alexghiti@rivosinc.com
+Signed-off-by: Palmer Dabbelt <palmer@rivosinc.com>
+---
+ arch/riscv/include/asm/kfence.h | 33 ---------------------------------
+ arch/riscv/mm/init.c            | 35 ++++++++++++++++++++++++++++++-----
+ 2 files changed, 30 insertions(+), 38 deletions(-)
+
+diff --git a/arch/riscv/include/asm/kfence.h b/arch/riscv/include/asm/kfence.h
+index d887a54042aa4..0bbffd528096d 100644
+--- a/arch/riscv/include/asm/kfence.h
++++ b/arch/riscv/include/asm/kfence.h
+@@ -8,41 +8,8 @@
+ #include <asm-generic/pgalloc.h>
+ #include <asm/pgtable.h>
+ 
+-static inline int split_pmd_page(unsigned long addr)
+-{
+-	int i;
+-	unsigned long pfn = PFN_DOWN(__pa((addr & PMD_MASK)));
+-	pmd_t *pmd = pmd_off_k(addr);
+-	pte_t *pte = pte_alloc_one_kernel(&init_mm);
+-
+-	if (!pte)
+-		return -ENOMEM;
+-
+-	for (i = 0; i < PTRS_PER_PTE; i++)
+-		set_pte(pte + i, pfn_pte(pfn + i, PAGE_KERNEL));
+-	set_pmd(pmd, pfn_pmd(PFN_DOWN(__pa(pte)), PAGE_TABLE));
+-
+-	flush_tlb_kernel_range(addr, addr + PMD_SIZE);
+-	return 0;
+-}
+-
+ static inline bool arch_kfence_init_pool(void)
+ {
+-	int ret;
+-	unsigned long addr;
+-	pmd_t *pmd;
+-
+-	for (addr = (unsigned long)__kfence_pool; is_kfence_address((void *)addr);
+-	     addr += PAGE_SIZE) {
+-		pmd = pmd_off_k(addr);
+-
+-		if (pmd_leaf(*pmd)) {
+-			ret = split_pmd_page(addr);
+-			if (ret)
+-				return false;
+-		}
+-	}
+-
+ 	return true;
+ }
+ 
+diff --git a/arch/riscv/mm/init.c b/arch/riscv/mm/init.c
+index 0fe75c9713f8a..38c4b4d6b64f7 100644
+--- a/arch/riscv/mm/init.c
++++ b/arch/riscv/mm/init.c
+@@ -23,6 +23,7 @@
+ #ifdef CONFIG_RELOCATABLE
+ #include <linux/elf.h>
+ #endif
++#include <linux/kfence.h>
+ 
+ #include <asm/fixmap.h>
+ #include <asm/tlbflush.h>
+@@ -1167,14 +1168,16 @@ asmlinkage void __init setup_vm(uintptr_t dtb_pa)
+ }
+ 
+ static void __init create_linear_mapping_range(phys_addr_t start,
+-					       phys_addr_t end)
++					       phys_addr_t end,
++					       uintptr_t fixed_map_size)
+ {
+ 	phys_addr_t pa;
+ 	uintptr_t va, map_size;
+ 
+ 	for (pa = start; pa < end; pa += map_size) {
+ 		va = (uintptr_t)__va(pa);
+-		map_size = best_map_size(pa, end - pa);
++		map_size = fixed_map_size ? fixed_map_size :
++					    best_map_size(pa, end - pa);
+ 
+ 		create_pgd_mapping(swapper_pg_dir, va, pa, map_size,
+ 				   pgprot_from_va(va));
+@@ -1184,6 +1187,7 @@ static void __init create_linear_mapping_range(phys_addr_t start,
+ static void __init create_linear_mapping_page_table(void)
+ {
+ 	phys_addr_t start, end;
++	phys_addr_t kfence_pool __maybe_unused;
+ 	u64 i;
+ 
+ #ifdef CONFIG_STRICT_KERNEL_RWX
+@@ -1197,6 +1201,19 @@ static void __init create_linear_mapping_page_table(void)
+ 	memblock_mark_nomap(krodata_start, krodata_size);
+ #endif
+ 
++#ifdef CONFIG_KFENCE
++	/*
++	 *  kfence pool must be backed by PAGE_SIZE mappings, so allocate it
++	 *  before we setup the linear mapping so that we avoid using hugepages
++	 *  for this region.
++	 */
++	kfence_pool = memblock_phys_alloc(KFENCE_POOL_SIZE, PAGE_SIZE);
++	BUG_ON(!kfence_pool);
++
++	memblock_mark_nomap(kfence_pool, KFENCE_POOL_SIZE);
++	__kfence_pool = __va(kfence_pool);
++#endif
++
+ 	/* Map all memory banks in the linear mapping */
+ 	for_each_mem_range(i, &start, &end) {
+ 		if (start >= end)
+@@ -1207,17 +1224,25 @@ static void __init create_linear_mapping_page_table(void)
+ 		if (end >= __pa(PAGE_OFFSET) + memory_limit)
+ 			end = __pa(PAGE_OFFSET) + memory_limit;
+ 
+-		create_linear_mapping_range(start, end);
++		create_linear_mapping_range(start, end, 0);
+ 	}
+ 
+ #ifdef CONFIG_STRICT_KERNEL_RWX
+-	create_linear_mapping_range(ktext_start, ktext_start + ktext_size);
++	create_linear_mapping_range(ktext_start, ktext_start + ktext_size, 0);
+ 	create_linear_mapping_range(krodata_start,
+-				    krodata_start + krodata_size);
++				    krodata_start + krodata_size, 0);
+ 
+ 	memblock_clear_nomap(ktext_start,  ktext_size);
+ 	memblock_clear_nomap(krodata_start, krodata_size);
+ #endif
++
++#ifdef CONFIG_KFENCE
++	create_linear_mapping_range(kfence_pool,
++				    kfence_pool + KFENCE_POOL_SIZE,
++				    PAGE_SIZE);
++
++	memblock_clear_nomap(kfence_pool, KFENCE_POOL_SIZE);
++#endif
+ }
+ 
+ static void __init setup_vm_final(void)
+-- 
+cgit 
+

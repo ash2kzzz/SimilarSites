@@ -1,0 +1,35 @@
+From 705159622cb8d7896a0c052deebd91e616da9bbf Mon Sep 17 00:00:00 2001
+From: Bagas Sanjaya <bagasdotme@gmail.com>
+Date: Sat, 21 Jan 2023 11:00:14 +0700
+Subject: Documentation: coresight: tpdm: Add dummy comment after sysfs list
+
+kernel test robot reported htmldocs warning:
+
+Documentation/trace/coresight/coresight-tpdm.rst:43: WARNING: Document may not end with a transition.
+
+Since there is no more documentation left for TPDM, fix the warning by adding
+dummy comment, thus creating the required text transition.
+
+Link: https://lore.kernel.org/linux-doc/202301210955.zYxDrLgv-lkp@intel.com/
+Fixes: 758d638667d474 ("Documentation: trace: Add documentation for TPDM and TPDA")
+Reported-by: kernel test robot <lkp@intel.com>
+Signed-off-by: Bagas Sanjaya <bagasdotme@gmail.com>
+Signed-off-by: Suzuki K Poulose <suzuki.poulose@arm.com>
+Link: https://lore.kernel.org/r/20230121040015.28139-3-bagasdotme@gmail.com
+---
+ Documentation/trace/coresight/coresight-tpdm.rst | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/Documentation/trace/coresight/coresight-tpdm.rst b/Documentation/trace/coresight/coresight-tpdm.rst
+index 6c6e95109072f..72fd5c855d459 100644
+--- a/Documentation/trace/coresight/coresight-tpdm.rst
++++ b/Documentation/trace/coresight/coresight-tpdm.rst
+@@ -41,3 +41,5 @@ Root: ``/sys/bus/coresight/devices/tpdm<N>``
+     value -  1 or 2.
+ 
+ ----
++
++.. This text is intentionally added to make Sphinx happy.
+-- 
+cgit 
+

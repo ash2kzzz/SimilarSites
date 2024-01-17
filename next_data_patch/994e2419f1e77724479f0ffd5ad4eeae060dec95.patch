@@ -1,0 +1,44 @@
+From 994e2419f1e77724479f0ffd5ad4eeae060dec95 Mon Sep 17 00:00:00 2001
+From: Linus Torvalds <torvalds@linux-foundation.org>
+Date: Sat, 6 May 2023 10:16:19 -0700
+Subject: nfs: fix mis-merged __filemap_get_folio() error check
+
+Fix another case of an incorrect check for the returned 'folio' value
+from __filemap_get_folio().
+
+The failure case used to return NULL, but was changed by commit
+66dabbb65d67 ("mm: return an ERR_PTR from __filemap_get_folio").
+
+But in the meantime, commit ec108d3cc766 ("NFS: Convert readdir page
+array functions to use a folio") added a new user of that function.
+
+And my merge of the two did not fix this up correctly.
+
+The ext4 merge had the same issue, but that one had been caught in
+linux-next and got properly fixed while merging.
+
+Fixes: 0127f25b5dfc ("Merge tag 'nfs-for-6.4-1' of git://git.linux-nfs.org/projects/anna/linux-nfs")
+Cc: Anna Schumaker <anna@kernel.org>
+Cc: Matthew Wilcox <willy@infradead.org>
+Cc: Christoph Hellwig <hch@lst.de>
+Signed-off-by: Linus Torvalds <torvalds@linux-foundation.org>
+---
+ fs/nfs/dir.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/fs/nfs/dir.c b/fs/nfs/dir.c
+index 8257de6dba450..bacad0c578104 100644
+--- a/fs/nfs/dir.c
++++ b/fs/nfs/dir.c
+@@ -448,7 +448,7 @@ static struct folio *nfs_readdir_folio_get_next(struct address_space *mapping,
+ 	folio = __filemap_get_folio(mapping, index,
+ 			FGP_LOCK|FGP_CREAT|FGP_NOFS|FGP_NOWAIT,
+ 			mapping_gfp_mask(mapping));
+-	if (!folio)
++	if (IS_ERR(folio))
+ 		return NULL;
+ 	nfs_readdir_folio_init_and_validate(folio, cookie, change_attr);
+ 	if (nfs_readdir_folio_last_cookie(folio) != cookie)
+-- 
+cgit 
+

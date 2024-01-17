@@ -1,0 +1,41 @@
+From f96c0384047257365371a8ac217107c0371586f1 Mon Sep 17 00:00:00 2001
+From: Xu Yang <xu.yang_2@nxp.com>
+Date: Thu, 15 Dec 2022 13:54:09 +0800
+Subject: usb: chipidea: core: fix possible constant 0 if use
+ IS_ERR(ci->role_switch)
+
+After successfully probed, ci->role_switch would only be NULL or a valid
+pointer. IS_ERR(ci->role_switch) will always return 0. So no need to wrap
+it with IS_ERR, otherwise the logic is wrong.
+
+Fixes: e1b5d2bed67c ("usb: chipidea: core: handle usb role switch in a common way")
+cc: <stable@vger.kernel.org>
+Signed-off-by: Xu Yang <xu.yang_2@nxp.com>
+Link: https://lore.kernel.org/r/20221215055409.3760523-1-xu.yang_2@nxp.com
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+---
+ drivers/usb/chipidea/core.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/usb/chipidea/core.c b/drivers/usb/chipidea/core.c
+index 484b1cd234317..27c601296130e 100644
+--- a/drivers/usb/chipidea/core.c
++++ b/drivers/usb/chipidea/core.c
+@@ -1294,12 +1294,12 @@ static void ci_extcon_wakeup_int(struct ci_hdrc *ci)
+ 	cable_id = &ci->platdata->id_extcon;
+ 	cable_vbus = &ci->platdata->vbus_extcon;
+ 
+-	if ((!IS_ERR(cable_id->edev) || !IS_ERR(ci->role_switch))
++	if ((!IS_ERR(cable_id->edev) || ci->role_switch)
+ 		&& ci->is_otg &&
+ 		(otgsc & OTGSC_IDIE) && (otgsc & OTGSC_IDIS))
+ 		ci_irq(ci);
+ 
+-	if ((!IS_ERR(cable_vbus->edev) || !IS_ERR(ci->role_switch))
++	if ((!IS_ERR(cable_vbus->edev) || ci->role_switch)
+ 		&& ci->is_otg &&
+ 		(otgsc & OTGSC_BSVIE) && (otgsc & OTGSC_BSVIS))
+ 		ci_irq(ci);
+-- 
+cgit 
+

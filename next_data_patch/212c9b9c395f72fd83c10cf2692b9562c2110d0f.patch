@@ -1,0 +1,38 @@
+From 212c9b9c395f72fd83c10cf2692b9562c2110d0f Mon Sep 17 00:00:00 2001
+From: Tzung-Bi Shih <tzungbi@kernel.org>
+Date: Wed, 11 Jan 2023 13:57:27 +0800
+Subject: platform/chrome: fix kernel-doc warning for last_resume_result
+
+Fix the following kernel-doc warning:
+
+$ ./scripts/kernel-doc -none include/linux/platform_data/cros_ec_proto.h
+include/linux/platform_data/cros_ec_proto.h:187: warning: Function
+parameter or member 'last_resume_result' not described in 'cros_ec_device'
+
+Cc: Evan Green <evgreen@chromium.org>
+Fixes: 8c3166e17cf1 ("mfd / platform: cros_ec_debugfs: Expose resume result via debugfs")
+Signed-off-by: Tzung-Bi Shih <tzungbi@kernel.org>
+Reviewed-by: Guenter Roeck <groeck@chromium.org>
+Link: https://lore.kernel.org/r/20230111055728.708990-4-tzungbi@kernel.org
+---
+ include/linux/platform_data/cros_ec_proto.h | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/include/linux/platform_data/cros_ec_proto.h b/include/linux/platform_data/cros_ec_proto.h
+index 805dcb19a36d9..4865c54d4af14 100644
+--- a/include/linux/platform_data/cros_ec_proto.h
++++ b/include/linux/platform_data/cros_ec_proto.h
+@@ -136,6 +136,10 @@ struct cros_ec_command {
+  *                      transition failure if the sleep signal is not
+  *                      asserted.  See also struct
+  *                      ec_params_host_sleep_event_v1 in cros_ec_commands.h.
++ * @last_resume_result: The number of sleep power signal transitions that
++ *                      occurred since the suspend message. The high bit
++ *                      indicates a timeout occurred.  See also struct
++ *                      ec_response_host_sleep_event_v1 in cros_ec_commands.h.
+  * @last_event_time: exact time from the hard irq when we got notified of
+  *     a new event.
+  * @notifier_ready: The notifier_block to let the kernel re-query EC
+-- 
+cgit 
+

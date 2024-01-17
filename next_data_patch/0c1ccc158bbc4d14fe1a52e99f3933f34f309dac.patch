@@ -1,0 +1,54 @@
+From 0c1ccc158bbc4d14fe1a52e99f3933f34f309dac Mon Sep 17 00:00:00 2001
+From: Arnd Bergmann <arnd@arndb.de>
+Date: Thu, 26 Jan 2023 17:35:14 +0100
+Subject: Coresight: tpda/tpdm: remove incorrect __exit annotation
+
+'remove' callbacks get called whenever a device is unbound from
+the driver, which can get triggered from user space.
+
+Putting it into the __exit section means that the function gets
+dropped in for built-in drivers, as pointed out by this build
+warning:
+
+`tpda_remove' referenced in section `.data' of drivers/hwtracing/coresight/coresight-tpda.o: defined in discarded section `.exit.text' of drivers/hwtracing/coresight/coresight-tpda.o
+`tpdm_remove' referenced in section `.data' of drivers/hwtracing/coresight/coresight-tpdm.o: defined in discarded section `.exit.text' of drivers/hwtracing/coresight/coresight-tpdm.o
+
+Fixes: 5b7916625c01 ("Coresight: Add TPDA link driver")
+Fixes: b3c71626a933 ("Coresight: Add coresight TPDM source driver")
+Signed-off-by: Arnd Bergmann <arnd@arndb.de>
+Signed-off-by: Suzuki K Poulose <suzuki.poulose@arm.com>
+Link: https://lore.kernel.org/r/20230126163530.3495413-1-arnd@kernel.org
+---
+ drivers/hwtracing/coresight/coresight-tpda.c | 2 +-
+ drivers/hwtracing/coresight/coresight-tpdm.c | 2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/hwtracing/coresight/coresight-tpda.c b/drivers/hwtracing/coresight/coresight-tpda.c
+index 19c25c9f61578..382d648529e72 100644
+--- a/drivers/hwtracing/coresight/coresight-tpda.c
++++ b/drivers/hwtracing/coresight/coresight-tpda.c
+@@ -174,7 +174,7 @@ static int tpda_probe(struct amba_device *adev, const struct amba_id *id)
+ 	return 0;
+ }
+ 
+-static void __exit tpda_remove(struct amba_device *adev)
++static void tpda_remove(struct amba_device *adev)
+ {
+ 	struct tpda_drvdata *drvdata = dev_get_drvdata(&adev->dev);
+ 
+diff --git a/drivers/hwtracing/coresight/coresight-tpdm.c b/drivers/hwtracing/coresight/coresight-tpdm.c
+index 349a82bb32705..9479a5e8c6721 100644
+--- a/drivers/hwtracing/coresight/coresight-tpdm.c
++++ b/drivers/hwtracing/coresight/coresight-tpdm.c
+@@ -223,7 +223,7 @@ static int tpdm_probe(struct amba_device *adev, const struct amba_id *id)
+ 	return 0;
+ }
+ 
+-static void __exit tpdm_remove(struct amba_device *adev)
++static void tpdm_remove(struct amba_device *adev)
+ {
+ 	struct tpdm_drvdata *drvdata = dev_get_drvdata(&adev->dev);
+ 
+-- 
+cgit 
+

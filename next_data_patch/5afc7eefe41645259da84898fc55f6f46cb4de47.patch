@@ -1,0 +1,45 @@
+From 5afc7eefe41645259da84898fc55f6f46cb4de47 Mon Sep 17 00:00:00 2001
+From: Rander Wang <rander.wang@intel.com>
+Date: Wed, 8 Feb 2023 12:44:04 +0200
+Subject: ASoC: SOF: ops: refine parameters order in function
+ snd_sof_dsp_update8
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+SOF driver calls snd_sof_dsp_update8 with parameters mask and value but
+the snd_sof_dsp_update8 declares these two parameters in reverse order.
+This causes some issues such as d0i3 register can't be set correctly
+Now change function definition according to common SOF usage.
+
+Fixes: c28a36b012f1 ("ASoC: SOF: ops: add snd_sof_dsp_updateb() helper")
+Signed-off-by: Rander Wang <rander.wang@intel.com>
+Reviewed-by: Bard Liao <yung-chuan.liao@linux.intel.com>
+Reviewed-by: Ranjani Sridharan <ranjani.sridharan@linux.intel.com>
+Reviewed-by: Chao Song <chao.song@linux.intel.com>
+Reviewed-by: Péter Ujfalusi <peter.ujfalusi@linux.intel.com>
+Reviewed-by: Liam Girdwood <liam.r.girdwood@intel.com>
+Reviewed-by: Pierre-Louis Bossart <pierre-louis.bossart@linux.intel.com>
+Signed-off-by: Peter Ujfalusi <peter.ujfalusi@linux.intel.com>
+Link: https://lore.kernel.org/r/20230208104404.20554-1-peter.ujfalusi@linux.intel.com
+Signed-off-by: Mark Brown <broonie@kernel.org>
+---
+ sound/soc/sof/ops.h | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/sound/soc/sof/ops.h b/sound/soc/sof/ops.h
+index c527522505650..3b3f3cf7af38d 100644
+--- a/sound/soc/sof/ops.h
++++ b/sound/soc/sof/ops.h
+@@ -357,7 +357,7 @@ static inline u64 snd_sof_dsp_read64(struct snd_sof_dev *sdev, u32 bar,
+ }
+ 
+ static inline void snd_sof_dsp_update8(struct snd_sof_dev *sdev, u32 bar,
+-				       u32 offset, u8 value, u8 mask)
++				       u32 offset, u8 mask, u8 value)
+ {
+ 	u8 reg;
+ 
+-- 
+cgit 
+

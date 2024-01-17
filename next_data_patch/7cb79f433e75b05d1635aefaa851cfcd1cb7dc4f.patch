@@ -1,0 +1,58 @@
+From 7cb79f433e75b05d1635aefaa851cfcd1cb7dc4f Mon Sep 17 00:00:00 2001
+From: Sean Christopherson <seanjc@google.com>
+Date: Thu, 19 Jan 2023 18:21:58 +0000
+Subject: KVM: PPC: Fix refactoring goof in kvmppc_e500mc_init()
+
+Fix a build error due to a mixup during a recent refactoring.  The error
+was reported during code review, but the fixed up patch didn't make it
+into the final commit.
+
+Fixes: 474856bad921 ("KVM: PPC: Move processor compatibility check to module init")
+Link: https://lore.kernel.org/all/87cz93snqc.fsf@mpe.ellerman.id.au
+Cc: Michael Ellerman <mpe@ellerman.id.au>
+Signed-off-by: Sean Christopherson <seanjc@google.com>
+Message-Id: <20230119182158.4026656-1-seanjc@google.com>
+Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>
+---
+ arch/powerpc/kvm/booke.c  | 2 +-
+ arch/powerpc/kvm/e500mc.c | 4 ++--
+ 2 files changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/arch/powerpc/kvm/booke.c b/arch/powerpc/kvm/booke.c
+index 0dce93ccaadfa..96a4803ba31c6 100644
+--- a/arch/powerpc/kvm/booke.c
++++ b/arch/powerpc/kvm/booke.c
+@@ -1211,7 +1211,7 @@ int kvmppc_handle_exit(struct kvm_vcpu *vcpu, unsigned int exit_nr)
+ 
+ /*
+  * On cores with Vector category, KVM is loaded only if CONFIG_ALTIVEC,
+- * see kvmppc_core_check_processor_compat().
++ * see kvmppc_e500mc_check_processor_compat().
+  */
+ #ifdef CONFIG_ALTIVEC
+ 	case BOOKE_INTERRUPT_ALTIVEC_UNAVAIL:
+diff --git a/arch/powerpc/kvm/e500mc.c b/arch/powerpc/kvm/e500mc.c
+index 611532a0dedcd..a309138927ff0 100644
+--- a/arch/powerpc/kvm/e500mc.c
++++ b/arch/powerpc/kvm/e500mc.c
+@@ -168,7 +168,7 @@ static void kvmppc_core_vcpu_put_e500mc(struct kvm_vcpu *vcpu)
+ 	kvmppc_booke_vcpu_put(vcpu);
+ }
+ 
+-int kvmppc_core_check_processor_compat(void)
++int kvmppc_e500mc_check_processor_compat(void)
+ {
+ 	int r;
+ 
+@@ -390,7 +390,7 @@ static int __init kvmppc_e500mc_init(void)
+ 
+ 	r = kvmppc_e500mc_check_processor_compat();
+ 	if (r)
+-		return kvmppc_e500mc;
++		goto err_out;
+ 
+ 	r = kvmppc_booke_init();
+ 	if (r)
+-- 
+cgit 
+

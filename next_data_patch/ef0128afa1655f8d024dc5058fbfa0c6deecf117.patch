@@ -1,0 +1,80 @@
+From ef0128afa1655f8d024dc5058fbfa0c6deecf117 Mon Sep 17 00:00:00 2001
+From: Fred Oh <fred.oh@linux.intel.com>
+Date: Wed, 12 Apr 2023 09:14:57 +0300
+Subject: ASoC: SOF: Intel: mtl: fix page fault in dspless mode when DSP is
+ disabled
+
+The patch to make DSPless mode work even if the DSP is
+disabled in BIOS missed to touch the MTL code to add
+the needed checks.
+If the DSP is disabled this can lead to page fault due to not
+accesible registers.
+
+Fixes: 9fc6786f549c ("ASoC: SOF: Intel: hda: make DSPless mode work with DSP disabled in BIOS")
+Signed-off-by: Fred Oh <fred.oh@linux.intel.com>
+Reviewed-by: Ranjani Sridharan <ranjani.sridharan@linux.intel.com>
+Reviewed-by: Pierre-Louis Bossart <pierre-louis.bossart@linux.intel.com>
+Signed-off-by: Peter Ujfalusi <peter.ujfalusi@linux.intel.com>
+Link: https://lore.kernel.org/r/20230412061457.27937-1-peter.ujfalusi@linux.intel.com
+Signed-off-by: Mark Brown <broonie@kernel.org>
+---
+ sound/soc/sof/intel/mtl.c | 15 +++++++++++++++
+ 1 file changed, 15 insertions(+)
+
+diff --git a/sound/soc/sof/intel/mtl.c b/sound/soc/sof/intel/mtl.c
+index 882ce5536ab65..9f969e07fc270 100644
+--- a/sound/soc/sof/intel/mtl.c
++++ b/sound/soc/sof/intel/mtl.c
+@@ -60,6 +60,9 @@ static bool mtl_dsp_check_ipc_irq(struct snd_sof_dev *sdev)
+ 	u32 irq_status;
+ 	u32 hfintipptr;
+ 
++	if (sdev->dspless_mode_selected)
++		return false;
++
+ 	/* read Interrupt IP Pointer */
+ 	hfintipptr = snd_sof_dsp_read(sdev, HDA_DSP_BAR, MTL_HFINTIPPTR) & MTL_HFINTIPPTR_PTR_MASK;
+ 	irq_status = snd_sof_dsp_read(sdev, HDA_DSP_BAR, hfintipptr + MTL_DSP_IRQSTS);
+@@ -120,6 +123,9 @@ static void mtl_enable_ipc_interrupts(struct snd_sof_dev *sdev)
+ 	struct sof_intel_hda_dev *hda = sdev->pdata->hw_pdata;
+ 	const struct sof_intel_dsp_desc *chip = hda->desc;
+ 
++	if (sdev->dspless_mode_selected)
++		return;
++
+ 	/* enable IPC DONE and BUSY interrupts */
+ 	snd_sof_dsp_update_bits(sdev, HDA_DSP_BAR, chip->ipc_ctl,
+ 				MTL_DSP_REG_HFIPCXCTL_BUSY | MTL_DSP_REG_HFIPCXCTL_DONE,
+@@ -131,6 +137,9 @@ static void mtl_disable_ipc_interrupts(struct snd_sof_dev *sdev)
+ 	struct sof_intel_hda_dev *hda = sdev->pdata->hw_pdata;
+ 	const struct sof_intel_dsp_desc *chip = hda->desc;
+ 
++	if (sdev->dspless_mode_selected)
++		return;
++
+ 	/* disable IPC DONE and BUSY interrupts */
+ 	snd_sof_dsp_update_bits(sdev, HDA_DSP_BAR, chip->ipc_ctl,
+ 				MTL_DSP_REG_HFIPCXCTL_BUSY | MTL_DSP_REG_HFIPCXCTL_DONE, 0);
+@@ -143,6 +152,9 @@ static void mtl_enable_sdw_irq(struct snd_sof_dev *sdev, bool enable)
+ 	u32 val;
+ 	int ret;
+ 
++	if (sdev->dspless_mode_selected)
++		return;
++
+ 	/* Enable/Disable SoundWire interrupt */
+ 	mask = MTL_DSP_REG_HfSNDWIE_IE_MASK;
+ 	if (enable)
+@@ -170,6 +182,9 @@ static int mtl_enable_interrupts(struct snd_sof_dev *sdev, bool enable)
+ 	u32 val;
+ 	int ret;
+ 
++	if (sdev->dspless_mode_selected)
++		return 0;
++
+ 	/* read Interrupt IP Pointer */
+ 	hfintipptr = snd_sof_dsp_read(sdev, HDA_DSP_BAR, MTL_HFINTIPPTR) & MTL_HFINTIPPTR_PTR_MASK;
+ 
+-- 
+cgit 
+

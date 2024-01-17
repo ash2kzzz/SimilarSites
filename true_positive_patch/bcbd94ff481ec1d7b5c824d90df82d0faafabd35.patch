@@ -1,0 +1,103 @@
+From bcbd94ff481ec1d7b5c824d90df82d0faafabd35 Mon Sep 17 00:00:00 2001
+From: Mikulas Patocka <mpatocka@redhat.com>
+Date: Thu, 19 Nov 2015 07:36:50 -0500
+Subject: dm crypt: fix a possible hang due to race condition on exit
+
+A kernel thread executes __set_current_state(TASK_INTERRUPTIBLE),
+__add_wait_queue, spin_unlock_irq and then tests kthread_should_stop().
+It is possible that the processor reorders memory accesses so that
+kthread_should_stop() is executed before __set_current_state().  If such
+reordering happens, there is a possible race on thread termination:
+
+CPU 0:
+calls kthread_should_stop()
+	it tests KTHREAD_SHOULD_STOP bit, returns false
+CPU 1:
+calls kthread_stop(cc->write_thread)
+	sets the KTHREAD_SHOULD_STOP bit
+	calls wake_up_process on the kernel thread, that sets the thread
+	state to TASK_RUNNING
+CPU 0:
+sets __set_current_state(TASK_INTERRUPTIBLE)
+spin_unlock_irq(&cc->write_thread_wait.lock)
+schedule() - and the process is stuck and never terminates, because the
+	state is TASK_INTERRUPTIBLE and wake_up_process on CPU 1 already
+	terminated
+
+Fix this race condition by using a new flag DM_CRYPT_EXIT_THREAD to
+signal that the kernel thread should exit.  The flag is set and tested
+while holding cc->write_thread_wait.lock, so there is no possibility of
+racy access to the flag.
+
+Also, remove the unnecessary set_task_state(current, TASK_RUNNING)
+following the schedule() call.  When the process was woken up, its state
+was already set to TASK_RUNNING.  Other kernel code also doesn't set the
+state to TASK_RUNNING following schedule() (for example,
+do_wait_for_common in completion.c doesn't do it).
+
+Fixes: dc2676210c42 ("dm crypt: offload writes to thread")
+Signed-off-by: Mikulas Patocka <mpatocka@redhat.com>
+Cc: stable@vger.kernel.org # v4.0+
+Signed-off-by: Mike Snitzer <snitzer@redhat.com>
+---
+ drivers/md/dm-crypt.c | 22 +++++++++++++---------
+ 1 file changed, 13 insertions(+), 9 deletions(-)
+
+diff --git a/drivers/md/dm-crypt.c b/drivers/md/dm-crypt.c
+index 917d47e290ae0..3147c8d09ea84 100644
+--- a/drivers/md/dm-crypt.c
++++ b/drivers/md/dm-crypt.c
+@@ -112,7 +112,8 @@ struct iv_tcw_private {
+  * and encrypts / decrypts at the same time.
+  */
+ enum flags { DM_CRYPT_SUSPENDED, DM_CRYPT_KEY_VALID,
+-	     DM_CRYPT_SAME_CPU, DM_CRYPT_NO_OFFLOAD };
++	     DM_CRYPT_SAME_CPU, DM_CRYPT_NO_OFFLOAD,
++	     DM_CRYPT_EXIT_THREAD};
+ 
+ /*
+  * The fields in here must be read only after initialization.
+@@ -1203,20 +1204,18 @@ continue_locked:
+ 		if (!RB_EMPTY_ROOT(&cc->write_tree))
+ 			goto pop_from_list;
+ 
++		if (unlikely(test_bit(DM_CRYPT_EXIT_THREAD, &cc->flags))) {
++			spin_unlock_irq(&cc->write_thread_wait.lock);
++			break;
++		}
++
+ 		__set_current_state(TASK_INTERRUPTIBLE);
+ 		__add_wait_queue(&cc->write_thread_wait, &wait);
+ 
+ 		spin_unlock_irq(&cc->write_thread_wait.lock);
+ 
+-		if (unlikely(kthread_should_stop())) {
+-			set_task_state(current, TASK_RUNNING);
+-			remove_wait_queue(&cc->write_thread_wait, &wait);
+-			break;
+-		}
+-
+ 		schedule();
+ 
+-		set_task_state(current, TASK_RUNNING);
+ 		spin_lock_irq(&cc->write_thread_wait.lock);
+ 		__remove_wait_queue(&cc->write_thread_wait, &wait);
+ 		goto continue_locked;
+@@ -1531,8 +1530,13 @@ static void crypt_dtr(struct dm_target *ti)
+ 	if (!cc)
+ 		return;
+ 
+-	if (cc->write_thread)
++	if (cc->write_thread) {
++		spin_lock_irq(&cc->write_thread_wait.lock);
++		set_bit(DM_CRYPT_EXIT_THREAD, &cc->flags);
++		wake_up_locked(&cc->write_thread_wait);
++		spin_unlock_irq(&cc->write_thread_wait.lock);
+ 		kthread_stop(cc->write_thread);
++	}
+ 
+ 	if (cc->io_queue)
+ 		destroy_workqueue(cc->io_queue);
+-- 
+cgit 
+

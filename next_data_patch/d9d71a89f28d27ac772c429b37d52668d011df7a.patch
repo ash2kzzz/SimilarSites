@@ -1,0 +1,47 @@
+From d9d71a89f28d27ac772c429b37d52668d011df7a Mon Sep 17 00:00:00 2001
+From: Alex Elder <elder@linaro.org>
+Date: Fri, 30 Dec 2022 16:33:04 -0600
+Subject: net: ipa: use proper endpoint mask for suspend
+
+It is now possible for a system to have more than 32 endpoints.  As
+a result, registers related to endpoint suspend are parameterized,
+with 32 endpoints represented in one more registers.
+
+In ipa_interrupt_suspend_control(), the IPA_SUSPEND_EN register
+offset is determined properly, but the bit mask used still assumes
+the number of enpoints won't exceed 32.  This is a bug.  Fix it.
+
+Fixes: f298ba785e2d ("net: ipa: add a parameter to suspend registers")
+Signed-off-by: Alex Elder <elder@linaro.org>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ drivers/net/ipa/ipa_interrupt.c | 3 +--
+ 1 file changed, 1 insertion(+), 2 deletions(-)
+
+diff --git a/drivers/net/ipa/ipa_interrupt.c b/drivers/net/ipa/ipa_interrupt.c
+index a49f66efacb87..d458a35839cce 100644
+--- a/drivers/net/ipa/ipa_interrupt.c
++++ b/drivers/net/ipa/ipa_interrupt.c
+@@ -132,10 +132,10 @@ static void ipa_interrupt_suspend_control(struct ipa_interrupt *interrupt,
+ 					  u32 endpoint_id, bool enable)
+ {
+ 	struct ipa *ipa = interrupt->ipa;
++	u32 mask = BIT(endpoint_id % 32);
+ 	u32 unit = endpoint_id / 32;
+ 	const struct ipa_reg *reg;
+ 	u32 offset;
+-	u32 mask;
+ 	u32 val;
+ 
+ 	WARN_ON(!test_bit(endpoint_id, ipa->available));
+@@ -148,7 +148,6 @@ static void ipa_interrupt_suspend_control(struct ipa_interrupt *interrupt,
+ 	offset = ipa_reg_n_offset(reg, unit);
+ 	val = ioread32(ipa->reg_virt + offset);
+ 
+-	mask = BIT(endpoint_id);
+ 	if (enable)
+ 		val |= mask;
+ 	else
+-- 
+cgit 
+

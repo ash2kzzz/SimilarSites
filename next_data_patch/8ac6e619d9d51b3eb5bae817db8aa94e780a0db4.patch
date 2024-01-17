@@ -1,0 +1,42 @@
+From 8ac6e619d9d51b3eb5bae817db8aa94e780a0db4 Mon Sep 17 00:00:00 2001
+From: Liao Chang <liaochang1@huawei.com>
+Date: Sun, 29 Jan 2023 17:42:42 +0800
+Subject: riscv: Add header include guards to insn.h
+
+Add header include guards to insn.h to prevent repeating declaration of
+any identifiers in insn.h.
+
+Fixes: edde5584c7ab ("riscv: Add SW single-step support for KDB")
+Signed-off-by: Liao Chang <liaochang1@huawei.com>
+Reviewed-by: Andrew Jones <ajones@ventanamicro.com>
+Fixes: c9c1af3f186a ("RISC-V: rename parse_asm.h to insn.h")
+Reviewed-by: Conor Dooley <conor.dooley@microchip.com>
+Link: https://lore.kernel.org/r/20230129094242.282620-1-liaochang1@huawei.com
+Cc: stable@vger.kernel.org
+Signed-off-by: Palmer Dabbelt <palmer@rivosinc.com>
+---
+ arch/riscv/include/asm/insn.h | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/arch/riscv/include/asm/insn.h b/arch/riscv/include/asm/insn.h
+index 6567cd5ed6ba7..8d5c84f2d5ef7 100644
+--- a/arch/riscv/include/asm/insn.h
++++ b/arch/riscv/include/asm/insn.h
+@@ -3,6 +3,9 @@
+  * Copyright (C) 2020 SiFive
+  */
+ 
++#ifndef _ASM_RISCV_INSN_H
++#define _ASM_RISCV_INSN_H
++
+ #include <linux/bits.h>
+ 
+ #define RV_INSN_FUNCT3_MASK	GENMASK(14, 12)
+@@ -375,3 +378,4 @@ static inline void riscv_insn_insert_utype_itype_imm(u32 *utype_insn, u32 *itype
+ 	*utype_insn |= (imm & RV_U_IMM_31_12_MASK) + ((imm & BIT(11)) << 1);
+ 	*itype_insn |= ((imm & RV_I_IMM_11_0_MASK) << RV_I_IMM_11_0_OPOFF);
+ }
++#endif /* _ASM_RISCV_INSN_H */
+-- 
+cgit 
+

@@ -1,0 +1,35 @@
+From 04df97e150c83d4640540008e95d0229cb188135 Mon Sep 17 00:00:00 2001
+From: Bagas Sanjaya <bagasdotme@gmail.com>
+Date: Mon, 13 Feb 2023 15:59:20 +0700
+Subject: Documentation: rust: Fix arch support table
+
+Stephen Rothwell reported htmldocs warning when merging uml tree:
+
+Documentation/rust/arch-support.rst:20: WARNING: Blank line required after table.
+
+Fix the arch support table by removing extraneous simple table marker.
+
+Link: https://lore.kernel.org/linux-next/20230213152714.78b844f4@canb.auug.org.au/
+Fixes: 0438aadfa69a34 ("rust: arch/um: Add support for CONFIG_RUST under x86_64 UML")
+Reported-by: Stephen Rothwell <sfr@canb.auug.org.au>
+Signed-off-by: Bagas Sanjaya <bagasdotme@gmail.com>
+Signed-off-by: Richard Weinberger <richard@nod.at>
+---
+ Documentation/rust/arch-support.rst | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/Documentation/rust/arch-support.rst b/Documentation/rust/arch-support.rst
+index a526ca1c688be..ed7f4f5b3cf15 100644
+--- a/Documentation/rust/arch-support.rst
++++ b/Documentation/rust/arch-support.rst
+@@ -16,6 +16,6 @@ support corresponds to ``S`` values in the ``MAINTAINERS`` file.
+ Architecture  Level of support  Constraints
+ ============  ================  ==============================================
+ ``x86``       Maintained        ``x86_64`` only.
+-============  ================  ==============================================
+ ``um``        Maintained        ``x86_64`` only.
+ ============  ================  ==============================================
++
+-- 
+cgit 
+

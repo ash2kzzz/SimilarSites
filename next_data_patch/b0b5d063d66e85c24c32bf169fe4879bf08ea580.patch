@@ -1,0 +1,33 @@
+From b0b5d063d66e85c24c32bf169fe4879bf08ea580 Mon Sep 17 00:00:00 2001
+From: Johan Hovold <johan+linaro@kernel.org>
+Date: Wed, 14 Dec 2022 14:16:16 +0100
+Subject: thermal/drivers/tegra: Fix set_trip_temp() deadlock
+
+The set_trip_temp() callback is used when changing the trip temperature
+through sysfs. As it is called with the thermal-zone-device lock held
+it must not use thermal_zone_get_trip() directly or it will deadlock.
+
+Fixes: 56d7b397cc29 ("thermal/drivers/tegra: Use generic thermal_zone_get_trip() function")
+Signed-off-by: Johan Hovold <johan+linaro@kernel.org>
+Link: https://lore.kernel.org/r/20221214131617.2447-4-johan+linaro@kernel.org
+Signed-off-by: Daniel Lezcano <daniel.lezcano@kernel.org>
+---
+ drivers/thermal/tegra/soctherm.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/thermal/tegra/soctherm.c b/drivers/thermal/tegra/soctherm.c
+index 4203e74e2f797..220873298d776 100644
+--- a/drivers/thermal/tegra/soctherm.c
++++ b/drivers/thermal/tegra/soctherm.c
+@@ -594,7 +594,7 @@ static int tegra_thermctl_set_trip_temp(struct thermal_zone_device *tz, int trip
+ 	if (!tz)
+ 		return -EINVAL;
+ 
+-	ret = thermal_zone_get_trip(tz, trip_id, &trip);
++	ret = __thermal_zone_get_trip(tz, trip_id, &trip);
+ 	if (ret)
+ 		return ret;
+ 
+-- 
+cgit 
+

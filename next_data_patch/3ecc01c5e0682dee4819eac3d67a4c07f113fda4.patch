@@ -1,0 +1,36 @@
+From 3ecc01c5e0682dee4819eac3d67a4c07f113fda4 Mon Sep 17 00:00:00 2001
+From: Krzysztof Kozlowski <krzysztof.kozlowski@linaro.org>
+Date: Fri, 23 Dec 2022 14:22:26 +0100
+Subject: dt-bindings: pinctrl: qcom,sm8450-tlmm: correct gpio-line-names size
+
+The SM8450 has GPIOs from 0 to 209, so 210 in total:
+
+  sm8450-sony-xperia-nagara-pdx223.dtb: pinctrl@f100000: gpio-line-names:
+    ['NC', 'NC', 'NC', 'NC', 'WLC_I2C_SDA', 'WLC_I2C_SCL', ...
+     'APPS_I2C_0_SDA', 'APPS_I2C_0_SCL', 'CCI_I2C3_SDA', 'CCI_I2C3_SCL'] is too long
+
+Fixes: 9779ed30f92c ("dt-bindings: pinctrl: qcom,sm8450-pinctrl: add gpio-line-names")
+Signed-off-by: Krzysztof Kozlowski <krzysztof.kozlowski@linaro.org>
+Acked-by: Rob Herring <robh@kernel.org>
+Link: https://lore.kernel.org/r/20221223132226.81340-1-krzysztof.kozlowski@linaro.org
+Signed-off-by: Linus Walleij <linus.walleij@linaro.org>
+---
+ Documentation/devicetree/bindings/pinctrl/qcom,sm8450-tlmm.yaml | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/Documentation/devicetree/bindings/pinctrl/qcom,sm8450-tlmm.yaml b/Documentation/devicetree/bindings/pinctrl/qcom,sm8450-tlmm.yaml
+index 4a1d10d6c5e7e..b5356d0f89f97 100644
+--- a/Documentation/devicetree/bindings/pinctrl/qcom,sm8450-tlmm.yaml
++++ b/Documentation/devicetree/bindings/pinctrl/qcom,sm8450-tlmm.yaml
+@@ -32,7 +32,7 @@ properties:
+     maxItems: 105
+ 
+   gpio-line-names:
+-    maxItems: 209
++    maxItems: 210
+ 
+   "#gpio-cells": true
+   gpio-ranges: true
+-- 
+cgit 
+

@@ -1,0 +1,36 @@
+From 1f3744b89164a430865d18b757b86c4007627855 Mon Sep 17 00:00:00 2001
+From: Tzung-Bi Shih <tzungbi@kernel.org>
+Date: Tue, 11 Apr 2023 13:33:08 +0800
+Subject: platform/chrome: cros_ec_debugfs: fix kernel-doc warning
+
+Fix the following kernel-doc warning:
+
+$ ./scripts/kernel-doc -none drivers/platform/chrome/*
+[...]
+warning: This comment starts with '/**', but isn't a kernel-doc comment.
+
+Fixes: 14bb09b32f43 ("platform/chrome: cros_ec: Separate logic for getting panic info")
+Reported-by: kernel test robot <lkp@intel.com>
+Signed-off-by: Tzung-Bi Shih <tzungbi@kernel.org>
+Reviewed-by: Benson Leung <bleung@chromium.org>
+Link: https://lore.kernel.org/r/20230411053308.1572493-1-tzungbi@kernel.org
+---
+ drivers/platform/chrome/cros_ec_debugfs.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/platform/chrome/cros_ec_debugfs.c b/drivers/platform/chrome/cros_ec_debugfs.c
+index 414ebfffcf83d..c876120e0ebc9 100644
+--- a/drivers/platform/chrome/cros_ec_debugfs.c
++++ b/drivers/platform/chrome/cros_ec_debugfs.c
+@@ -400,7 +400,7 @@ static void cros_ec_cleanup_console_log(struct cros_ec_debugfs *debug_info)
+ 	}
+ }
+ 
+-/**
++/*
+  * Returns the size of the panicinfo data fetched from the EC
+  */
+ static int cros_ec_get_panicinfo(struct cros_ec_device *ec_dev, uint8_t *data,
+-- 
+cgit 
+

@@ -1,0 +1,33 @@
+From 58973046c1bf782cac01644a9dcd8e5bba9c2f16 Mon Sep 17 00:00:00 2001
+From: Marek Szyprowski <m.szyprowski@samsung.com>
+Date: Thu, 23 Mar 2023 23:05:18 +0100
+Subject: regulator: qcom-rpmh: Use PROBE_FORCE_SYNCHRONOUS
+
+Restore synchronous probing for 'qcom,pm8150-rpmh-regulators' because
+otherwise the UFSHC device is not properly initialized on QRB5165-RB5
+board.
+
+Fixes: ed6962cc3e05 ("regulator: Set PROBE_PREFER_ASYNCHRONOUS for drivers between 4.14 and 4.19")
+Signed-off-by: Marek Szyprowski <m.szyprowski@samsung.com>
+Link: https://lore.kernel.org/r/20230323220518.3247530-1-m.szyprowski@samsung.com
+Signed-off-by: Mark Brown <broonie@kernel.org>
+---
+ drivers/regulator/qcom-rpmh-regulator.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/regulator/qcom-rpmh-regulator.c b/drivers/regulator/qcom-rpmh-regulator.c
+index 4826d60e5d95f..903032b2875f5 100644
+--- a/drivers/regulator/qcom-rpmh-regulator.c
++++ b/drivers/regulator/qcom-rpmh-regulator.c
+@@ -1462,7 +1462,7 @@ MODULE_DEVICE_TABLE(of, rpmh_regulator_match_table);
+ static struct platform_driver rpmh_regulator_driver = {
+ 	.driver = {
+ 		.name = "qcom-rpmh-regulator",
+-		.probe_type = PROBE_PREFER_ASYNCHRONOUS,
++		.probe_type = PROBE_FORCE_SYNCHRONOUS,
+ 		.of_match_table	= of_match_ptr(rpmh_regulator_match_table),
+ 	},
+ 	.probe = rpmh_regulator_probe,
+-- 
+cgit 
+

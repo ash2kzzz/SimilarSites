@@ -1,0 +1,33 @@
+From a00da30c052f07d67da56efd6a4f1fc85956c979 Mon Sep 17 00:00:00 2001
+From: Vladimir Oltean <vladimir.oltean@nxp.com>
+Date: Mon, 20 Feb 2023 14:23:31 +0200
+Subject: net: ethtool: fix __ethtool_dev_mm_supported() implementation
+
+The MAC Merge layer is supported when ops->get_mm() returns 0.
+The implementation was changed during review, and in this process, a bug
+was introduced.
+
+Link: https://lore.kernel.org/netdev/20230111161706.1465242-5-vladimir.oltean@nxp.com/
+Fixes: 04692c9020b7 ("net: ethtool: netlink: retrieve stats from multiple sources (eMAC, pMAC)")
+Signed-off-by: Vladimir Oltean <vladimir.oltean@nxp.com>
+Reviewed-by: Ferenc Fejes <fejes@inf.elte.hu>
+Link: https://lore.kernel.org/all/20230220122343.1156614-2-vladimir.oltean@nxp.com/
+Signed-off-by: Jakub Kicinski <kuba@kernel.org>
+---
+ net/ethtool/mm.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/net/ethtool/mm.c b/net/ethtool/mm.c
+index e612856eed8ce..fce3cc2734f9b 100644
+--- a/net/ethtool/mm.c
++++ b/net/ethtool/mm.c
+@@ -247,5 +247,5 @@ bool __ethtool_dev_mm_supported(struct net_device *dev)
+ 	if (ops && ops->get_mm)
+ 		ret = ops->get_mm(dev, &state);
+ 
+-	return !!ret;
++	return !ret;
+ }
+-- 
+cgit 
+

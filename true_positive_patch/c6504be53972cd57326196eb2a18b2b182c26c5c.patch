@@ -1,0 +1,43 @@
+From c6504be53972cd57326196eb2a18b2b182c26c5c Mon Sep 17 00:00:00 2001
+From: Vinod Koul <vkoul@kernel.org>
+Date: Fri, 26 Apr 2019 22:30:27 +0530
+Subject: dmaengine: stm32-dma: Fix unsigned variable compared with zero
+
+Commit f4fd2ec08f17: ("dmaengine: stm32-dma: use platform_get_irq()") used
+unsigned variable irq to store the results and check later for negative
+errors, so update the code to use signed variable for this
+
+Fixes: f4fd2ec08f17 ("dmaengine: stm32-dma: use platform_get_irq()")
+Reported-by: kbuild test robot <lkp@intel.com>
+Reported-by: Julia Lawall <julia.lawall@lip6.fr>
+Acked-by: Julia Lawall <julia.lawall@lip6.fr>
+Signed-off-by: Vinod Koul <vkoul@kernel.org>
+---
+ drivers/dma/stm32-dma.c | 6 ++++--
+ 1 file changed, 4 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/dma/stm32-dma.c b/drivers/dma/stm32-dma.c
+index 33068185c0fe6..dde7966867361 100644
+--- a/drivers/dma/stm32-dma.c
++++ b/drivers/dma/stm32-dma.c
+@@ -1303,13 +1303,15 @@ static int stm32_dma_probe(struct platform_device *pdev)
+ 	for (i = 0; i < STM32_DMA_MAX_CHANNELS; i++) {
+ 		chan = &dmadev->chan[i];
+ 		chan->irq = platform_get_irq(pdev, i);
+-		if (chan->irq < 0)  {
+-			ret = chan->irq;
++		ret = platform_get_irq(pdev, i);
++		if (ret < 0)  {
+ 			if (ret != -EPROBE_DEFER)
+ 				dev_err(&pdev->dev,
+ 					"No irq resource for chan %d\n", i);
+ 			goto err_unregister;
+ 		}
++		chan->irq = ret;
++
+ 		ret = devm_request_irq(&pdev->dev, chan->irq,
+ 				       stm32_dma_chan_irq, 0,
+ 				       dev_name(chan2dev(chan)), chan);
+-- 
+cgit 
+

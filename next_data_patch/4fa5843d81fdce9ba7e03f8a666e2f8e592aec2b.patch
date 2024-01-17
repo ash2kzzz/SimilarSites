@@ -1,0 +1,83 @@
+From 4fa5843d81fdce9ba7e03f8a666e2f8e592aec2b Mon Sep 17 00:00:00 2001
+From: Like Xu <likexu@tencent.com>
+Date: Fri, 10 Mar 2023 19:33:49 +0800
+Subject: KVM: x86/pmu: Fix a typo in kvm_pmu_request_counter_reprogam()
+
+Fix a "reprogam" => "reprogram" typo in kvm_pmu_request_counter_reprogam().
+
+Fixes: 68fb4757e867 ("KVM: x86/pmu: Defer reprogram_counter() to kvm_pmu_handle_event()")
+Signed-off-by: Like Xu <likexu@tencent.com>
+Link: https://lore.kernel.org/r/20230310113349.31799-1-likexu@tencent.com
+[sean: trim the changelog]
+Signed-off-by: Sean Christopherson <seanjc@google.com>
+---
+ arch/x86/kvm/pmu.c           | 2 +-
+ arch/x86/kvm/pmu.h           | 2 +-
+ arch/x86/kvm/svm/pmu.c       | 2 +-
+ arch/x86/kvm/vmx/pmu_intel.c | 4 ++--
+ 4 files changed, 5 insertions(+), 5 deletions(-)
+
+diff --git a/arch/x86/kvm/pmu.c b/arch/x86/kvm/pmu.c
+index 35d80151b8537..2226db9601e26 100644
+--- a/arch/x86/kvm/pmu.c
++++ b/arch/x86/kvm/pmu.c
+@@ -650,7 +650,7 @@ static void kvm_pmu_incr_counter(struct kvm_pmc *pmc)
+ {
+ 	pmc->prev_counter = pmc->counter;
+ 	pmc->counter = (pmc->counter + 1) & pmc_bitmask(pmc);
+-	kvm_pmu_request_counter_reprogam(pmc);
++	kvm_pmu_request_counter_reprogram(pmc);
+ }
+ 
+ static inline bool eventsel_match_perf_hw_id(struct kvm_pmc *pmc,
+diff --git a/arch/x86/kvm/pmu.h b/arch/x86/kvm/pmu.h
+index be62c16f2265e..5c7bbf03b599a 100644
+--- a/arch/x86/kvm/pmu.h
++++ b/arch/x86/kvm/pmu.h
+@@ -195,7 +195,7 @@ static inline void kvm_init_pmu_capability(const struct kvm_pmu_ops *pmu_ops)
+ 					     KVM_PMC_MAX_FIXED);
+ }
+ 
+-static inline void kvm_pmu_request_counter_reprogam(struct kvm_pmc *pmc)
++static inline void kvm_pmu_request_counter_reprogram(struct kvm_pmc *pmc)
+ {
+ 	set_bit(pmc->idx, pmc_to_pmu(pmc)->reprogram_pmi);
+ 	kvm_make_request(KVM_REQ_PMU, pmc->vcpu);
+diff --git a/arch/x86/kvm/svm/pmu.c b/arch/x86/kvm/svm/pmu.c
+index cc77a0681800a..5fa939e411d8c 100644
+--- a/arch/x86/kvm/svm/pmu.c
++++ b/arch/x86/kvm/svm/pmu.c
+@@ -161,7 +161,7 @@ static int amd_pmu_set_msr(struct kvm_vcpu *vcpu, struct msr_data *msr_info)
+ 		data &= ~pmu->reserved_bits;
+ 		if (data != pmc->eventsel) {
+ 			pmc->eventsel = data;
+-			kvm_pmu_request_counter_reprogam(pmc);
++			kvm_pmu_request_counter_reprogram(pmc);
+ 		}
+ 		return 0;
+ 	}
+diff --git a/arch/x86/kvm/vmx/pmu_intel.c b/arch/x86/kvm/vmx/pmu_intel.c
+index eb291dfbe4aa3..741efe2c497ba 100644
+--- a/arch/x86/kvm/vmx/pmu_intel.c
++++ b/arch/x86/kvm/vmx/pmu_intel.c
+@@ -57,7 +57,7 @@ static void reprogram_fixed_counters(struct kvm_pmu *pmu, u64 data)
+ 		pmc = get_fixed_pmc(pmu, MSR_CORE_PERF_FIXED_CTR0 + i);
+ 
+ 		__set_bit(INTEL_PMC_IDX_FIXED + i, pmu->pmc_in_use);
+-		kvm_pmu_request_counter_reprogam(pmc);
++		kvm_pmu_request_counter_reprogram(pmc);
+ 	}
+ }
+ 
+@@ -484,7 +484,7 @@ static int intel_pmu_set_msr(struct kvm_vcpu *vcpu, struct msr_data *msr_info)
+ 
+ 			if (data != pmc->eventsel) {
+ 				pmc->eventsel = data;
+-				kvm_pmu_request_counter_reprogam(pmc);
++				kvm_pmu_request_counter_reprogram(pmc);
+ 			}
+ 			break;
+ 		} else if (intel_pmu_handle_lbr_msrs_access(vcpu, msr_info, false)) {
+-- 
+cgit 
+

@@ -1,0 +1,47 @@
+From b7abcd9c656b982a99e18f795bb1cf81f84b656d Mon Sep 17 00:00:00 2001
+From: Bagas Sanjaya <bagasdotme@gmail.com>
+Date: Tue, 28 Feb 2023 14:45:23 +0700
+Subject: bpf, doc: Link to submitting-patches.rst for general patch submission
+ info
+
+The link for patch submission information in general refers to index
+page for "Working with the kernel development community" section of
+kernel docs, whereas the link should have been
+Documentation/process/submitting-patches.rst instead.
+
+Fix it by replacing the index target with the appropriate doc.
+
+Fixes: 542228384888f5 ("bpf, doc: convert bpf_devel_QA.rst to use RST formatting")
+Signed-off-by: Bagas Sanjaya <bagasdotme@gmail.com>
+Signed-off-by: Daniel Borkmann <daniel@iogearbox.net>
+Link: https://lore.kernel.org/bpf/20230228074523.11493-3-bagasdotme@gmail.com
+---
+ Documentation/bpf/bpf_devel_QA.rst | 5 ++---
+ 1 file changed, 2 insertions(+), 3 deletions(-)
+
+diff --git a/Documentation/bpf/bpf_devel_QA.rst b/Documentation/bpf/bpf_devel_QA.rst
+index eb087c599ffa4..b421d94dc9f21 100644
+--- a/Documentation/bpf/bpf_devel_QA.rst
++++ b/Documentation/bpf/bpf_devel_QA.rst
+@@ -7,8 +7,8 @@ workflows related to reporting bugs, submitting patches, and queueing
+ patches for stable kernels.
+ 
+ For general information about submitting patches, please refer to
+-`Documentation/process/`_. This document only describes additional specifics
+-related to BPF.
++Documentation/process/submitting-patches.rst. This document only describes
++additional specifics related to BPF.
+ 
+ .. contents::
+     :local:
+@@ -684,7 +684,6 @@ when:
+ 
+ 
+ .. Links
+-.. _Documentation/process/: https://www.kernel.org/doc/html/latest/process/
+ .. _netdev-FAQ: Documentation/process/maintainer-netdev.rst
+ .. _selftests:
+    https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/tree/tools/testing/selftests/bpf/
+-- 
+cgit 
+

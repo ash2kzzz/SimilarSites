@@ -1,0 +1,32 @@
+From 9c23d6848e43c25c4fe7bded4daf75569c360631 Mon Sep 17 00:00:00 2001
+From: Krzysztof Kozlowski <krzysztof.kozlowski@linaro.org>
+Date: Fri, 3 Feb 2023 17:48:54 +0100
+Subject: arm64: dts: qcom: sc8280xp: correct LPASS GPIO gpio-ranges
+
+The SC8280XP LPASS pin controller has GPIOs 0-18, so correct the number
+of GPIOs in gpio-ranges.
+
+Fixes: c18773d162a6 ("arm64: dts: qcom: sc8280xp: add SoundWire and LPASS")
+Signed-off-by: Krzysztof Kozlowski <krzysztof.kozlowski@linaro.org>
+Signed-off-by: Bjorn Andersson <andersson@kernel.org>
+Link: https://lore.kernel.org/r/20230203164854.390080-5-krzysztof.kozlowski@linaro.org
+---
+ arch/arm64/boot/dts/qcom/sc8280xp.dtsi | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/arch/arm64/boot/dts/qcom/sc8280xp.dtsi b/arch/arm64/boot/dts/qcom/sc8280xp.dtsi
+index dceb7eb3106b6..52172f79f2f22 100644
+--- a/arch/arm64/boot/dts/qcom/sc8280xp.dtsi
++++ b/arch/arm64/boot/dts/qcom/sc8280xp.dtsi
+@@ -2646,7 +2646,7 @@
+ 			      <0 0x3550000 0x0 0x10000>;
+ 			gpio-controller;
+ 			#gpio-cells = <2>;
+-			gpio-ranges = <&lpass_tlmm 0 0 18>;
++			gpio-ranges = <&lpass_tlmm 0 0 19>;
+ 
+ 			clocks = <&q6prmcc LPASS_HW_MACRO_VOTE LPASS_CLK_ATTRIBUTE_COUPLE_NO>,
+ 				 <&q6prmcc LPASS_HW_DCODEC_VOTE LPASS_CLK_ATTRIBUTE_COUPLE_NO>;
+-- 
+cgit 
+

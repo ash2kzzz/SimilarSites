@@ -1,0 +1,36 @@
+From 5d943b5d69c032de7ce9cd625ac083a5c277b9c5 Mon Sep 17 00:00:00 2001
+From: Kumaravel Thiagarajan <kumaravel.thiagarajan@microchip.com>
+Date: Sun, 5 Mar 2023 20:21:24 +0530
+Subject: serial: 8250_pci1xxxx: Disable SERIAL_8250_PCI1XXXX config by default
+
+Commit 32bb477fa7bf ("serial: 8250_pci1xxxx: Add driver for quad-uart
+support") made the SERIAL_8250_PCI1XXXX driver enabled when SERIAL_8250
+is enabled, disable it as this driver does not need to be enabled by
+default
+
+Fixes: 32bb477fa7bf ("serial: 8250_pci1xxxx: Add driver for quad-uart support")
+Reported-by: Linus Torvalds <torvalds@linux-foundation.org>
+Link: https://lore.kernel.org/lkml/CAHk-=whhFCeeuo6vTEmNSx6S-KKkugxgzN_W5Z6v-9yH9gc3Zw@mail.gmail.com/
+Signed-off-by: Kumaravel Thiagarajan <kumaravel.thiagarajan@microchip.com>
+Reviewed-by: Geert Uytterhoeven <geert+renesas@glider.be>
+Link: https://lore.kernel.org/r/20230305145124.13444-1-kumaravel.thiagarajan@microchip.com
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+---
+ drivers/tty/serial/8250/Kconfig | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/drivers/tty/serial/8250/Kconfig b/drivers/tty/serial/8250/Kconfig
+index caeff76e58f29..5313aa31930f4 100644
+--- a/drivers/tty/serial/8250/Kconfig
++++ b/drivers/tty/serial/8250/Kconfig
+@@ -300,7 +300,6 @@ config SERIAL_8250_PCI1XXXX
+ 	tristate "Microchip 8250 based serial port"
+ 	depends on SERIAL_8250 && PCI
+ 	select SERIAL_8250_PCILIB
+-	default SERIAL_8250
+ 	help
+ 	 Select this option if you have a setup with Microchip PCIe
+ 	 Switch with serial port enabled and wish to enable 8250
+-- 
+cgit 
+

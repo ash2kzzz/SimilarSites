@@ -1,0 +1,108 @@
+From 392e4daa8a7e3d9b103c64acef08f62f19d421aa Mon Sep 17 00:00:00 2001
+From: Tom Rix <trix@redhat.com>
+Date: Thu, 20 Apr 2023 08:50:35 -0400
+Subject: scsi: ipr: Remove several unused variables
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+gcc with W=1 reports
+drivers/scsi/ipr.c: In function ‘ipr_init_res_entry’:
+drivers/scsi/ipr.c:1104:22: error: variable ‘proto’
+  set but not used [-Werror=unused-but-set-variable]
+ 1104 |         unsigned int proto;
+      |                      ^~~~~
+drivers/scsi/ipr.c: In function ‘ipr_update_res_entry’:
+drivers/scsi/ipr.c:1261:22: error: variable ‘proto’
+  set but not used [-Werror=unused-but-set-variable]
+ 1261 |         unsigned int proto;
+      |                      ^~~~~
+drivers/scsi/ipr.c: In function ‘ipr_change_queue_depth’:
+drivers/scsi/ipr.c:4417:36: error: variable ‘res’
+  set but not used [-Werror=unused-but-set-variable]
+ 4417 |         struct ipr_resource_entry *res;
+      |                                    ^~~
+
+These variables are not used, so remove them. The lock around res is not
+needed so remove that. This makes ioa_cfg and lock_flags unneeded so remove
+them as well.
+
+Fixes: 65a15d6560df ("scsi: ipr: Remove SATA support")
+Signed-off-by: Tom Rix <trix@redhat.com>
+Link: https://lore.kernel.org/r/20230420125035.3888188-1-trix@redhat.com
+Acked-by: Brian King <brking@linux.vnet.ibm.com>
+Signed-off-by: Martin K. Petersen <martin.petersen@oracle.com>
+---
+ drivers/scsi/ipr.c | 14 --------------
+ 1 file changed, 14 deletions(-)
+
+diff --git a/drivers/scsi/ipr.c b/drivers/scsi/ipr.c
+index d81189ba87734..4e13797b2a4ab 100644
+--- a/drivers/scsi/ipr.c
++++ b/drivers/scsi/ipr.c
+@@ -1101,7 +1101,6 @@ static void ipr_init_res_entry(struct ipr_resource_entry *res,
+ 			       struct ipr_config_table_entry_wrapper *cfgtew)
+ {
+ 	int found = 0;
+-	unsigned int proto;
+ 	struct ipr_ioa_cfg *ioa_cfg = res->ioa_cfg;
+ 	struct ipr_resource_entry *gscsi_res = NULL;
+ 
+@@ -1114,7 +1113,6 @@ static void ipr_init_res_entry(struct ipr_resource_entry *res,
+ 	res->sdev = NULL;
+ 
+ 	if (ioa_cfg->sis64) {
+-		proto = cfgtew->u.cfgte64->proto;
+ 		res->flags = be16_to_cpu(cfgtew->u.cfgte64->flags);
+ 		res->res_flags = be16_to_cpu(cfgtew->u.cfgte64->res_flags);
+ 		res->qmodel = IPR_QUEUEING_MODEL64(res);
+@@ -1160,7 +1158,6 @@ static void ipr_init_res_entry(struct ipr_resource_entry *res,
+ 			set_bit(res->target, ioa_cfg->target_ids);
+ 		}
+ 	} else {
+-		proto = cfgtew->u.cfgte->proto;
+ 		res->qmodel = IPR_QUEUEING_MODEL(res);
+ 		res->flags = cfgtew->u.cfgte->flags;
+ 		if (res->flags & IPR_IS_IOA_RESOURCE)
+@@ -1258,7 +1255,6 @@ static void ipr_update_res_entry(struct ipr_resource_entry *res,
+ 				 struct ipr_config_table_entry_wrapper *cfgtew)
+ {
+ 	char buffer[IPR_MAX_RES_PATH_LENGTH];
+-	unsigned int proto;
+ 	int new_path = 0;
+ 
+ 	if (res->ioa_cfg->sis64) {
+@@ -1270,7 +1266,6 @@ static void ipr_update_res_entry(struct ipr_resource_entry *res,
+ 			sizeof(struct ipr_std_inq_data));
+ 
+ 		res->qmodel = IPR_QUEUEING_MODEL64(res);
+-		proto = cfgtew->u.cfgte64->proto;
+ 		res->res_handle = cfgtew->u.cfgte64->res_handle;
+ 		res->dev_id = cfgtew->u.cfgte64->dev_id;
+ 
+@@ -1299,7 +1294,6 @@ static void ipr_update_res_entry(struct ipr_resource_entry *res,
+ 			sizeof(struct ipr_std_inq_data));
+ 
+ 		res->qmodel = IPR_QUEUEING_MODEL(res);
+-		proto = cfgtew->u.cfgte->proto;
+ 		res->res_handle = cfgtew->u.cfgte->res_handle;
+ 	}
+ }
+@@ -4413,14 +4407,6 @@ static int ipr_free_dump(struct ipr_ioa_cfg *ioa_cfg) { return 0; };
+  **/
+ static int ipr_change_queue_depth(struct scsi_device *sdev, int qdepth)
+ {
+-	struct ipr_ioa_cfg *ioa_cfg = (struct ipr_ioa_cfg *)sdev->host->hostdata;
+-	struct ipr_resource_entry *res;
+-	unsigned long lock_flags = 0;
+-
+-	spin_lock_irqsave(ioa_cfg->host->host_lock, lock_flags);
+-	res = (struct ipr_resource_entry *)sdev->hostdata;
+-	spin_unlock_irqrestore(ioa_cfg->host->host_lock, lock_flags);
+-
+ 	scsi_change_queue_depth(sdev, qdepth);
+ 	return sdev->queue_depth;
+ }
+-- 
+cgit 
+

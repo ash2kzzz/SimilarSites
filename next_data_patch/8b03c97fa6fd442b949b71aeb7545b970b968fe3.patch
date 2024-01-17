@@ -1,0 +1,59 @@
+From 8b03c97fa6fd442b949b71aeb7545b970b968fe3 Mon Sep 17 00:00:00 2001
+From: Ricardo Koller <ricarkol@google.com>
+Date: Fri, 27 Jan 2023 21:43:52 +0000
+Subject: KVM: selftests: aarch64: Fix check of dirty log PT write
+
+The dirty log checks are mistakenly testing the first page in the page
+table (PT) memory region instead of the page holding the test data
+page PTE.  This wasn't an issue before commit 406504c7b040 ("KVM:
+arm64: Fix S1PTW handling on RO memslots") as all PT pages (including
+the first page) were treated as writes.
+
+Fix the page_fault_test dirty logging tests by checking for the right
+page: the one for the PTE of the data test page.
+
+Fixes: a4edf25b3e25 ("KVM: selftests: aarch64: Add dirty logging tests into page_fault_test")
+Signed-off-by: Ricardo Koller <ricarkol@google.com>
+Reviewed-by: Oliver Upton <oliver.upton@linux.dev>
+Signed-off-by: Marc Zyngier <maz@kernel.org>
+Link: https://lore.kernel.org/r/20230127214353.245671-4-ricarkol@google.com
+---
+ tools/testing/selftests/kvm/aarch64/page_fault_test.c | 7 +++++--
+ 1 file changed, 5 insertions(+), 2 deletions(-)
+
+diff --git a/tools/testing/selftests/kvm/aarch64/page_fault_test.c b/tools/testing/selftests/kvm/aarch64/page_fault_test.c
+index 1a3bb2bd8657a..2e2178a7d0d89 100644
+--- a/tools/testing/selftests/kvm/aarch64/page_fault_test.c
++++ b/tools/testing/selftests/kvm/aarch64/page_fault_test.c
+@@ -470,9 +470,12 @@ static bool handle_cmd(struct kvm_vm *vm, int cmd)
+ {
+ 	struct userspace_mem_region *data_region, *pt_region;
+ 	bool continue_test = true;
++	uint64_t pte_gpa, pte_pg;
+ 
+ 	data_region = vm_get_mem_region(vm, MEM_REGION_TEST_DATA);
+ 	pt_region = vm_get_mem_region(vm, MEM_REGION_PT);
++	pte_gpa = addr_hva2gpa(vm, virt_get_pte_hva(vm, TEST_GVA));
++	pte_pg = (pte_gpa - pt_region->region.guest_phys_addr) / getpagesize();
+ 
+ 	if (cmd == CMD_SKIP_TEST)
+ 		continue_test = false;
+@@ -485,13 +488,13 @@ static bool handle_cmd(struct kvm_vm *vm, int cmd)
+ 		TEST_ASSERT(check_write_in_dirty_log(vm, data_region, 0),
+ 			    "Missing write in dirty log");
+ 	if (cmd & CMD_CHECK_S1PTW_WR_IN_DIRTY_LOG)
+-		TEST_ASSERT(check_write_in_dirty_log(vm, pt_region, 0),
++		TEST_ASSERT(check_write_in_dirty_log(vm, pt_region, pte_pg),
+ 			    "Missing s1ptw write in dirty log");
+ 	if (cmd & CMD_CHECK_NO_WRITE_IN_DIRTY_LOG)
+ 		TEST_ASSERT(!check_write_in_dirty_log(vm, data_region, 0),
+ 			    "Unexpected write in dirty log");
+ 	if (cmd & CMD_CHECK_NO_S1PTW_WR_IN_DIRTY_LOG)
+-		TEST_ASSERT(!check_write_in_dirty_log(vm, pt_region, 0),
++		TEST_ASSERT(!check_write_in_dirty_log(vm, pt_region, pte_pg),
+ 			    "Unexpected s1ptw write in dirty log");
+ 
+ 	return continue_test;
+-- 
+cgit 
+

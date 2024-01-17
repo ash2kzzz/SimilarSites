@@ -1,0 +1,80 @@
+From 11cefeb2058f9f2322713b2683be9301556705e2 Mon Sep 17 00:00:00 2001
+From: Johan Hovold <johan@kernel.org>
+Date: Mon, 12 Dec 2022 16:20:35 +0100
+Subject: USB: fix misleading usb_set_intfdata() kernel doc
+
+The struct device driver-data pointer is used for any data that a driver
+may need in various callbacks while bound to the device. For
+convenience, subsystems typically provide wrappers such as
+usb_set_intfdata() of the generic accessor functions for use in bus
+callbacks.
+
+There is generally no longer any need for a driver to clear the pointer,
+but since commit 0998d0631001 ("device-core: Ensure drvdata = NULL when
+no driver is bound") the driver-data pointer is set to NULL by driver
+core post unbind anyway.
+
+For historical reasons, USB core also clears this pointer when an
+explicitly claimed interface is released.
+
+Due to a misunderstanding, a misleading kernel doc comment for
+usb_set_intfdata() was recently added which claimed that the driver data
+pointer must not be cleared during disconnect before "all actions [are]
+completed", which is both imprecise and incorrect.
+
+Specifically, drivers like cdc-acm which claim additional interfaces use
+the driver-data pointer as a flag which is cleared when the first
+interface is unbound. As long as a driver does not do something odd like
+dereference the pointer in, for example, completion callbacks, this can
+be done at any time during disconnect. And in any case this is no
+different than for any other resource, like the driver data itself,
+which may be freed by the disconnect callback.
+
+Note that the comment actually also claimed that the interface itself
+was somehow being set to NULL by driver core.
+
+Fix the kernel doc by removing incorrect, overly specific and misleading
+details and adding a comment about why some drivers do clear the
+driver-data pointer.
+
+Fixes: 27ef17849779 ("usb: add usb_set_intfdata() documentation")
+Signed-off-by: Johan Hovold <johan@kernel.org>
+Acked-by: Alan Stern <stern@rowland.harvard.edu>
+Acked-by: Vincent Mailhol <mailhol.vincent@wanadoo.fr>
+Link: https://lore.kernel.org/r/20221212152035.31806-1-johan@kernel.org
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+---
+ include/linux/usb.h | 15 +++++++--------
+ 1 file changed, 7 insertions(+), 8 deletions(-)
+
+diff --git a/include/linux/usb.h b/include/linux/usb.h
+index 04a7e94fb7721..86d1c8e79566e 100644
+--- a/include/linux/usb.h
++++ b/include/linux/usb.h
+@@ -267,16 +267,15 @@ static inline void *usb_get_intfdata(struct usb_interface *intf)
+ }
+ 
+ /**
+- * usb_set_intfdata() - associate driver-specific data with the interface
+- * @intf: the usb interface
+- * @data: pointer to the device priv structure or %NULL
++ * usb_set_intfdata() - associate driver-specific data with an interface
++ * @intf: USB interface
++ * @data: driver data
+  *
+- * Drivers should use this function in their probe() to associate their
+- * driver-specific data with the usb interface.
++ * Drivers can use this function in their probe() callbacks to associate
++ * driver-specific data with an interface.
+  *
+- * When disconnecting, the core will take care of setting @intf back to %NULL,
+- * so no actions are needed on the driver side. The interface should not be set
+- * to %NULL before all actions completed (e.g. no outsanding URB remaining).
++ * Note that there is generally no need to clear the driver-data pointer even
++ * if some drivers do so for historical or implementation-specific reasons.
+  */
+ static inline void usb_set_intfdata(struct usb_interface *intf, void *data)
+ {
+-- 
+cgit 
+

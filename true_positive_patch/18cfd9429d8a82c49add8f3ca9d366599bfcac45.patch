@@ -1,0 +1,122 @@
+From 18cfd9429d8a82c49add8f3ca9d366599bfcac45 Mon Sep 17 00:00:00 2001
+From: Andreas Färber <afaerber@suse.de>
+Date: Sat, 1 Jul 2017 23:29:30 +0200
+Subject: ARM: owl: smp: Drop bogus holding pen
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+The S500 SoC can start secondary CPUs without busy-looping for pen_release,
+so simplify the SMP code compared to the LeMaker kernel tree.
+
+Fixes: 172067e0bc87 ("ARM: owl: Implement CPU enable-method for S500")
+Suggested-by: Arnd Bergmann <arnd@arndb.de>
+Cc: David Liu <liuwei@actions-semi.com>
+Signed-off-by: Andreas Färber <afaerber@suse.de>
+Signed-off-by: Arnd Bergmann <arnd@arndb.de>
+---
+ arch/arm/mach-actions/headsmp.S | 20 ++------------------
+ arch/arm/mach-actions/platsmp.c | 29 +----------------------------
+ 2 files changed, 3 insertions(+), 46 deletions(-)
+
+diff --git a/arch/arm/mach-actions/headsmp.S b/arch/arm/mach-actions/headsmp.S
+index dc4832fc101a5..65f53bdb69e7f 100644
+--- a/arch/arm/mach-actions/headsmp.S
++++ b/arch/arm/mach-actions/headsmp.S
+@@ -2,6 +2,8 @@
+  * Copyright 2012 Actions Semi Inc.
+  * Author: Actions Semi, Inc.
+  *
++ * Copyright (c) 2017 Andreas Färber
++ *
+  * This program is free software; you can redistribute  it and/or modify it
+  * under  the terms of  the GNU General  Public License as published by the
+  * Free Software Foundation;  either version 2 of the  License, or (at your
+@@ -46,23 +48,5 @@ ENTRY(owl_v7_invalidate_l1)
+ ENDPROC(owl_v7_invalidate_l1)
+ 
+ ENTRY(owl_secondary_startup)
+-	mrc	p15, 0, r0, c0, c0, 5
+-	and	r0, r0, #0xf
+-	adr	r4, 1f
+-	ldmia	r4, {r5, r6}
+-	sub	r4, r4, r5
+-	add	r6, r6, r4
+-pen:
+-	ldr	r7, [r6]
+-	cmp	r7, r0
+-	bne	pen
+-
+-	/*
+-	 * we've been released from the holding pen: secondary_stack
+-	 * should now contain the SVC stack for this core
+-	 */
+ 	bl	owl_v7_invalidate_l1
+ 	b	secondary_startup
+-
+-1:	.long	.
+-	.long	pen_release
+diff --git a/arch/arm/mach-actions/platsmp.c b/arch/arm/mach-actions/platsmp.c
+index b4806ce0e9bbd..12a9e331b432c 100644
+--- a/arch/arm/mach-actions/platsmp.c
++++ b/arch/arm/mach-actions/platsmp.c
+@@ -41,26 +41,6 @@ static int ncores;
+ 
+ static DEFINE_SPINLOCK(boot_lock);
+ 
+-static void write_pen_release(int val)
+-{
+-	pen_release = val;
+-	smp_wmb();
+-	__cpuc_flush_dcache_area((void *)&pen_release, sizeof(pen_release));
+-	outer_clean_range(__pa(&pen_release), __pa(&pen_release + 1));
+-}
+-
+-static void s500_smp_secondary_init(unsigned int cpu)
+-{
+-	/*
+-	 * let the primary processor know we're out of the
+-	 * pen, then head off into the C entry point
+-	 */
+-	write_pen_release(-1);
+-
+-	spin_lock(&boot_lock);
+-	spin_unlock(&boot_lock);
+-}
+-
+ void owl_secondary_startup(void);
+ 
+ static int s500_wakeup_secondary(unsigned int cpu)
+@@ -115,12 +95,6 @@ static int s500_smp_boot_secondary(unsigned int cpu, struct task_struct *idle)
+ 
+ 	spin_lock(&boot_lock);
+ 
+-	/*
+-	 * The secondary processor is waiting to be released from
+-	 * the holding pen - release it, then wait for it to flag
+-	 * that it has been released by resetting pen_release.
+-	 */
+-	write_pen_release(cpu_logical_map(cpu));
+ 	smp_send_reschedule(cpu);
+ 
+ 	timeout = jiffies + (1 * HZ);
+@@ -134,7 +108,7 @@ static int s500_smp_boot_secondary(unsigned int cpu, struct task_struct *idle)
+ 
+ 	spin_unlock(&boot_lock);
+ 
+-	return pen_release != -1 ? -ENOSYS : 0;
++	return 0;
+ }
+ 
+ static void __init s500_smp_prepare_cpus(unsigned int max_cpus)
+@@ -192,7 +166,6 @@ static void __init s500_smp_prepare_cpus(unsigned int max_cpus)
+ 
+ static const struct smp_operations s500_smp_ops __initconst = {
+ 	.smp_prepare_cpus = s500_smp_prepare_cpus,
+-	.smp_secondary_init = s500_smp_secondary_init,
+ 	.smp_boot_secondary = s500_smp_boot_secondary,
+ };
+ CPU_METHOD_OF_DECLARE(s500_smp, "actions,s500-smp", &s500_smp_ops);
+-- 
+cgit 
+

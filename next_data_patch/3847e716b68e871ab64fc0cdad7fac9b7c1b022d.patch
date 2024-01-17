@@ -1,0 +1,46 @@
+From 3847e716b68e871ab64fc0cdad7fac9b7c1b022d Mon Sep 17 00:00:00 2001
+From: Fabio Estevam <festevam@denx.de>
+Date: Tue, 28 Mar 2023 15:51:47 -0300
+Subject: ARM: dts: imx6ull-colibri: Remove unnecessary
+ #address-cells/#size-cells
+
+Building with W=1 leads to the following dtc warning:
+
+arch/arm/boot/dts/imx6ull-colibri.dtsi:36.9-46.5: Warning (graph_child_address): /connector/ports: graph node has single child node 'port@0', #address-cells/#size-cells are not necessary
+
+Since a single port is used, 'ports' can be removed, as well as the
+unnecessary #address-cells/#size-cells.
+
+Fixes: bd5880e10982 ("ARM: dts: colibri-imx6ull: Enable dual-role switching")
+Signed-off-by: Fabio Estevam <festevam@denx.de>
+Signed-off-by: Shawn Guo <shawnguo@kernel.org>
+---
+ arch/arm/boot/dts/imx6ull-colibri.dtsi | 12 +++---------
+ 1 file changed, 3 insertions(+), 9 deletions(-)
+
+diff --git a/arch/arm/boot/dts/imx6ull-colibri.dtsi b/arch/arm/boot/dts/imx6ull-colibri.dtsi
+index bf64ba84b358b..fde8a19aac0f7 100644
+--- a/arch/arm/boot/dts/imx6ull-colibri.dtsi
++++ b/arch/arm/boot/dts/imx6ull-colibri.dtsi
+@@ -33,15 +33,9 @@
+ 		self-powered;
+ 		type = "micro";
+ 
+-		ports {
+-			#address-cells = <1>;
+-			#size-cells = <0>;
+-
+-			port@0 {
+-				reg = <0>;
+-				usb_dr_connector: endpoint {
+-					remote-endpoint = <&usb1_drd_sw>;
+-				};
++		port {
++			usb_dr_connector: endpoint {
++				remote-endpoint = <&usb1_drd_sw>;
+ 			};
+ 		};
+ 	};
+-- 
+cgit 
+

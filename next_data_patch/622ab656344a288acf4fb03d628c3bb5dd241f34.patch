@@ -1,0 +1,126 @@
+From 622ab656344a288acf4fb03d628c3bb5dd241f34 Mon Sep 17 00:00:00 2001
+From: Edward Cree <ecree.xilinx@gmail.com>
+Date: Tue, 30 May 2023 21:25:27 +0100
+Subject: sfc: fix error unwinds in TC offload
+
+Failure ladders weren't exactly unwinding what the function had done up
+ to that point; most seriously, when we encountered an already offloaded
+ rule, the failure path tried to remove the new rule from the hashtable,
+ which would in fact remove the already-present 'old' rule (since it has
+ the same key) from the table, and leak its resources.
+
+Reported-by: kernel test robot <lkp@intel.com>
+Reported-by: Dan Carpenter <error27@gmail.com>
+Closes: https://lore.kernel.org/r/202305200745.xmIlkqjH-lkp@intel.com/
+Fixes: d902e1a737d4 ("sfc: bare bones TC offload on EF100")
+Fixes: 17654d84b47c ("sfc: add offloading of 'foreign' TC (decap) rules")
+Signed-off-by: Edward Cree <ecree.xilinx@gmail.com>
+Reviewed-by: Simon Horman <simon.horman@corigine.com>
+Link: https://lore.kernel.org/r/20230530202527.53115-1-edward.cree@amd.com
+Signed-off-by: Jakub Kicinski <kuba@kernel.org>
+---
+ drivers/net/ethernet/sfc/tc.c | 27 ++++++++++++---------------
+ 1 file changed, 12 insertions(+), 15 deletions(-)
+
+diff --git a/drivers/net/ethernet/sfc/tc.c b/drivers/net/ethernet/sfc/tc.c
+index 0327639a628a9..c004443c1d58c 100644
+--- a/drivers/net/ethernet/sfc/tc.c
++++ b/drivers/net/ethernet/sfc/tc.c
+@@ -624,13 +624,12 @@ static int efx_tc_flower_replace_foreign(struct efx_nic *efx,
+ 	if (!found) { /* We don't care. */
+ 		netif_dbg(efx, drv, efx->net_dev,
+ 			  "Ignoring foreign filter that doesn't egdev us\n");
+-		rc = -EOPNOTSUPP;
+-		goto release;
++		return -EOPNOTSUPP;
+ 	}
+ 
+ 	rc = efx_mae_match_check_caps(efx, &match.mask, NULL);
+ 	if (rc)
+-		goto release;
++		return rc;
+ 
+ 	if (efx_tc_match_is_encap(&match.mask)) {
+ 		enum efx_encap_type type;
+@@ -639,8 +638,7 @@ static int efx_tc_flower_replace_foreign(struct efx_nic *efx,
+ 		if (type == EFX_ENCAP_TYPE_NONE) {
+ 			NL_SET_ERR_MSG_MOD(extack,
+ 					   "Egress encap match on unsupported tunnel device");
+-			rc = -EOPNOTSUPP;
+-			goto release;
++			return -EOPNOTSUPP;
+ 		}
+ 
+ 		rc = efx_mae_check_encap_type_supported(efx, type);
+@@ -648,25 +646,24 @@ static int efx_tc_flower_replace_foreign(struct efx_nic *efx,
+ 			NL_SET_ERR_MSG_FMT_MOD(extack,
+ 					       "Firmware reports no support for %s encap match",
+ 					       efx_tc_encap_type_name(type));
+-			goto release;
++			return rc;
+ 		}
+ 
+ 		rc = efx_tc_flower_record_encap_match(efx, &match, type,
+ 						      extack);
+ 		if (rc)
+-			goto release;
++			return rc;
+ 	} else {
+ 		/* This is not a tunnel decap rule, ignore it */
+ 		netif_dbg(efx, drv, efx->net_dev,
+ 			  "Ignoring foreign filter without encap match\n");
+-		rc = -EOPNOTSUPP;
+-		goto release;
++		return -EOPNOTSUPP;
+ 	}
+ 
+ 	rule = kzalloc(sizeof(*rule), GFP_USER);
+ 	if (!rule) {
+ 		rc = -ENOMEM;
+-		goto release;
++		goto out_free;
+ 	}
+ 	INIT_LIST_HEAD(&rule->acts.list);
+ 	rule->cookie = tc->cookie;
+@@ -678,7 +675,7 @@ static int efx_tc_flower_replace_foreign(struct efx_nic *efx,
+ 			  "Ignoring already-offloaded rule (cookie %lx)\n",
+ 			  tc->cookie);
+ 		rc = -EEXIST;
+-		goto release;
++		goto out_free;
+ 	}
+ 
+ 	act = kzalloc(sizeof(*act), GFP_USER);
+@@ -843,6 +840,7 @@ release:
+ 				       efx_tc_match_action_ht_params);
+ 		efx_tc_free_action_set_list(efx, &rule->acts, false);
+ 	}
++out_free:
+ 	kfree(rule);
+ 	if (match.encap)
+ 		efx_tc_flower_release_encap_match(efx, match.encap);
+@@ -899,8 +897,7 @@ static int efx_tc_flower_replace(struct efx_nic *efx,
+ 		return rc;
+ 	if (efx_tc_match_is_encap(&match.mask)) {
+ 		NL_SET_ERR_MSG_MOD(extack, "Ingress enc_key matches not supported");
+-		rc = -EOPNOTSUPP;
+-		goto release;
++		return -EOPNOTSUPP;
+ 	}
+ 
+ 	if (tc->common.chain_index) {
+@@ -924,9 +921,9 @@ static int efx_tc_flower_replace(struct efx_nic *efx,
+ 	if (old) {
+ 		netif_dbg(efx, drv, efx->net_dev,
+ 			  "Already offloaded rule (cookie %lx)\n", tc->cookie);
+-		rc = -EEXIST;
+ 		NL_SET_ERR_MSG_MOD(extack, "Rule already offloaded");
+-		goto release;
++		kfree(rule);
++		return -EEXIST;
+ 	}
+ 
+ 	/* Parse actions */
+-- 
+cgit 
+

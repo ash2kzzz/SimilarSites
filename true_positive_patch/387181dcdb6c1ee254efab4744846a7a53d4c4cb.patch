@@ -1,0 +1,141 @@
+From 387181dcdb6c1ee254efab4744846a7a53d4c4cb Mon Sep 17 00:00:00 2001
+From: Anup Patel <Anup.Patel@wdc.com>
+Date: Tue, 26 Mar 2019 08:03:47 +0000
+Subject: RISC-V: Always compile mm/init.c with cmodel=medany and notrace
+
+The Linux RISC-V 32bit kernel is broken after we moved setup_vm() from
+kernel/setup.c to mm/init.c because Linux RISC-V 32bit kernel by default
+uses cmodel=medlow which results in a non-position-independent setup_vm().
+
+This patch fixes Linux RISC-V 32bit kernel booting by:
+1. Forcing cmodel=medany for mm/init.c
+2. Moving remaing MM-related stuff va_pa_offset, pfn_base and
+   empty_zero_page from kernel/setup.c to mm/init.c
+
+Further, the setup_vm() cannot handle GCC instrumentation for FTRACE so
+we disable it for mm/init.c by not using "-pg" compiler flag.
+
+Fixes: 6f1e9e946f0b ("RISC-V: Move setup_vm() to mm/init.c")
+Suggested-by: Christoph Hellwig <hch@lst.de>
+Suggested-by: Mike Rapoport <rppt@linux.ibm.com>
+Signed-off-by: Anup Patel <anup.patel@wdc.com>
+Reviewed-by: Mike Rapoport <rppt@linux.ibm.com>
+Reviewed-by: Christoph Hellwig <hch@lst.de>
+Signed-off-by: Palmer Dabbelt <palmer@sifive.com>
+---
+ arch/riscv/kernel/Makefile |  3 ---
+ arch/riscv/kernel/setup.c  |  8 --------
+ arch/riscv/mm/Makefile     |  6 ++++++
+ arch/riscv/mm/init.c       | 28 ++++++++++++++++++++++++++++
+ 4 files changed, 34 insertions(+), 11 deletions(-)
+
+diff --git a/arch/riscv/kernel/Makefile b/arch/riscv/kernel/Makefile
+index f13f7f276639d..598568168d351 100644
+--- a/arch/riscv/kernel/Makefile
++++ b/arch/riscv/kernel/Makefile
+@@ -4,7 +4,6 @@
+ 
+ ifdef CONFIG_FTRACE
+ CFLAGS_REMOVE_ftrace.o = -pg
+-CFLAGS_REMOVE_setup.o = -pg
+ endif
+ 
+ extra-y += head.o
+@@ -29,8 +28,6 @@ obj-y	+= vdso.o
+ obj-y	+= cacheinfo.o
+ obj-y	+= vdso/
+ 
+-CFLAGS_setup.o := -mcmodel=medany
+-
+ obj-$(CONFIG_FPU)		+= fpu.o
+ obj-$(CONFIG_SMP)		+= smpboot.o
+ obj-$(CONFIG_SMP)		+= smp.o
+diff --git a/arch/riscv/kernel/setup.c b/arch/riscv/kernel/setup.c
+index ecb654f6a79ef..540a331d13769 100644
+--- a/arch/riscv/kernel/setup.c
++++ b/arch/riscv/kernel/setup.c
+@@ -48,14 +48,6 @@ struct screen_info screen_info = {
+ };
+ #endif
+ 
+-unsigned long va_pa_offset;
+-EXPORT_SYMBOL(va_pa_offset);
+-unsigned long pfn_base;
+-EXPORT_SYMBOL(pfn_base);
+-
+-unsigned long empty_zero_page[PAGE_SIZE / sizeof(unsigned long)] __page_aligned_bss;
+-EXPORT_SYMBOL(empty_zero_page);
+-
+ /* The lucky hart to first increment this variable will boot the other cores */
+ atomic_t hart_lottery;
+ unsigned long boot_cpu_hartid;
+diff --git a/arch/riscv/mm/Makefile b/arch/riscv/mm/Makefile
+index eb22ab49b3e00..b68aac7018031 100644
+--- a/arch/riscv/mm/Makefile
++++ b/arch/riscv/mm/Makefile
+@@ -1,3 +1,9 @@
++
++CFLAGS_init.o := -mcmodel=medany
++ifdef CONFIG_FTRACE
++CFLAGS_REMOVE_init.o = -pg
++endif
++
+ obj-y += init.o
+ obj-y += fault.o
+ obj-y += extable.o
+diff --git a/arch/riscv/mm/init.c b/arch/riscv/mm/init.c
+index b379a75ac6a67..5fd8c922e1c22 100644
+--- a/arch/riscv/mm/init.c
++++ b/arch/riscv/mm/init.c
+@@ -25,6 +25,10 @@
+ #include <asm/pgtable.h>
+ #include <asm/io.h>
+ 
++unsigned long empty_zero_page[PAGE_SIZE / sizeof(unsigned long)]
++							__page_aligned_bss;
++EXPORT_SYMBOL(empty_zero_page);
++
+ static void __init zone_sizes_init(void)
+ {
+ 	unsigned long max_zone_pfns[MAX_NR_ZONES] = { 0, };
+@@ -143,6 +147,11 @@ void __init setup_bootmem(void)
+ 	}
+ }
+ 
++unsigned long va_pa_offset;
++EXPORT_SYMBOL(va_pa_offset);
++unsigned long pfn_base;
++EXPORT_SYMBOL(pfn_base);
++
+ pgd_t swapper_pg_dir[PTRS_PER_PGD] __page_aligned_bss;
+ pgd_t trampoline_pg_dir[PTRS_PER_PGD] __initdata __aligned(PAGE_SIZE);
+ 
+@@ -172,6 +181,25 @@ void __set_fixmap(enum fixed_addresses idx, phys_addr_t phys, pgprot_t prot)
+ 	}
+ }
+ 
++/*
++ * setup_vm() is called from head.S with MMU-off.
++ *
++ * Following requirements should be honoured for setup_vm() to work
++ * correctly:
++ * 1) It should use PC-relative addressing for accessing kernel symbols.
++ *    To achieve this we always use GCC cmodel=medany.
++ * 2) The compiler instrumentation for FTRACE will not work for setup_vm()
++ *    so disable compiler instrumentation when FTRACE is enabled.
++ *
++ * Currently, the above requirements are honoured by using custom CFLAGS
++ * for init.o in mm/Makefile.
++ */
++
++#ifndef __riscv_cmodel_medany
++#error "setup_vm() is called from head.S before relocate so it should "
++	"not use absolute addressing."
++#endif
++
+ asmlinkage void __init setup_vm(void)
+ {
+ 	extern char _start;
+-- 
+cgit 
+

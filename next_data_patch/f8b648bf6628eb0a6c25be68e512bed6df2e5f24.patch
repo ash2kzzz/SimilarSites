@@ -1,0 +1,72 @@
+From f8b648bf6628eb0a6c25be68e512bed6df2e5f24 Mon Sep 17 00:00:00 2001
+From: Simon Horman <horms@kernel.org>
+Date: Wed, 5 Apr 2023 19:29:48 +0200
+Subject: net: sunhme: move asm includes to below linux includes
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+A recent rearrangement of includes has lead to a problem on m68k
+as flagged by the kernel test robot.
+
+Resolve this by moving the block asm includes to below linux includes.
+A side effect i that non-Sparc asm includes are now immediately
+before Sparc asm includes, which seems nice.
+
+Using sparse v0.6.4 I was able to reproduce this problem as follows
+using the config provided by the kernel test robot:
+
+$ wget https://download.01.org/0day-ci/archive/20230404/202304041748.0sQc4K4l-lkp@intel.com/config
+$ cp config .config
+$ make ARCH=m68k oldconfig
+$ make ARCH=m68k C=2 M=drivers/net/ethernet/sun
+   CC [M]  drivers/net/ethernet/sun/sunhme.o
+ In file included from drivers/net/ethernet/sun/sunhme.c:19:
+ ./arch/m68k/include/asm/irq.h:78:11: error: expected ‘;’ before ‘void’
+    78 | asmlinkage void do_IRQ(int irq, struct pt_regs *regs);
+       |           ^~~~~
+       |           ;
+ ./arch/m68k/include/asm/irq.h:78:40: warning: ‘struct pt_regs’ declared inside parameter list will not be visible outside of this definition or declaration
+    78 | asmlinkage void do_IRQ(int irq, struct pt_regs *regs);
+       |                                        ^~~~~~~
+
+Compile tested only.
+
+Fixes: 1ff4f42aef60 ("net: sunhme: Alphabetize includes")
+Reported-by: kernel test robot <lkp@intel.com>
+Link: https://lore.kernel.org/oe-kbuild-all/202304041748.0sQc4K4l-lkp@intel.com/
+Signed-off-by: Simon Horman <horms@kernel.org>
+Link: https://lore.kernel.org/r/20230405-sunhme-includes-fix-v1-1-bf17cc5de20d@kernel.org
+Signed-off-by: Jakub Kicinski <kuba@kernel.org>
+---
+ drivers/net/ethernet/sun/sunhme.c | 7 ++++---
+ 1 file changed, 4 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/net/ethernet/sun/sunhme.c b/drivers/net/ethernet/sun/sunhme.c
+index ec85aef35bf98..b93613cd19947 100644
+--- a/drivers/net/ethernet/sun/sunhme.c
++++ b/drivers/net/ethernet/sun/sunhme.c
+@@ -14,9 +14,6 @@
+  *     argument : macaddr=0x00,0x10,0x20,0x30,0x40,0x50
+  */
+ 
+-#include <asm/byteorder.h>
+-#include <asm/dma.h>
+-#include <asm/irq.h>
+ #include <linux/bitops.h>
+ #include <linux/crc32.h>
+ #include <linux/delay.h>
+@@ -45,6 +42,10 @@
+ #include <linux/types.h>
+ #include <linux/uaccess.h>
+ 
++#include <asm/byteorder.h>
++#include <asm/dma.h>
++#include <asm/irq.h>
++
+ #ifdef CONFIG_SPARC
+ #include <asm/auxio.h>
+ #include <asm/idprom.h>
+-- 
+cgit 
+

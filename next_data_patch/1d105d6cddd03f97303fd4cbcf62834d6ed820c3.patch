@@ -1,0 +1,36 @@
+From 1d105d6cddd03f97303fd4cbcf62834d6ed820c3 Mon Sep 17 00:00:00 2001
+From: Bagas Sanjaya <bagasdotme@gmail.com>
+Date: Sun, 19 Mar 2023 14:49:01 +0700
+Subject: Documentation: leds: Add MT6370 doc to the toctree
+
+Commit 4ba9df04b7ac66 ("docs: leds: Add MT6370 RGB LED pattern document")
+adds documentation for Mediatek MT6370 RGB LED device, but forgets to
+include it to leds toctree index.
+
+Add the missing entry.
+
+Link: https://lore.kernel.org/oe-kbuild-all/202303182310.tB1mUzU7-lkp@intel.com/
+Fixes: 4ba9df04b7ac66 ("docs: leds: Add MT6370 RGB LED pattern document")
+Reported-by: kernel test robot <lkp@intel.com>
+Signed-off-by: Bagas Sanjaya <bagasdotme@gmail.com>
+Acked-by: Pavel Machek <pavel@ucw.cz>
+Signed-off-by: Lee Jones <lee@kernel.org>
+Link: https://lore.kernel.org/r/20230319074903.13075-2-bagasdotme@gmail.com
+---
+ Documentation/leds/index.rst | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/Documentation/leds/index.rst b/Documentation/leds/index.rst
+index b9ca081fac71f..ce57254cb871f 100644
+--- a/Documentation/leds/index.rst
++++ b/Documentation/leds/index.rst
+@@ -25,5 +25,6 @@ LEDs
+    leds-lp5562
+    leds-lp55xx
+    leds-mlxcpld
++   leds-mt6370-rgb
+    leds-sc27xx
+    leds-qcom-lpg
+-- 
+cgit 
+

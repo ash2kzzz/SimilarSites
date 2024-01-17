@@ -1,0 +1,32 @@
+From 8fe66badf036d7505f9f4a03420d39b3ad819965 Mon Sep 17 00:00:00 2001
+From: Dan Carpenter <error27@gmail.com>
+Date: Thu, 5 Jan 2023 13:53:35 +0300
+Subject: scsi: libsas: Fix an error code in sas_ata_add_dev()
+
+This code accidentally returns success instead of -ENOMEM.
+
+Fixes: 7cc7646b4b24 ("scsi: libsas: Factor out sas_ata_add_dev()")
+Link: https://lore.kernel.org/r/Y7asLxzVwQ56G+ya@kili
+Signed-off-by: Dan Carpenter <error27@gmail.com>
+Reviewed-by: Jason Yan <yanaijie@huawei.com>
+Signed-off-by: Martin K. Petersen <martin.petersen@oracle.com>
+---
+ drivers/scsi/libsas/sas_ata.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/scsi/libsas/sas_ata.c b/drivers/scsi/libsas/sas_ata.c
+index 9b4a9c3b58f29..4a7e835c24cde 100644
+--- a/drivers/scsi/libsas/sas_ata.c
++++ b/drivers/scsi/libsas/sas_ata.c
+@@ -716,7 +716,7 @@ int sas_ata_add_dev(struct domain_device *parent, struct ex_phy *phy,
+ 
+ 	rphy = sas_end_device_alloc(phy->port);
+ 	if (!rphy)
+-		return ret;
++		return -ENOMEM;
+ 
+ 	rphy->identify.phy_identifier = phy_id;
+ 	child->rphy = rphy;
+-- 
+cgit 
+

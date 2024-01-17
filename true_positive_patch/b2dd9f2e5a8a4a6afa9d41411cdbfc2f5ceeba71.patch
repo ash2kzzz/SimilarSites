@@ -1,0 +1,39 @@
+From b2dd9f2e5a8a4a6afa9d41411cdbfc2f5ceeba71 Mon Sep 17 00:00:00 2001
+From: Stefan Agner <stefan@agner.ch>
+Date: Tue, 28 Aug 2018 13:29:54 +0200
+Subject: HID: core: fix memory leak on probe
+
+The dynamically allocted collection stack does not get freed in
+all situations. Make sure to also free the collection stack when
+using the parser in hid_open_report().
+
+Fixes: 08a8a7cf1459 ("HID: core: do not upper bound the collection stack")
+Signed-off-by: Stefan Agner <stefan@agner.ch>
+Signed-off-by: Jiri Kosina <jkosina@suse.cz>
+---
+ drivers/hid/hid-core.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/drivers/hid/hid-core.c b/drivers/hid/hid-core.c
+index 3da354af7a0aa..44a465db3f961 100644
+--- a/drivers/hid/hid-core.c
++++ b/drivers/hid/hid-core.c
+@@ -1039,6 +1039,7 @@ int hid_open_report(struct hid_device *device)
+ 				hid_err(device, "unbalanced delimiter at end of report description\n");
+ 				goto err;
+ 			}
++			kfree(parser->collection_stack);
+ 			vfree(parser);
+ 			device->status |= HID_STAT_PARSED;
+ 			return 0;
+@@ -1047,6 +1048,7 @@ int hid_open_report(struct hid_device *device)
+ 
+ 	hid_err(device, "item fetching failed at offset %d\n", (int)(end - start));
+ err:
++	kfree(parser->collection_stack);
+ 	vfree(parser);
+ 	hid_close_report(device);
+ 	return ret;
+-- 
+cgit 
+

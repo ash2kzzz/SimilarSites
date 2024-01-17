@@ -1,0 +1,109 @@
+From 51287dcb00cc715c27bf6a6b4dbd431621c5b65a Mon Sep 17 00:00:00 2001
+From: Marco Elver <elver@google.com>
+Date: Fri, 24 Feb 2023 09:59:39 +0100
+Subject: kasan: emit different calls for instrumentable memintrinsics
+
+Clang 15 provides an option to prefix memcpy/memset/memmove calls with
+__asan_/__hwasan_ in instrumented functions:
+https://reviews.llvm.org/D122724
+
+GCC will add support in future:
+https://gcc.gnu.org/bugzilla/show_bug.cgi?id=108777
+
+Use it to regain KASAN instrumentation of memcpy/memset/memmove on
+architectures that require noinstr to be really free from instrumented
+mem*() functions (all GENERIC_ENTRY architectures).
+
+Link: https://lkml.kernel.org/r/20230224085942.1791837-1-elver@google.com
+Fixes: 69d4c0d32186 ("entry, kasan, x86: Disallow overriding mem*() functions")
+Signed-off-by: Marco Elver <elver@google.com>
+Acked-by: Peter Zijlstra (Intel) <peterz@infradead.org>
+Reviewed-by: Andrey Konovalov <andreyknvl@gmail.com>
+Tested-by: Linux Kernel Functional Testing <lkft@linaro.org>
+Tested-by: Naresh Kamboju <naresh.kamboju@linaro.org>
+Cc: Alexander Potapenko <glider@google.com>
+Cc: Andrey Ryabinin <ryabinin.a.a@gmail.com>
+Cc: Borislav Petkov (AMD) <bp@alien8.de>
+Cc: Dave Hansen <dave.hansen@linux.intel.com>
+Cc: Dmitry Vyukov <dvyukov@google.com>
+Cc: Ingo Molnar <mingo@redhat.com>
+Cc: Jakub Jelinek <jakub@redhat.com>
+Cc: kasan-dev@googlegroups.com
+Cc: Kees Cook <keescook@chromium.org>
+Cc: Linux Kernel Functional Testing <lkft@linaro.org>
+Cc: Nathan Chancellor <nathan@kernel.org> # build only
+Cc: Nick Desaulniers <ndesaulniers@google.com>
+Cc: Nicolas Schier <nicolas@fjasle.eu>
+Cc: Thomas Gleixner <tglx@linutronix.de>
+Cc: Vincenzo Frascino <vincenzo.frascino@arm.com>
+Signed-off-by: Andrew Morton <akpm@linux-foundation.org>
+---
+ mm/kasan/kasan.h       |  4 ++++
+ mm/kasan/shadow.c      | 11 +++++++++++
+ scripts/Makefile.kasan |  8 ++++++++
+ 3 files changed, 23 insertions(+)
+
+diff --git a/mm/kasan/kasan.h b/mm/kasan/kasan.h
+index 9377b0789edc2..a61eeee3095a9 100644
+--- a/mm/kasan/kasan.h
++++ b/mm/kasan/kasan.h
+@@ -666,4 +666,8 @@ void __hwasan_storeN_noabort(unsigned long addr, size_t size);
+ 
+ void __hwasan_tag_memory(unsigned long addr, u8 tag, unsigned long size);
+ 
++void *__hwasan_memset(void *addr, int c, size_t len);
++void *__hwasan_memmove(void *dest, const void *src, size_t len);
++void *__hwasan_memcpy(void *dest, const void *src, size_t len);
++
+ #endif /* __MM_KASAN_KASAN_H */
+diff --git a/mm/kasan/shadow.c b/mm/kasan/shadow.c
+index 3703983a8e556..90186122b21b0 100644
+--- a/mm/kasan/shadow.c
++++ b/mm/kasan/shadow.c
+@@ -107,6 +107,17 @@ void *__asan_memcpy(void *dest, const void *src, size_t len)
+ }
+ EXPORT_SYMBOL(__asan_memcpy);
+ 
++#ifdef CONFIG_KASAN_SW_TAGS
++void *__hwasan_memset(void *addr, int c, size_t len) __alias(__asan_memset);
++EXPORT_SYMBOL(__hwasan_memset);
++#ifdef __HAVE_ARCH_MEMMOVE
++void *__hwasan_memmove(void *dest, const void *src, size_t len) __alias(__asan_memmove);
++EXPORT_SYMBOL(__hwasan_memmove);
++#endif
++void *__hwasan_memcpy(void *dest, const void *src, size_t len) __alias(__asan_memcpy);
++EXPORT_SYMBOL(__hwasan_memcpy);
++#endif
++
+ void kasan_poison(const void *addr, size_t size, u8 value, bool init)
+ {
+ 	void *shadow_start, *shadow_end;
+diff --git a/scripts/Makefile.kasan b/scripts/Makefile.kasan
+index b9e94c5e70970..fa9f836f8039d 100644
+--- a/scripts/Makefile.kasan
++++ b/scripts/Makefile.kasan
+@@ -38,6 +38,11 @@ endif
+ 
+ CFLAGS_KASAN += $(call cc-param,asan-stack=$(stack_enable))
+ 
++# Instrument memcpy/memset/memmove calls by using instrumented __asan_mem*()
++# instead. With compilers that don't support this option, compiler-inserted
++# memintrinsics won't be checked by KASAN on GENERIC_ENTRY architectures.
++CFLAGS_KASAN += $(call cc-param,asan-kernel-mem-intrinsic-prefix=1)
++
+ endif # CONFIG_KASAN_GENERIC
+ 
+ ifdef CONFIG_KASAN_SW_TAGS
+@@ -54,6 +59,9 @@ CFLAGS_KASAN := -fsanitize=kernel-hwaddress \
+ 		$(call cc-param,hwasan-inline-all-checks=0) \
+ 		$(instrumentation_flags)
+ 
++# Instrument memcpy/memset/memmove calls by using instrumented __hwasan_mem*().
++CFLAGS_KASAN += $(call cc-param,hwasan-kernel-mem-intrinsic-prefix=1)
++
+ endif # CONFIG_KASAN_SW_TAGS
+ 
+ export CFLAGS_KASAN CFLAGS_KASAN_NOSANITIZE
+-- 
+cgit 
+

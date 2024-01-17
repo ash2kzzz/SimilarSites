@@ -1,0 +1,88 @@
+From 47ee3f1dd93bcbe031539b1ecdaafb44b661c772 Mon Sep 17 00:00:00 2001
+From: Linus Torvalds <torvalds@linux-foundation.org>
+Date: Fri, 26 May 2023 12:34:20 -0700
+Subject: x86: re-introduce support for ERMS copies for user space accesses
+
+I tried to streamline our user memory copy code fairly aggressively in
+commit adfcf4231b8c ("x86: don't use REP_GOOD or ERMS for user memory
+copies"), in order to then be able to clean up the code and inline the
+modern FSRM case in commit 577e6a7fd50d ("x86: inline the 'rep movs' in
+user copies for the FSRM case").
+
+We had reports [1] of that causing regressions earlier with blogbench,
+but that turned out to be a horrible benchmark for that case, and not a
+sufficient reason for re-instating "rep movsb" on older machines.
+
+However, now Eric Dumazet reported [2] a regression in performance that
+seems to be a rather more real benchmark, where due to the removal of
+"rep movs" a TCP stream over a 100Gbps network no longer reaches line
+speed.
+
+And it turns out that with the simplified the calling convention for the
+non-FSRM case in commit 427fda2c8a49 ("x86: improve on the non-rep
+'copy_user' function"), re-introducing the ERMS case is actually fairly
+simple.
+
+Of course, that "fairly simple" is glossing over several missteps due to
+having to fight our assembler alternative code.  This code really wanted
+to rewrite a conditional branch to have two different targets, but that
+made objtool sufficiently unhappy that this instead just ended up doing
+a choice between "jump to the unrolled loop, or use 'rep movsb'
+directly".
+
+Let's see if somebody finds a case where the kernel memory copies also
+care (see commit 68674f94ffc9: "x86: don't use REP_GOOD or ERMS for
+small memory copies").  But Eric does argue that the user copies are
+special because networking tries to copy up to 32KB at a time, if
+order-3 pages allocations are possible.
+
+In-kernel memory copies are typically small, unless they are the special
+"copy pages at a time" kind that still use "rep movs".
+
+Link: https://lore.kernel.org/lkml/202305041446.71d46724-yujie.liu@intel.com/ [1]
+Link: https://lore.kernel.org/lkml/CANn89iKUbyrJ=r2+_kK+sb2ZSSHifFZ7QkPLDpAtkJ8v4WUumA@mail.gmail.com/ [2]
+Reported-and-tested-by: Eric Dumazet <edumazet@google.com>
+Fixes: adfcf4231b8c ("x86: don't use REP_GOOD or ERMS for user memory copies")
+Signed-off-by: Linus Torvalds <torvalds@linux-foundation.org>
+---
+ arch/x86/lib/copy_user_64.S | 10 +++++++++-
+ 1 file changed, 9 insertions(+), 1 deletion(-)
+
+diff --git a/arch/x86/lib/copy_user_64.S b/arch/x86/lib/copy_user_64.S
+index 4fc5c2de2de46..01c5de4c279b8 100644
+--- a/arch/x86/lib/copy_user_64.S
++++ b/arch/x86/lib/copy_user_64.S
+@@ -7,6 +7,8 @@
+  */
+ 
+ #include <linux/linkage.h>
++#include <asm/cpufeatures.h>
++#include <asm/alternative.h>
+ #include <asm/asm.h>
+ #include <asm/export.h>
+ 
+@@ -29,7 +31,7 @@
+  */
+ SYM_FUNC_START(rep_movs_alternative)
+ 	cmpq $64,%rcx
+-	jae .Lunrolled
++	jae .Llarge
+ 
+ 	cmp $8,%ecx
+ 	jae .Lword
+@@ -65,6 +67,12 @@ SYM_FUNC_START(rep_movs_alternative)
+ 	_ASM_EXTABLE_UA( 2b, .Lcopy_user_tail)
+ 	_ASM_EXTABLE_UA( 3b, .Lcopy_user_tail)
+ 
++.Llarge:
++0:	ALTERNATIVE "jmp .Lunrolled", "rep movsb", X86_FEATURE_ERMS
++1:	RET
++
++        _ASM_EXTABLE_UA( 0b, 1b)
++
+ 	.p2align 4
+ .Lunrolled:
+ 10:	movq (%rsi),%r8
+-- 
+cgit 
+

@@ -1,0 +1,37 @@
+From 2e0904efc945ed5b04a9b251b9cefdd6754f5e15 Mon Sep 17 00:00:00 2001
+From: Pranjal Ramajor Asha Kanojiya <quic_pkanojiy@quicinc.com>
+Date: Wed, 17 May 2023 13:35:37 -0600
+Subject: accel/qaic: Validate if BO is sliced before slicing
+
+QAIC_ATTACH_SLICE_BO attaches slicing configuration to a BO. Validate if
+given BO is already sliced. An already sliced BO cannot be sliced again.
+
+Fixes: ff13be830333 ("accel/qaic: Add datapath")
+Signed-off-by: Pranjal Ramajor Asha Kanojiya <quic_pkanojiy@quicinc.com>
+Reviewed-by: Carl Vanderlip <quic_carlv@quicinc.com>
+Reviewed-by: Jeffrey Hugo <quic_jhugo@quicinc.com>
+Signed-off-by: Jeffrey Hugo <quic_jhugo@quicinc.com>
+Link: https://patchwork.freedesktop.org/patch/msgid/20230517193540.14323-3-quic_jhugo@quicinc.com
+---
+ drivers/accel/qaic/qaic_data.c | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/drivers/accel/qaic/qaic_data.c b/drivers/accel/qaic/qaic_data.c
+index 5f71d76dd3a68..e672dd2447030 100644
+--- a/drivers/accel/qaic/qaic_data.c
++++ b/drivers/accel/qaic/qaic_data.c
+@@ -1001,6 +1001,11 @@ int qaic_attach_slice_bo_ioctl(struct drm_device *dev, void *data, struct drm_fi
+ 
+ 	bo = to_qaic_bo(obj);
+ 
++	if (bo->sliced) {
++		ret = -EINVAL;
++		goto put_bo;
++	}
++
+ 	ret = qaic_prepare_bo(qdev, bo, &args->hdr);
+ 	if (ret)
+ 		goto put_bo;
+-- 
+cgit 
+

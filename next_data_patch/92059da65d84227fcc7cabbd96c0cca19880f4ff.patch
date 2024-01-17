@@ -1,0 +1,43 @@
+From 92059da65d84227fcc7cabbd96c0cca19880f4ff Mon Sep 17 00:00:00 2001
+From: Bagas Sanjaya <bagasdotme@gmail.com>
+Date: Wed, 10 May 2023 10:54:14 +0700
+Subject: Documentation: net/mlx5: Add blank line separator before numbered
+ lists
+
+The doc forgets to add separator before numbered lists, which causes the
+lists to be appended to previous paragraph inline instead.
+
+Add the missing separator.
+
+Fixes: f2d51e579359b7 ("net/mlx5: Separate mlx5 driver documentation into multiple pages")
+Reviewed-by: Leon Romanovsky <leonro@nvidia.com>
+Signed-off-by: Bagas Sanjaya <bagasdotme@gmail.com>
+Reviewed-by: Simon Horman <simon.horman@corigine.com>
+Signed-off-by: Saeed Mahameed <saeedm@nvidia.com>
+---
+ .../networking/device_drivers/ethernet/mellanox/mlx5/devlink.rst        | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/Documentation/networking/device_drivers/ethernet/mellanox/mlx5/devlink.rst b/Documentation/networking/device_drivers/ethernet/mellanox/mlx5/devlink.rst
+index 00687425d8b72..f962c0975d842 100644
+--- a/Documentation/networking/device_drivers/ethernet/mellanox/mlx5/devlink.rst
++++ b/Documentation/networking/device_drivers/ethernet/mellanox/mlx5/devlink.rst
+@@ -40,6 +40,7 @@ flow_steering_mode: Device flow steering mode
+ ---------------------------------------------
+ The flow steering mode parameter controls the flow steering mode of the driver.
+ Two modes are supported:
++
+ 1. 'dmfs' - Device managed flow steering.
+ 2. 'smfs' - Software/Driver managed flow steering.
+ 
+@@ -99,6 +100,7 @@ between representors and stacked devices.
+ By default metadata is enabled on the supported devices in E-switch.
+ Metadata is applicable only for E-switch in switchdev mode and
+ users may disable it when NONE of the below use cases will be in use:
++
+ 1. HCA is in Dual/multi-port RoCE mode.
+ 2. VF/SF representor bonding (Usually used for Live migration)
+ 3. Stacked devices
+-- 
+cgit 
+

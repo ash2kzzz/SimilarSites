@@ -1,0 +1,46 @@
+From a4926c2943dd17f84b552ba6fb754df0dc6a2fa8 Mon Sep 17 00:00:00 2001
+From: Marek Behún <kabel@kernel.org>
+Date: Sun, 19 Mar 2023 15:02:38 +0100
+Subject: net: dsa: mv88e6xxx: fix mdio bus' phy_mask member
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Commit 2c7e46edbd03 ("net: dsa: mv88e6xxx: mask apparently non-existing
+phys during probing") added non-trivial bus->phy_mask in
+mv88e6xxx_mdio_register() in order to avoid excessive mdio bus
+transactions during probing.
+
+But the mask is incorrect for switches with non-zero phy_base_addr (such
+as 88E6341).
+
+Fix this.
+
+Fixes: 2c7e46edbd03 ("net: dsa: mv88e6xxx: mask apparently non-existing phys during probing")
+Signed-off-by: Marek Behún <kabel@kernel.org>
+Tested-by: Klaus Kudielka <klaus.kudielka@gmail.com>
+Reviewed-by: Vladimir Oltean <olteanv@gmail.com>
+Link: https://lore.kernel.org/r/20230319140238.9470-1-kabel@kernel.org
+Signed-off-by: Paolo Abeni <pabeni@redhat.com>
+---
+ drivers/net/dsa/mv88e6xxx/chip.c | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/net/dsa/mv88e6xxx/chip.c b/drivers/net/dsa/mv88e6xxx/chip.c
+index 260e38c5c6e66..b73d1d6747b70 100644
+--- a/drivers/net/dsa/mv88e6xxx/chip.c
++++ b/drivers/net/dsa/mv88e6xxx/chip.c
+@@ -3805,7 +3805,9 @@ static int mv88e6xxx_mdio_register(struct mv88e6xxx_chip *chip,
+ 	bus->read_c45 = mv88e6xxx_mdio_read_c45;
+ 	bus->write_c45 = mv88e6xxx_mdio_write_c45;
+ 	bus->parent = chip->dev;
+-	bus->phy_mask = GENMASK(31, mv88e6xxx_num_ports(chip));
++	bus->phy_mask = ~GENMASK(chip->info->phy_base_addr +
++				 mv88e6xxx_num_ports(chip) - 1,
++				 chip->info->phy_base_addr);
+ 
+ 	if (!external) {
+ 		err = mv88e6xxx_g2_irq_mdio_setup(chip, bus);
+-- 
+cgit 
+

@@ -1,0 +1,38 @@
+From 76761babaa984fce8ecd87d87a68d920f24df438 Mon Sep 17 00:00:00 2001
+From: Horatiu Vultur <horatiu.vultur@microchip.com>
+Date: Fri, 6 Jan 2023 21:15:07 +0100
+Subject: net: lan966x: Allow to add rules in TCAM even if not enabled
+
+The blamed commit implemented the vcap_operations to allow to add an
+entry in the TCAM. One of the callbacks is to validate the supported
+keysets. If the TCAM lookup was not enabled, then this will return
+failure so no entries could be added.
+This doesn't make much sense, as you can enable at a later point the
+TCAM. Therefore change it such to allow entries in TCAM even it is not
+enabled.
+
+Fixes: 4426b78c626d ("net: lan966x: Add port keyset config and callback interface")
+Signed-off-by: Horatiu Vultur <horatiu.vultur@microchip.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ drivers/net/ethernet/microchip/lan966x/lan966x_vcap_impl.c | 3 ---
+ 1 file changed, 3 deletions(-)
+
+diff --git a/drivers/net/ethernet/microchip/lan966x/lan966x_vcap_impl.c b/drivers/net/ethernet/microchip/lan966x/lan966x_vcap_impl.c
+index d8dc9fbb81e1a..a54c0426a35f3 100644
+--- a/drivers/net/ethernet/microchip/lan966x/lan966x_vcap_impl.c
++++ b/drivers/net/ethernet/microchip/lan966x/lan966x_vcap_impl.c
+@@ -95,10 +95,7 @@ lan966x_vcap_is2_get_port_keysets(struct net_device *dev, int lookup,
+ 	bool found = false;
+ 	u32 val;
+ 
+-	/* Check if the port keyset selection is enabled */
+ 	val = lan_rd(lan966x, ANA_VCAP_S2_CFG(port->chip_port));
+-	if (!ANA_VCAP_S2_CFG_ENA_GET(val))
+-		return -ENOENT;
+ 
+ 	/* Collect all keysets for the port in a list */
+ 	if (l3_proto == ETH_P_ALL)
+-- 
+cgit 
+

@@ -1,0 +1,43 @@
+From cf34b880a66e3581300b997df25a7c12f7cfe7d7 Mon Sep 17 00:00:00 2001
+From: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+Date: Mon, 27 Mar 2023 20:16:06 +0200
+Subject: powerpc/fsl: fix compiler warning in fsl_wakeup_sys_init()
+
+Commit c93bd175414a ("powerpc/fsl: move to use bus_get_dev_root()")
+changed to use bus_get_dev_root() but didn't consider that the function
+can fail and return an uninitialized value of ret (hint, the function
+can never fail, but the compiler doesn't know that.)
+
+Fix this up by setting ret to -EINVAL just in case something really goes
+wrong with the call to bus_get_dev_root().
+
+Cc: Michael Ellerman <mpe@ellerman.id.au>
+Cc: Nicholas Piggin <npiggin@gmail.com>
+Cc: Christophe Leroy <christophe.leroy@csgroup.eu>
+Cc: linuxppc-dev@lists.ozlabs.org
+Fixes: c93bd175414a ("powerpc/fsl: move to use bus_get_dev_root()")
+Reported-by: kernel test robot <lkp@intel.com>
+Link: https://lore.kernel.org/oe-kbuild-all/202303280045.4oaaezcn-lkp@intel.com/
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+Link: https://lore.kernel.org/r/20230327181606.1424846-1-gregkh@linuxfoundation.org
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+---
+ arch/powerpc/sysdev/fsl_mpic_timer_wakeup.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/arch/powerpc/sysdev/fsl_mpic_timer_wakeup.c b/arch/powerpc/sysdev/fsl_mpic_timer_wakeup.c
+index 147b5d8bb9045..ce6c739c51e51 100644
+--- a/arch/powerpc/sysdev/fsl_mpic_timer_wakeup.c
++++ b/arch/powerpc/sysdev/fsl_mpic_timer_wakeup.c
+@@ -117,7 +117,7 @@ static struct device_attribute mpic_attributes = __ATTR(timer_wakeup, 0644,
+ static int __init fsl_wakeup_sys_init(void)
+ {
+ 	struct device *dev_root;
+-	int ret;
++	int ret = -EINVAL;
+ 
+ 	fsl_wakeup = kzalloc(sizeof(struct fsl_mpic_timer_wakeup), GFP_KERNEL);
+ 	if (!fsl_wakeup)
+-- 
+cgit 
+

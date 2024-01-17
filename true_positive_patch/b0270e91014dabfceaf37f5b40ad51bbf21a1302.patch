@@ -1,0 +1,181 @@
+From b0270e91014dabfceaf37f5b40ad51bbf21a1302 Mon Sep 17 00:00:00 2001
+From: Eric Dumazet <edumazet@google.com>
+Date: Tue, 15 Apr 2014 12:58:34 -0400
+Subject: ipv4: add a sock pointer to ip_queue_xmit()
+
+ip_queue_xmit() assumes the skb it has to transmit is attached to an
+inet socket. Commit 31c70d5956fc ("l2tp: keep original skb ownership")
+changed l2tp to not change skb ownership and thus broke this assumption.
+
+One fix is to add a new 'struct sock *sk' parameter to ip_queue_xmit(),
+so that we do not assume skb->sk points to the socket used by l2tp
+tunnel.
+
+Fixes: 31c70d5956fc ("l2tp: keep original skb ownership")
+Reported-by: Zhan Jianyu <nasa4836@gmail.com>
+Tested-by: Zhan Jianyu <nasa4836@gmail.com>
+Signed-off-by: Eric Dumazet <edumazet@google.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ include/net/inet6_connection_sock.h | 2 +-
+ include/net/inet_connection_sock.h  | 2 +-
+ include/net/ip.h                    | 2 +-
+ net/dccp/output.c                   | 2 +-
+ net/ipv4/ip_output.c                | 5 +++--
+ net/ipv4/tcp_output.c               | 2 +-
+ net/ipv6/inet6_connection_sock.c    | 3 +--
+ net/l2tp/l2tp_core.c                | 4 ++--
+ net/l2tp/l2tp_ip.c                  | 2 +-
+ net/sctp/protocol.c                 | 2 +-
+ 10 files changed, 13 insertions(+), 13 deletions(-)
+
+diff --git a/include/net/inet6_connection_sock.h b/include/net/inet6_connection_sock.h
+index f981ba7adeed4..74af137304bea 100644
+--- a/include/net/inet6_connection_sock.h
++++ b/include/net/inet6_connection_sock.h
+@@ -40,7 +40,7 @@ void inet6_csk_reqsk_queue_hash_add(struct sock *sk, struct request_sock *req,
+ 
+ void inet6_csk_addr2sockaddr(struct sock *sk, struct sockaddr *uaddr);
+ 
+-int inet6_csk_xmit(struct sk_buff *skb, struct flowi *fl);
++int inet6_csk_xmit(struct sock *sk, struct sk_buff *skb, struct flowi *fl);
+ 
+ struct dst_entry *inet6_csk_update_pmtu(struct sock *sk, u32 mtu);
+ #endif /* _INET6_CONNECTION_SOCK_H */
+diff --git a/include/net/inet_connection_sock.h b/include/net/inet_connection_sock.h
+index c55aeed41acea..7a43138875687 100644
+--- a/include/net/inet_connection_sock.h
++++ b/include/net/inet_connection_sock.h
+@@ -36,7 +36,7 @@ struct tcp_congestion_ops;
+  * (i.e. things that depend on the address family)
+  */
+ struct inet_connection_sock_af_ops {
+-	int	    (*queue_xmit)(struct sk_buff *skb, struct flowi *fl);
++	int	    (*queue_xmit)(struct sock *sk, struct sk_buff *skb, struct flowi *fl);
+ 	void	    (*send_check)(struct sock *sk, struct sk_buff *skb);
+ 	int	    (*rebuild_header)(struct sock *sk);
+ 	void	    (*sk_rx_dst_set)(struct sock *sk, const struct sk_buff *skb);
+diff --git a/include/net/ip.h b/include/net/ip.h
+index 25064c28e059e..77e73d293e09b 100644
+--- a/include/net/ip.h
++++ b/include/net/ip.h
+@@ -111,7 +111,7 @@ int ip_do_nat(struct sk_buff *skb);
+ void ip_send_check(struct iphdr *ip);
+ int __ip_local_out(struct sk_buff *skb);
+ int ip_local_out(struct sk_buff *skb);
+-int ip_queue_xmit(struct sk_buff *skb, struct flowi *fl);
++int ip_queue_xmit(struct sock *sk, struct sk_buff *skb, struct flowi *fl);
+ void ip_init(void);
+ int ip_append_data(struct sock *sk, struct flowi4 *fl4,
+ 		   int getfrag(void *from, char *to, int offset, int len,
+diff --git a/net/dccp/output.c b/net/dccp/output.c
+index 8876078859dac..0248e8a3460c8 100644
+--- a/net/dccp/output.c
++++ b/net/dccp/output.c
+@@ -138,7 +138,7 @@ static int dccp_transmit_skb(struct sock *sk, struct sk_buff *skb)
+ 
+ 		DCCP_INC_STATS(DCCP_MIB_OUTSEGS);
+ 
+-		err = icsk->icsk_af_ops->queue_xmit(skb, &inet->cork.fl);
++		err = icsk->icsk_af_ops->queue_xmit(sk, skb, &inet->cork.fl);
+ 		return net_xmit_eval(err);
+ 	}
+ 	return -ENOBUFS;
+diff --git a/net/ipv4/ip_output.c b/net/ipv4/ip_output.c
+index 1a0755fea4914..7ad68b8609352 100644
+--- a/net/ipv4/ip_output.c
++++ b/net/ipv4/ip_output.c
+@@ -315,9 +315,9 @@ static void ip_copy_addrs(struct iphdr *iph, const struct flowi4 *fl4)
+ 	       sizeof(fl4->saddr) + sizeof(fl4->daddr));
+ }
+ 
+-int ip_queue_xmit(struct sk_buff *skb, struct flowi *fl)
++/* Note: skb->sk can be different from sk, in case of tunnels */
++int ip_queue_xmit(struct sock *sk, struct sk_buff *skb, struct flowi *fl)
+ {
+-	struct sock *sk = skb->sk;
+ 	struct inet_sock *inet = inet_sk(sk);
+ 	struct ip_options_rcu *inet_opt;
+ 	struct flowi4 *fl4;
+@@ -389,6 +389,7 @@ packet_routed:
+ 	ip_select_ident_more(skb, &rt->dst, sk,
+ 			     (skb_shinfo(skb)->gso_segs ?: 1) - 1);
+ 
++	/* TODO : should we use skb->sk here instead of sk ? */
+ 	skb->priority = sk->sk_priority;
+ 	skb->mark = sk->sk_mark;
+ 
+diff --git a/net/ipv4/tcp_output.c b/net/ipv4/tcp_output.c
+index 699fb102e9710..025e25093984b 100644
+--- a/net/ipv4/tcp_output.c
++++ b/net/ipv4/tcp_output.c
+@@ -981,7 +981,7 @@ static int tcp_transmit_skb(struct sock *sk, struct sk_buff *skb, int clone_it,
+ 		TCP_ADD_STATS(sock_net(sk), TCP_MIB_OUTSEGS,
+ 			      tcp_skb_pcount(skb));
+ 
+-	err = icsk->icsk_af_ops->queue_xmit(skb, &inet->cork.fl);
++	err = icsk->icsk_af_ops->queue_xmit(sk, skb, &inet->cork.fl);
+ 	if (likely(err <= 0))
+ 		return err;
+ 
+diff --git a/net/ipv6/inet6_connection_sock.c b/net/ipv6/inet6_connection_sock.c
+index c9138189415a9..d4ade34ab3756 100644
+--- a/net/ipv6/inet6_connection_sock.c
++++ b/net/ipv6/inet6_connection_sock.c
+@@ -224,9 +224,8 @@ static struct dst_entry *inet6_csk_route_socket(struct sock *sk,
+ 	return dst;
+ }
+ 
+-int inet6_csk_xmit(struct sk_buff *skb, struct flowi *fl_unused)
++int inet6_csk_xmit(struct sock *sk, struct sk_buff *skb, struct flowi *fl_unused)
+ {
+-	struct sock *sk = skb->sk;
+ 	struct ipv6_pinfo *np = inet6_sk(sk);
+ 	struct flowi6 fl6;
+ 	struct dst_entry *dst;
+diff --git a/net/l2tp/l2tp_core.c b/net/l2tp/l2tp_core.c
+index 47f7a54905559..a4e37d7158dcc 100644
+--- a/net/l2tp/l2tp_core.c
++++ b/net/l2tp/l2tp_core.c
+@@ -1131,10 +1131,10 @@ static int l2tp_xmit_core(struct l2tp_session *session, struct sk_buff *skb,
+ 	skb->local_df = 1;
+ #if IS_ENABLED(CONFIG_IPV6)
+ 	if (tunnel->sock->sk_family == PF_INET6 && !tunnel->v4mapped)
+-		error = inet6_csk_xmit(skb, NULL);
++		error = inet6_csk_xmit(tunnel->sock, skb, NULL);
+ 	else
+ #endif
+-		error = ip_queue_xmit(skb, fl);
++		error = ip_queue_xmit(tunnel->sock, skb, fl);
+ 
+ 	/* Update stats */
+ 	if (error >= 0) {
+diff --git a/net/l2tp/l2tp_ip.c b/net/l2tp/l2tp_ip.c
+index 0b44d855269c0..3397fe6897c03 100644
+--- a/net/l2tp/l2tp_ip.c
++++ b/net/l2tp/l2tp_ip.c
+@@ -487,7 +487,7 @@ static int l2tp_ip_sendmsg(struct kiocb *iocb, struct sock *sk, struct msghdr *m
+ 
+ xmit:
+ 	/* Queue the packet to IP for output */
+-	rc = ip_queue_xmit(skb, &inet->cork.fl);
++	rc = ip_queue_xmit(sk, skb, &inet->cork.fl);
+ 	rcu_read_unlock();
+ 
+ error:
+diff --git a/net/sctp/protocol.c b/net/sctp/protocol.c
+index 4e1d0fcb028ef..c09757fbf8039 100644
+--- a/net/sctp/protocol.c
++++ b/net/sctp/protocol.c
+@@ -957,7 +957,7 @@ static inline int sctp_v4_xmit(struct sk_buff *skb,
+ 
+ 	SCTP_INC_STATS(sock_net(&inet->sk), SCTP_MIB_OUTSCTPPACKS);
+ 
+-	return ip_queue_xmit(skb, &transport->fl);
++	return ip_queue_xmit(&inet->sk, skb, &transport->fl);
+ }
+ 
+ static struct sctp_af sctp_af_inet;
+-- 
+cgit 
+

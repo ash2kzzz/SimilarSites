@@ -1,0 +1,40 @@
+From c643e6ebedb435bcf863001f5e69a578f2658055 Mon Sep 17 00:00:00 2001
+From: "Matthew Wilcox (Oracle)" <willy@infradead.org>
+Date: Fri, 3 Feb 2023 16:28:40 -0500
+Subject: mm: fix memcpy_from_file_folio() integer underflow
+
+If we have a HIGHMEM system with a large folio, 'offset' may be larger
+than PAGE_SIZE, and so min_t will cap at 'len' instead of the intended
+end-of-page.  That can overflow into the next page which is likely to be
+unmapped and fault, but could theoretically copy the wrong data.
+
+Link: https://lkml.kernel.org/r/Y919vmSrtAgsf6K3@casper.infradead.org
+Fixes: 00cdf76012ab ("mm: add memcpy_from_file_folio()")
+Signed-off-by: Matthew Wilcox (Oracle) <willy@infradead.org>
+Cc: "Fabio M. De Francesco" <fmdefrancesco@gmail.com>
+Cc: Ira Weiny <ira.weiny@intel.com>
+Signed-off-by: Andrew Morton <akpm@linux-foundation.org>
+---
+ include/linux/highmem.h | 5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/include/linux/highmem.h b/include/linux/highmem.h
+index 348701dae77fd..b06254e76d99a 100644
+--- a/include/linux/highmem.h
++++ b/include/linux/highmem.h
+@@ -431,9 +431,10 @@ static inline size_t memcpy_from_file_folio(char *to, struct folio *folio,
+ 	size_t offset = offset_in_folio(folio, pos);
+ 	char *from = kmap_local_folio(folio, offset);
+ 
+-	if (folio_test_highmem(folio))
++	if (folio_test_highmem(folio)) {
++		offset = offset_in_page(offset);
+ 		len = min_t(size_t, len, PAGE_SIZE - offset);
+-	else
++	} else
+ 		len = min(len, folio_size(folio) - offset);
+ 
+ 	memcpy(to, from, len);
+-- 
+cgit 
+

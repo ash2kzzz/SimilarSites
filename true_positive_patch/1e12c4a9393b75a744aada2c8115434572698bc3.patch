@@ -1,0 +1,55 @@
+From 1e12c4a9393b75a744aada2c8115434572698bc3 Mon Sep 17 00:00:00 2001
+From: Marc Zyngier <marc.zyngier@arm.com>
+Date: Thu, 11 Aug 2016 14:19:42 +0100
+Subject: genirq: Correctly configure the trigger on chained interrupts
+
+Commit 1e2a7d78499e ("irqdomain: Don't set type when mapping an IRQ")
+moved the trigger configuration call from the irqdomain mapping to
+the interrupt being actually requested.
+
+This patch failed to handle the case where we configure a chained
+interrupt, which doesn't get requested through the usual path.
+
+In order to solve this, let's call __irq_set_trigger just before
+starting the cascade interrupt. Special care must be taken to
+make the flow handler stick, as the .irq_set_type method could
+have reset it (it doesn't know we're dealing with a chained
+interrupt).
+
+Based on an initial patch by Jon Hunter.
+
+Fixes: 1e2a7d78499e ("irqdomain: Don't set type when mapping an IRQ")
+Reported-by: John Stultz <john.stultz@linaro.org>
+Reported-by: Linus Walleij <linus.walleij@linaro.org>
+Tested-by: John Stultz <john.stultz@linaro.org>
+Acked-by: Jon Hunter <jonathanh@nvidia.com>
+Signed-off-by: Marc Zyngier <marc.zyngier@arm.com>
+---
+ kernel/irq/chip.c | 11 +++++++++++
+ 1 file changed, 11 insertions(+)
+
+diff --git a/kernel/irq/chip.c b/kernel/irq/chip.c
+index b4c1bc7c9ca20..637389088b3f9 100644
+--- a/kernel/irq/chip.c
++++ b/kernel/irq/chip.c
+@@ -820,6 +820,17 @@ __irq_do_set_handler(struct irq_desc *desc, irq_flow_handler_t handle,
+ 	desc->name = name;
+ 
+ 	if (handle != handle_bad_irq && is_chained) {
++		/*
++		 * We're about to start this interrupt immediately,
++		 * hence the need to set the trigger configuration.
++		 * But the .set_type callback may have overridden the
++		 * flow handler, ignoring that we're dealing with a
++		 * chained interrupt. Reset it immediately because we
++		 * do know better.
++		 */
++		__irq_set_trigger(desc, irqd_get_trigger_type(&desc->irq_data));
++		desc->handle_irq = handle;
++
+ 		irq_settings_set_noprobe(desc);
+ 		irq_settings_set_norequest(desc);
+ 		irq_settings_set_nothread(desc);
+-- 
+cgit 
+

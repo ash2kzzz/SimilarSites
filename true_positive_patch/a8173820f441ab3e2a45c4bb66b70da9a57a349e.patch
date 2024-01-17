@@ -1,0 +1,139 @@
+From a8173820f441ab3e2a45c4bb66b70da9a57a349e Mon Sep 17 00:00:00 2001
+From: Maulik Shah <mkshah@codeaurora.org>
+Date: Sat, 23 May 2020 22:41:10 +0530
+Subject: gpio: gpiolib: Allow GPIO IRQs to lazy disable
+
+With 'commit 461c1a7d4733 ("gpiolib: override irq_enable/disable")' gpiolib
+overrides irqchip's irq_enable and irq_disable callbacks. If irq_disable
+callback is implemented then genirq takes unlazy path to disable irq.
+
+Underlying irqchip may not want to implement irq_disable callback to lazy
+disable irq when client drivers invokes disable_irq(). By overriding
+irq_disable callback, gpiolib ends up always unlazy disabling IRQ.
+
+Allow gpiolib to lazy disable IRQs by overriding irq_disable callback only
+if irqchip implemented irq_disable. In cases where irq_disable is not
+implemented irq_mask is overridden. Similarly override irq_enable callback
+only if irqchip implemented irq_enable otherwise irq_unmask is overridden.
+
+Fixes: 461c1a7d4733 ("gpiolib: override irq_enable/disable")
+Signed-off-by: Maulik Shah <mkshah@codeaurora.org>
+Tested-by: Hans Verkuil <hverkuil-cisco@xs4all.nl>
+Link: https://lore.kernel.org/r/1590253873-11556-2-git-send-email-mkshah@codeaurora.org
+Signed-off-by: Linus Walleij <linus.walleij@linaro.org>
+---
+ drivers/gpio/gpiolib.c      | 55 +++++++++++++++++++++++++++++----------------
+ include/linux/gpio/driver.h | 13 +++++++++++
+ 2 files changed, 49 insertions(+), 19 deletions(-)
+
+diff --git a/drivers/gpio/gpiolib.c b/drivers/gpio/gpiolib.c
+index 34259c1e78ca6..167860684be6f 100644
+--- a/drivers/gpio/gpiolib.c
++++ b/drivers/gpio/gpiolib.c
+@@ -2471,32 +2471,37 @@ static void gpiochip_irq_relres(struct irq_data *d)
+ 	gpiochip_relres_irq(gc, d->hwirq);
+ }
+ 
++static void gpiochip_irq_mask(struct irq_data *d)
++{
++	struct gpio_chip *gc = irq_data_get_irq_chip_data(d);
++
++	if (gc->irq.irq_mask)
++		gc->irq.irq_mask(d);
++	gpiochip_disable_irq(gc, d->hwirq);
++}
++
++static void gpiochip_irq_unmask(struct irq_data *d)
++{
++	struct gpio_chip *gc = irq_data_get_irq_chip_data(d);
++
++	gpiochip_enable_irq(gc, d->hwirq);
++	if (gc->irq.irq_unmask)
++		gc->irq.irq_unmask(d);
++}
++
+ static void gpiochip_irq_enable(struct irq_data *d)
+ {
+ 	struct gpio_chip *gc = irq_data_get_irq_chip_data(d);
+ 
+ 	gpiochip_enable_irq(gc, d->hwirq);
+-	if (gc->irq.irq_enable)
+-		gc->irq.irq_enable(d);
+-	else
+-		gc->irq.chip->irq_unmask(d);
++	gc->irq.irq_enable(d);
+ }
+ 
+ static void gpiochip_irq_disable(struct irq_data *d)
+ {
+ 	struct gpio_chip *gc = irq_data_get_irq_chip_data(d);
+ 
+-	/*
+-	 * Since we override .irq_disable() we need to mimic the
+-	 * behaviour of __irq_disable() in irq/chip.c.
+-	 * First call .irq_disable() if it exists, else mimic the
+-	 * behaviour of mask_irq() which calls .irq_mask() if
+-	 * it exists.
+-	 */
+-	if (gc->irq.irq_disable)
+-		gc->irq.irq_disable(d);
+-	else if (gc->irq.chip->irq_mask)
+-		gc->irq.chip->irq_mask(d);
++	gc->irq.irq_disable(d);
+ 	gpiochip_disable_irq(gc, d->hwirq);
+ }
+ 
+@@ -2521,10 +2526,22 @@ static void gpiochip_set_irq_hooks(struct gpio_chip *gc)
+ 			  "detected irqchip that is shared with multiple gpiochips: please fix the driver.\n");
+ 		return;
+ 	}
+-	gc->irq.irq_enable = irqchip->irq_enable;
+-	gc->irq.irq_disable = irqchip->irq_disable;
+-	irqchip->irq_enable = gpiochip_irq_enable;
+-	irqchip->irq_disable = gpiochip_irq_disable;
++
++	if (irqchip->irq_disable) {
++		gc->irq.irq_disable = irqchip->irq_disable;
++		irqchip->irq_disable = gpiochip_irq_disable;
++	} else {
++		gc->irq.irq_mask = irqchip->irq_mask;
++		irqchip->irq_mask = gpiochip_irq_mask;
++	}
++
++	if (irqchip->irq_enable) {
++		gc->irq.irq_enable = irqchip->irq_enable;
++		irqchip->irq_enable = gpiochip_irq_enable;
++	} else {
++		gc->irq.irq_unmask = irqchip->irq_unmask;
++		irqchip->irq_unmask = gpiochip_irq_unmask;
++	}
+ }
+ 
+ /**
+diff --git a/include/linux/gpio/driver.h b/include/linux/gpio/driver.h
+index 8c41ae41b6bb7..c8bcaf315d03a 100644
+--- a/include/linux/gpio/driver.h
++++ b/include/linux/gpio/driver.h
+@@ -253,6 +253,19 @@ struct gpio_irq_chip {
+ 	 * Store old irq_chip irq_disable callback
+ 	 */
+ 	void		(*irq_disable)(struct irq_data *data);
++	/**
++	 * @irq_unmask:
++	 *
++	 * Store old irq_chip irq_unmask callback
++	 */
++	void		(*irq_unmask)(struct irq_data *data);
++
++	/**
++	 * @irq_mask:
++	 *
++	 * Store old irq_chip irq_mask callback
++	 */
++	void		(*irq_mask)(struct irq_data *data);
+ };
+ 
+ /**
+-- 
+cgit 
+

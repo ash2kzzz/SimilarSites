@@ -1,0 +1,39 @@
+From ce5cbf53496bfebe1b7478a532820373342e8302 Mon Sep 17 00:00:00 2001
+From: Erik Schmauss <erik.schmauss@intel.com>
+Date: Tue, 5 Feb 2019 16:14:00 -0800
+Subject: ACPI: Set debug output flags independent of ACPICA
+
+There was a divergence between Linux and ACPICA on the definition of
+ACPI_DEBUG_DEFAULT. This divergence was solved by taking ACPICA's
+definition in 4c1379d7bb42. After resolving the divergence, it was
+clear that Linux users wanted to use their old set of debug flags.
+This change fixes the divergence by setting these debug flags during
+acpi_early_init() rather than during global variable initialization
+in acpixf.h (owned by ACPICA).
+
+Fixes: 4c1379d7bb42 ("ACPICA: Debug output: Add option to display method/object evaluation")
+Reported-by: Michael J Ruhl <michael.j.ruhl@intel.com>
+Reported-by: Alex Gagniuc <Alex_Gagniuc@Dellteam.com>
+Signed-off-by: Erik Schmauss <erik.schmauss@intel.com>
+Signed-off-by: Rafael J. Wysocki <rafael.j.wysocki@intel.com>
+---
+ drivers/acpi/bus.c | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/drivers/acpi/bus.c b/drivers/acpi/bus.c
+index 5c093ce01bcd8..147f6c7ea59c8 100644
+--- a/drivers/acpi/bus.c
++++ b/drivers/acpi/bus.c
+@@ -1029,6 +1029,9 @@ void __init acpi_early_init(void)
+ 
+ 	acpi_permanent_mmap = true;
+ 
++	/* Initialize debug output. Linux does not use ACPICA defaults */
++	acpi_dbg_level = ACPI_LV_INFO | ACPI_LV_REPAIR;
++
+ #ifdef CONFIG_X86
+ 	/*
+ 	 * If the machine falls into the DMI check table,
+-- 
+cgit 
+

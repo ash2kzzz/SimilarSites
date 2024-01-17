@@ -1,0 +1,77 @@
+From ac13692844f2fb23c503066c0cb231243218a7c8 Mon Sep 17 00:00:00 2001
+From: David Howells <dhowells@redhat.com>
+Date: Tue, 18 Apr 2023 23:40:07 +0100
+Subject: cifs: Fix unbuffered read
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+If read() is done in an unbuffered manner, such that, say,
+cifs_strict_readv() goes through cifs_user_readv() and thence
+__cifs_readv(), it doesn't recognise the EOF and keeps indicating to
+userspace that it returning full buffers of data.
+
+This is due to ctx->iter being advanced in cifs_send_async_read() as the
+buffer is split up amongst a number of rdata objects.  The iterator count
+is then used in collect_uncached_read_data() in the non-DIO case to set the
+total length read - and thus the return value of sys_read().  But since the
+iterator normally gets used up completely during splitting, ctx->total_len
+gets overridden to the full amount.
+
+However, prior to that in collect_uncached_read_data(), we've gone through
+the list of rdatas and added up the amount of data we actually received
+(which we then throw away).
+
+Fix this by removing the bit that overrides the amount read in the non-DIO
+case and just going with the total added up in the aforementioned loop.
+
+This was observed by mounting a cifs share with multiple channels, e.g.:
+
+	mount //192.168.6.1/test /test/ -o user=shares,pass=...,max_channels=6
+
+and then reading a 1MiB file on the share:
+
+	strace cat /xfstest.test/1M  >/dev/null
+
+Through strace, the same data can be seen being read again and again.
+
+Fixes: d08089f649a0 ("cifs: Change the I/O paths to use an iterator rather than a page list")
+Signed-off-by: David Howells <dhowells@redhat.com>
+Acked-by: Paulo Alcantara (SUSE) <pc@manguebit.com>
+cc: Jérôme Glisse <jglisse@redhat.com>
+cc: Long Li <longli@microsoft.com>
+cc: Enzo Matsumiya <ematsumiya@suse.de>
+cc: Shyam Prasad N <nspmangalore@gmail.com>
+cc: Rohith Surabattula <rohiths.msft@gmail.com>
+cc: Jeff Layton <jlayton@kernel.org>
+cc: linux-cifs@vger.kernel.org
+Signed-off-by: Steve French <stfrench@microsoft.com>
+---
+ fs/cifs/file.c | 4 ----
+ 1 file changed, 4 deletions(-)
+
+diff --git a/fs/cifs/file.c b/fs/cifs/file.c
+index 6831a9949c430..b33d2e7b0f984 100644
+--- a/fs/cifs/file.c
++++ b/fs/cifs/file.c
+@@ -4010,7 +4010,6 @@ static void
+ collect_uncached_read_data(struct cifs_aio_ctx *ctx)
+ {
+ 	struct cifs_readdata *rdata, *tmp;
+-	struct iov_iter *to = &ctx->iter;
+ 	struct cifs_sb_info *cifs_sb;
+ 	int rc;
+ 
+@@ -4076,9 +4075,6 @@ again:
+ 		kref_put(&rdata->refcount, cifs_readdata_release);
+ 	}
+ 
+-	if (!ctx->direct_io)
+-		ctx->total_len = ctx->len - iov_iter_count(to);
+-
+ 	/* mask nodata case */
+ 	if (rc == -ENODATA)
+ 		rc = 0;
+-- 
+cgit 
+

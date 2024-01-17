@@ -1,0 +1,36 @@
+From d4cb3e7113f82f7378527890aa7b4006234665fe Mon Sep 17 00:00:00 2001
+From: Arnd Bergmann <arnd@arndb.de>
+Date: Mon, 30 Jan 2023 14:55:47 +0100
+Subject: clk: qcom: gcc-qcs404: fix duplicate initializer warning
+
+In one of the clocks, a redundant initialization for .num_parents
+got left behind by a recent patch:
+
+drivers/clk/qcom/gcc-qcs404.c:63:32: error: initialized field overwritten [-Werror=override-init]
+   63 |                 .num_parents = 1,
+      |                                ^
+
+Fixes: 2ce81afa0c7c ("clk: qcom: gcc-qcs404: sort out the cxo clock")
+Signed-off-by: Arnd Bergmann <arnd@arndb.de>
+Reviewed-by: Konrad Dybcio <konrad.dybcio@linaro.org>
+Signed-off-by: Bjorn Andersson <andersson@kernel.org>
+Link: https://lore.kernel.org/r/20230130135555.3268172-1-arnd@kernel.org
+---
+ drivers/clk/qcom/gcc-qcs404.c | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/drivers/clk/qcom/gcc-qcs404.c b/drivers/clk/qcom/gcc-qcs404.c
+index 5f58dd82d3fe6..a39c4990b29db 100644
+--- a/drivers/clk/qcom/gcc-qcs404.c
++++ b/drivers/clk/qcom/gcc-qcs404.c
+@@ -60,7 +60,6 @@ static struct clk_fixed_factor cxo = {
+ 		.name = "cxo",
+ 		.parent_data = gcc_parent_data_1,
+ 		.num_parents = ARRAY_SIZE(gcc_parent_data_1),
+-		.num_parents = 1,
+ 		.ops = &clk_fixed_factor_ops,
+ 	},
+ };
+-- 
+cgit 
+

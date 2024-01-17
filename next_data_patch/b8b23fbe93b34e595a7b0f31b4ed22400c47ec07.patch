@@ -1,0 +1,53 @@
+From b8b23fbe93b34e595a7b0f31b4ed22400c47ec07 Mon Sep 17 00:00:00 2001
+From: Andrejs Cainikovs <andrejs.cainikovs@toradex.com>
+Date: Sun, 14 May 2023 11:22:46 +0200
+Subject: arm64: dts: colibri-imx8x: delete adc1 and dsp
+
+i.MX8, i.MX8X, i.MX8XP and i.MX8XL SOC device trees are all based on
+imx8-ss-*.dtsi files. For i.MX8X and i.MX8XP these device trees
+should be updated with some peripherals removed or updated, similar
+to i.MX8XL (imx8dxl-ss-*.dtsi files). However, it looks like only
+i.MX8 and i.MX8XL are up to date, but for i.MX8X and i.MX8XP some
+of the peripherals got inherited from imx8-ss-*.dtsi files, but in
+reality they are not present on SOC.
+As a result, during resource partition ownership check U-Boot receives
+messages from SCU firmware about these resources not owned by boot
+partition. In reality, these resources are not owned by anyone, as
+they simply does not exist, but are defined in Linux device tree.
+This change removes those peripherals, which are listed during
+U-Boot resource partition ownership check as warnings:
+
+  ## Flattened Device Tree blob at 9d400000
+     Booting using the fdt blob at 0x9d400000
+     Loading Device Tree to 00000000fd652000, end 00000000fd67efff ... OK
+  Disable clock-controller@59580000 rsrc 512 not owned
+  Disable clock-controller@5ac90000 rsrc 102 not owned
+
+  Starting kernel ...
+
+Fixes: ba5a5615d54f ("arm64: dts: freescale: add initial support for colibri imx8x")
+Signed-off-by: Andrejs Cainikovs <andrejs.cainikovs@toradex.com>
+Signed-off-by: Francesco Dolcini <francesco.dolcini@toradex.com>
+Signed-off-by: Shawn Guo <shawnguo@kernel.org>
+---
+ arch/arm64/boot/dts/freescale/imx8x-colibri.dtsi | 7 +++++++
+ 1 file changed, 7 insertions(+)
+
+diff --git a/arch/arm64/boot/dts/freescale/imx8x-colibri.dtsi b/arch/arm64/boot/dts/freescale/imx8x-colibri.dtsi
+index b0d6f632622ca..49d105eb47691 100644
+--- a/arch/arm64/boot/dts/freescale/imx8x-colibri.dtsi
++++ b/arch/arm64/boot/dts/freescale/imx8x-colibri.dtsi
+@@ -769,3 +769,10 @@
+ 		fsl,pins = <IMX8QXP_SCU_BOOT_MODE3_SCU_DSC_RTC_CLOCK_OUTPUT_32K	0x20>;
+ 	};
+ };
++
++/* Delete peripherals which are not present on SOC, but are defined in imx8-ss-*.dtsi */
++
++/delete-node/ &adc1;
++/delete-node/ &adc1_lpcg;
++/delete-node/ &dsp;
++/delete-node/ &dsp_lpcg;
+-- 
+cgit 
+

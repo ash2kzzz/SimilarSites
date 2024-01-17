@@ -1,0 +1,41 @@
+From b919540aeb58bc164192b07e64fd45eea4f39b91 Mon Sep 17 00:00:00 2001
+From: Arnd Bergmann <arnd@arndb.de>
+Date: Wed, 8 Feb 2023 17:36:52 +0100
+Subject: platform/x86: int3472/discrete: add LEDS_CLASS dependency
+
+int3472 now fails to link when the LED support is disabled:
+
+x86_64-linux-ld: drivers/platform/x86/intel/int3472/led.o: in function `skl_int3472_register_pled':
+led.c:(.text+0xf4): undefined reference to `led_classdev_register_ext'
+x86_64-linux-ld: led.c:(.text+0x131): undefined reference to `led_add_lookup'
+x86_64-linux-ld: drivers/platform/x86/intel/int3472/led.o: in function `skl_int3472_unregister_pled':
+led.c:(.text+0x16b): undefined reference to `led_remove_lookup'
+x86_64-linux-ld: led.c:(.text+0x177): undefined reference to `led_classdev_unregister'
+
+Add an explicit Kconfig dependency.
+
+Fixes: 5ae20a8050d0 ("platform/x86: int3472/discrete: Create a LED class device for the privacy LED")
+Signed-off-by: Arnd Bergmann <arnd@arndb.de>
+Reviewed-by: Sakari Ailus <sakari.ailus@linux.intel.com>
+Link: https://lore.kernel.org/r/20230208163658.2129009-1-arnd@kernel.org
+Reviewed-by: Hans de Goede <hdegoede@redhat.com>
+Signed-off-by: Hans de Goede <hdegoede@redhat.com>
+---
+ drivers/platform/x86/intel/int3472/Kconfig | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/drivers/platform/x86/intel/int3472/Kconfig b/drivers/platform/x86/intel/int3472/Kconfig
+index 62e5d4cf9ee5b..17ae997f93ea5 100644
+--- a/drivers/platform/x86/intel/int3472/Kconfig
++++ b/drivers/platform/x86/intel/int3472/Kconfig
+@@ -4,6 +4,7 @@ config INTEL_SKL_INT3472
+ 	depends on COMMON_CLK
+ 	depends on I2C
+ 	depends on GPIOLIB
++	depends on LEDS_CLASS
+ 	depends on REGULATOR
+ 	select MFD_CORE
+ 	select REGMAP_I2C
+-- 
+cgit 
+

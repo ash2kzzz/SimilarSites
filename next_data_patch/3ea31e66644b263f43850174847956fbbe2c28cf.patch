@@ -1,0 +1,49 @@
+From 3ea31e66644b263f43850174847956fbbe2c28cf Mon Sep 17 00:00:00 2001
+From: Rahul Rameshbabu <rrameshbabu@nvidia.com>
+Date: Wed, 12 Apr 2023 18:22:51 -0700
+Subject: tools: ynl: Remove absolute paths to yaml files from ethtool testing
+ tool
+
+Absolute paths for the spec and schema files make the ethtool testing tool
+unusable with freshly checked-out source trees. Replace absolute paths with
+relative paths for both files in the Documentation/ directory.
+
+Issue seen before the change
+
+  Traceback (most recent call last):
+    File "/home/binary-eater/Documents/mlx/linux/tools/net/ynl/./ethtool", line 424, in <module>
+      main()
+    File "/home/binary-eater/Documents/mlx/linux/tools/net/ynl/./ethtool", line 158, in main
+      ynl = YnlFamily(spec, schema)
+    File "/home/binary-eater/Documents/mlx/linux/tools/net/ynl/lib/ynl.py", line 342, in __init__
+      super().__init__(def_path, schema)
+    File "/home/binary-eater/Documents/mlx/linux/tools/net/ynl/lib/nlspec.py", line 333, in __init__
+      with open(spec_path, "r") as stream:
+  FileNotFoundError: [Errno 2] No such file or directory: '/usr/local/google/home/sdf/src/linux/Documentation/netlink/specs/ethtool.yaml'
+
+Fixes: f3d07b02b2b8 ("tools: ynl: ethtool testing tool")
+Signed-off-by: Rahul Rameshbabu <rrameshbabu@nvidia.com>
+Link: https://lore.kernel.org/r/20230413012252.184434-1-rrameshbabu@nvidia.com
+Signed-off-by: Jakub Kicinski <kuba@kernel.org>
+---
+ tools/net/ynl/ethtool | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/tools/net/ynl/ethtool b/tools/net/ynl/ethtool
+index 5fb1d670693a2..6c9f7e31250cd 100755
+--- a/tools/net/ynl/ethtool
++++ b/tools/net/ynl/ethtool
+@@ -152,8 +152,8 @@ def main():
+     global args
+     args = parser.parse_args()
+ 
+-    spec = '/usr/local/google/home/sdf/src/linux/Documentation/netlink/specs/ethtool.yaml'
+-    schema = '/usr/local/google/home/sdf/src/linux/Documentation/netlink/genetlink-legacy.yaml'
++    spec = '../../../Documentation/netlink/specs/ethtool.yaml'
++    schema = '../../../Documentation/netlink/genetlink-legacy.yaml'
+ 
+     ynl = YnlFamily(spec, schema)
+ 
+-- 
+cgit 
+

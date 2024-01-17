@@ -1,0 +1,43 @@
+From e27f38e6255306527e32af85592d805f3360ff94 Mon Sep 17 00:00:00 2001
+From: Konrad Dybcio <konrad.dybcio@linaro.org>
+Date: Fri, 3 Feb 2023 15:23:09 +0100
+Subject: arm64: dts: qcom: sm8450-nagara: Correct firmware paths
+
+Nagara is definitely not SM8350, fix it!
+
+Fixes: c53532f7825c ("arm64: dts: qcom: pdx223: correct firmware paths")
+Signed-off-by: Konrad Dybcio <konrad.dybcio@linaro.org>
+Signed-off-by: Bjorn Andersson <andersson@kernel.org>
+Link: https://lore.kernel.org/r/20230203142309.1106349-1-konrad.dybcio@linaro.org
+---
+ arch/arm64/boot/dts/qcom/sm8450-sony-xperia-nagara.dtsi | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/arch/arm64/boot/dts/qcom/sm8450-sony-xperia-nagara.dtsi b/arch/arm64/boot/dts/qcom/sm8450-sony-xperia-nagara.dtsi
+index 53d0ee2dbfa94..8ea42519b0dfc 100644
+--- a/arch/arm64/boot/dts/qcom/sm8450-sony-xperia-nagara.dtsi
++++ b/arch/arm64/boot/dts/qcom/sm8450-sony-xperia-nagara.dtsi
+@@ -694,17 +694,17 @@
+ };
+ 
+ &remoteproc_adsp {
+-	firmware-name = "qcom/sm8350/Sony/nagara/adsp.mbn";
++	firmware-name = "qcom/sm8450/Sony/nagara/adsp.mbn";
+ 	status = "okay";
+ };
+ 
+ &remoteproc_cdsp {
+-	firmware-name = "qcom/sm8350/Sony/nagara/cdsp.mbn";
++	firmware-name = "qcom/sm8450/Sony/nagara/cdsp.mbn";
+ 	status = "okay";
+ };
+ 
+ &remoteproc_slpi {
+-	firmware-name = "qcom/sm8350/Sony/nagara/slpi.mbn";
++	firmware-name = "qcom/sm8450/Sony/nagara/slpi.mbn";
+ 	status = "okay";
+ };
+ 
+-- 
+cgit 
+

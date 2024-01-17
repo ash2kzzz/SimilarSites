@@ -1,0 +1,42 @@
+From 9e6a1825aca8568f624abeeb047969c72aa4c183 Mon Sep 17 00:00:00 2001
+From: Eric Curtin <ecurtin@redhat.com>
+Date: Wed, 1 Feb 2023 12:42:58 +0000
+Subject: iommu: dart: DART_T8110_ERROR range should be 0 to 5
+
+This was detected by smatch as one "else if" statement could never be
+reached. Confirmed bit order by comparing with python implementation [1].
+
+drivers/iommu/apple-dart.c:991 apple_dart_t8110_irq()
+warn: duplicate check 'error_code == ((((1))) << (3))'
+  (previous on line 989)
+
+Link: https://github.com/AsahiLinux/m1n1/commit/96b2d584feec1e3f7bfa [1]
+
+Fixes: d8bcc870d99d ("iommu: dart: Add t8110 DART support")
+Reported-by: Dan Carpenter <error27@gmail.com>
+Signed-off-by: Eric Curtin <ecurtin@redhat.com>
+Reviewed-by: Sven Peter <sven@svenpeter.dev>
+Link: https://lore.kernel.org/r/20230201124257.7801-1-ecurtin@redhat.com
+Signed-off-by: Joerg Roedel <jroedel@suse.de>
+---
+ drivers/iommu/apple-dart.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/iommu/apple-dart.c b/drivers/iommu/apple-dart.c
+index 1fc64a42c890f..abedcffed2377 100644
+--- a/drivers/iommu/apple-dart.c
++++ b/drivers/iommu/apple-dart.c
+@@ -111,8 +111,8 @@
+ 
+ #define DART_T8110_ERROR_MASK 0x104
+ 
+-#define DART_T8110_ERROR_READ_FAULT BIT(4)
+-#define DART_T8110_ERROR_WRITE_FAULT BIT(3)
++#define DART_T8110_ERROR_READ_FAULT BIT(5)
++#define DART_T8110_ERROR_WRITE_FAULT BIT(4)
+ #define DART_T8110_ERROR_NO_PTE BIT(3)
+ #define DART_T8110_ERROR_NO_PMD BIT(2)
+ #define DART_T8110_ERROR_NO_PGD BIT(1)
+-- 
+cgit 
+

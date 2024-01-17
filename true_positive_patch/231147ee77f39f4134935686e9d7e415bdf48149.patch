@@ -1,0 +1,66 @@
+From 231147ee77f39f4134935686e9d7e415bdf48149 Mon Sep 17 00:00:00 2001
+From: sayli karnik <karniksayli1995@gmail.com>
+Date: Wed, 28 Sep 2016 21:46:51 +0530
+Subject: iio: maxim_thermocouple: Align 16 bit big endian value of raw reads
+
+Driver was reporting invalid raw read values for MAX6675 on big
+endian architectures. MAX6675 buffered mode is not affected, nor
+is the MAX31855.
+
+The driver was losing a 2 byte read value when it used a 32 bit
+integer buffer to store a 16 bit big endian value. Use big endian
+types to properly align buffers on big endian architectures.
+
+Fixes following sparse endianness warnings:
+warning: cast to restricted __be16
+warning: cast to restricted __be32
+Fixes checkpatch issue:
+CHECK: No space is necessary after a cast
+
+Signed-off-by: sayli karnik <karniksayli1995@gmail.com>
+Fixes: 1f25ca11d84a ("iio: temperature: add support for Maxim
+thermocouple chips")
+Signed-off-by: Jonathan Cameron <jic23@kernel.org>
+---
+ drivers/iio/temperature/maxim_thermocouple.c | 16 +++++++++-------
+ 1 file changed, 9 insertions(+), 7 deletions(-)
+
+diff --git a/drivers/iio/temperature/maxim_thermocouple.c b/drivers/iio/temperature/maxim_thermocouple.c
+index 39dd2026ccc92..066161a4bccd9 100644
+--- a/drivers/iio/temperature/maxim_thermocouple.c
++++ b/drivers/iio/temperature/maxim_thermocouple.c
+@@ -123,22 +123,24 @@ static int maxim_thermocouple_read(struct maxim_thermocouple_data *data,
+ {
+ 	unsigned int storage_bytes = data->chip->read_size;
+ 	unsigned int shift = chan->scan_type.shift + (chan->address * 8);
+-	unsigned int buf;
++	__be16 buf16;
++	__be32 buf32;
+ 	int ret;
+ 
+-	ret = spi_read(data->spi, (void *) &buf, storage_bytes);
+-	if (ret)
+-		return ret;
+-
+ 	switch (storage_bytes) {
+ 	case 2:
+-		*val = be16_to_cpu(buf);
++		ret = spi_read(data->spi, (void *)&buf16, storage_bytes);
++		*val = be16_to_cpu(buf16);
+ 		break;
+ 	case 4:
+-		*val = be32_to_cpu(buf);
++		ret = spi_read(data->spi, (void *)&buf32, storage_bytes);
++		*val = be32_to_cpu(buf32);
+ 		break;
+ 	}
+ 
++	if (ret)
++		return ret;
++
+ 	/* check to be sure this is a valid reading */
+ 	if (*val & data->chip->status_bit)
+ 		return -EINVAL;
+-- 
+cgit 
+

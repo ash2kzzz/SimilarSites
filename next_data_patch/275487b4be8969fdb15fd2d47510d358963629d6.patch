@@ -1,0 +1,56 @@
+From 275487b4be8969fdb15fd2d47510d358963629d6 Mon Sep 17 00:00:00 2001
+From: Si-Wei Liu <si-wei.liu@oracle.com>
+Date: Mon, 6 Feb 2023 15:11:59 -0800
+Subject: vdpa: fix improper error message when adding vdpa dev
+
+In below example, before the fix, mtu attribute is supported
+by the parent mgmtdev, but the error message showing "All
+provided are not supported" is just misleading.
+
+$ vdpa mgmtdev show
+vdpasim_net:
+  supported_classes net
+  max_supported_vqs 3
+  dev_features MTU MAC CTRL_VQ CTRL_MAC_ADDR ANY_LAYOUT VERSION_1 ACCESS_PLATFORM
+
+$ vdpa dev add mgmtdev vdpasim_net name vdpasim0 mtu 5000 max_vqp 2
+Error: vdpa: All provided attributes are not supported.
+kernel answers: Operation not supported
+
+After fix, the relevant error message will be like:
+
+$ vdpa dev add mgmtdev vdpasim_net name vdpasim0 mtu 5000 max_vqp 2
+Error: vdpa: Some provided attributes are not supported: 0x1000.
+kernel answers: Operation not supported
+
+Fixes: d8ca2fa5be1b ("vdpa: Enable user to set mac and mtu of vdpa device")
+Signed-off-by: Si-Wei Liu <si-wei.liu@oracle.com>
+Reviewed-by: Parav Pandit <parav@nvidia.com>
+Reviewed-by: Eli Cohen <elic@nvidia.com>
+Message-Id: <1675725124-7375-2-git-send-email-si-wei.liu@oracle.com>
+Signed-off-by: Michael S. Tsirkin <mst@redhat.com>
+---
+ drivers/vdpa/vdpa.c | 6 ++++--
+ 1 file changed, 4 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/vdpa/vdpa.c b/drivers/vdpa/vdpa.c
+index a1bb5b92212de..e71898ec5ce7d 100644
+--- a/drivers/vdpa/vdpa.c
++++ b/drivers/vdpa/vdpa.c
+@@ -627,9 +627,11 @@ static int vdpa_nl_cmd_dev_add_set_doit(struct sk_buff *skb, struct genl_info *i
+ 		err = PTR_ERR(mdev);
+ 		goto err;
+ 	}
++
+ 	if ((config.mask & mdev->config_attr_mask) != config.mask) {
+-		NL_SET_ERR_MSG_MOD(info->extack,
+-				   "All provided attributes are not supported");
++		NL_SET_ERR_MSG_FMT_MOD(info->extack,
++				       "Some provided attributes are not supported: 0x%llx",
++				       config.mask & ~mdev->config_attr_mask);
+ 		err = -EOPNOTSUPP;
+ 		goto err;
+ 	}
+-- 
+cgit 
+

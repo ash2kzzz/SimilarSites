@@ -1,0 +1,46 @@
+From fb9eb899a6dc663e4a2deed9af2ac28f507d0ffb Mon Sep 17 00:00:00 2001
+From: Mahesh Bandewar <maheshb@google.com>
+Date: Tue, 11 Apr 2017 22:36:00 -0700
+Subject: bonding: handle link transition from FAIL to UP correctly
+
+When link transitions from LINK_FAIL to LINK_UP, the commit phase is
+not called. This leads to an erroneous state causing slave-link state to
+get stuck in "going down" state while its speed and duplex are perfectly
+fine. This issue is a side-effect of splitting link-set into propose and
+commit phases introduced by de77ecd4ef02 ("bonding: improve link-status
+update in mii-monitoring")
+
+This patch fixes these issues by calling commit phase whenever link
+state change is proposed.
+
+Fixes: de77ecd4ef02 ("bonding: improve link-status update in mii-monitoring")
+Signed-off-by: Mahesh Bandewar <maheshb@google.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ drivers/net/bonding/bond_main.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/net/bonding/bond_main.c b/drivers/net/bonding/bond_main.c
+index aba7352906a5a..01e4a69af4213 100644
+--- a/drivers/net/bonding/bond_main.c
++++ b/drivers/net/bonding/bond_main.c
+@@ -2064,6 +2064,7 @@ static int bond_miimon_inspect(struct bonding *bond)
+ 					    (bond->params.downdelay - slave->delay) *
+ 					    bond->params.miimon,
+ 					    slave->dev->name);
++				commit++;
+ 				continue;
+ 			}
+ 
+@@ -2098,7 +2099,7 @@ static int bond_miimon_inspect(struct bonding *bond)
+ 					    (bond->params.updelay - slave->delay) *
+ 					    bond->params.miimon,
+ 					    slave->dev->name);
+-
++				commit++;
+ 				continue;
+ 			}
+ 
+-- 
+cgit 
+

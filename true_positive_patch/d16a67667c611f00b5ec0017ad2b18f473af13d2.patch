@@ -1,0 +1,47 @@
+From d16a67667c611f00b5ec0017ad2b18f473af13d2 Mon Sep 17 00:00:00 2001
+From: Jens Axboe <axboe@kernel.dk>
+Date: Mon, 12 Nov 2018 17:19:32 -0700
+Subject: ide: don't clear special on ide_queue_rq() entry
+
+We can't use RQF_DONTPREP to see if we should clear ->special,
+as someone could have set that while inserting the request. Make
+sure we clear it in our ->initialize_rq_fn() helper instead.
+
+Fixes: 22ce0a7ccf23 ("ide: don't use req->special")
+Signed-off-by: Jens Axboe <axboe@kernel.dk>
+---
+ drivers/ide/ide-io.c    | 5 -----
+ drivers/ide/ide-probe.c | 1 +
+ 2 files changed, 1 insertion(+), 5 deletions(-)
+
+diff --git a/drivers/ide/ide-io.c b/drivers/ide/ide-io.c
+index 94e9c79c41cfd..c0dd0fad16a3d 100644
+--- a/drivers/ide/ide-io.c
++++ b/drivers/ide/ide-io.c
+@@ -463,11 +463,6 @@ blk_status_t ide_queue_rq(struct blk_mq_hw_ctx *hctx,
+ 	struct request	*rq = bd->rq;
+ 	ide_startstop_t	startstop;
+ 
+-	if (!(rq->rq_flags & RQF_DONTPREP)) {
+-		rq->rq_flags |= RQF_DONTPREP;
+-		ide_req(rq)->special = NULL;
+-	}
+-
+ 	/* HLD do_request() callback might sleep, make sure it's okay */
+ 	might_sleep();
+ 
+diff --git a/drivers/ide/ide-probe.c b/drivers/ide/ide-probe.c
+index 40384838e4399..63627be0811a7 100644
+--- a/drivers/ide/ide-probe.c
++++ b/drivers/ide/ide-probe.c
+@@ -746,6 +746,7 @@ static void ide_initialize_rq(struct request *rq)
+ {
+ 	struct ide_request *req = blk_mq_rq_to_pdu(rq);
+ 
++	req->special = NULL;
+ 	scsi_req_init(&req->sreq);
+ 	req->sreq.sense = req->sense;
+ }
+-- 
+cgit 
+

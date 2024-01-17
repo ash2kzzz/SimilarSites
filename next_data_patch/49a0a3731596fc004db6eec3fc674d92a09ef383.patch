@@ -1,0 +1,61 @@
+From 49a0a3731596fc004db6eec3fc674d92a09ef383 Mon Sep 17 00:00:00 2001
+From: Alexandre Ghiti <alexghiti@rivosinc.com>
+Date: Wed, 7 Jun 2023 14:58:51 +0200
+Subject: riscv: Check the virtual alignment before choosing a map size
+
+We used to only check the alignment of the physical address to decide
+which mapping would fit for a certain region of the linear mapping, but
+it is not enough since the virtual address must also be aligned, so check
+that too.
+
+Fixes: 3335068f8721 ("riscv: Use PUD/P4D/PGD pages for the linear mapping")
+Reported-by: Song Shuai <songshuaishuai@tinylab.org>
+Link: https://lore.kernel.org/linux-riscv/tencent_7C3B580B47C1B17C16488EC1@qq.com/
+Signed-off-by: Alexandre Ghiti <alexghiti@rivosinc.com>
+Link: https://lore.kernel.org/r/20230607125851.63370-1-alexghiti@rivosinc.com
+Signed-off-by: Palmer Dabbelt <palmer@rivosinc.com>
+---
+ arch/riscv/mm/init.c | 13 +++++++------
+ 1 file changed, 7 insertions(+), 6 deletions(-)
+
+diff --git a/arch/riscv/mm/init.c b/arch/riscv/mm/init.c
+index 38c4b4d6b64f7..4fa420faa7808 100644
+--- a/arch/riscv/mm/init.c
++++ b/arch/riscv/mm/init.c
+@@ -660,18 +660,19 @@ void __init create_pgd_mapping(pgd_t *pgdp,
+ 	create_pgd_next_mapping(nextp, va, pa, sz, prot);
+ }
+ 
+-static uintptr_t __init best_map_size(phys_addr_t base, phys_addr_t size)
++static uintptr_t __init best_map_size(phys_addr_t pa, uintptr_t va,
++				      phys_addr_t size)
+ {
+-	if (!(base & (PGDIR_SIZE - 1)) && size >= PGDIR_SIZE)
++	if (!(pa & (PGDIR_SIZE - 1)) && !(va & (PGDIR_SIZE - 1)) && size >= PGDIR_SIZE)
+ 		return PGDIR_SIZE;
+ 
+-	if (!(base & (P4D_SIZE - 1)) && size >= P4D_SIZE)
++	if (!(pa & (P4D_SIZE - 1)) && !(va & (P4D_SIZE - 1)) && size >= P4D_SIZE)
+ 		return P4D_SIZE;
+ 
+-	if (!(base & (PUD_SIZE - 1)) && size >= PUD_SIZE)
++	if (!(pa & (PUD_SIZE - 1)) && !(va & (PUD_SIZE - 1)) && size >= PUD_SIZE)
+ 		return PUD_SIZE;
+ 
+-	if (!(base & (PMD_SIZE - 1)) && size >= PMD_SIZE)
++	if (!(pa & (PMD_SIZE - 1)) && !(va & (PMD_SIZE - 1)) && size >= PMD_SIZE)
+ 		return PMD_SIZE;
+ 
+ 	return PAGE_SIZE;
+@@ -1177,7 +1178,7 @@ static void __init create_linear_mapping_range(phys_addr_t start,
+ 	for (pa = start; pa < end; pa += map_size) {
+ 		va = (uintptr_t)__va(pa);
+ 		map_size = fixed_map_size ? fixed_map_size :
+-					    best_map_size(pa, end - pa);
++					    best_map_size(pa, va, end - pa);
+ 
+ 		create_pgd_mapping(swapper_pg_dir, va, pa, map_size,
+ 				   pgprot_from_va(va));
+-- 
+cgit 
+

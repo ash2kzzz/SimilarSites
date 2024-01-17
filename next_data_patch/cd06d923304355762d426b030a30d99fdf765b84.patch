@@ -1,0 +1,33 @@
+From cd06d923304355762d426b030a30d99fdf765b84 Mon Sep 17 00:00:00 2001
+From: Krzysztof Kozlowski <krzysztof.kozlowski@linaro.org>
+Date: Wed, 1 Feb 2023 16:43:20 +0100
+Subject: arm64: dts: qcom: sm8350-hdk: correct LT9611 pin function
+
+SM8350 pin controller does not have "normal" pin function, so use
+"gpio".
+
+Signed-off-by: Krzysztof Kozlowski <krzysztof.kozlowski@linaro.org>
+Fixes: d96d8f9192be ("arm64: dts: qcom: sm8350-hdk: Enable lt9611uxc dsi-hdmi bridge")
+Reviewed-by: Konrad Dybcio <konrad.dybcio@linaro.org>
+Signed-off-by: Bjorn Andersson <andersson@kernel.org>
+Link: https://lore.kernel.org/r/20230201154321.276419-2-krzysztof.kozlowski@linaro.org
+---
+ arch/arm64/boot/dts/qcom/sm8350-hdk.dts | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/arch/arm64/boot/dts/qcom/sm8350-hdk.dts b/arch/arm64/boot/dts/qcom/sm8350-hdk.dts
+index 7a8556c1ced55..54654eb75c28a 100644
+--- a/arch/arm64/boot/dts/qcom/sm8350-hdk.dts
++++ b/arch/arm64/boot/dts/qcom/sm8350-hdk.dts
+@@ -725,7 +725,7 @@
+ 	lt9611_state: lt9611-state {
+ 		rst-pins {
+ 			pins = "gpio48";
+-			function = "normal";
++			function = "gpio";
+ 
+ 			output-high;
+ 			input-disable;
+-- 
+cgit 
+

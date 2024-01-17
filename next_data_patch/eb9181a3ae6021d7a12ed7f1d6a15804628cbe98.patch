@@ -1,0 +1,52 @@
+From eb9181a3ae6021d7a12ed7f1d6a15804628cbe98 Mon Sep 17 00:00:00 2001
+From: Manivannan Sadhasivam <manivannan.sadhasivam@linaro.org>
+Date: Mon, 23 Jan 2023 18:49:29 +0530
+Subject: dt-bindings: arm-smmu: Fix binding for SDX55 and SDX65
+
+Both SDX55 and SDX66 SoCs are using the Qualcomm version of the SMMU-500
+IP. But the binding lists them under the non-qcom implementation which is
+not correct.
+
+So fix the binding by moving these two SoCs under "qcom,smmu-500"
+implementation.
+
+Fixes: 6c84bbd103d8 ("dt-bindings: arm-smmu: Add generic qcom,smmu-500 bindings")
+Signed-off-by: Manivannan Sadhasivam <manivannan.sadhasivam@linaro.org>
+Acked-by: Krzysztof Kozlowski <krzysztof.kozlowski@linaro.org>
+Link: https://lore.kernel.org/r/20230123131931.263024-2-manivannan.sadhasivam@linaro.org
+Signed-off-by: Will Deacon <will@kernel.org>
+---
+ Documentation/devicetree/bindings/iommu/arm,smmu.yaml | 10 ++--------
+ 1 file changed, 2 insertions(+), 8 deletions(-)
+
+diff --git a/Documentation/devicetree/bindings/iommu/arm,smmu.yaml b/Documentation/devicetree/bindings/iommu/arm,smmu.yaml
+index 93c6a4ddcf2cc..807cb511fe186 100644
+--- a/Documentation/devicetree/bindings/iommu/arm,smmu.yaml
++++ b/Documentation/devicetree/bindings/iommu/arm,smmu.yaml
+@@ -43,6 +43,8 @@ properties:
+               - qcom,sc8280xp-smmu-500
+               - qcom,sdm670-smmu-500
+               - qcom,sdm845-smmu-500
++              - qcom,sdx55-smmu-500
++              - qcom,sdx65-smmu-500
+               - qcom,sm6115-smmu-500
+               - qcom,sm6125-smmu-500
+               - qcom,sm6350-smmu-500
+@@ -54,14 +56,6 @@ properties:
+           - const: qcom,smmu-500
+           - const: arm,mmu-500
+ 
+-      - description: Qcom SoCs implementing "arm,mmu-500" (non-qcom implementation)
+-        deprecated: true
+-        items:
+-          - enum:
+-              - qcom,sdx55-smmu-500
+-              - qcom,sdx65-smmu-500
+-          - const: arm,mmu-500
+-
+       - description: Qcom SoCs implementing "arm,mmu-500" (legacy binding)
+         deprecated: true
+         items:
+-- 
+cgit 
+

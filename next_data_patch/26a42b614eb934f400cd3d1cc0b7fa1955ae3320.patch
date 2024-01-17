@@ -1,0 +1,32 @@
+From 26a42b614eb934f400cd3d1cc0b7fa1955ae3320 Mon Sep 17 00:00:00 2001
+From: Christoph Hellwig <hch@lst.de>
+Date: Sun, 16 Apr 2023 09:35:53 +0200
+Subject: blk-mq: fix the blk_mq_add_to_requeue_list call in blk_kick_flush
+
+Commit b12e5c6c755a accidentally changes blk_kick_flush to do a head
+insert into the requeue list, fix this up.
+
+Fixes: b12e5c6c755a ("blk-mq: pass a flags argument to blk_mq_add_to_requeue_list")
+Signed-off-by: Christoph Hellwig <hch@lst.de>
+Link: https://lore.kernel.org/r/20230416073553.966161-1-hch@lst.de
+Signed-off-by: Jens Axboe <axboe@kernel.dk>
+---
+ block/blk-flush.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/block/blk-flush.c b/block/blk-flush.c
+index 00dd2f61312d8..04698ed9bcd4a 100644
+--- a/block/blk-flush.c
++++ b/block/blk-flush.c
+@@ -346,7 +346,7 @@ static void blk_kick_flush(struct request_queue *q, struct blk_flush_queue *fq,
+ 	smp_wmb();
+ 	req_ref_set(flush_rq, 1);
+ 
+-	blk_mq_add_to_requeue_list(flush_rq, BLK_MQ_INSERT_AT_HEAD);
++	blk_mq_add_to_requeue_list(flush_rq, 0);
+ 	blk_mq_kick_requeue_list(q);
+ }
+ 
+-- 
+cgit 
+

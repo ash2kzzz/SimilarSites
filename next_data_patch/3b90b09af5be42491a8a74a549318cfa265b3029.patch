@@ -1,0 +1,59 @@
+From 3b90b09af5be42491a8a74a549318cfa265b3029 Mon Sep 17 00:00:00 2001
+From: Alexandre Ghiti <alexghiti@rivosinc.com>
+Date: Thu, 4 May 2023 14:07:59 +0200
+Subject: riscv: Fix orphan section warnings caused by kernel/pi
+
+kernel/pi gives rise to a lot of new sections that end up orphans: the
+first attempt to fix that tried to enumerate them all in the linker
+script, but kernel test robot with a random config keeps finding more of
+them.
+
+So prefix all those sections with .init.pi instead of only .init in
+order to be able to easily catch them all in the linker script.
+
+Reported-by: kernel test robot <lkp@intel.com>
+Link: https://lore.kernel.org/oe-kbuild-all/202304301606.Cgp113Ha-lkp@intel.com/
+Fixes: 26e7aacb83df ("riscv: Allow to downgrade paging mode from the command line")
+Signed-off-by: Alexandre Ghiti <alexghiti@rivosinc.com>
+Link: https://lore.kernel.org/r/20230504120759.18730-1-alexghiti@rivosinc.com
+Cc: stable@vger.kernel.org
+Signed-off-by: Palmer Dabbelt <palmer@rivosinc.com>
+---
+ arch/riscv/kernel/pi/Makefile   | 2 +-
+ arch/riscv/kernel/vmlinux.lds.S | 7 ++-----
+ 2 files changed, 3 insertions(+), 6 deletions(-)
+
+diff --git a/arch/riscv/kernel/pi/Makefile b/arch/riscv/kernel/pi/Makefile
+index 5d7cb991f2b86..7b593d44c712a 100644
+--- a/arch/riscv/kernel/pi/Makefile
++++ b/arch/riscv/kernel/pi/Makefile
+@@ -22,7 +22,7 @@ KCOV_INSTRUMENT	:= n
+ 
+ $(obj)/%.pi.o: OBJCOPYFLAGS := --prefix-symbols=__pi_ \
+ 			       --remove-section=.note.gnu.property \
+-			       --prefix-alloc-sections=.init
++			       --prefix-alloc-sections=.init.pi
+ $(obj)/%.pi.o: $(obj)/%.o FORCE
+ 	$(call if_changed,objcopy)
+ 
+diff --git a/arch/riscv/kernel/vmlinux.lds.S b/arch/riscv/kernel/vmlinux.lds.S
+index f03b5697f8e05..e5f9f4677bbfd 100644
+--- a/arch/riscv/kernel/vmlinux.lds.S
++++ b/arch/riscv/kernel/vmlinux.lds.S
+@@ -84,11 +84,8 @@ SECTIONS
+ 	__init_data_begin = .;
+ 	INIT_DATA_SECTION(16)
+ 
+-	/* Those sections result from the compilation of kernel/pi/string.c */
+-	.init.pidata : {
+-		*(.init.srodata.cst8*)
+-		*(.init__bug_table*)
+-		*(.init.sdata*)
++	.init.pi : {
++		*(.init.pi*)
+ 	}
+ 
+ 	.init.bss : {
+-- 
+cgit 
+

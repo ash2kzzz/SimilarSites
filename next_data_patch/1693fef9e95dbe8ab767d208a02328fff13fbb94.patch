@@ -1,0 +1,40 @@
+From 1693fef9e95dbe8ab767d208a02328fff13fbb94 Mon Sep 17 00:00:00 2001
+From: farah kassabri <fkassabri@habana.ai>
+Date: Sun, 8 Jan 2023 17:33:44 +0200
+Subject: habanalabs: bugs fixes in timestamps buff alloc
+
+use argument instead of fixed GFP value for allocation
+in Timestamps buffers alloc function.
+change data type of size to size_t.
+
+Fixes: 9158bf69e74f ("habanalabs: Timestamps buffers registration")
+Signed-off-by: farah kassabri <fkassabri@habana.ai>
+Reviewed-by: Oded Gabbay <ogabbay@kernel.org>
+Signed-off-by: Oded Gabbay <ogabbay@kernel.org>
+---
+ drivers/accel/habanalabs/common/memory.c | 5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/accel/habanalabs/common/memory.c b/drivers/accel/habanalabs/common/memory.c
+index 56283dd874e1c..e6474d38afc49 100644
+--- a/drivers/accel/habanalabs/common/memory.c
++++ b/drivers/accel/habanalabs/common/memory.c
+@@ -2170,12 +2170,13 @@ static int hl_ts_mmap(struct hl_mmap_mem_buf *buf, struct vm_area_struct *vma, v
+ static int hl_ts_alloc_buf(struct hl_mmap_mem_buf *buf, gfp_t gfp, void *args)
+ {
+ 	struct hl_ts_buff *ts_buff = NULL;
+-	u32 size, num_elements;
++	u32 num_elements;
++	size_t size;
+ 	void *p;
+ 
+ 	num_elements = *(u32 *)args;
+ 
+-	ts_buff = kzalloc(sizeof(*ts_buff), GFP_KERNEL);
++	ts_buff = kzalloc(sizeof(*ts_buff), gfp);
+ 	if (!ts_buff)
+ 		return -ENOMEM;
+ 
+-- 
+cgit 
+

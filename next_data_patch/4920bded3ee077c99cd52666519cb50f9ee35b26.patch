@@ -1,0 +1,35 @@
+From 4920bded3ee077c99cd52666519cb50f9ee35b26 Mon Sep 17 00:00:00 2001
+From: Geert Uytterhoeven <geert+renesas@glider.be>
+Date: Tue, 4 Apr 2023 13:59:00 +0200
+Subject: can: CAN_BXCAN should depend on ARCH_STM32
+
+The STMicroelectronics STM32 basic extended CAN Controller (bxCAN) is
+only present on STM32 SoCs.  Hence drop the "|| OF" part from its
+dependency rule, to prevent asking the user about this driver when
+configuring a kernel without STM32 SoC support.
+
+Fixes: f00647d8127be4d3 ("can: bxcan: add support for ST bxCAN controller")
+Signed-off-by: Geert Uytterhoeven <geert+renesas@glider.be>
+Reviewed-by: Simon Horman <simon.horman@corigine.com>
+Link: https://lore.kernel.org/all/40095112efd1b2214e4223109fd9f0c6d0158a2d.1680609318.git.geert+renesas@glider.be
+Signed-off-by: Marc Kleine-Budde <mkl@pengutronix.de>
+---
+ drivers/net/can/Kconfig | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/net/can/Kconfig b/drivers/net/can/Kconfig
+index 3ceccafd701b2..b190007c01bec 100644
+--- a/drivers/net/can/Kconfig
++++ b/drivers/net/can/Kconfig
+@@ -95,7 +95,7 @@ config CAN_AT91
+ 
+ config CAN_BXCAN
+ 	tristate "STM32 Basic Extended CAN (bxCAN) devices"
+-	depends on OF || ARCH_STM32 || COMPILE_TEST
++	depends on ARCH_STM32 || COMPILE_TEST
+ 	depends on HAS_IOMEM
+ 	select CAN_RX_OFFLOAD
+ 	help
+-- 
+cgit 
+

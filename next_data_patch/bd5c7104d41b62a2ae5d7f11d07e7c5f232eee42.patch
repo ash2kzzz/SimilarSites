@@ -1,0 +1,33 @@
+From bd5c7104d41b62a2ae5d7f11d07e7c5f232eee42 Mon Sep 17 00:00:00 2001
+From: Rob Herring <robh@kernel.org>
+Date: Tue, 13 Jun 2023 14:11:04 -0600
+Subject: dt-bindings: i2c: opencores: Add missing type for "regstep"
+
+"regstep" may be deprecated, but it still needs a type.
+
+Fixes: 8ad69f490516 ("dt-bindings: i2c: convert ocores binding to yaml")
+Signed-off-by: Rob Herring <robh@kernel.org>
+Reviewed-by: Andrew Lunn <andrew@lunn.ch>
+Reviewed-by: Peter Korsgaard <peter@korsgaard.com>
+Reviewed-by: Conor Dooley <conor.dooley@microchip.com>
+Acked-by: Andi Shyti <andi.shyti@kernel.org>
+Signed-off-by: Wolfram Sang <wsa@kernel.org>
+---
+ Documentation/devicetree/bindings/i2c/opencores,i2c-ocores.yaml | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/Documentation/devicetree/bindings/i2c/opencores,i2c-ocores.yaml b/Documentation/devicetree/bindings/i2c/opencores,i2c-ocores.yaml
+index 85d9efb743eef..d9ef867290112 100644
+--- a/Documentation/devicetree/bindings/i2c/opencores,i2c-ocores.yaml
++++ b/Documentation/devicetree/bindings/i2c/opencores,i2c-ocores.yaml
+@@ -60,6 +60,7 @@ properties:
+     default: 0
+ 
+   regstep:
++    $ref: /schemas/types.yaml#/definitions/uint32
+     description: |
+       deprecated, use reg-shift above
+     deprecated: true
+-- 
+cgit 
+

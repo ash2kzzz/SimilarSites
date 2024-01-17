@@ -1,0 +1,59 @@
+From 7bb64402a092136fb2fda995b0e0304b43c163c5 Mon Sep 17 00:00:00 2001
+From: Qing Zhang <zhangqing@loongson.cn>
+Date: Thu, 11 Jun 2020 20:56:52 +0800
+Subject: spi: tools: Add macro definitions to fix build errors
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Add SPI_TX_OCTAL and SPI_RX_OCTAL to fix the following build errors:
+
+CC       spidev_test.o
+spidev_test.c: In function ‘transfer’:
+spidev_test.c:131:13: error: ‘SPI_TX_OCTAL’ undeclared (first use in this function)
+  if (mode & SPI_TX_OCTAL)
+             ^
+spidev_test.c:131:13: note: each undeclared identifier is reported only once for each function it appears in
+spidev_test.c:137:13: error: ‘SPI_RX_OCTAL’ undeclared (first use in this function)
+  if (mode & SPI_RX_OCTAL)
+             ^
+spidev_test.c: In function ‘parse_opts’:
+spidev_test.c:290:12: error: ‘SPI_TX_OCTAL’ undeclared (first use in this function)
+    mode |= SPI_TX_OCTAL;
+            ^
+spidev_test.c:308:12: error: ‘SPI_RX_OCTAL’ undeclared (first use in this function)
+    mode |= SPI_RX_OCTAL;
+            ^
+  LD       spidev_test-in.o
+ld: cannot find spidev_test.o: No such file or directory
+
+Additionally, maybe SPI_CS_WORD and SPI_3WIRE_HIZ will be used in the future,
+so add them too.
+
+Fixes: 896fa735084e ("spi: spidev_test: Add support for Octal mode data transfers")
+Signed-off-by: Qing Zhang <zhangqing@loongson.cn>
+Reviewed-by: Geert Uytterhoeven <geert+renesas@glider.be>
+Link: https://lore.kernel.org/r/1591880212-13479-2-git-send-email-zhangqing@loongson.cn
+Signed-off-by: Mark Brown <broonie@kernel.org>
+---
+ include/uapi/linux/spi/spidev.h | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/include/uapi/linux/spi/spidev.h b/include/uapi/linux/spi/spidev.h
+index ee0f2460bff64..9390615d52f0c 100644
+--- a/include/uapi/linux/spi/spidev.h
++++ b/include/uapi/linux/spi/spidev.h
+@@ -48,6 +48,10 @@
+ #define SPI_TX_QUAD		0x200
+ #define SPI_RX_DUAL		0x400
+ #define SPI_RX_QUAD		0x800
++#define SPI_CS_WORD             0x1000
++#define SPI_TX_OCTAL            0x2000
++#define SPI_RX_OCTAL            0x4000
++#define SPI_3WIRE_HIZ           0x8000
+ 
+ /*---------------------------------------------------------------------------*/
+ 
+-- 
+cgit 
+

@@ -1,0 +1,37 @@
+From 08dc107594681040587c23a097cfa678e51f5af2 Mon Sep 17 00:00:00 2001
+From: Andrew Jones <ajones@ventanamicro.com>
+Date: Wed, 26 Apr 2023 16:13:32 +0200
+Subject: RISC-V: hwprobe: There can only be one first
+
+Only capture the first cpu_id in order for the comparison
+below to be of any use.
+
+Fixes: ea3de9ce8aa2 ("RISC-V: Add a syscall for HW probing")
+Signed-off-by: Andrew Jones <ajones@ventanamicro.com>
+Reviewed-by: Conor Dooley <conor.dooley@microchip.com>
+Reviewed-by: Evan Green <evan@rivosinc.com>
+Link: https://lore.kernel.org/r/20230426141333.10063-2-ajones@ventanamicro.com
+Signed-off-by: Palmer Dabbelt <palmer@rivosinc.com>
+---
+ arch/riscv/kernel/sys_riscv.c | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/arch/riscv/kernel/sys_riscv.c b/arch/riscv/kernel/sys_riscv.c
+index 849b4170629dc..c569dac7452ee 100644
+--- a/arch/riscv/kernel/sys_riscv.c
++++ b/arch/riscv/kernel/sys_riscv.c
+@@ -103,8 +103,10 @@ static void hwprobe_arch_id(struct riscv_hwprobe *pair,
+ 			break;
+ 		}
+ 
+-		if (first)
++		if (first) {
+ 			id = cpu_id;
++			first = false;
++		}
+ 
+ 		/*
+ 		 * If there's a mismatch for the given set, return -1 in the
+-- 
+cgit 
+

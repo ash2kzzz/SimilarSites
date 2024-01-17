@@ -1,0 +1,37 @@
+From 02d7bd1efb4280ea1a75ad1eece3f19537f82a19 Mon Sep 17 00:00:00 2001
+From: Kevin Groeneveld <kgroeneveld@lenbrook.com>
+Date: Sat, 10 Dec 2022 15:38:35 -0500
+Subject: clk: imx: pll14xx: fix recalc_rate for negative kdiv
+
+kdiv is a signed 16 bit value in the DEV_CTL1 register. Commit
+53990cf9d5b4 ("clk: imx: pll14xx: consolidate rate calculation") changed
+the kdiv variable from a short int to just int. When the value read from
+the DIV_CTL1 register is assigned directly to an int the sign of the value
+is lost resulting in incorrect results when the value is negative. Adding
+a s16 cast to the register value fixes the issue.
+
+Fixes: 53990cf9d5b4 ("clk: imx: pll14xx: consolidate rate calculation")
+Signed-off-by: Kevin Groeneveld <kgroeneveld@lenbrook.com>
+Link: https://lore.kernel.org/r/20221210203835.9714-1-kgroeneveld@lenbrook.com
+Reviewed-by: Abel Vesa <abel.vesa@linaro.org>
+Signed-off-by: Stephen Boyd <sboyd@kernel.org>
+---
+ drivers/clk/imx/clk-pll14xx.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/clk/imx/clk-pll14xx.c b/drivers/clk/imx/clk-pll14xx.c
+index 828336873a98f..7150c59bbfc95 100644
+--- a/drivers/clk/imx/clk-pll14xx.c
++++ b/drivers/clk/imx/clk-pll14xx.c
+@@ -256,7 +256,7 @@ static unsigned long clk_pll14xx_recalc_rate(struct clk_hw *hw,
+ 
+ 	if (pll->type == PLL_1443X) {
+ 		pll_div_ctl1 = readl_relaxed(pll->base + DIV_CTL1);
+-		kdiv = FIELD_GET(KDIV_MASK, pll_div_ctl1);
++		kdiv = (s16)FIELD_GET(KDIV_MASK, pll_div_ctl1);
+ 	} else {
+ 		kdiv = 0;
+ 	}
+-- 
+cgit 
+

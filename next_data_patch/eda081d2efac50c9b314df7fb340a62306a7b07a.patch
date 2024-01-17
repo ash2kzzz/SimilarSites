@@ -1,0 +1,57 @@
+From eda081d2efac50c9b314df7fb340a62306a7b07a Mon Sep 17 00:00:00 2001
+From: Kristina Martsenko <kristina.martsenko@arm.com>
+Date: Fri, 28 Apr 2023 14:25:46 +0100
+Subject: arm64: cpufeature: Fix pointer auth hwcaps
+
+The pointer auth hwcaps are not getting reported to userspace, as they
+are missing the .matches field. Add the field back.
+
+Fixes: 876e3c8efe79 ("arm64/cpufeature: Pull out helper for CPUID register definitions")
+Signed-off-by: Kristina Martsenko <kristina.martsenko@arm.com>
+Reviewed-by: Mark Brown <broonie@kernel.org>
+Link: https://lore.kernel.org/r/20230428132546.2513834-1-kristina.martsenko@arm.com
+Signed-off-by: Will Deacon <will@kernel.org>
+---
+ arch/arm64/kernel/cpufeature.c | 12 ++++++------
+ 1 file changed, 6 insertions(+), 6 deletions(-)
+
+diff --git a/arch/arm64/kernel/cpufeature.c b/arch/arm64/kernel/cpufeature.c
+index 1bdad599e7696..d26a11f78b9f3 100644
+--- a/arch/arm64/kernel/cpufeature.c
++++ b/arch/arm64/kernel/cpufeature.c
+@@ -2657,26 +2657,26 @@ static const struct arm64_cpu_capabilities arm64_features[] = {
+ #ifdef CONFIG_ARM64_PTR_AUTH
+ static const struct arm64_cpu_capabilities ptr_auth_hwcap_addr_matches[] = {
+ 	{
+-		ARM64_CPUID_FIELDS(ID_AA64ISAR1_EL1, APA, PAuth)
++		HWCAP_CPUID_MATCH(ID_AA64ISAR1_EL1, APA, PAuth)
+ 	},
+ 	{
+-		ARM64_CPUID_FIELDS(ID_AA64ISAR2_EL1, APA3, PAuth)
++		HWCAP_CPUID_MATCH(ID_AA64ISAR2_EL1, APA3, PAuth)
+ 	},
+ 	{
+-		ARM64_CPUID_FIELDS(ID_AA64ISAR1_EL1, API, PAuth)
++		HWCAP_CPUID_MATCH(ID_AA64ISAR1_EL1, API, PAuth)
+ 	},
+ 	{},
+ };
+ 
+ static const struct arm64_cpu_capabilities ptr_auth_hwcap_gen_matches[] = {
+ 	{
+-		ARM64_CPUID_FIELDS(ID_AA64ISAR1_EL1, GPA, IMP)
++		HWCAP_CPUID_MATCH(ID_AA64ISAR1_EL1, GPA, IMP)
+ 	},
+ 	{
+-		ARM64_CPUID_FIELDS(ID_AA64ISAR2_EL1, GPA3, IMP)
++		HWCAP_CPUID_MATCH(ID_AA64ISAR2_EL1, GPA3, IMP)
+ 	},
+ 	{
+-		ARM64_CPUID_FIELDS(ID_AA64ISAR1_EL1, GPI, IMP)
++		HWCAP_CPUID_MATCH(ID_AA64ISAR1_EL1, GPI, IMP)
+ 	},
+ 	{},
+ };
+-- 
+cgit 
+

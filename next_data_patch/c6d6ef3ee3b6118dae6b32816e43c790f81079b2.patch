@@ -1,0 +1,39 @@
+From c6d6ef3ee3b6118dae6b32816e43c790f81079b2 Mon Sep 17 00:00:00 2001
+From: Horatiu Vultur <horatiu.vultur@microchip.com>
+Date: Fri, 14 Apr 2023 10:26:59 +0200
+Subject: net: phy: micrel: Fix PTP_PF_PEROUT for lan8841
+
+If the 1PPS output was enabled and then lan8841 was configured to be a
+follower, then target clock which is used to generate the 1PPS was not
+configure correctly. The problem was that for each adjustments of the
+time, also the nanosecond part of the target clock was changed.
+Therefore the initial nanosecond part of the target clock was changed.
+The issue can be observed if both the leader and the follower are
+generating 1PPS and see that their PPS are not aligned even if the time
+is allined.
+The fix consists of not modifying the nanosecond part of the target
+clock when adjusting the time. In this way the 1PPS get also aligned.
+
+Fixes: e4ed8ba08e3f ("net: phy: micrel: Add support for PTP_PF_PEROUT for lan8841")
+Signed-off-by: Horatiu Vultur <horatiu.vultur@microchip.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ drivers/net/phy/micrel.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/net/phy/micrel.c b/drivers/net/phy/micrel.c
+index 2184b1e859ae0..602e5a46b7968 100644
+--- a/drivers/net/phy/micrel.c
++++ b/drivers/net/phy/micrel.c
+@@ -3761,7 +3761,7 @@ static int lan8841_ptp_update_target(struct kszphy_ptp_priv *ptp_priv,
+ 				     const struct timespec64 *ts)
+ {
+ 	return lan8841_ptp_set_target(ptp_priv, LAN8841_EVENT_A,
+-				      ts->tv_sec + LAN8841_BUFFER_TIME, ts->tv_nsec);
++				      ts->tv_sec + LAN8841_BUFFER_TIME, 0);
+ }
+ 
+ #define LAN8841_PTP_LTC_TARGET_RELOAD_SEC_HI(event)	((event) == LAN8841_EVENT_A ? 282 : 292)
+-- 
+cgit 
+

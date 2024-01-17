@@ -1,0 +1,39 @@
+From 52e8c38001d8ef0ca07ef428e480cd4a35e46abf Mon Sep 17 00:00:00 2001
+From: Tyler Hicks <tyhicks@canonical.com>
+Date: Thu, 17 May 2018 19:53:45 +0000
+Subject: apparmor: Fix memory leak of rule on error exit path
+
+Currently on the error exit path the allocated rule is not free'd
+causing a memory leak. Fix this by calling aa_audit_rule_free().
+
+Detected by CoverityScan, CID#1468966 ("Resource leaks")
+
+Fixes: cb740f574c7b ("apparmor: modify audit rule support to support profile stacks")
+Signed-off-by: Tyler Hicks <tyhicks@canonical.com>
+Signed-off-by: John Johansen <john.johansen@canonical.com>
+---
+ security/apparmor/audit.c | 6 ++++--
+ 1 file changed, 4 insertions(+), 2 deletions(-)
+
+diff --git a/security/apparmor/audit.c b/security/apparmor/audit.c
+index 575f3e9c8c80a..eeaddfe0c0fb9 100644
+--- a/security/apparmor/audit.c
++++ b/security/apparmor/audit.c
+@@ -200,10 +200,12 @@ int aa_audit_rule_init(u32 field, u32 op, char *rulestr, void **vrule)
+ 	/* Currently rules are treated as coming from the root ns */
+ 	rule->label = aa_label_parse(&root_ns->unconfined->label, rulestr,
+ 				     GFP_KERNEL, true, false);
+-	if (IS_ERR(rule->label))
++	if (IS_ERR(rule->label)) {
++		aa_audit_rule_free(rule);
+ 		return PTR_ERR(rule->label);
+-	*vrule = rule;
++	}
+ 
++	*vrule = rule;
+ 	return 0;
+ }
+ 
+-- 
+cgit 
+

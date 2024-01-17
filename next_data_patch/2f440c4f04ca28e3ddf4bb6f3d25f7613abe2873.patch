@@ -1,0 +1,31 @@
+From 2f440c4f04ca28e3ddf4bb6f3d25f7613abe2873 Mon Sep 17 00:00:00 2001
+From: Marek Vasut <marex@denx.de>
+Date: Fri, 16 Dec 2022 01:05:52 +0100
+Subject: arm64: dts: imx8mm: Reinstate GPIO watchdog always-running property
+ on eDM SBC
+
+The GPIO watchdog property name is 'always-running', not 'always-enabled'.
+Use the correct property name and reinstate it into the DT.
+
+Fixes: eff6b33c9ce9 ("arm64: dts: imx8mm: Remove watchdog always-enabled property from eDM SBC")
+Signed-off-by: Marek Vasut <marex@denx.de>
+Signed-off-by: Shawn Guo <shawnguo@kernel.org>
+---
+ arch/arm64/boot/dts/freescale/imx8mm-data-modul-edm-sbc.dts | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/arch/arm64/boot/dts/freescale/imx8mm-data-modul-edm-sbc.dts b/arch/arm64/boot/dts/freescale/imx8mm-data-modul-edm-sbc.dts
+index 752f409a30b16..9889319d4f045 100644
+--- a/arch/arm64/boot/dts/freescale/imx8mm-data-modul-edm-sbc.dts
++++ b/arch/arm64/boot/dts/freescale/imx8mm-data-modul-edm-sbc.dts
+@@ -88,6 +88,7 @@
+ 		pinctrl-names = "default";
+ 		pinctrl-0 = <&pinctrl_watchdog_gpio>;
+ 		compatible = "linux,wdt-gpio";
++		always-running;
+ 		gpios = <&gpio1 8 GPIO_ACTIVE_HIGH>;
+ 		hw_algo = "level";
+ 		/* Reset triggers in 2..3 seconds */
+-- 
+cgit 
+

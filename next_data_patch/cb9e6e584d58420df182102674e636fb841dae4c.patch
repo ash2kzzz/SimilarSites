@@ -1,0 +1,119 @@
+From cb9e6e584d58420df182102674e636fb841dae4c Mon Sep 17 00:00:00 2001
+From: Lorenzo Bianconi <lorenzo@kernel.org>
+Date: Thu, 4 May 2023 11:52:49 +0200
+Subject: bonding: add xdp_features support
+
+Introduce xdp_features support for bonding driver according to the slave
+devices attached to the master one. xdp_features is required whenever we
+want to xdp_redirect traffic into a bond device and then into selected
+slaves attached to it.
+
+Reviewed-by: Simon Horman <simon.horman@corigine.com>
+Acked-by: Jay Vosburgh <jay.vosburgh@canonical.com>
+Fixes: 66c0e13ad236 ("drivers: net: turn on XDP features")
+Signed-off-by: Lorenzo Bianconi <lorenzo@kernel.org>
+Reviewed-by: Jussi Maki <joamaki@gmail.com>
+Tested-by: Jussi Maki <joamaki@gmail.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ drivers/net/bonding/bond_main.c    | 29 +++++++++++++++++++++++++++++
+ drivers/net/bonding/bond_options.c |  2 ++
+ include/net/bonding.h              |  1 +
+ 3 files changed, 32 insertions(+)
+
+diff --git a/drivers/net/bonding/bond_main.c b/drivers/net/bonding/bond_main.c
+index 710548dbd0c1d..3fed888629f7b 100644
+--- a/drivers/net/bonding/bond_main.c
++++ b/drivers/net/bonding/bond_main.c
+@@ -1789,6 +1789,26 @@ static void bond_ether_setup(struct net_device *bond_dev)
+ 	bond_dev->priv_flags &= ~IFF_TX_SKB_SHARING;
+ }
+ 
++void bond_xdp_set_features(struct net_device *bond_dev)
++{
++	struct bonding *bond = netdev_priv(bond_dev);
++	xdp_features_t val = NETDEV_XDP_ACT_MASK;
++	struct list_head *iter;
++	struct slave *slave;
++
++	ASSERT_RTNL();
++
++	if (!bond_xdp_check(bond)) {
++		xdp_clear_features_flag(bond_dev);
++		return;
++	}
++
++	bond_for_each_slave(bond, slave, iter)
++		val &= slave->dev->xdp_features;
++
++	xdp_set_features_flag(bond_dev, val);
++}
++
+ /* enslave device <slave> to bond device <master> */
+ int bond_enslave(struct net_device *bond_dev, struct net_device *slave_dev,
+ 		 struct netlink_ext_ack *extack)
+@@ -2236,6 +2256,8 @@ int bond_enslave(struct net_device *bond_dev, struct net_device *slave_dev,
+ 			bpf_prog_inc(bond->xdp_prog);
+ 	}
+ 
++	bond_xdp_set_features(bond_dev);
++
+ 	slave_info(bond_dev, slave_dev, "Enslaving as %s interface with %s link\n",
+ 		   bond_is_active_slave(new_slave) ? "an active" : "a backup",
+ 		   new_slave->link != BOND_LINK_DOWN ? "an up" : "a down");
+@@ -2483,6 +2505,7 @@ static int __bond_release_one(struct net_device *bond_dev,
+ 	if (!netif_is_bond_master(slave_dev))
+ 		slave_dev->priv_flags &= ~IFF_BONDING;
+ 
++	bond_xdp_set_features(bond_dev);
+ 	kobject_put(&slave->kobj);
+ 
+ 	return 0;
+@@ -3930,6 +3953,9 @@ static int bond_slave_netdev_event(unsigned long event,
+ 		/* Propagate to master device */
+ 		call_netdevice_notifiers(event, slave->bond->dev);
+ 		break;
++	case NETDEV_XDP_FEAT_CHANGE:
++		bond_xdp_set_features(bond_dev);
++		break;
+ 	default:
+ 		break;
+ 	}
+@@ -5874,6 +5900,9 @@ void bond_setup(struct net_device *bond_dev)
+ 	if (BOND_MODE(bond) == BOND_MODE_ACTIVEBACKUP)
+ 		bond_dev->features |= BOND_XFRM_FEATURES;
+ #endif /* CONFIG_XFRM_OFFLOAD */
++
++	if (bond_xdp_check(bond))
++		bond_dev->xdp_features = NETDEV_XDP_ACT_MASK;
+ }
+ 
+ /* Destroy a bonding device.
+diff --git a/drivers/net/bonding/bond_options.c b/drivers/net/bonding/bond_options.c
+index f71d5517f8293..0498fc6731f89 100644
+--- a/drivers/net/bonding/bond_options.c
++++ b/drivers/net/bonding/bond_options.c
+@@ -877,6 +877,8 @@ static int bond_option_mode_set(struct bonding *bond,
+ 			netdev_update_features(bond->dev);
+ 	}
+ 
++	bond_xdp_set_features(bond->dev);
++
+ 	return 0;
+ }
+ 
+diff --git a/include/net/bonding.h b/include/net/bonding.h
+index c3843239517d5..a60a24923b559 100644
+--- a/include/net/bonding.h
++++ b/include/net/bonding.h
+@@ -659,6 +659,7 @@ void bond_destroy_sysfs(struct bond_net *net);
+ void bond_prepare_sysfs_group(struct bonding *bond);
+ int bond_sysfs_slave_add(struct slave *slave);
+ void bond_sysfs_slave_del(struct slave *slave);
++void bond_xdp_set_features(struct net_device *bond_dev);
+ int bond_enslave(struct net_device *bond_dev, struct net_device *slave_dev,
+ 		 struct netlink_ext_ack *extack);
+ int bond_release(struct net_device *bond_dev, struct net_device *slave_dev);
+-- 
+cgit 
+

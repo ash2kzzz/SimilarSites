@@ -1,0 +1,49 @@
+From f3c3762178fad5cf5dc108fb061ba010818323b4 Mon Sep 17 00:00:00 2001
+From: Catalin Marinas <catalin.marinas@arm.com>
+Date: Fri, 19 May 2023 18:14:40 +0100
+Subject: arm64: Remove the ARCH_FORCE_MAX_ORDER config input prompt
+
+Commit 34affcd7577a ("arm64: drop ranges in definition of
+ARCH_FORCE_MAX_ORDER") dropped the ranges from the config entry and
+introduced an EXPERT condition on the input prompt instead.
+
+However, starting with defconfig (ARCH_FORCE_MAX_ORDER of 10) and
+setting ARM64_64K_PAGES together with EXPERT leaves MAX_ORDER 10 which
+fails to build in this configuration.
+
+Drop the input prompt for ARCH_FORCE_MAX_ORDER completely so that it's
+no longer configurable. People requiring a higher MAX_ORDER should send
+a patch changing the default, together with proper justification.
+
+Fixes: 34affcd7577a ("arm64: drop ranges in definition of ARCH_FORCE_MAX_ORDER")
+Signed-off-by: Catalin Marinas <catalin.marinas@arm.com>
+Reported-by: Marc Zyngier <maz@kernel.org>
+Cc: Will Deacon <will@kernel.org>
+Cc: Mike Rapoport <rppt@kernel.org>
+Cc: Andrew Morton <akpm@linux-foundation.org>
+Cc: Justin M. Forbes <jforbes@fedoraproject.org>
+Reviewed-by: Anshuman Khandual <anshuman.khandual@arm.com>
+Acked-by: Marc Zyngier <maz@kernel.org>
+Acked-by: Mike Rapoport (IBM) <rppt@kernel.org>
+Link: https://lore.kernel.org/r/20230519171440.1941213-1-catalin.marinas@arm.com
+Signed-off-by: Will Deacon <will@kernel.org>
+---
+ arch/arm64/Kconfig | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/arch/arm64/Kconfig b/arch/arm64/Kconfig
+index b1201d25a8a4e..343e1e1cae10a 100644
+--- a/arch/arm64/Kconfig
++++ b/arch/arm64/Kconfig
+@@ -1516,7 +1516,7 @@ config XEN
+ # 16K |       27          |      14      |       13        |         11         |
+ # 64K |       29          |      16      |       13        |         13         |
+ config ARCH_FORCE_MAX_ORDER
+-	int "Order of maximal physically contiguous allocations" if EXPERT && (ARM64_4K_PAGES || ARM64_16K_PAGES)
++	int
+ 	default "13" if ARM64_64K_PAGES
+ 	default "11" if ARM64_16K_PAGES
+ 	default "10"
+-- 
+cgit 
+

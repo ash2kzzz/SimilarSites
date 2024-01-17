@@ -1,0 +1,29 @@
+From b409ea4534204d4e6da3017d8713ce338f44b489 Mon Sep 17 00:00:00 2001
+From: Masahiro Yamada <masahiroy@kernel.org>
+Date: Sun, 8 Jan 2023 21:35:57 +0900
+Subject: init/version-timestamp.c: remove unneeded #include <linux/version.h>
+
+The kbuild test robot detected this by 'make versioncheck'.
+
+Fixes: 2df8220cc511 ("kbuild: build init/built-in.a just once")
+Reported-by: kernel test robot <lkp@intel.com>
+Signed-off-by: Masahiro Yamada <masahiroy@kernel.org>
+---
+ init/version-timestamp.c | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/init/version-timestamp.c b/init/version-timestamp.c
+index 179e93bae5390..043cbf80a766d 100644
+--- a/init/version-timestamp.c
++++ b/init/version-timestamp.c
+@@ -2,7 +2,6 @@
+ 
+ #include <generated/compile.h>
+ #include <generated/utsrelease.h>
+-#include <linux/version.h>
+ #include <linux/proc_ns.h>
+ #include <linux/refcount.h>
+ #include <linux/uts.h>
+-- 
+cgit 
+

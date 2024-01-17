@@ -1,0 +1,46 @@
+From 0da2eff44e78ded247fe35d8a3f73508263d0948 Mon Sep 17 00:00:00 2001
+From: Manivannan Sadhasivam <manivannan.sadhasivam@linaro.org>
+Date: Wed, 11 Jan 2023 18:00:04 +0530
+Subject: arm64: dts: qcom: sm8450: Allow both GIC-ITS and internal MSI
+ controller
+
+The devicetree should specify both MSI implementations and the OS/driver
+should choose the one based on the platform requirements. Currently, Linux
+DWC driver will choose GIC-ITS over the internal MSI controller.
+
+Fixes: a11bbf6adef4 ("arm64: dts: qcom: sm8450: Use GIC-ITS for PCIe0 and PCIe1")
+Suggested-by: Rob Herring <robh@kernel.org>
+Signed-off-by: Manivannan Sadhasivam <manivannan.sadhasivam@linaro.org>
+Signed-off-by: Bjorn Andersson <andersson@kernel.org>
+Link: https://lore.kernel.org/r/20230111123004.21048-2-manivannan.sadhasivam@linaro.org
+---
+ arch/arm64/boot/dts/qcom/sm8450.dtsi | 6 ++++++
+ 1 file changed, 6 insertions(+)
+
+diff --git a/arch/arm64/boot/dts/qcom/sm8450.dtsi b/arch/arm64/boot/dts/qcom/sm8450.dtsi
+index f7b8674a06a16..d66dcd8fe61fa 100644
+--- a/arch/arm64/boot/dts/qcom/sm8450.dtsi
++++ b/arch/arm64/boot/dts/qcom/sm8450.dtsi
+@@ -1760,6 +1760,9 @@
+ 			msi-map = <0x0 &gic_its 0x5981 0x1>,
+ 				  <0x100 &gic_its 0x5980 0x1>;
+ 			msi-map-mask = <0xff00>;
++			interrupts = <GIC_SPI 141 IRQ_TYPE_LEVEL_HIGH>;
++			interrupt-names = "msi";
++			#interrupt-cells = <1>;
+ 			interrupt-map-mask = <0 0 0 0x7>;
+ 			interrupt-map = <0 0 0 1 &intc 0 0 0 149 IRQ_TYPE_LEVEL_HIGH>, /* int_a */
+ 					<0 0 0 2 &intc 0 0 0 150 IRQ_TYPE_LEVEL_HIGH>, /* int_b */
+@@ -1873,6 +1876,9 @@
+ 			msi-map = <0x0 &gic_its 0x5a01 0x1>,
+ 				  <0x100 &gic_its 0x5a00 0x1>;
+ 			msi-map-mask = <0xff00>;
++			interrupts = <GIC_SPI 307 IRQ_TYPE_LEVEL_HIGH>;
++			interrupt-names = "msi";
++			#interrupt-cells = <1>;
+ 			interrupt-map-mask = <0 0 0 0x7>;
+ 			interrupt-map = <0 0 0 1 &intc 0 0 0 434 IRQ_TYPE_LEVEL_HIGH>, /* int_a */
+ 					<0 0 0 2 &intc 0 0 0 435 IRQ_TYPE_LEVEL_HIGH>, /* int_b */
+-- 
+cgit 
+

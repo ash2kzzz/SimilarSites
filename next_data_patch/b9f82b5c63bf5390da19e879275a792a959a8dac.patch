@@ -1,0 +1,64 @@
+From b9f82b5c63bf5390da19e879275a792a959a8dac Mon Sep 17 00:00:00 2001
+From: Namhyung Kim <namhyung@kernel.org>
+Date: Thu, 27 Apr 2023 16:48:33 -0700
+Subject: perf lock contention: Rework offset calculation with BPF CO-RE
+
+It seems BPF CO-RE reloc doesn't work well with the pattern that gets
+the field-offset only.  Use offsetof() to make it explicit so that
+the compiler would generate the correct code.
+
+Fixes: 0c1228486befa3d6 ("perf lock contention: Support pre-5.14 kernels")
+Signed-off-by: Namhyung Kim <namhyung@kernel.org>
+Acked-by: Ian Rogers <irogers@google.com>
+Cc: Adrian Hunter <adrian.hunter@intel.com>
+Cc: Andrii Nakryiko <andrii@kernel.org>
+Cc: Hao Luo <haoluo@google.com>
+Cc: Ian Rogers <irogers@google.com>
+Cc: Ingo Molnar <mingo@kernel.org>
+Cc: Jiri Olsa <jolsa@kernel.org>
+Cc: Peter Zijlstra <peterz@infradead.org>
+Cc: Song Liu <song@kernel.org>
+Cc: bpf@vger.kernel.org
+Co-developed-by: Andrii Nakryiko <andrii.nakryiko@gmail.com>
+Link: https://lore.kernel.org/r/20230427234833.1576130-2-namhyung@kernel.org
+Signed-off-by: Arnaldo Carvalho de Melo <acme@redhat.com>
+---
+ tools/perf/util/bpf_skel/lock_contention.bpf.c | 14 +++++++-------
+ 1 file changed, 7 insertions(+), 7 deletions(-)
+
+diff --git a/tools/perf/util/bpf_skel/lock_contention.bpf.c b/tools/perf/util/bpf_skel/lock_contention.bpf.c
+index 30c193078bdb8..8d3cfbb3cc65b 100644
+--- a/tools/perf/util/bpf_skel/lock_contention.bpf.c
++++ b/tools/perf/util/bpf_skel/lock_contention.bpf.c
+@@ -429,21 +429,21 @@ struct rq___new {
+ SEC("raw_tp/bpf_test_finish")
+ int BPF_PROG(collect_lock_syms)
+ {
+-	__u64 lock_addr;
++	__u64 lock_addr, lock_off;
+ 	__u32 lock_flag;
+ 
++	if (bpf_core_field_exists(struct rq___new, __lock))
++		lock_off = offsetof(struct rq___new, __lock);
++	else
++		lock_off = offsetof(struct rq___old, lock);
++
+ 	for (int i = 0; i < MAX_CPUS; i++) {
+ 		struct rq *rq = bpf_per_cpu_ptr(&runqueues, i);
+-		struct rq___new *rq_new = (void *)rq;
+-		struct rq___old *rq_old = (void *)rq;
+ 
+ 		if (rq == NULL)
+ 			break;
+ 
+-		if (bpf_core_field_exists(rq_new->__lock))
+-			lock_addr = (__u64)&rq_new->__lock;
+-		else
+-			lock_addr = (__u64)&rq_old->lock;
++		lock_addr = (__u64)(void *)rq + lock_off;
+ 		lock_flag = LOCK_CLASS_RQLOCK;
+ 		bpf_map_update_elem(&lock_syms, &lock_addr, &lock_flag, BPF_ANY);
+ 	}
+-- 
+cgit 
+

@@ -1,0 +1,38 @@
+From 5efb648042a1c3d1734e69ebbae2fe9477f4fc4d Mon Sep 17 00:00:00 2001
+From: Jonathan Neuschäfer <j.neuschaefer@gmx.net>
+Date: Wed, 1 Feb 2023 15:11:58 +1030
+Subject: ARM: dts: wpcm450: Add nuvoton,shm = <&shm> to FIU node
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+The Flash Interface Unit (FIU) should have a reference to the Shared
+Memory controller (SHM) so that flash access from the host (x86 computer
+managed by the WPCM450 BMC) can be blocked during flash access by the
+FIU driver.
+
+Fixes: 38abcb0d68767 ("ARM: dts: wpcm450: Add FIU SPI controller node")
+Signed-off-by: Jonathan Neuschäfer <j.neuschaefer@gmx.net>
+Link: https://lore.kernel.org/r/20230129112611.1176517-1-j.neuschaefer@gmx.net
+Signed-off-by: Joel Stanley <joel@jms.id.au>
+Link: https://lore.kernel.org/r/20230201044158.962417-1-joel@jms.id.au
+Signed-off-by: Arnd Bergmann <arnd@arndb.de>
+---
+ arch/arm/boot/dts/nuvoton-wpcm450.dtsi | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/arch/arm/boot/dts/nuvoton-wpcm450.dtsi b/arch/arm/boot/dts/nuvoton-wpcm450.dtsi
+index b637241316bb4..fd671c7a1e5d6 100644
+--- a/arch/arm/boot/dts/nuvoton-wpcm450.dtsi
++++ b/arch/arm/boot/dts/nuvoton-wpcm450.dtsi
+@@ -480,6 +480,7 @@
+ 			reg = <0xc8000000 0x1000>, <0xc0000000 0x4000000>;
+ 			reg-names = "control", "memory";
+ 			clocks = <&clk 0>;
++			nuvoton,shm = <&shm>;
+ 			status = "disabled";
+ 		};
+ 
+-- 
+cgit 
+

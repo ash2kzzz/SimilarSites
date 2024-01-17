@@ -1,0 +1,105 @@
+From f89fb55714b620ff1352141a9f9315611f16573e Mon Sep 17 00:00:00 2001
+From: Ian Rogers <irogers@google.com>
+Date: Mon, 2 Jan 2023 23:09:16 -0800
+Subject: perf build: Don't propagate subdir to submakes for install_headers
+
+subdir is added to the OUTPUT which fails as part of building
+install_headers when passed from "make -C tools perf_install".
+
+Committer testing:
+
+The original reporter (see the Link: below) had trouble with this:
+
+$ make -C tools perf_install
+
+That ended up with errors like this:
+
+  /var/home/acme/git/perf-urgent/tools/scripts/Makefile.include:17: *** output directory "/var/home/acme/git/perf-urgent/tools/perf/libperf/perf/" does not exist.  Stop.
+
+With this patch applied we now get it installed at:
+
+  INSTALL /var/home/acme/git/perf-urgent/tools/perf/libperf/include/perf/bpf_perf.h
+
+As expected:
+
+  $ ls -la /var/home/acme/git/perf-urgent/tools/perf/libperf/include/perf/bpf_perf.h
+  -rw-r--r--. 1 acme acme 1146 Jan  3 15:42 /var/home/acme/git/perf-urgent/tools/perf/libperf/include/perf/bpf_perf.h
+
+And if we clean tools with:
+
+  $ make -C tools clean
+
+it gets cleaned up:
+
+  $ ls -la /var/home/acme/git/perf-urgent/tools/perf/libperf/include/perf/bpf_perf.h
+  ls: cannot access '/var/home/acme/git/perf-urgent/tools/perf/libperf/include/perf/bpf_perf.h': No such file or directory
+  $
+
+Fixes: 746bd29e348f99b4 ("perf build: Use tools/lib headers from install path")
+Reported-by: Torsten Hilbrich <torsten.hilbrich@secunet.com>
+Signed-off-by: Ian Rogers <irogers@google.com>
+Tested-by: Arnaldo Carvalho de Melo <acme@redhat.com>
+Cc: Alexander Shishkin <alexander.shishkin@linux.intel.com>
+Cc: Ingo Molnar <mingo@redhat.com>
+Cc: Jiri Olsa <jolsa@kernel.org>
+Cc: Mark Rutland <mark.rutland@arm.com>
+Cc: Namhyung Kim <namhyung@kernel.org>
+Cc: Peter Zijlstra <peterz@infradead.org>
+Link: https://lore.kernel.org/r/fa4b3115-d555-3d7f-54d1-018002e99350@secunet.com
+Signed-off-by: Arnaldo Carvalho de Melo <acme@redhat.com>
+---
+ tools/perf/Makefile.perf | 10 +++++-----
+ 1 file changed, 5 insertions(+), 5 deletions(-)
+
+diff --git a/tools/perf/Makefile.perf b/tools/perf/Makefile.perf
+index 13e7d26e77f04..1e32c93b80429 100644
+--- a/tools/perf/Makefile.perf
++++ b/tools/perf/Makefile.perf
+@@ -819,7 +819,7 @@ $(patsubst perf-%,%.o,$(PROGRAMS)): $(wildcard */*.h)
+ 
+ $(LIBAPI): FORCE | $(LIBAPI_OUTPUT)
+ 	$(Q)$(MAKE) -C $(LIBAPI_DIR) O=$(LIBAPI_OUTPUT) \
+-		DESTDIR=$(LIBAPI_DESTDIR) prefix= \
++		DESTDIR=$(LIBAPI_DESTDIR) prefix= subdir= \
+ 		$@ install_headers
+ 
+ $(LIBAPI)-clean:
+@@ -828,7 +828,7 @@ $(LIBAPI)-clean:
+ 
+ $(LIBBPF): FORCE | $(LIBBPF_OUTPUT)
+ 	$(Q)$(MAKE) -C $(LIBBPF_DIR) FEATURES_DUMP=$(FEATURE_DUMP_EXPORT) \
+-		O= OUTPUT=$(LIBBPF_OUTPUT)/ DESTDIR=$(LIBBPF_DESTDIR) prefix= \
++		O= OUTPUT=$(LIBBPF_OUTPUT)/ DESTDIR=$(LIBBPF_DESTDIR) prefix= subdir= \
+ 		$@ install_headers
+ 
+ $(LIBBPF)-clean:
+@@ -837,7 +837,7 @@ $(LIBBPF)-clean:
+ 
+ $(LIBPERF): FORCE | $(LIBPERF_OUTPUT)
+ 	$(Q)$(MAKE) -C $(LIBPERF_DIR) O=$(LIBPERF_OUTPUT) \
+-		DESTDIR=$(LIBPERF_DESTDIR) prefix= \
++		DESTDIR=$(LIBPERF_DESTDIR) prefix= subdir= \
+ 		$@ install_headers
+ 
+ $(LIBPERF)-clean:
+@@ -846,7 +846,7 @@ $(LIBPERF)-clean:
+ 
+ $(LIBSUBCMD): FORCE | $(LIBSUBCMD_OUTPUT)
+ 	$(Q)$(MAKE) -C $(LIBSUBCMD_DIR) O=$(LIBSUBCMD_OUTPUT) \
+-		DESTDIR=$(LIBSUBCMD_DESTDIR) prefix= \
++		DESTDIR=$(LIBSUBCMD_DESTDIR) prefix= subdir= \
+ 		$@ install_headers
+ 
+ $(LIBSUBCMD)-clean:
+@@ -855,7 +855,7 @@ $(LIBSUBCMD)-clean:
+ 
+ $(LIBSYMBOL): FORCE | $(LIBSYMBOL_OUTPUT)
+ 	$(Q)$(MAKE) -C $(LIBSYMBOL_DIR) O=$(LIBSYMBOL_OUTPUT) \
+-		DESTDIR=$(LIBSYMBOL_DESTDIR) prefix= \
++		DESTDIR=$(LIBSYMBOL_DESTDIR) prefix= subdir= \
+ 		$@ install_headers
+ 
+ $(LIBSYMBOL)-clean:
+-- 
+cgit 
+

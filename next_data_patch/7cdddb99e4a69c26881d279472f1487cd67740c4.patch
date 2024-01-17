@@ -1,0 +1,77 @@
+From 7cdddb99e4a69c26881d279472f1487cd67740c4 Mon Sep 17 00:00:00 2001
+From: Eduard Zingerman <eddyz87@gmail.com>
+Date: Fri, 21 Apr 2023 02:23:15 +0300
+Subject: selftests/bpf: fix __retval() being always ignored
+
+Florian Westphal found a bug in and suggested a fix for test_loader.c
+processing of __retval tag. Because of this bug the function
+test_loader.c:do_prog_test_run() never executed and all __retval test
+tags were ignored.
+
+If this bug is fixed a number of test cases from
+progs/verifier_array_access.c fail with retval not matching the
+expected value. This test was recently converted to use test_loader.c
+and inline assembly in [1]. When doing the conversion I missed the
+important detail of test_verifier.c operation: when it creates
+fixup_map_array_ro, fixup_map_array_wo and fixup_map_array_small it
+populates these maps with a dummy record.
+
+Disabling the __retval checks for the affected verifier_array_access
+in this commit to avoid false-postivies in any potential bisects.
+The issue is addressed in the next patch.
+
+I verified that the __retval tags are now respected by changing
+expected return values for all tests annotated with __retval, and
+checking that these tests started to fail.
+
+[1] https://lore.kernel.org/bpf/20230325025524.144043-1-eddyz87@gmail.com/
+
+Fixes: 19a8e06f5f91 ("selftests/bpf: Tests execution support for test_loader.c")
+Reported-by: Florian Westphal <fw@strlen.de>
+Link: https://lore.kernel.org/bpf/f4c4aee644425842ee6aa8edf1da68f0a8260e7c.camel@gmail.com/T/
+Signed-off-by: Eduard Zingerman <eddyz87@gmail.com>
+Link: https://lore.kernel.org/r/20230420232317.2181776-3-eddyz87@gmail.com
+Signed-off-by: Alexei Starovoitov <ast@kernel.org>
+---
+ tools/testing/selftests/bpf/progs/verifier_array_access.c | 4 ++--
+ tools/testing/selftests/bpf/test_loader.c                 | 2 +-
+ 2 files changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/tools/testing/selftests/bpf/progs/verifier_array_access.c b/tools/testing/selftests/bpf/progs/verifier_array_access.c
+index 95d7ecc12963b..fceeeef787215 100644
+--- a/tools/testing/selftests/bpf/progs/verifier_array_access.c
++++ b/tools/testing/selftests/bpf/progs/verifier_array_access.c
+@@ -330,7 +330,7 @@ l0_%=:	exit;						\
+ 
+ SEC("socket")
+ __description("valid read map access into a read-only array 1")
+-__success __success_unpriv __retval(28)
++__success __success_unpriv /* __retval(28) temporarily disable */
+ __naked void a_read_only_array_1_1(void)
+ {
+ 	asm volatile ("					\
+@@ -351,7 +351,7 @@ l0_%=:	exit;						\
+ 
+ SEC("tc")
+ __description("valid read map access into a read-only array 2")
+-__success __retval(65507)
++__success /* __retval(65507) temporarily disable */
+ __naked void a_read_only_array_2_1(void)
+ {
+ 	asm volatile ("					\
+diff --git a/tools/testing/selftests/bpf/test_loader.c b/tools/testing/selftests/bpf/test_loader.c
+index 47e9e076bc8f4..e2a1bdc5a5702 100644
+--- a/tools/testing/selftests/bpf/test_loader.c
++++ b/tools/testing/selftests/bpf/test_loader.c
+@@ -587,7 +587,7 @@ void run_subtest(struct test_loader *tester,
+ 		/* For some reason test_verifier executes programs
+ 		 * with all capabilities restored. Do the same here.
+ 		 */
+-		if (!restore_capabilities(&caps))
++		if (restore_capabilities(&caps))
+ 			goto tobj_cleanup;
+ 
+ 		do_prog_test_run(bpf_program__fd(tprog), &retval);
+-- 
+cgit 
+

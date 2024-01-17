@@ -1,0 +1,36 @@
+From b59018c14c1efe36ddc96f3d27308f18e7d1b03e Mon Sep 17 00:00:00 2001
+From: Hans de Goede <hdegoede@redhat.com>
+Date: Thu, 9 Mar 2023 10:40:35 +0100
+Subject: platform/x86: x86-android-tablets: Add depends on PMIC_OPREGION
+
+Add a depends on PMIC_OPREGION to x86-android-tablets Kconfig to fix
+the following build error:
+
+ERROR: modpost: "intel_soc_pmic_exec_mipi_pmic_seq_element"
+ [drivers/platform/x86/x86-android-tablets/x86-android-tablets.ko] undefined!
+
+Fixes: 9b1d2662b8c5 ("platform/x86: x86-android-tablets: Add touchscreen support for Lenovo Yoga Tab 3 Pro YT3-X90F")
+Reported-by: kernel test robot <lkp@intel.com>
+Link: https://lore.kernel.org/oe-kbuild-all/202303091711.howZNrIY-lkp@intel.com/
+Signed-off-by: Hans de Goede <hdegoede@redhat.com>
+Link: https://lore.kernel.org/r/20230309094035.18736-1-hdegoede@redhat.com
+---
+ drivers/platform/x86/x86-android-tablets/Kconfig | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/platform/x86/x86-android-tablets/Kconfig b/drivers/platform/x86/x86-android-tablets/Kconfig
+index 2b3daca5380be..6603461d42730 100644
+--- a/drivers/platform/x86/x86-android-tablets/Kconfig
++++ b/drivers/platform/x86/x86-android-tablets/Kconfig
+@@ -5,7 +5,7 @@
+ 
+ config X86_ANDROID_TABLETS
+ 	tristate "X86 Android tablet support"
+-	depends on I2C && SPI && SERIAL_DEV_BUS && ACPI && EFI && GPIOLIB
++	depends on I2C && SPI && SERIAL_DEV_BUS && ACPI && EFI && GPIOLIB && PMIC_OPREGION
+ 	help
+ 	  X86 tablets which ship with Android as (part of) the factory image
+ 	  typically have various problems with their DSDTs. The factory kernels
+-- 
+cgit 
+

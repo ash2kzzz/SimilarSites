@@ -1,0 +1,43 @@
+From 87b93dd1fbb23b9bbae461bb2c01f6d93c7524d9 Mon Sep 17 00:00:00 2001
+From: Krzysztof Kozlowski <krzysztof.kozlowski@linaro.org>
+Date: Thu, 2 Feb 2023 11:44:44 +0100
+Subject: dt-bindings: pinctrl: qcom,msm8909: correct GPIO name pattern and
+ example
+
+The MSM8909 TLMM pin controller has GPIOs 0-112, so narrow the pattern
+and gpio-ranges in the example.
+
+Fixes: c249ec7ba1b1 ("dt-bindings: pinctrl: Add DT schema for qcom,msm8909-tlmm")
+Reviewed-by: Stephan Gerhold <stephan@gerhold.net>
+Acked-by: Rob Herring <robh@kernel.org>
+Link: https://lore.kernel.org/r/20230202104452.299048-3-krzysztof.kozlowski@linaro.org
+Signed-off-by: Krzysztof Kozlowski <krzysztof.kozlowski@linaro.org>
+---
+ Documentation/devicetree/bindings/pinctrl/qcom,msm8909-tlmm.yaml | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/Documentation/devicetree/bindings/pinctrl/qcom,msm8909-tlmm.yaml b/Documentation/devicetree/bindings/pinctrl/qcom,msm8909-tlmm.yaml
+index 449e6e34be616..85082adc1811f 100644
+--- a/Documentation/devicetree/bindings/pinctrl/qcom,msm8909-tlmm.yaml
++++ b/Documentation/devicetree/bindings/pinctrl/qcom,msm8909-tlmm.yaml
+@@ -63,7 +63,7 @@ $defs:
+           subnode.
+         items:
+           oneOf:
+-            - pattern: "^gpio([0-9]|[1-9][0-9]|10[0-9]|11[0-7])$"
++            - pattern: "^gpio([0-9]|[1-9][0-9]|10[0-9]|11[0-2])$"
+             - enum: [ sdc1_clk, sdc1_cmd, sdc1_data, sdc2_clk, sdc2_cmd,
+                       sdc2_data, qdsd_clk, qdsd_cmd, qdsd_data0, qdsd_data1,
+                       qdsd_data2, qdsd_data3 ]
+@@ -127,7 +127,7 @@ examples:
+         interrupts = <GIC_SPI 208 IRQ_TYPE_LEVEL_HIGH>;
+         gpio-controller;
+         #gpio-cells = <2>;
+-        gpio-ranges = <&tlmm 0 0 117>;
++        gpio-ranges = <&tlmm 0 0 113>;
+         interrupt-controller;
+         #interrupt-cells = <2>;
+ 
+-- 
+cgit 
+

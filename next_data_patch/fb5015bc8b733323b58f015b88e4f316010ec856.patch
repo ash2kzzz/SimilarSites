@@ -1,0 +1,36 @@
+From fb5015bc8b733323b58f015b88e4f316010ec856 Mon Sep 17 00:00:00 2001
+From: Takahiro Itazuri <itazur@amazon.com>
+Date: Fri, 31 Mar 2023 10:31:16 +0100
+Subject: docs: kvm: x86: Fix broken field list
+
+Add a missing ":" to fix a broken field list.
+
+Signed-off-by: Takahiro Itazuri <itazur@amazon.com>
+Fixes: ba7bb663f554 ("KVM: x86: Provide per VM capability for disabling PMU virtualization")
+Message-Id: <20230331093116.99820-1-itazur@amazon.com>
+Signed-off-by: Paolo Bonzini <pbonzini@redhat.com>
+---
+ Documentation/virt/kvm/api.rst | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/Documentation/virt/kvm/api.rst b/Documentation/virt/kvm/api.rst
+index 62de0768d6aa5..a5c803f398323 100644
+--- a/Documentation/virt/kvm/api.rst
++++ b/Documentation/virt/kvm/api.rst
+@@ -8296,11 +8296,11 @@ ENOSYS for the others.
+ 8.35 KVM_CAP_PMU_CAPABILITY
+ ---------------------------
+ 
+-:Capability KVM_CAP_PMU_CAPABILITY
++:Capability: KVM_CAP_PMU_CAPABILITY
+ :Architectures: x86
+ :Type: vm
+ :Parameters: arg[0] is bitmask of PMU virtualization capabilities.
+-:Returns 0 on success, -EINVAL when arg[0] contains invalid bits
++:Returns: 0 on success, -EINVAL when arg[0] contains invalid bits
+ 
+ This capability alters PMU virtualization in KVM.
+ 
+-- 
+cgit 
+

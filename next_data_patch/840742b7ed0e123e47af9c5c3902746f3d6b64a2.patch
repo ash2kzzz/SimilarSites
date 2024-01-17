@@ -1,0 +1,36 @@
+From 840742b7ed0e123e47af9c5c3902746f3d6b64a2 Mon Sep 17 00:00:00 2001
+From: Matthieu Baerts <matthieu.baerts@tessares.net>
+Date: Thu, 9 Mar 2023 15:50:01 +0100
+Subject: selftests: mptcp: userspace pm: fix printed values
+
+In case of errors, the printed message had the expected and the seen
+value inverted.
+
+This patch simply correct the order: first the expected value, then the
+one that has been seen.
+
+Fixes: 10d4273411be ("selftests: mptcp: userspace: print error details if any")
+Cc: stable@vger.kernel.org
+Acked-by: Geliang Tang <geliang.tang@suse.com>
+Signed-off-by: Matthieu Baerts <matthieu.baerts@tessares.net>
+Signed-off-by: Jakub Kicinski <kuba@kernel.org>
+---
+ tools/testing/selftests/net/mptcp/userspace_pm.sh | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/tools/testing/selftests/net/mptcp/userspace_pm.sh b/tools/testing/selftests/net/mptcp/userspace_pm.sh
+index 66c5be25c13d0..48e52f995a98c 100755
+--- a/tools/testing/selftests/net/mptcp/userspace_pm.sh
++++ b/tools/testing/selftests/net/mptcp/userspace_pm.sh
+@@ -240,7 +240,7 @@ check_expected_one()
+ 	fi
+ 
+ 	stdbuf -o0 -e0 printf "\tExpected value for '%s': '%s', got '%s'.\n" \
+-		"${var}" "${!var}" "${!exp}"
++		"${var}" "${!exp}" "${!var}"
+ 	return 1
+ }
+ 
+-- 
+cgit 
+

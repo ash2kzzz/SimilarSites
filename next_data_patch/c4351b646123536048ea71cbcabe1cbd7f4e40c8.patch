@@ -1,0 +1,33 @@
+From c4351b646123536048ea71cbcabe1cbd7f4e40c8 Mon Sep 17 00:00:00 2001
+From: Dan Carpenter <error27@gmail.com>
+Date: Thu, 23 Mar 2023 18:23:56 +0300
+Subject: iio: adc: ti-ads1100: fix error code in probe()
+
+This code has a copy and paste bug so it accidentally returns
+"PTR_ERR(data->reg_vdd)" which is a valid pointer cast to int. It
+should return "ret" instead.
+
+Fixes: 541880542f2b ("iio: adc: Add TI ADS1100 and ADS1000")
+Signed-off-by: Dan Carpenter <error27@gmail.com>
+Link: https://lore.kernel.org/r/36fa2aeb-f392-4793-8b38-ae15514033c8@kili.mountain
+Signed-off-by: Jonathan Cameron <Jonathan.Cameron@huawei.com>
+---
+ drivers/iio/adc/ti-ads1100.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/iio/adc/ti-ads1100.c b/drivers/iio/adc/ti-ads1100.c
+index 6a478efb108b4..6b5aebb824551 100644
+--- a/drivers/iio/adc/ti-ads1100.c
++++ b/drivers/iio/adc/ti-ads1100.c
+@@ -344,7 +344,7 @@ static int ads1100_probe(struct i2c_client *client)
+ 
+ 	ret = regulator_enable(data->reg_vdd);
+ 	if (ret < 0)
+-		return dev_err_probe(dev, PTR_ERR(data->reg_vdd),
++		return dev_err_probe(dev, ret,
+ 				     "Failed to enable vdd regulator\n");
+ 
+ 	ret = devm_add_action_or_reset(dev, ads1100_reg_disable, data->reg_vdd);
+-- 
+cgit 
+

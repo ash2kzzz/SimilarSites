@@ -1,0 +1,59 @@
+From f99f22e02f298083763b78a58cf82903d5e2d272 Mon Sep 17 00:00:00 2001
+From: Arnd Bergmann <arnd@arndb.de>
+Date: Thu, 9 Feb 2023 13:44:17 +0100
+Subject: net: dsa: ocelot: add PTP dependency for NET_DSA_MSCC_OCELOT_EXT
+
+A new user of MSCC_OCELOT_SWITCH_LIB was added, bringing back an old
+link failure that was fixed with e5f31552674e ("ethernet: fix
+PTP_1588_CLOCK dependencies"):
+
+x86_64-linux-ld: drivers/net/ethernet/mscc/ocelot_ptp.o: in function `ocelot_ptp_enable':
+ocelot_ptp.c:(.text+0x8ee): undefined reference to `ptp_find_pin'
+x86_64-linux-ld: drivers/net/ethernet/mscc/ocelot_ptp.o: in function `ocelot_get_ts_info':
+ocelot_ptp.c:(.text+0xd5d): undefined reference to `ptp_clock_index'
+x86_64-linux-ld: drivers/net/ethernet/mscc/ocelot_ptp.o: in function `ocelot_init_timestamp':
+ocelot_ptp.c:(.text+0x15ca): undefined reference to `ptp_clock_register'
+x86_64-linux-ld: drivers/net/ethernet/mscc/ocelot_ptp.o: in function `ocelot_deinit_timestamp':
+ocelot_ptp.c:(.text+0x16b7): undefined reference to `ptp_clock_unregister'
+
+Add the same PTP dependency here, as well as in the MSCC_OCELOT_SWITCH_LIB
+symbol itself to make it more obvious what is going on when the next
+driver selects it.
+
+Fixes: 3d7316ac81ac ("net: dsa: ocelot: add external ocelot switch control")
+Signed-off-by: Arnd Bergmann <arnd@arndb.de>
+Acked-by: Colin Foster <colin.foster@in-advantage.com>
+Link: https://lore.kernel.org/r/20230209124435.1317781-1-arnd@kernel.org
+Signed-off-by: Jakub Kicinski <kuba@kernel.org>
+---
+ drivers/net/dsa/ocelot/Kconfig    | 1 +
+ drivers/net/ethernet/mscc/Kconfig | 1 +
+ 2 files changed, 2 insertions(+)
+
+diff --git a/drivers/net/dsa/ocelot/Kconfig b/drivers/net/dsa/ocelot/Kconfig
+index 640725524d0cd..eff0a7dfcd210 100644
+--- a/drivers/net/dsa/ocelot/Kconfig
++++ b/drivers/net/dsa/ocelot/Kconfig
+@@ -12,6 +12,7 @@ config NET_DSA_MSCC_OCELOT_EXT
+ 	tristate "Ocelot External Ethernet switch support"
+ 	depends on NET_DSA && SPI
+ 	depends on NET_VENDOR_MICROSEMI
++	depends on PTP_1588_CLOCK_OPTIONAL
+ 	select MDIO_MSCC_MIIM
+ 	select MFD_OCELOT_CORE
+ 	select MSCC_OCELOT_SWITCH_LIB
+diff --git a/drivers/net/ethernet/mscc/Kconfig b/drivers/net/ethernet/mscc/Kconfig
+index 8dd8c7f425d2c..81e605691bb8b 100644
+--- a/drivers/net/ethernet/mscc/Kconfig
++++ b/drivers/net/ethernet/mscc/Kconfig
+@@ -13,6 +13,7 @@ if NET_VENDOR_MICROSEMI
+ 
+ # Users should depend on NET_SWITCHDEV, HAS_IOMEM, BRIDGE
+ config MSCC_OCELOT_SWITCH_LIB
++	depends on PTP_1588_CLOCK_OPTIONAL
+ 	select NET_DEVLINK
+ 	select REGMAP_MMIO
+ 	select PACKING
+-- 
+cgit 
+

@@ -1,0 +1,182 @@
+From b5179ac70de85ef477cedf8b026a57913754cf1e Mon Sep 17 00:00:00 2001
+From: Peter Zijlstra <peterz@infradead.org>
+Date: Wed, 11 May 2016 16:10:34 +0200
+Subject: sched/fair: Prepare to fix fairness problems on migration
+
+Mike reported that our recent attempt to fix migration problems:
+
+  3a47d5124a95 ("sched/fair: Fix fairness issue on migration")
+
+broke interactivity and the signal starve test. We reverted that
+commit and now let's try it again more carefully, with some other
+underlying problems fixed first.
+
+One problem is that I assumed ENQUEUE_WAKING was only set when we do a
+cross-cpu wakeup (migration), which isn't true. This means we now
+destroy the vruntime history of tasks and wakeup-preemption suffers.
+
+Cure this by making my assumption true, only call
+sched_class::task_waking() when we do a cross-cpu wakeup. This avoids
+the indirect call in the case we do a local wakeup.
+
+Reported-by: Mike Galbraith <mgalbraith@suse.de>
+Signed-off-by: Peter Zijlstra (Intel) <peterz@infradead.org>
+Cc: Andrew Hunter <ahh@google.com>
+Cc: Ben Segall <bsegall@google.com>
+Cc: Linus Torvalds <torvalds@linux-foundation.org>
+Cc: Matt Fleming <matt@codeblueprint.co.uk>
+Cc: Mike Galbraith <efault@gmx.de>
+Cc: Morten Rasmussen <morten.rasmussen@arm.com>
+Cc: Paul Turner <pjt@google.com>
+Cc: Pavan Kondeti <pkondeti@codeaurora.org>
+Cc: Peter Zijlstra <peterz@infradead.org>
+Cc: Thomas Gleixner <tglx@linutronix.de>
+Cc: byungchul.park@lge.com
+Cc: linux-kernel@vger.kernel.org
+Fixes: 3a47d5124a95 ("sched/fair: Fix fairness issue on migration")
+Signed-off-by: Ingo Molnar <mingo@kernel.org>
+---
+ kernel/sched/core.c | 29 +++++++++++++++++++++--------
+ kernel/sched/fair.c | 37 +++++++++++++++++++++++++++++++++++++
+ 2 files changed, 58 insertions(+), 8 deletions(-)
+
+diff --git a/kernel/sched/core.c b/kernel/sched/core.c
+index 1e622f254df41..1f73e2554bc10 100644
+--- a/kernel/sched/core.c
++++ b/kernel/sched/core.c
+@@ -1709,14 +1709,22 @@ static void
+ ttwu_do_activate(struct rq *rq, struct task_struct *p, int wake_flags,
+ 		 struct pin_cookie cookie)
+ {
++	int en_flags = ENQUEUE_WAKEUP;
++
+ 	lockdep_assert_held(&rq->lock);
+ 
+ #ifdef CONFIG_SMP
+ 	if (p->sched_contributes_to_load)
+ 		rq->nr_uninterruptible--;
++
++	/*
++	 * If we migrated; we must have called sched_class::task_waking().
++	 */
++	if (wake_flags & WF_MIGRATED)
++		en_flags |= ENQUEUE_WAKING;
+ #endif
+ 
+-	ttwu_activate(rq, p, ENQUEUE_WAKEUP | ENQUEUE_WAKING);
++	ttwu_activate(rq, p, en_flags);
+ 	ttwu_do_wakeup(rq, p, wake_flags, cookie);
+ }
+ 
+@@ -1762,7 +1770,11 @@ void sched_ttwu_pending(void)
+ 	while (llist) {
+ 		p = llist_entry(llist, struct task_struct, wake_entry);
+ 		llist = llist_next(llist);
+-		ttwu_do_activate(rq, p, 0, cookie);
++		/*
++		 * See ttwu_queue(); we only call ttwu_queue_remote() when
++		 * its a x-cpu wakeup.
++		 */
++		ttwu_do_activate(rq, p, WF_MIGRATED, cookie);
+ 	}
+ 
+ 	lockdep_unpin_lock(&rq->lock, cookie);
+@@ -1849,7 +1861,7 @@ bool cpus_share_cache(int this_cpu, int that_cpu)
+ }
+ #endif /* CONFIG_SMP */
+ 
+-static void ttwu_queue(struct task_struct *p, int cpu)
++static void ttwu_queue(struct task_struct *p, int cpu, int wake_flags)
+ {
+ 	struct rq *rq = cpu_rq(cpu);
+ 	struct pin_cookie cookie;
+@@ -1864,7 +1876,7 @@ static void ttwu_queue(struct task_struct *p, int cpu)
+ 
+ 	raw_spin_lock(&rq->lock);
+ 	cookie = lockdep_pin_lock(&rq->lock);
+-	ttwu_do_activate(rq, p, 0, cookie);
++	ttwu_do_activate(rq, p, wake_flags, cookie);
+ 	lockdep_unpin_lock(&rq->lock, cookie);
+ 	raw_spin_unlock(&rq->lock);
+ }
+@@ -2034,17 +2046,18 @@ try_to_wake_up(struct task_struct *p, unsigned int state, int wake_flags)
+ 	p->sched_contributes_to_load = !!task_contributes_to_load(p);
+ 	p->state = TASK_WAKING;
+ 
+-	if (p->sched_class->task_waking)
+-		p->sched_class->task_waking(p);
+-
+ 	cpu = select_task_rq(p, p->wake_cpu, SD_BALANCE_WAKE, wake_flags);
+ 	if (task_cpu(p) != cpu) {
+ 		wake_flags |= WF_MIGRATED;
++
++		if (p->sched_class->task_waking)
++			p->sched_class->task_waking(p);
++
+ 		set_task_cpu(p, cpu);
+ 	}
+ #endif /* CONFIG_SMP */
+ 
+-	ttwu_queue(p, cpu);
++	ttwu_queue(p, cpu, wake_flags);
+ stat:
+ 	if (schedstat_enabled())
+ 		ttwu_stat(p, cpu, wake_flags);
+diff --git a/kernel/sched/fair.c b/kernel/sched/fair.c
+index 48633a1c3b468..445bcd2d7ee13 100644
+--- a/kernel/sched/fair.c
++++ b/kernel/sched/fair.c
+@@ -3254,6 +3254,37 @@ static inline void check_schedstat_required(void)
+ #endif
+ }
+ 
++
++/*
++ * MIGRATION
++ *
++ *	dequeue
++ *	  update_curr()
++ *	    update_min_vruntime()
++ *	  vruntime -= min_vruntime
++ *
++ *	enqueue
++ *	  update_curr()
++ *	    update_min_vruntime()
++ *	  vruntime += min_vruntime
++ *
++ * this way the vruntime transition between RQs is done when both
++ * min_vruntime are up-to-date.
++ *
++ * WAKEUP (remote)
++ *
++ *	->task_waking_fair()
++ *	  vruntime -= min_vruntime
++ *
++ *	enqueue
++ *	  update_curr()
++ *	    update_min_vruntime()
++ *	  vruntime += min_vruntime
++ *
++ * this way we don't have the most up-to-date min_vruntime on the originating
++ * CPU and an up-to-date min_vruntime on the destination CPU.
++ */
++
+ static void
+ enqueue_entity(struct cfs_rq *cfs_rq, struct sched_entity *se, int flags)
+ {
+@@ -4810,6 +4841,12 @@ static unsigned long cpu_avg_load_per_task(int cpu)
+ 	return 0;
+ }
+ 
++/*
++ * Called to migrate a waking task; as blocked tasks retain absolute vruntime
++ * the migration needs to deal with this by subtracting the old and adding the
++ * new min_vruntime -- the latter is done by enqueue_entity() when placing
++ * the task on the new runqueue.
++ */
+ static void task_waking_fair(struct task_struct *p)
+ {
+ 	struct sched_entity *se = &p->se;
+-- 
+cgit 
+

@@ -1,0 +1,35 @@
+From 74aae25013ecae39a133148c36c1009b85b06a79 Mon Sep 17 00:00:00 2001
+From: Mukesh Sisodiya <mukesh.sisodiya@intel.com>
+Date: Thu, 13 Apr 2023 21:40:31 +0300
+Subject: wifi: iwlwifi: Fix the duplicate dump name
+
+Driver is using the dump name generated first time in all
+generated dump in case of NMI.
+The validity of dump name should be with each dump created
+and need to reset after each use.
+
+Fixes: 834f920ef34b ("wifi: iwlwifi: yoyo: Add driver defined dump file name")
+Signed-off-by: Mukesh Sisodiya <mukesh.sisodiya@intel.com>
+Signed-off-by: Gregory Greenman <gregory.greenman@intel.com>
+Link: https://lore.kernel.org/r/20230413213309.6c987f820557.I924f2eae1eef2fe82c7a23be566551653d46f729@changeid
+Signed-off-by: Johannes Berg <johannes.berg@intel.com>
+---
+ drivers/net/wireless/intel/iwlwifi/fw/dbg.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/drivers/net/wireless/intel/iwlwifi/fw/dbg.c b/drivers/net/wireless/intel/iwlwifi/fw/dbg.c
+index ca97f2fcb6932..51cdbc13fbcdb 100644
+--- a/drivers/net/wireless/intel/iwlwifi/fw/dbg.c
++++ b/drivers/net/wireless/intel/iwlwifi/fw/dbg.c
+@@ -2345,6 +2345,8 @@ static u32 iwl_dump_ini_file_name_info(struct iwl_fw_runtime *fwrt,
+ 	/* add the dump file name extension tlv to the list */
+ 	list_add_tail(&entry->list, list);
+ 
++	fwrt->trans->dbg.dump_file_name_ext_valid = false;
++
+ 	return entry->size;
+ }
+ 
+-- 
+cgit 
+

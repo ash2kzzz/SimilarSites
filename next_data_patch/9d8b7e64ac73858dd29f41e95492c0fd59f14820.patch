@@ -1,0 +1,39 @@
+From 9d8b7e64ac73858dd29f41e95492c0fd59f14820 Mon Sep 17 00:00:00 2001
+From: Dmitry Baryshkov <dmitry.baryshkov@linaro.org>
+Date: Fri, 27 Jan 2023 01:03:14 +0200
+Subject: dt-bindings: mailbox: qcom: enable syscon compatible for msm8976
+
+On msm8976 platform APCS also uses syscon compatible, so move it to the
+block of compatibles using SoC-compat together with syscon.
+
+Fixes: 60545466180e ("dt-bindings: mailbox: qcom,apcs-kpss-global: Add syscon const for relevant entries")
+Acked-by: Krzysztof Kozlowski <krzysztof.kozlowski@linaro.org>
+Signed-off-by: Dmitry Baryshkov <dmitry.baryshkov@linaro.org>
+Signed-off-by: Jassi Brar <jaswinder.singh@linaro.org>
+---
+ Documentation/devicetree/bindings/mailbox/qcom,apcs-kpss-global.yaml | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/Documentation/devicetree/bindings/mailbox/qcom,apcs-kpss-global.yaml b/Documentation/devicetree/bindings/mailbox/qcom,apcs-kpss-global.yaml
+index 36deddca1524b..ecc286ab49ef4 100644
+--- a/Documentation/devicetree/bindings/mailbox/qcom,apcs-kpss-global.yaml
++++ b/Documentation/devicetree/bindings/mailbox/qcom,apcs-kpss-global.yaml
+@@ -20,7 +20,6 @@ properties:
+           - enum:
+               - qcom,ipq6018-apcs-apps-global
+               - qcom,ipq8074-apcs-apps-global
+-              - qcom,msm8976-apcs-kpss-global
+               - qcom,msm8996-apcs-hmss-global
+               - qcom,msm8998-apcs-hmss-global
+               - qcom,qcm2290-apcs-hmss-global
+@@ -37,6 +36,7 @@ properties:
+               - qcom,msm8916-apcs-kpss-global
+               - qcom,msm8939-apcs-kpss-global
+               - qcom,msm8953-apcs-kpss-global
++              - qcom,msm8976-apcs-kpss-global
+               - qcom,msm8994-apcs-kpss-global
+               - qcom,qcs404-apcs-apps-global
+               - qcom,sdx55-apcs-gcc
+-- 
+cgit 
+

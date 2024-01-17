@@ -1,0 +1,41 @@
+From 1b0b5f50dc83351fa2d2158a183cbe258178cb3f Mon Sep 17 00:00:00 2001
+From: Geert Uytterhoeven <geert+renesas@glider.be>
+Date: Wed, 8 Mar 2023 18:17:08 +0100
+Subject: iommu: Spelling s/cpmxchg64/cmpxchg64/
+
+Fix misspellings of "cmpxchg64"
+
+Fixes: d286a58bc8f4d5cf ("iommu: Tidy up io-pgtable dependencies")
+Signed-off-by: Geert Uytterhoeven <geert+renesas@glider.be>
+Acked-by: Robin Murphy <robin.murphy@arm.com>
+Link: https://lore.kernel.org/r/eab156858147249d44463662eb9192202c39ab9f.1678295792.git.geert+renesas@glider.be
+Signed-off-by: Joerg Roedel <jroedel@suse.de>
+---
+ drivers/iommu/Kconfig | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/iommu/Kconfig b/drivers/iommu/Kconfig
+index 889c7efd050bc..c4928514e5e2a 100644
+--- a/drivers/iommu/Kconfig
++++ b/drivers/iommu/Kconfig
+@@ -33,7 +33,7 @@ config IOMMU_IO_PGTABLE_LPAE
+ 	bool "ARMv7/v8 Long Descriptor Format"
+ 	select IOMMU_IO_PGTABLE
+ 	depends on ARM || ARM64 || COMPILE_TEST
+-	depends on !GENERIC_ATOMIC64	# for cpmxchg64()
++	depends on !GENERIC_ATOMIC64	# for cmpxchg64()
+ 	help
+ 	  Enable support for the ARM long descriptor pagetable format.
+ 	  This allocator supports 4K/2M/1G, 16K/32M and 64K/512M page
+@@ -72,7 +72,7 @@ config IOMMU_IO_PGTABLE_DART
+ 	bool "Apple DART Formats"
+ 	select IOMMU_IO_PGTABLE
+ 	depends on ARM64 || COMPILE_TEST
+-	depends on !GENERIC_ATOMIC64	# for cpmxchg64()
++	depends on !GENERIC_ATOMIC64	# for cmpxchg64()
+ 	help
+ 	  Enable support for the Apple DART pagetable formats. These include
+ 	  the t8020 and t6000/t8110 DART formats used in Apple M1/M2 family
+-- 
+cgit 
+

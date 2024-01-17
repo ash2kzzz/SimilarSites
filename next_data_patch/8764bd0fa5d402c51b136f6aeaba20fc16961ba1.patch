@@ -1,0 +1,59 @@
+From 8764bd0fa5d402c51b136f6aeaba20fc16961ba1 Mon Sep 17 00:00:00 2001
+From: Niklas Schnelle <schnelle@linux.ibm.com>
+Date: Wed, 31 May 2023 10:48:56 +0200
+Subject: net/mlx5: Fix setting of irq->map.index for static IRQ case
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+When dynamic IRQ allocation is not supported all IRQs are allocated up
+front in mlx5_irq_table_create() instead of dynamically as part of
+mlx5_irq_alloc(). In the latter dynamic case irq->map.index is set
+via the mapping returned by pci_msix_alloc_irq_at(). In the static case
+and prior to commit 1da438c0ae02 ("net/mlx5: Fix indexing of mlx5_irq")
+irq->map.index was set in mlx5_irq_alloc() twice once initially to 0 and
+then to the requested index before storing in the xarray. After this
+commit it is only set to 0 which breaks all other IRQ mappings.
+
+Fix this by setting irq->map.index to the requested index together with
+irq->map.virq and improve the related comment to make it clearer which
+cases it deals with.
+
+Cc: Chuck Lever III <chuck.lever@oracle.com>
+Tested-by: Mark Brown <broonie@kernel.org>
+Reviewed-by: Mark Brown <broonie@kernel.org>
+Reviewed-by: Simon Horman <simon.horman@corigine.com>
+Reviewed-by: Eli Cohen <elic@nvidia.com>
+Fixes: 1da438c0ae02 ("net/mlx5: Fix indexing of mlx5_irq")
+Signed-off-by: Niklas Schnelle <schnelle@linux.ibm.com>
+Tested-by: Cédric Le Goater <clg@redhat.com>
+Signed-off-by: Saeed Mahameed <saeedm@nvidia.com>
+---
+ drivers/net/ethernet/mellanox/mlx5/core/pci_irq.c | 9 +++++----
+ 1 file changed, 5 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/net/ethernet/mellanox/mlx5/core/pci_irq.c b/drivers/net/ethernet/mellanox/mlx5/core/pci_irq.c
+index 86ac4a85fd878..38edd485ba6f3 100644
+--- a/drivers/net/ethernet/mellanox/mlx5/core/pci_irq.c
++++ b/drivers/net/ethernet/mellanox/mlx5/core/pci_irq.c
+@@ -232,12 +232,13 @@ struct mlx5_irq *mlx5_irq_alloc(struct mlx5_irq_pool *pool, int i,
+ 	if (!irq)
+ 		return ERR_PTR(-ENOMEM);
+ 	if (!i || !pci_msix_can_alloc_dyn(dev->pdev)) {
+-		/* The vector at index 0 was already allocated.
+-		 * Just get the irq number. If dynamic irq is not supported
+-		 * vectors have also been allocated.
++		/* The vector at index 0 is always statically allocated. If
++		 * dynamic irq is not supported all vectors are statically
++		 * allocated. In both cases just get the irq number and set
++		 * the index.
+ 		 */
+ 		irq->map.virq = pci_irq_vector(dev->pdev, i);
+-		irq->map.index = 0;
++		irq->map.index = i;
+ 	} else {
+ 		irq->map = pci_msix_alloc_irq_at(dev->pdev, MSI_ANY_INDEX, af_desc);
+ 		if (!irq->map.virq) {
+-- 
+cgit 
+

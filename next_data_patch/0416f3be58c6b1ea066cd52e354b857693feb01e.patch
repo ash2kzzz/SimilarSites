@@ -1,0 +1,43 @@
+From 0416f3be58c6b1ea066cd52e354b857693feb01e Mon Sep 17 00:00:00 2001
+From: Ming Lei <ming.lei@redhat.com>
+Date: Thu, 2 Feb 2023 10:18:04 +0800
+Subject: blk-cgroup: don't update io stat for root cgroup
+
+We source root cgroup stats from the system-wide stats, see blkcg_print_stat
+and blkcg_rstat_flush, so don't update io state for root cgroup.
+
+Fixes blkg leak issue introduced in commit 3b8cc6298724 ("blk-cgroup: Optimize blkcg_rstat_flush()")
+which starts to grab blkg's reference when adding iostat_cpu into percpu
+blkcg list, but this state won't be consumed by blkcg_rstat_flush() where
+the blkg reference is dropped.
+
+Tested-by: Bart van Assche <bvanassche@acm.org>
+Reported-by: Bart van Assche <bvanassche@acm.org>
+Fixes: 3b8cc6298724 ("blk-cgroup: Optimize blkcg_rstat_flush()")
+Cc: Tejun Heo <tj@kernel.org>
+Cc: Waiman Long <longman@redhat.com>
+Signed-off-by: Ming Lei <ming.lei@redhat.com>
+Link: https://lore.kernel.org/r/20230202021804.278582-1-ming.lei@redhat.com
+Signed-off-by: Jens Axboe <axboe@kernel.dk>
+---
+ block/blk-cgroup.c | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/block/blk-cgroup.c b/block/blk-cgroup.c
+index 4c94a6560f625..9ac1efb053e08 100644
+--- a/block/blk-cgroup.c
++++ b/block/blk-cgroup.c
+@@ -2001,6 +2001,10 @@ void blk_cgroup_bio_start(struct bio *bio)
+ 	struct blkg_iostat_set *bis;
+ 	unsigned long flags;
+ 
++	/* Root-level stats are sourced from system-wide IO stats */
++	if (!cgroup_parent(blkcg->css.cgroup))
++		return;
++
+ 	cpu = get_cpu();
+ 	bis = per_cpu_ptr(bio->bi_blkg->iostat_cpu, cpu);
+ 	flags = u64_stats_update_begin_irqsave(&bis->sync);
+-- 
+cgit 
+

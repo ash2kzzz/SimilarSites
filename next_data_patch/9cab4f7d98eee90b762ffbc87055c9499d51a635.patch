@@ -1,0 +1,43 @@
+From 9cab4f7d98eee90b762ffbc87055c9499d51a635 Mon Sep 17 00:00:00 2001
+From: Heiko Carstens <hca@linux.ibm.com>
+Date: Tue, 10 Jan 2023 13:49:23 +0100
+Subject: s390/con3270: move condev definition
+
+Fix this for allmodconfig:
+
+drivers/s390/char/con3270.c:43:24: error: 'condev' defined but not used [-Werror=unused-variable]
+ static struct tty3270 *condev;
+                        ^~~~~~
+
+Reported-by: Stephen Rothwell <sfr@canb.auug.org.au>
+Fixes: c17fe081ac1f ("s390/3270: unify con3270 + tty3270")
+Signed-off-by: Heiko Carstens <hca@linux.ibm.com>
+---
+ drivers/s390/char/con3270.c | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/s390/char/con3270.c b/drivers/s390/char/con3270.c
+index 9402690de5985..d9983550062d7 100644
+--- a/drivers/s390/char/con3270.c
++++ b/drivers/s390/char/con3270.c
+@@ -40,7 +40,6 @@
+ 
+ static struct tty_driver *tty3270_driver;
+ static int tty3270_max_index;
+-static struct tty3270 *condev;
+ static struct raw3270_fn tty3270_fn;
+ 
+ #define TTY3270_HIGHLIGHT_BLINK		1
+@@ -2045,6 +2044,9 @@ static void __exit tty3270_exit(void)
+ }
+ 
+ #if IS_ENABLED(CONFIG_TN3270_CONSOLE)
++
++static struct tty3270 *condev;
++
+ static void
+ con3270_write(struct console *co, const char *str, unsigned int count)
+ {
+-- 
+cgit 
+

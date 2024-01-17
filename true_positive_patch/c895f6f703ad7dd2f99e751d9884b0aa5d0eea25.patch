@@ -1,0 +1,477 @@
+From c895f6f703ad7dd2f99e751d9884b0aa5d0eea25 Mon Sep 17 00:00:00 2001
+From: Hendrik Brueckner <brueckner@linux.vnet.ibm.com>
+Date: Mon, 4 Dec 2017 10:56:44 +0100
+Subject: bpf: correct broken uapi for BPF_PROG_TYPE_PERF_EVENT program type
+
+Commit 0515e5999a466dfe ("bpf: introduce BPF_PROG_TYPE_PERF_EVENT
+program type") introduced the bpf_perf_event_data structure which
+exports the pt_regs structure.  This is OK for multiple architectures
+but fail for s390 and arm64 which do not export pt_regs.  Programs
+using them, for example, the bpf selftest fail to compile on these
+architectures.
+
+For s390, exporting the pt_regs is not an option because s390 wants
+to allow changes to it.  For arm64, there is a user_pt_regs structure
+that covers parts of the pt_regs structure for use by user space.
+
+To solve the broken uapi for s390 and arm64, introduce an abstract
+type for pt_regs and add an asm/bpf_perf_event.h file that concretes
+the type.  An asm-generic header file covers the architectures that
+export pt_regs today.
+
+The arch-specific enablement for s390 and arm64 follows in separate
+commits.
+
+Reported-by: Thomas Richter <tmricht@linux.vnet.ibm.com>
+Fixes: 0515e5999a466dfe ("bpf: introduce BPF_PROG_TYPE_PERF_EVENT program type")
+Signed-off-by: Hendrik Brueckner <brueckner@linux.vnet.ibm.com>
+Reviewed-and-tested-by: Thomas Richter <tmricht@linux.vnet.ibm.com>
+Acked-by: Alexei Starovoitov <ast@kernel.org>
+Cc: Arnaldo Carvalho de Melo <acme@kernel.org>
+Cc: Peter Zijlstra <peterz@infradead.org>
+Cc: Ingo Molnar <mingo@redhat.com>
+Cc: Alexander Shishkin <alexander.shishkin@linux.intel.com>
+Cc: Jiri Olsa <jolsa@redhat.com>
+Cc: Namhyung Kim <namhyung@kernel.org>
+Cc: Arnd Bergmann <arnd@arndb.de>
+Cc: Daniel Borkmann <daniel@iogearbox.net>
+Signed-off-by: Daniel Borkmann <daniel@iogearbox.net>
+---
+ arch/alpha/include/uapi/asm/Kbuild        | 2 ++
+ arch/arc/include/uapi/asm/Kbuild          | 1 +
+ arch/arm/include/uapi/asm/Kbuild          | 1 +
+ arch/blackfin/include/uapi/asm/Kbuild     | 1 +
+ arch/c6x/include/uapi/asm/Kbuild          | 1 +
+ arch/cris/include/uapi/asm/Kbuild         | 1 +
+ arch/frv/include/uapi/asm/Kbuild          | 2 ++
+ arch/h8300/include/uapi/asm/Kbuild        | 1 +
+ arch/hexagon/include/uapi/asm/Kbuild      | 1 +
+ arch/ia64/include/uapi/asm/Kbuild         | 1 +
+ arch/m32r/include/uapi/asm/Kbuild         | 1 +
+ arch/m68k/include/uapi/asm/Kbuild         | 1 +
+ arch/metag/include/uapi/asm/Kbuild        | 1 +
+ arch/microblaze/include/uapi/asm/Kbuild   | 1 +
+ arch/mips/include/uapi/asm/Kbuild         | 1 +
+ arch/mn10300/include/uapi/asm/Kbuild      | 1 +
+ arch/nios2/include/uapi/asm/Kbuild        | 1 +
+ arch/openrisc/include/uapi/asm/Kbuild     | 1 +
+ arch/parisc/include/uapi/asm/Kbuild       | 1 +
+ arch/powerpc/include/uapi/asm/Kbuild      | 1 +
+ arch/riscv/include/uapi/asm/Kbuild        | 1 +
+ arch/score/include/uapi/asm/Kbuild        | 1 +
+ arch/sh/include/uapi/asm/Kbuild           | 1 +
+ arch/sparc/include/uapi/asm/Kbuild        | 1 +
+ arch/tile/include/uapi/asm/Kbuild         | 1 +
+ arch/unicore32/include/uapi/asm/Kbuild    | 1 +
+ arch/x86/include/uapi/asm/Kbuild          | 1 +
+ arch/xtensa/include/uapi/asm/Kbuild       | 1 +
+ include/linux/perf_event.h                | 6 +++++-
+ include/uapi/asm-generic/bpf_perf_event.h | 9 +++++++++
+ include/uapi/linux/bpf_perf_event.h       | 5 ++---
+ kernel/events/core.c                      | 2 +-
+ 32 files changed, 47 insertions(+), 5 deletions(-)
+ create mode 100644 include/uapi/asm-generic/bpf_perf_event.h
+
+diff --git a/arch/alpha/include/uapi/asm/Kbuild b/arch/alpha/include/uapi/asm/Kbuild
+index b15bf6bc0e94f..14a2e9af97e99 100644
+--- a/arch/alpha/include/uapi/asm/Kbuild
++++ b/arch/alpha/include/uapi/asm/Kbuild
+@@ -1,2 +1,4 @@
+ # UAPI Header export list
+ include include/uapi/asm-generic/Kbuild.asm
++
++generic-y += bpf_perf_event.h
+diff --git a/arch/arc/include/uapi/asm/Kbuild b/arch/arc/include/uapi/asm/Kbuild
+index fa6d0ff4ff894..170b5db64afeb 100644
+--- a/arch/arc/include/uapi/asm/Kbuild
++++ b/arch/arc/include/uapi/asm/Kbuild
+@@ -3,6 +3,7 @@ include include/uapi/asm-generic/Kbuild.asm
+ 
+ generic-y += auxvec.h
+ generic-y += bitsperlong.h
++generic-y += bpf_perf_event.h
+ generic-y += errno.h
+ generic-y += fcntl.h
+ generic-y += ioctl.h
+diff --git a/arch/arm/include/uapi/asm/Kbuild b/arch/arm/include/uapi/asm/Kbuild
+index 4d53de308ee08..4d1cc1847edf0 100644
+--- a/arch/arm/include/uapi/asm/Kbuild
++++ b/arch/arm/include/uapi/asm/Kbuild
+@@ -7,6 +7,7 @@ generated-y += unistd-oabi.h
+ generated-y += unistd-eabi.h
+ 
+ generic-y += bitsperlong.h
++generic-y += bpf_perf_event.h
+ generic-y += errno.h
+ generic-y += ioctl.h
+ generic-y += ipcbuf.h
+diff --git a/arch/blackfin/include/uapi/asm/Kbuild b/arch/blackfin/include/uapi/asm/Kbuild
+index aa624b4ab6557..2240b38c2915f 100644
+--- a/arch/blackfin/include/uapi/asm/Kbuild
++++ b/arch/blackfin/include/uapi/asm/Kbuild
+@@ -3,6 +3,7 @@ include include/uapi/asm-generic/Kbuild.asm
+ 
+ generic-y += auxvec.h
+ generic-y += bitsperlong.h
++generic-y += bpf_perf_event.h
+ generic-y += errno.h
+ generic-y += ioctl.h
+ generic-y += ipcbuf.h
+diff --git a/arch/c6x/include/uapi/asm/Kbuild b/arch/c6x/include/uapi/asm/Kbuild
+index 67ee896a76a7f..26644e15d8540 100644
+--- a/arch/c6x/include/uapi/asm/Kbuild
++++ b/arch/c6x/include/uapi/asm/Kbuild
+@@ -3,6 +3,7 @@ include include/uapi/asm-generic/Kbuild.asm
+ 
+ generic-y += auxvec.h
+ generic-y += bitsperlong.h
++generic-y += bpf_perf_event.h
+ generic-y += errno.h
+ generic-y += fcntl.h
+ generic-y += ioctl.h
+diff --git a/arch/cris/include/uapi/asm/Kbuild b/arch/cris/include/uapi/asm/Kbuild
+index 3687b54bb18ed..3470c6e9c7b9b 100644
+--- a/arch/cris/include/uapi/asm/Kbuild
++++ b/arch/cris/include/uapi/asm/Kbuild
+@@ -3,6 +3,7 @@ include include/uapi/asm-generic/Kbuild.asm
+ 
+ generic-y += auxvec.h
+ generic-y += bitsperlong.h
++generic-y += bpf_perf_event.h
+ generic-y += errno.h
+ generic-y += fcntl.h
+ generic-y += ioctl.h
+diff --git a/arch/frv/include/uapi/asm/Kbuild b/arch/frv/include/uapi/asm/Kbuild
+index b15bf6bc0e94f..14a2e9af97e99 100644
+--- a/arch/frv/include/uapi/asm/Kbuild
++++ b/arch/frv/include/uapi/asm/Kbuild
+@@ -1,2 +1,4 @@
+ # UAPI Header export list
+ include include/uapi/asm-generic/Kbuild.asm
++
++generic-y += bpf_perf_event.h
+diff --git a/arch/h8300/include/uapi/asm/Kbuild b/arch/h8300/include/uapi/asm/Kbuild
+index 187aed820e71f..2f65f78792cbe 100644
+--- a/arch/h8300/include/uapi/asm/Kbuild
++++ b/arch/h8300/include/uapi/asm/Kbuild
+@@ -2,6 +2,7 @@
+ include include/uapi/asm-generic/Kbuild.asm
+ 
+ generic-y += auxvec.h
++generic-y += bpf_perf_event.h
+ generic-y += errno.h
+ generic-y += fcntl.h
+ generic-y += ioctl.h
+diff --git a/arch/hexagon/include/uapi/asm/Kbuild b/arch/hexagon/include/uapi/asm/Kbuild
+index cb5df3aad3a84..41a176dbb53e4 100644
+--- a/arch/hexagon/include/uapi/asm/Kbuild
++++ b/arch/hexagon/include/uapi/asm/Kbuild
+@@ -2,6 +2,7 @@
+ include include/uapi/asm-generic/Kbuild.asm
+ 
+ generic-y += auxvec.h
++generic-y += bpf_perf_event.h
+ generic-y += errno.h
+ generic-y += fcntl.h
+ generic-y += ioctl.h
+diff --git a/arch/ia64/include/uapi/asm/Kbuild b/arch/ia64/include/uapi/asm/Kbuild
+index 13a97aa2285f7..f5c6967a93bb2 100644
+--- a/arch/ia64/include/uapi/asm/Kbuild
++++ b/arch/ia64/include/uapi/asm/Kbuild
+@@ -1,4 +1,5 @@
+ # UAPI Header export list
+ include include/uapi/asm-generic/Kbuild.asm
+ 
++generic-y += bpf_perf_event.h
+ generic-y += kvm_para.h
+diff --git a/arch/m32r/include/uapi/asm/Kbuild b/arch/m32r/include/uapi/asm/Kbuild
+index 1c44d3b3eba03..451bf6071c6e2 100644
+--- a/arch/m32r/include/uapi/asm/Kbuild
++++ b/arch/m32r/include/uapi/asm/Kbuild
+@@ -1,5 +1,6 @@
+ # UAPI Header export list
+ include include/uapi/asm-generic/Kbuild.asm
+ 
++generic-y += bpf_perf_event.h
+ generic-y += kvm_para.h
+ generic-y += siginfo.h
+diff --git a/arch/m68k/include/uapi/asm/Kbuild b/arch/m68k/include/uapi/asm/Kbuild
+index 3717b64a620df..c2e26a44c482d 100644
+--- a/arch/m68k/include/uapi/asm/Kbuild
++++ b/arch/m68k/include/uapi/asm/Kbuild
+@@ -3,6 +3,7 @@ include include/uapi/asm-generic/Kbuild.asm
+ 
+ generic-y += auxvec.h
+ generic-y += bitsperlong.h
++generic-y += bpf_perf_event.h
+ generic-y += errno.h
+ generic-y += ioctl.h
+ generic-y += ipcbuf.h
+diff --git a/arch/metag/include/uapi/asm/Kbuild b/arch/metag/include/uapi/asm/Kbuild
+index 6ac763d9a3e34..f9eaf07d29f84 100644
+--- a/arch/metag/include/uapi/asm/Kbuild
++++ b/arch/metag/include/uapi/asm/Kbuild
+@@ -3,6 +3,7 @@ include include/uapi/asm-generic/Kbuild.asm
+ 
+ generic-y += auxvec.h
+ generic-y += bitsperlong.h
++generic-y += bpf_perf_event.h
+ generic-y += errno.h
+ generic-y += fcntl.h
+ generic-y += ioctl.h
+diff --git a/arch/microblaze/include/uapi/asm/Kbuild b/arch/microblaze/include/uapi/asm/Kbuild
+index 06609ca361150..2c6a6bffea326 100644
+--- a/arch/microblaze/include/uapi/asm/Kbuild
++++ b/arch/microblaze/include/uapi/asm/Kbuild
+@@ -2,6 +2,7 @@
+ include include/uapi/asm-generic/Kbuild.asm
+ 
+ generic-y += bitsperlong.h
++generic-y += bpf_perf_event.h
+ generic-y += errno.h
+ generic-y += fcntl.h
+ generic-y += ioctl.h
+diff --git a/arch/mips/include/uapi/asm/Kbuild b/arch/mips/include/uapi/asm/Kbuild
+index a0266feba9e6d..7a4becd8963a2 100644
+--- a/arch/mips/include/uapi/asm/Kbuild
++++ b/arch/mips/include/uapi/asm/Kbuild
+@@ -1,4 +1,5 @@
+ # UAPI Header export list
+ include include/uapi/asm-generic/Kbuild.asm
+ 
++generic-y += bpf_perf_event.h
+ generic-y += ipcbuf.h
+diff --git a/arch/mn10300/include/uapi/asm/Kbuild b/arch/mn10300/include/uapi/asm/Kbuild
+index c94ee54210bc4..81271d3af47cb 100644
+--- a/arch/mn10300/include/uapi/asm/Kbuild
++++ b/arch/mn10300/include/uapi/asm/Kbuild
+@@ -1,4 +1,5 @@
+ # UAPI Header export list
+ include include/uapi/asm-generic/Kbuild.asm
+ 
++generic-y	+= bpf_perf_event.h
+ generic-y	+= siginfo.h
+diff --git a/arch/nios2/include/uapi/asm/Kbuild b/arch/nios2/include/uapi/asm/Kbuild
+index ffca24da7647b..13a3d77b4d7bd 100644
+--- a/arch/nios2/include/uapi/asm/Kbuild
++++ b/arch/nios2/include/uapi/asm/Kbuild
+@@ -3,6 +3,7 @@ include include/uapi/asm-generic/Kbuild.asm
+ 
+ generic-y += auxvec.h
+ generic-y += bitsperlong.h
++generic-y += bpf_perf_event.h
+ generic-y += errno.h
+ generic-y += fcntl.h
+ generic-y += ioctl.h
+diff --git a/arch/openrisc/include/uapi/asm/Kbuild b/arch/openrisc/include/uapi/asm/Kbuild
+index 62286dbeb9043..130c16ccba0a0 100644
+--- a/arch/openrisc/include/uapi/asm/Kbuild
++++ b/arch/openrisc/include/uapi/asm/Kbuild
+@@ -3,6 +3,7 @@ include include/uapi/asm-generic/Kbuild.asm
+ 
+ generic-y += auxvec.h
+ generic-y += bitsperlong.h
++generic-y += bpf_perf_event.h
+ generic-y += errno.h
+ generic-y += fcntl.h
+ generic-y += ioctl.h
+diff --git a/arch/parisc/include/uapi/asm/Kbuild b/arch/parisc/include/uapi/asm/Kbuild
+index 196d2a4efb312..286ef5a5904b0 100644
+--- a/arch/parisc/include/uapi/asm/Kbuild
++++ b/arch/parisc/include/uapi/asm/Kbuild
+@@ -2,6 +2,7 @@
+ include include/uapi/asm-generic/Kbuild.asm
+ 
+ generic-y += auxvec.h
++generic-y += bpf_perf_event.h
+ generic-y += kvm_para.h
+ generic-y += param.h
+ generic-y += poll.h
+diff --git a/arch/powerpc/include/uapi/asm/Kbuild b/arch/powerpc/include/uapi/asm/Kbuild
+index 0d960ef78a9a9..1a6ed5919ffdb 100644
+--- a/arch/powerpc/include/uapi/asm/Kbuild
++++ b/arch/powerpc/include/uapi/asm/Kbuild
+@@ -1,6 +1,7 @@
+ # UAPI Header export list
+ include include/uapi/asm-generic/Kbuild.asm
+ 
++generic-y += bpf_perf_event.h
+ generic-y += param.h
+ generic-y += poll.h
+ generic-y += resource.h
+diff --git a/arch/riscv/include/uapi/asm/Kbuild b/arch/riscv/include/uapi/asm/Kbuild
+index 5ded96b063526..7e91f48504757 100644
+--- a/arch/riscv/include/uapi/asm/Kbuild
++++ b/arch/riscv/include/uapi/asm/Kbuild
+@@ -3,6 +3,7 @@ include include/uapi/asm-generic/Kbuild.asm
+ 
+ generic-y += setup.h
+ generic-y += unistd.h
++generic-y += bpf_perf_event.h
+ generic-y += errno.h
+ generic-y += fcntl.h
+ generic-y += ioctl.h
+diff --git a/arch/score/include/uapi/asm/Kbuild b/arch/score/include/uapi/asm/Kbuild
+index c94ee54210bc4..81271d3af47cb 100644
+--- a/arch/score/include/uapi/asm/Kbuild
++++ b/arch/score/include/uapi/asm/Kbuild
+@@ -1,4 +1,5 @@
+ # UAPI Header export list
+ include include/uapi/asm-generic/Kbuild.asm
+ 
++generic-y	+= bpf_perf_event.h
+ generic-y	+= siginfo.h
+diff --git a/arch/sh/include/uapi/asm/Kbuild b/arch/sh/include/uapi/asm/Kbuild
+index e28531333efa9..ba4d39cb321d0 100644
+--- a/arch/sh/include/uapi/asm/Kbuild
++++ b/arch/sh/include/uapi/asm/Kbuild
+@@ -2,6 +2,7 @@
+ include include/uapi/asm-generic/Kbuild.asm
+ 
+ generic-y += bitsperlong.h
++generic-y += bpf_perf_event.h
+ generic-y += errno.h
+ generic-y += fcntl.h
+ generic-y += ioctl.h
+diff --git a/arch/sparc/include/uapi/asm/Kbuild b/arch/sparc/include/uapi/asm/Kbuild
+index 2178c78c7c1a6..4680ba246b554 100644
+--- a/arch/sparc/include/uapi/asm/Kbuild
++++ b/arch/sparc/include/uapi/asm/Kbuild
+@@ -1,4 +1,5 @@
+ # UAPI Header export list
+ include include/uapi/asm-generic/Kbuild.asm
+ 
++generic-y += bpf_perf_event.h
+ generic-y += types.h
+diff --git a/arch/tile/include/uapi/asm/Kbuild b/arch/tile/include/uapi/asm/Kbuild
+index 5711de0a1b5ef..cc439612bcd52 100644
+--- a/arch/tile/include/uapi/asm/Kbuild
++++ b/arch/tile/include/uapi/asm/Kbuild
+@@ -1,6 +1,7 @@
+ # UAPI Header export list
+ include include/uapi/asm-generic/Kbuild.asm
+ 
++generic-y += bpf_perf_event.h
+ generic-y += errno.h
+ generic-y += fcntl.h
+ generic-y += ioctl.h
+diff --git a/arch/unicore32/include/uapi/asm/Kbuild b/arch/unicore32/include/uapi/asm/Kbuild
+index 759a71411169f..8611ef980554c 100644
+--- a/arch/unicore32/include/uapi/asm/Kbuild
++++ b/arch/unicore32/include/uapi/asm/Kbuild
+@@ -3,6 +3,7 @@ include include/uapi/asm-generic/Kbuild.asm
+ 
+ generic-y += auxvec.h
+ generic-y += bitsperlong.h
++generic-y += bpf_perf_event.h
+ generic-y += errno.h
+ generic-y += fcntl.h
+ generic-y += ioctl.h
+diff --git a/arch/x86/include/uapi/asm/Kbuild b/arch/x86/include/uapi/asm/Kbuild
+index da1489cb64dce..1e901e421f2db 100644
+--- a/arch/x86/include/uapi/asm/Kbuild
++++ b/arch/x86/include/uapi/asm/Kbuild
+@@ -1,6 +1,7 @@
+ # UAPI Header export list
+ include include/uapi/asm-generic/Kbuild.asm
+ 
++generic-y += bpf_perf_event.h
+ generated-y += unistd_32.h
+ generated-y += unistd_64.h
+ generated-y += unistd_x32.h
+diff --git a/arch/xtensa/include/uapi/asm/Kbuild b/arch/xtensa/include/uapi/asm/Kbuild
+index a5bcdfb890f1b..837d4dd767854 100644
+--- a/arch/xtensa/include/uapi/asm/Kbuild
++++ b/arch/xtensa/include/uapi/asm/Kbuild
+@@ -2,6 +2,7 @@
+ include include/uapi/asm-generic/Kbuild.asm
+ 
+ generic-y += bitsperlong.h
++generic-y += bpf_perf_event.h
+ generic-y += errno.h
+ generic-y += fcntl.h
+ generic-y += ioctl.h
+diff --git a/include/linux/perf_event.h b/include/linux/perf_event.h
+index 2c9c87d8a0c18..7546822a1d74f 100644
+--- a/include/linux/perf_event.h
++++ b/include/linux/perf_event.h
+@@ -15,6 +15,7 @@
+ #define _LINUX_PERF_EVENT_H
+ 
+ #include <uapi/linux/perf_event.h>
++#include <uapi/linux/bpf_perf_event.h>
+ 
+ /*
+  * Kernel-internal data types and definitions:
+@@ -787,7 +788,7 @@ struct perf_output_handle {
+ };
+ 
+ struct bpf_perf_event_data_kern {
+-	struct pt_regs *regs;
++	bpf_user_pt_regs_t *regs;
+ 	struct perf_sample_data *data;
+ 	struct perf_event *event;
+ };
+@@ -1177,6 +1178,9 @@ extern void perf_bp_event(struct perf_event *event, void *data);
+ 		(user_mode(regs) ? PERF_RECORD_MISC_USER : PERF_RECORD_MISC_KERNEL)
+ # define perf_instruction_pointer(regs)	instruction_pointer(regs)
+ #endif
++#ifndef perf_arch_bpf_user_pt_regs
++# define perf_arch_bpf_user_pt_regs(regs) regs
++#endif
+ 
+ static inline bool has_branch_stack(struct perf_event *event)
+ {
+diff --git a/include/uapi/asm-generic/bpf_perf_event.h b/include/uapi/asm-generic/bpf_perf_event.h
+new file mode 100644
+index 0000000000000..53815d2cd047a
+--- /dev/null
++++ b/include/uapi/asm-generic/bpf_perf_event.h
+@@ -0,0 +1,9 @@
++#ifndef _UAPI__ASM_GENERIC_BPF_PERF_EVENT_H__
++#define _UAPI__ASM_GENERIC_BPF_PERF_EVENT_H__
++
++#include <linux/ptrace.h>
++
++/* Export kernel pt_regs structure */
++typedef struct pt_regs bpf_user_pt_regs_t;
++
++#endif /* _UAPI__ASM_GENERIC_BPF_PERF_EVENT_H__ */
+diff --git a/include/uapi/linux/bpf_perf_event.h b/include/uapi/linux/bpf_perf_event.h
+index af549d4ecf1b6..8f95303f9d807 100644
+--- a/include/uapi/linux/bpf_perf_event.h
++++ b/include/uapi/linux/bpf_perf_event.h
+@@ -8,11 +8,10 @@
+ #ifndef _UAPI__LINUX_BPF_PERF_EVENT_H__
+ #define _UAPI__LINUX_BPF_PERF_EVENT_H__
+ 
+-#include <linux/types.h>
+-#include <linux/ptrace.h>
++#include <asm/bpf_perf_event.h>
+ 
+ struct bpf_perf_event_data {
+-	struct pt_regs regs;
++	bpf_user_pt_regs_t regs;
+ 	__u64 sample_period;
+ };
+ 
+diff --git a/kernel/events/core.c b/kernel/events/core.c
+index 16beab4767e1e..ba957b9812b3c 100644
+--- a/kernel/events/core.c
++++ b/kernel/events/core.c
+@@ -7987,11 +7987,11 @@ static void bpf_overflow_handler(struct perf_event *event,
+ {
+ 	struct bpf_perf_event_data_kern ctx = {
+ 		.data = data,
+-		.regs = regs,
+ 		.event = event,
+ 	};
+ 	int ret = 0;
+ 
++	ctx.regs = perf_arch_bpf_user_pt_regs(regs);
+ 	preempt_disable();
+ 	if (unlikely(__this_cpu_inc_return(bpf_prog_active) != 1))
+ 		goto out;
+-- 
+cgit 
+

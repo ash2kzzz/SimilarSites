@@ -1,0 +1,39 @@
+From be5418dfc1460e82a005dfb9dd76e4ef846c203d Mon Sep 17 00:00:00 2001
+From: Krzysztof Kozlowski <krzysztof.kozlowski@linaro.org>
+Date: Fri, 7 Apr 2023 19:00:32 +0200
+Subject: ASoC: dt-bindings: asahi-kasei,ak4458: fix missing quotes around hash
+
+The yamllint expect comments to start with hash and space ('# '), so
+quote the description to fix:
+
+  asahi-kasei,ak4458.yaml:40:30: [error] missing starting space in comment (comments)
+
+Reported-by: Rob Herring <robh@kernel.org>
+Closes: https://lore.kernel.org/all/CAL_JsqJzxQb1g=yVgHduLnYOpk8-Q3jppA1qQT1Ce51_gNWjhg@mail.gmail.com/
+Fixes: 009e83b591dd ("ASoC: dt-bindings: ak4458: Convert to dtschema")
+Signed-off-by: Krzysztof Kozlowski <krzysztof.kozlowski@linaro.org>
+Link: https://lore.kernel.org/r/20230407170032.102412-1-krzysztof.kozlowski@linaro.org
+Signed-off-by: Mark Brown <broonie@kernel.org>
+---
+ Documentation/devicetree/bindings/sound/asahi-kasei,ak4458.yaml | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/Documentation/devicetree/bindings/sound/asahi-kasei,ak4458.yaml b/Documentation/devicetree/bindings/sound/asahi-kasei,ak4458.yaml
+index 0db0c8e923a01..4477f84b7acc0 100644
+--- a/Documentation/devicetree/bindings/sound/asahi-kasei,ak4458.yaml
++++ b/Documentation/devicetree/bindings/sound/asahi-kasei,ak4458.yaml
+@@ -37,9 +37,9 @@ properties:
+     $ref: /schemas/types.yaml#/definitions/uint32
+     oneOf:
+       - const: 0
+-        description: select #16, #17, #19 pins
++        description: "select #16, #17, #19 pins"
+       - const: 1
+-        description: select #3, #4, #5 pins
++        description: "select #3, #4, #5 pins"
+ 
+ required:
+   - compatible
+-- 
+cgit 
+

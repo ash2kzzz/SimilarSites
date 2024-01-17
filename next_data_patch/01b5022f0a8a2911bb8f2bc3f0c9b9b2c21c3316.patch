@@ -1,0 +1,56 @@
+From 01b5022f0a8a2911bb8f2bc3f0c9b9b2c21c3316 Mon Sep 17 00:00:00 2001
+From: SeongJae Park <sj@kernel.org>
+Date: Wed, 28 Dec 2022 17:59:42 +0000
+Subject: mm/page_reporting: replace rcu_access_pointer() with
+ rcu_dereference_protected()
+
+Page reporting fetches pr_dev_info using rcu_access_pointer(), which is
+for safely fetching a pointer that will not be dereferenced but could
+concurrently updated.  The code indeed does not dereference pr_dev_info
+after fetching it using rcu_access_pointer(), but it fetches the pointer
+while concurrent updates to the pointer is avoided by holding the update
+side lock, page_reporting_mutex.
+
+In the case, rcu_dereference_protected() should be used instead because it
+provides better readability and performance on some cases, as
+rcu_dereference_protected() avoids use of READ_ONCE().  Replace the
+rcu_access_pointer() calls with rcu_dereference_protected().
+
+Link: https://lkml.kernel.org/r/20221228175942.149491-1-sj@kernel.org
+Fixes: 36e66c554b5c ("mm: introduce Reported pages")
+Signed-off-by: SeongJae Park <sj@kernel.org>
+Cc: Alexander Duyck <alexander.h.duyck@linux.intel.com>
+Cc: Matthew Wilcox <willy@infradead.org>
+Cc: Miaohe Lin <linmiaohe@huawei.com>
+Signed-off-by: Andrew Morton <akpm@linux-foundation.org>
+---
+ mm/page_reporting.c | 6 ++++--
+ 1 file changed, 4 insertions(+), 2 deletions(-)
+
+diff --git a/mm/page_reporting.c b/mm/page_reporting.c
+index 79a8554f024c2..c65813a9dc78e 100644
+--- a/mm/page_reporting.c
++++ b/mm/page_reporting.c
+@@ -356,7 +356,8 @@ int page_reporting_register(struct page_reporting_dev_info *prdev)
+ 	mutex_lock(&page_reporting_mutex);
+ 
+ 	/* nothing to do if already in use */
+-	if (rcu_access_pointer(pr_dev_info)) {
++	if (rcu_dereference_protected(pr_dev_info,
++				lockdep_is_held(&page_reporting_mutex))) {
+ 		err = -EBUSY;
+ 		goto err_out;
+ 	}
+@@ -401,7 +402,8 @@ void page_reporting_unregister(struct page_reporting_dev_info *prdev)
+ {
+ 	mutex_lock(&page_reporting_mutex);
+ 
+-	if (rcu_access_pointer(pr_dev_info) == prdev) {
++	if (prdev == rcu_dereference_protected(pr_dev_info,
++				lockdep_is_held(&page_reporting_mutex))) {
+ 		/* Disable page reporting notification */
+ 		RCU_INIT_POINTER(pr_dev_info, NULL);
+ 		synchronize_rcu();
+-- 
+cgit 
+

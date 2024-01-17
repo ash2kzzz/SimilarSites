@@ -1,0 +1,62 @@
+From 59513714f6659409adf717b0f85e0a6e35480a01 Mon Sep 17 00:00:00 2001
+From: Jiawen Wu <jiawenwu@trustnetic.com>
+Date: Wed, 22 Mar 2023 18:36:32 +0800
+Subject: net: wangxun: Fix vector length of interrupt cause
+
+There is 64-bit interrupt cause register for txgbe. Fix to clear upper
+32 bits.
+
+Fixes: 3f703186113f ("net: libwx: Add irq flow functions")
+Signed-off-by: Jiawen Wu <jiawenwu@trustnetic.com>
+Reviewed-by: Leon Romanovsky <leonro@nvidia.com>
+Link: https://lore.kernel.org/r/20230322103632.132011-1-jiawenwu@trustnetic.com
+Signed-off-by: Jakub Kicinski <kuba@kernel.org>
+---
+ drivers/net/ethernet/wangxun/libwx/wx_type.h    | 2 +-
+ drivers/net/ethernet/wangxun/ngbe/ngbe_main.c   | 2 +-
+ drivers/net/ethernet/wangxun/txgbe/txgbe_main.c | 3 ++-
+ 3 files changed, 4 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/net/ethernet/wangxun/libwx/wx_type.h b/drivers/net/ethernet/wangxun/libwx/wx_type.h
+index 77d8d7f1707e9..97e2c1e13b806 100644
+--- a/drivers/net/ethernet/wangxun/libwx/wx_type.h
++++ b/drivers/net/ethernet/wangxun/libwx/wx_type.h
+@@ -222,7 +222,7 @@
+ #define WX_PX_INTA                   0x110
+ #define WX_PX_GPIE                   0x118
+ #define WX_PX_GPIE_MODEL             BIT(0)
+-#define WX_PX_IC                     0x120
++#define WX_PX_IC(_i)                 (0x120 + (_i) * 4)
+ #define WX_PX_IMS(_i)                (0x140 + (_i) * 4)
+ #define WX_PX_IMC(_i)                (0x150 + (_i) * 4)
+ #define WX_PX_ISB_ADDR_L             0x160
+diff --git a/drivers/net/ethernet/wangxun/ngbe/ngbe_main.c b/drivers/net/ethernet/wangxun/ngbe/ngbe_main.c
+index 5b564d348c091..17412e5282ded 100644
+--- a/drivers/net/ethernet/wangxun/ngbe/ngbe_main.c
++++ b/drivers/net/ethernet/wangxun/ngbe/ngbe_main.c
+@@ -352,7 +352,7 @@ static void ngbe_up(struct wx *wx)
+ 	netif_tx_start_all_queues(wx->netdev);
+ 
+ 	/* clear any pending interrupts, may auto mask */
+-	rd32(wx, WX_PX_IC);
++	rd32(wx, WX_PX_IC(0));
+ 	rd32(wx, WX_PX_MISC_IC);
+ 	ngbe_irq_enable(wx, true);
+ 	if (wx->gpio_ctrl)
+diff --git a/drivers/net/ethernet/wangxun/txgbe/txgbe_main.c b/drivers/net/ethernet/wangxun/txgbe/txgbe_main.c
+index 6c0a982305576..a58ce5463686a 100644
+--- a/drivers/net/ethernet/wangxun/txgbe/txgbe_main.c
++++ b/drivers/net/ethernet/wangxun/txgbe/txgbe_main.c
+@@ -229,7 +229,8 @@ static void txgbe_up_complete(struct wx *wx)
+ 	wx_napi_enable_all(wx);
+ 
+ 	/* clear any pending interrupts, may auto mask */
+-	rd32(wx, WX_PX_IC);
++	rd32(wx, WX_PX_IC(0));
++	rd32(wx, WX_PX_IC(1));
+ 	rd32(wx, WX_PX_MISC_IC);
+ 	txgbe_irq_enable(wx, true);
+ 
+-- 
+cgit 
+

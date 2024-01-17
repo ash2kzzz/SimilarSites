@@ -1,0 +1,33 @@
+From 048bce15da19e46ce5e866a48338929c76ca4152 Mon Sep 17 00:00:00 2001
+From: Luca Weiss <luca@z3ntu.xyz>
+Date: Wed, 19 Apr 2023 17:58:27 +0200
+Subject: media: dt-bindings: ov2685: Correct data-lanes attribute
+
+When adapting the original doc conversion to support 2 lanes, minItems
+should've been added as well since the sensor supports either 1 or 2
+lanes. Add minItems to make the validation happy again.
+
+Fixes: 8d561d78aeab ("media: dt-bindings: ov2685: convert to dtschema")
+Signed-off-by: Luca Weiss <luca@z3ntu.xyz>
+Acked-by: Rob Herring <robh@kernel.org>
+Link: https://lore.kernel.org/r/20230419-ov2685-dtschema-fixup-v1-1-c850a34b3a26@z3ntu.xyz
+Signed-off-by: Krzysztof Kozlowski <krzysztof.kozlowski@linaro.org>
+---
+ Documentation/devicetree/bindings/media/i2c/ovti,ov2685.yaml | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/Documentation/devicetree/bindings/media/i2c/ovti,ov2685.yaml b/Documentation/devicetree/bindings/media/i2c/ovti,ov2685.yaml
+index 8b389314c3526..e2ffe0a9c26b3 100644
+--- a/Documentation/devicetree/bindings/media/i2c/ovti,ov2685.yaml
++++ b/Documentation/devicetree/bindings/media/i2c/ovti,ov2685.yaml
+@@ -49,6 +49,7 @@ properties:
+ 
+         properties:
+           data-lanes:
++            minItems: 1
+             maxItems: 2
+ 
+         required:
+-- 
+cgit 
+

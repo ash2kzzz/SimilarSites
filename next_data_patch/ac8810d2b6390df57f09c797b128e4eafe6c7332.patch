@@ -1,0 +1,37 @@
+From ac8810d2b6390df57f09c797b128e4eafe6c7332 Mon Sep 17 00:00:00 2001
+From: Arnd Bergmann <arnd@arndb.de>
+Date: Tue, 17 Jan 2023 17:45:33 +0100
+Subject: Input: ipaq-micro-ts - fix DEFINE_SIMPLE_DEV_PM_OPS typo
+
+The previous change was not properly build tested and needs
+a trivial spelling change:
+
+ipaq-micro-ts.c:146:8: error: type defaults to 'int' in declaration of 'DEFINE_SIMPLE_DEV_PM' [-Werror=implicit-int]
+
+Fixes: 144ff5e03d74 ("Input: ipaq-micro-ts - use DEFINE_SIMPLE_DEV_PM_OPS() and pm_sleep_ptr()")
+Signed-off-by: Arnd Bergmann <arnd@arndb.de>
+Reviewed-by: Jonathan Cameron <Jonathan.Cameron@huawei.com>
+Link: https://lore.kernel.org/r/20230117164539.1631336-1-arnd@kernel.org
+Signed-off-by: Dmitry Torokhov <dmitry.torokhov@gmail.com>
+---
+ drivers/input/touchscreen/ipaq-micro-ts.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/input/touchscreen/ipaq-micro-ts.c b/drivers/input/touchscreen/ipaq-micro-ts.c
+index d8e25b502968a..94720c41c9be2 100644
+--- a/drivers/input/touchscreen/ipaq-micro-ts.c
++++ b/drivers/input/touchscreen/ipaq-micro-ts.c
+@@ -143,8 +143,8 @@ static int micro_ts_resume(struct device *dev)
+ 	return 0;
+ }
+ 
+-static DEFINE_SIMPLE_DEV_PM(micro_ts_dev_pm_ops,
+-			    micro_ts_suspend, micro_ts_resume);
++static DEFINE_SIMPLE_DEV_PM_OPS(micro_ts_dev_pm_ops,
++				micro_ts_suspend, micro_ts_resume);
+ 
+ static struct platform_driver micro_ts_device_driver = {
+ 	.driver	= {
+-- 
+cgit 
+

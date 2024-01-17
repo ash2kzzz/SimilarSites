@@ -1,0 +1,44 @@
+From 7581495ac82d6cb073609284c7f7186a48021d1e Mon Sep 17 00:00:00 2001
+From: Michael Ellerman <mpe@ellerman.id.au>
+Date: Fri, 5 May 2023 13:51:27 +1000
+Subject: mm: kfence: fix false positives on big endian
+
+Since commit 1ba3cbf3ec3b ("mm: kfence: improve the performance of
+__kfence_alloc() and __kfence_free()"), kfence reports failures in random
+places at boot on big endian machines.
+
+The problem is that the new KFENCE_CANARY_PATTERN_U64 encodes the address
+of each byte in its value, so it needs to be byte swapped on big endian
+machines.
+
+The compiler is smart enough to do the le64_to_cpu() at compile time, so
+there is no runtime overhead.
+
+Link: https://lkml.kernel.org/r/20230505035127.195387-1-mpe@ellerman.id.au
+Fixes: 1ba3cbf3ec3b ("mm: kfence: improve the performance of __kfence_alloc() and __kfence_free()")
+Signed-off-by: Michael Ellerman <mpe@ellerman.id.au>
+Reviewed-by: Alexander Potapenko <glider@google.com>
+Reviewed-by: Marco Elver <elver@google.com>
+Cc: Peng Zhang <zhangpeng.00@bytedance.com>
+Cc: David Laight <David.Laight@ACULAB.COM>
+Signed-off-by: Andrew Morton <akpm@linux-foundation.org>
+---
+ mm/kfence/kfence.h | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/mm/kfence/kfence.h b/mm/kfence/kfence.h
+index 2aafc46a4aaf1..392fb273e7bd9 100644
+--- a/mm/kfence/kfence.h
++++ b/mm/kfence/kfence.h
+@@ -29,7 +29,7 @@
+  * canary of every 8 bytes is the same. 64-bit memory can be filled and checked
+  * at a time instead of byte by byte to improve performance.
+  */
+-#define KFENCE_CANARY_PATTERN_U64 ((u64)0xaaaaaaaaaaaaaaaa ^ (u64)(0x0706050403020100))
++#define KFENCE_CANARY_PATTERN_U64 ((u64)0xaaaaaaaaaaaaaaaa ^ (u64)(le64_to_cpu(0x0706050403020100)))
+ 
+ /* Maximum stack depth for reports. */
+ #define KFENCE_STACK_DEPTH 64
+-- 
+cgit 
+

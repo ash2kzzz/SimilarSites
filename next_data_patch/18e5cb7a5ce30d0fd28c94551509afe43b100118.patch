@@ -1,0 +1,31 @@
+From 18e5cb7a5ce30d0fd28c94551509afe43b100118 Mon Sep 17 00:00:00 2001
+From: Heiko Carstens <hca@linux.ibm.com>
+Date: Thu, 2 Feb 2023 21:47:11 +0100
+Subject: s390/diag: make __diag8c_tmp_amode31 static
+
+Get rid of this sparse warning:
+
+arch/s390/kernel/diag.c:69:29: warning: symbol '__diag8c_tmp_amode31' was not declared. Should it be static?
+
+Fixes: fbaee7464fbb ("s390/tty3270: add support for diag 8c")
+Signed-off-by: Heiko Carstens <hca@linux.ibm.com>
+---
+ arch/s390/kernel/diag.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/arch/s390/kernel/diag.c b/arch/s390/kernel/diag.c
+index a6a0222a35cfc..82079f2d8583b 100644
+--- a/arch/s390/kernel/diag.c
++++ b/arch/s390/kernel/diag.c
+@@ -66,7 +66,7 @@ static struct diag210 _diag210_tmp_amode31 __section(".amode31.data");
+ struct diag210 __amode31_ref *__diag210_tmp_amode31 = &_diag210_tmp_amode31;
+ 
+ static struct diag8c _diag8c_tmp_amode31 __section(".amode31.data");
+-struct diag8c __amode31_ref *__diag8c_tmp_amode31 = &_diag8c_tmp_amode31;
++static struct diag8c __amode31_ref *__diag8c_tmp_amode31 = &_diag8c_tmp_amode31;
+ 
+ static int show_diag_stat(struct seq_file *m, void *v)
+ {
+-- 
+cgit 
+

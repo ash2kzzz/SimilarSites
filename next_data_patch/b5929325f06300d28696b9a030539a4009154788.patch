@@ -1,0 +1,98 @@
+From b5929325f06300d28696b9a030539a4009154788 Mon Sep 17 00:00:00 2001
+From: Martin Kaiser <martin@kaiser.cx>
+Date: Mon, 13 Feb 2023 20:54:08 +0100
+Subject: staging: r8188eu: Revert "staging: r8188eu: simplify
+ rtw_get_ff_hwaddr"
+
+This reverts commit fd48124e0982 ("staging: r8188eu: simplify
+rtw_get_ff_hwaddr").
+
+The cleanup in this commit removes the qsel to addr mappings in
+rtw_get_ff_hwaddr. The underlying assumption is that rtw_write_port
+uses its addr parameter only for the high_queue check.
+
+This is obviously incorrect as rtw_write_port calls
+ffaddr2pipehdl(pdvobj, addr);
+where addr is mapped to a usb bulk endpoint.
+
+Unfortunately, testing did not show any problems. The Edimax V2 on which I
+tested has two bulk out endpoints. I guess that with the incorrect patch,
+addr could only be 0 (no high queue) or 6 (high queue), both of which were
+mapped to the first bulk out endpoint. Data transfers did still work...
+
+Fixes: fd48124e0982 ("staging: r8188eu: simplify rtw_get_ff_hwaddr")
+Signed-off-by: Martin Kaiser <martin@kaiser.cx>
+Link: https://lore.kernel.org/r/20230213195407.15085-1-martin@kaiser.cx
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+---
+ drivers/staging/r8188eu/core/rtw_xmit.c    | 32 +++++++++++++++++++++++++++++-
+ drivers/staging/r8188eu/include/rtw_xmit.h |  7 +++++++
+ 2 files changed, 38 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/staging/r8188eu/core/rtw_xmit.c b/drivers/staging/r8188eu/core/rtw_xmit.c
+index d0761ac2e6951..df88b3e29e774 100644
+--- a/drivers/staging/r8188eu/core/rtw_xmit.c
++++ b/drivers/staging/r8188eu/core/rtw_xmit.c
+@@ -1568,9 +1568,39 @@ static int rtw_br_client_tx(struct adapter *padapter, struct sk_buff **pskb)
+ 
+ u32 rtw_get_ff_hwaddr(struct xmit_frame *pxmitframe)
+ {
++	u32 addr;
+ 	struct pkt_attrib *pattrib = &pxmitframe->attrib;
+ 
+-	return pattrib->qsel == 0x11 ? HIGH_QUEUE_INX : 0;
++	switch (pattrib->qsel) {
++	case 0:
++	case 3:
++		addr = BE_QUEUE_INX;
++		break;
++	case 1:
++	case 2:
++		addr = BK_QUEUE_INX;
++		break;
++	case 4:
++	case 5:
++		addr = VI_QUEUE_INX;
++		break;
++	case 6:
++	case 7:
++		addr = VO_QUEUE_INX;
++		break;
++	case 0x10:
++		addr = BCN_QUEUE_INX;
++		break;
++	case 0x11:/* BC/MC in PS (HIQ) */
++		addr = HIGH_QUEUE_INX;
++		break;
++	case 0x12:
++	default:
++		addr = MGT_QUEUE_INX;
++		break;
++	}
++
++	return addr;
+ }
+ 
+ /*
+diff --git a/drivers/staging/r8188eu/include/rtw_xmit.h b/drivers/staging/r8188eu/include/rtw_xmit.h
+index e4e5af198eee7..feeac85aedb07 100644
+--- a/drivers/staging/r8188eu/include/rtw_xmit.h
++++ b/drivers/staging/r8188eu/include/rtw_xmit.h
+@@ -26,7 +26,14 @@
+ #define XMIT_BE_QUEUE		(2)
+ #define XMIT_BK_QUEUE		(3)
+ 
++#define VO_QUEUE_INX		0
++#define VI_QUEUE_INX		1
++#define BE_QUEUE_INX		2
++#define BK_QUEUE_INX		3
++#define BCN_QUEUE_INX		4
++#define MGT_QUEUE_INX		5
+ #define HIGH_QUEUE_INX		6
++#define TXCMD_QUEUE_INX		7
+ 
+ #define HW_QUEUE_ENTRY		8
+ 
+-- 
+cgit 
+

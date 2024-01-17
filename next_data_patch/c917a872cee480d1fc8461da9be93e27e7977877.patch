@@ -1,0 +1,53 @@
+From c917a872cee480d1fc8461da9be93e27e7977877 Mon Sep 17 00:00:00 2001
+From: Matthieu Baerts <matthieu.baerts@tessares.net>
+Date: Mon, 3 Apr 2023 18:23:47 +0200
+Subject: checkpatch: don't print the next line if not defined
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+When checking if "Reported-by" tag is followed by "Link:", there is no
+need to print the next line if there is no next line.
+
+While at it, also mention in this case that the "Link:" tag should be
+followed by a URL, similar to the next warning.
+
+By doing that, the code is now similar to what is done above when checking
+if the Co-developed-by tag is properly used.
+
+Link: https://lkml.kernel.org/r/20230314-doc-checkpatch-closes-tag-v4-2-d26d1fa66f9f@tessares.net
+Fixes: d7f1d71e5ef6 ("checkpatch: warn when Reported-by: is not followed by Link:")
+Signed-off-by: Matthieu Baerts <matthieu.baerts@tessares.net>
+Acked-by: Joe Perches <joe@perches.com>
+Cc: Andy Whitcroft <apw@canonical.com>
+Cc: Bagas Sanjaya <bagasdotme@gmail.com>
+Cc: Daniel Vetter <daniel@ffwll.ch>
+Cc: David Airlie <airlied@gmail.com>
+Cc: Dwaipayan Ray <dwaipayanray1@gmail.com>
+Cc: Jonathan Corbet <corbet@lwn.net>
+Cc: Kai Wasserbäch <kai@dev.carbon-project.org>
+Cc: Konstantin Ryabitsev <konstantin@linuxfoundation.org>
+Cc: Linus Torvalds <torvalds@linux-foundation.org>
+Cc: Lukas Bulwahn <lukas.bulwahn@gmail.com>
+Cc: Thorsten Leemhuis <linux@leemhuis.info>
+Signed-off-by: Andrew Morton <akpm@linux-foundation.org>
+---
+ scripts/checkpatch.pl | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/scripts/checkpatch.pl b/scripts/checkpatch.pl
+index c7cd0750b41ef..8e22eb45ab2d8 100755
+--- a/scripts/checkpatch.pl
++++ b/scripts/checkpatch.pl
+@@ -3162,7 +3162,7 @@ sub process {
+ 			if ($sign_off =~ /^reported(?:|-and-tested)-by:$/i) {
+ 				if (!defined $lines[$linenr]) {
+ 					WARN("BAD_REPORTED_BY_LINK",
+-					     "Reported-by: should be immediately followed by Link: to the report\n" . $herecurr . $rawlines[$linenr] . "\n");
++					     "Reported-by: should be immediately followed by Link: with a URL to the report\n" . $herecurr . "\n");
+ 				} elsif ($rawlines[$linenr] !~ m{^link:\s*https?://}i) {
+ 					WARN("BAD_REPORTED_BY_LINK",
+ 					     "Reported-by: should be immediately followed by Link: with a URL to the report\n" . $herecurr . $rawlines[$linenr] . "\n");
+-- 
+cgit 
+

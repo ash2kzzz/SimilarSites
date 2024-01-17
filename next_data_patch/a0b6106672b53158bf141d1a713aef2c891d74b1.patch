@@ -1,0 +1,72 @@
+From a0b6106672b53158bf141d1a713aef2c891d74b1 Mon Sep 17 00:00:00 2001
+From: Miquel Raynal <miquel.raynal@bootlin.com>
+Date: Tue, 14 Feb 2023 14:50:31 +0100
+Subject: ieee802154: Convert scan error messages to extack
+
+Instead of printing error messages in the kernel log, let's use extack.
+When there is a netlink error returned that could be further specified
+with a string, use extack as well.
+
+Apply this logic to the very recent scan/beacon infrastructure.
+
+Fixes: ed3557c947e1 ("ieee802154: Add support for user scanning requests")
+Fixes: 9bc114504b07 ("ieee802154: Add support for user beaconing requests")
+Suggested-by: Jakub Kicinski <kuba@kernel.org>
+Signed-off-by: Miquel Raynal <miquel.raynal@bootlin.com>
+Link: https://lore.kernel.org/r/20230214135035.1202471-3-miquel.raynal@bootlin.com
+Signed-off-by: Stefan Schmidt <stefan@datenfreihafen.org>
+---
+ net/ieee802154/nl802154.c | 19 +++++++++++++------
+ 1 file changed, 13 insertions(+), 6 deletions(-)
+
+diff --git a/net/ieee802154/nl802154.c b/net/ieee802154/nl802154.c
+index 3808a8e62a7b9..12ca84e1724da 100644
+--- a/net/ieee802154/nl802154.c
++++ b/net/ieee802154/nl802154.c
+@@ -1407,9 +1407,15 @@ static int nl802154_trigger_scan(struct sk_buff *skb, struct genl_info *info)
+ 	u8 type;
+ 	int err;
+ 
+-	/* Monitors are not allowed to perform scans */
+-	if (wpan_dev->iftype == NL802154_IFTYPE_MONITOR)
++	if (wpan_dev->iftype == NL802154_IFTYPE_MONITOR) {
++		NL_SET_ERR_MSG(info->extack, "Monitors are not allowed to perform scans");
+ 		return -EPERM;
++	}
++
++	if (!nla_get_u8(info->attrs[NL802154_ATTR_SCAN_TYPE])) {
++		NL_SET_ERR_MSG(info->extack, "Malformed request, missing scan type");
++		return -EINVAL;
++	}
+ 
+ 	request = kzalloc(sizeof(*request), GFP_KERNEL);
+ 	if (!request)
+@@ -1424,7 +1430,7 @@ static int nl802154_trigger_scan(struct sk_buff *skb, struct genl_info *info)
+ 		request->type = type;
+ 		break;
+ 	default:
+-		pr_err("Unsupported scan type: %d\n", type);
++		NL_SET_ERR_MSG_FMT(info->extack, "Unsupported scan type: %d", type);
+ 		err = -EINVAL;
+ 		goto free_request;
+ 	}
+@@ -1576,12 +1582,13 @@ nl802154_send_beacons(struct sk_buff *skb, struct genl_info *info)
+ 	struct cfg802154_beacon_request *request;
+ 	int err;
+ 
+-	/* Only coordinators can send beacons */
+-	if (wpan_dev->iftype != NL802154_IFTYPE_COORD)
++	if (wpan_dev->iftype != NL802154_IFTYPE_COORD) {
++		NL_SET_ERR_MSG(info->extack, "Only coordinators can send beacons");
+ 		return -EOPNOTSUPP;
++	}
+ 
+ 	if (wpan_dev->pan_id == cpu_to_le16(IEEE802154_PANID_BROADCAST)) {
+-		pr_err("Device is not part of any PAN\n");
++		NL_SET_ERR_MSG(info->extack, "Device is not part of any PAN");
+ 		return -EPERM;
+ 	}
+ 
+-- 
+cgit 
+

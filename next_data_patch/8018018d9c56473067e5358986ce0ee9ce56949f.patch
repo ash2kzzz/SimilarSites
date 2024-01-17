@@ -1,0 +1,34 @@
+From 8018018d9c56473067e5358986ce0ee9ce56949f Mon Sep 17 00:00:00 2001
+From: Dan Carpenter <dan.carpenter@linaro.org>
+Date: Thu, 4 May 2023 17:59:24 +0300
+Subject: usb: dwc3: fix a test for error in dwc3_core_init()
+
+This was refactored recently and the "ret = " was accidentally deleted
+so the errors aren't checked.
+
+Fixes: 1d72fab47656 ("USB: dwc3: refactor phy handling")
+Signed-off-by: Dan Carpenter <dan.carpenter@linaro.org>
+Reviewed-by: Johan Hovold <johan+linaro@kernel.org>
+Acked-by: Thinh Nguyen <Thinh.Nguyen@synopsys.com>
+Link: https://lore.kernel.org/r/d0c5a04f-deee-4ebe-9b0b-dc5492564519@kili.mountain
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+---
+ drivers/usb/dwc3/core.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/usb/dwc3/core.c b/drivers/usb/dwc3/core.c
+index 0beaab932e7db..7b2ce013cc5ba 100644
+--- a/drivers/usb/dwc3/core.c
++++ b/drivers/usb/dwc3/core.c
+@@ -1137,7 +1137,7 @@ static int dwc3_core_init(struct dwc3 *dwc)
+ 
+ 	dwc3_set_incr_burst_type(dwc);
+ 
+-	dwc3_phy_power_on(dwc);
++	ret = dwc3_phy_power_on(dwc);
+ 	if (ret)
+ 		goto err_exit_phy;
+ 
+-- 
+cgit 
+

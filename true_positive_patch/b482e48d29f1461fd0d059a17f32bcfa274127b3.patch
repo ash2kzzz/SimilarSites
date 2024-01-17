@@ -1,0 +1,45 @@
+From b482e48d29f1461fd0d059a17f32bcfa274127b3 Mon Sep 17 00:00:00 2001
+From: Johannes Berg <johannes.berg@intel.com>
+Date: Wed, 3 Jul 2019 10:52:01 +0200
+Subject: um: fix build without CONFIG_UML_TIME_TRAVEL_SUPPORT
+
+When CONFIG_UML_TIME_TRAVEL_SUPPORT isn't set, the build was broken.
+Fix this.
+
+Fixes: 065038706f77 ("um: Support time travel mode")
+Signed-off-by: Johannes Berg <johannes.berg@intel.com>
+Signed-off-by: Richard Weinberger <richard@nod.at>
+---
+ arch/um/include/shared/timer-internal.h | 2 ++
+ arch/um/kernel/process.c                | 2 +-
+ 2 files changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/arch/um/include/shared/timer-internal.h b/arch/um/include/shared/timer-internal.h
+index 5ca74f415d527..8574338bf23ba 100644
+--- a/arch/um/include/shared/timer-internal.h
++++ b/arch/um/include/shared/timer-internal.h
+@@ -54,6 +54,8 @@ static inline void time_travel_set_timer(enum time_travel_timer_mode mode,
+ 					 unsigned long long expiry)
+ {
+ }
++
++#define time_travel_timer_mode TT_TMR_DISABLED
+ #endif
+ 
+ #endif
+diff --git a/arch/um/kernel/process.c b/arch/um/kernel/process.c
+index def2091697caf..67c0d1a860e98 100644
+--- a/arch/um/kernel/process.c
++++ b/arch/um/kernel/process.c
+@@ -213,7 +213,7 @@ static void time_travel_sleep(unsigned long long duration)
+ 	if (time_travel_timer_mode != TT_TMR_DISABLED ||
+ 	    time_travel_timer_expiry < next) {
+ 		if (time_travel_timer_mode == TT_TMR_ONESHOT)
+-			time_travel_timer_mode = TT_TMR_DISABLED;
++			time_travel_set_timer(TT_TMR_DISABLED, 0);
+ 		/*
+ 		 * time_travel_time will be adjusted in the timer
+ 		 * IRQ handler so it works even when the signal
+-- 
+cgit 
+

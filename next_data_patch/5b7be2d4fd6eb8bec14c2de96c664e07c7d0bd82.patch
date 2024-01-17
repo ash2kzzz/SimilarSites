@@ -1,0 +1,106 @@
+From 5b7be2d4fd6eb8bec14c2de96c664e07c7d0bd82 Mon Sep 17 00:00:00 2001
+From: Vladimir Oltean <vladimir.oltean@nxp.com>
+Date: Tue, 11 Apr 2023 22:26:45 +0300
+Subject: net: enetc: workaround for unresponsive pMAC after receiving express
+ traffic
+
+I have observed an issue where the RX direction of the LS1028A ENETC pMAC
+seems unresponsive. The minimal procedure to reproduce the issue is:
+
+1. Connect ENETC port 0 with a loopback RJ45 cable to one of the Felix
+   switch ports (0).
+
+2. Bring the ports up (MAC Merge layer is not enabled on either end).
+
+3. Send a large quantity of unidirectional (express) traffic from Felix
+   to ENETC. I tried altering frame size and frame count, and it doesn't
+   appear to be specific to either of them, but rather, to the quantity
+   of octets received. Lowering the frame count, the minimum quantity of
+   packets to reproduce relatively consistently seems to be around 37000
+   frames at 1514 octets (w/o FCS) each.
+
+4. Using ethtool --set-mm, enable the pMAC in the Felix and in the ENETC
+   ports, in both RX and TX directions, and with verification on both
+   ends.
+
+5. Wait for verification to complete on both sides.
+
+6. Configure a traffic class as preemptible on both ends.
+
+7. Send some packets again.
+
+The issue is at step 5, where the verification process of ENETC ends
+(meaning that Felix responds with an SMD-R and ENETC sees the response),
+but the verification process of Felix never ends (it remains VERIFYING).
+
+If step 3 is skipped or if ENETC receives less traffic than
+approximately that threshold, the test runs all the way through
+(verification succeeds on both ends, preemptible traffic passes fine).
+
+If, between step 4 and 5, the step below is also introduced:
+
+4.1. Disable and re-enable PM0_COMMAND_CONFIG bit RX_EN
+
+then again, the sequence of steps runs all the way through, and
+verification succeeds, even if there was the previous RX traffic
+injected into ENETC.
+
+Traffic sent *by* the ENETC port prior to enabling the MAC Merge layer
+does not seem to influence the verification result, only received
+traffic does.
+
+The LS1028A manual does not mention any relationship between
+PM0_COMMAND_CONFIG and MMCSR, and the hardware people don't seem to
+know for now either.
+
+The bit that is toggled to work around the issue is also toggled
+by enetc_mac_enable(), called from phylink's mac_link_down() and
+mac_link_up() methods - which is how the workaround was found:
+verification would work after a link down/up.
+
+Fixes: c7b9e8086902 ("net: enetc: add support for MAC Merge layer")
+Signed-off-by: Vladimir Oltean <vladimir.oltean@nxp.com>
+Reviewed-by: Jacob Keller <jacob.e.keller@intel.com>
+Link: https://lore.kernel.org/r/20230411192645.1896048-1-vladimir.oltean@nxp.com
+Signed-off-by: Paolo Abeni <pabeni@redhat.com>
+---
+ drivers/net/ethernet/freescale/enetc/enetc_ethtool.c | 16 ++++++++++++++++
+ 1 file changed, 16 insertions(+)
+
+diff --git a/drivers/net/ethernet/freescale/enetc/enetc_ethtool.c b/drivers/net/ethernet/freescale/enetc/enetc_ethtool.c
+index da9d4b310fcdd..838750a03cf68 100644
+--- a/drivers/net/ethernet/freescale/enetc/enetc_ethtool.c
++++ b/drivers/net/ethernet/freescale/enetc/enetc_ethtool.c
+@@ -989,6 +989,20 @@ static int enetc_get_mm(struct net_device *ndev, struct ethtool_mm_state *state)
+ 	return 0;
+ }
+ 
++/* FIXME: Workaround for the link partner's verification failing if ENETC
++ * priorly received too much express traffic. The documentation doesn't
++ * suggest this is needed.
++ */
++static void enetc_restart_emac_rx(struct enetc_si *si)
++{
++	u32 val = enetc_port_rd(&si->hw, ENETC_PM0_CMD_CFG);
++
++	enetc_port_wr(&si->hw, ENETC_PM0_CMD_CFG, val & ~ENETC_PM0_RX_EN);
++
++	if (val & ENETC_PM0_RX_EN)
++		enetc_port_wr(&si->hw, ENETC_PM0_CMD_CFG, val);
++}
++
+ static int enetc_set_mm(struct net_device *ndev, struct ethtool_mm_cfg *cfg,
+ 			struct netlink_ext_ack *extack)
+ {
+@@ -1040,6 +1054,8 @@ static int enetc_set_mm(struct net_device *ndev, struct ethtool_mm_cfg *cfg,
+ 
+ 	enetc_port_wr(hw, ENETC_MMCSR, val);
+ 
++	enetc_restart_emac_rx(priv->si);
++
+ 	mutex_unlock(&priv->mm_lock);
+ 
+ 	return 0;
+-- 
+cgit 
+

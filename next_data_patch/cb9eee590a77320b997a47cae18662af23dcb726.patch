@@ -1,0 +1,46 @@
+From cb9eee590a77320b997a47cae18662af23dcb726 Mon Sep 17 00:00:00 2001
+From: Tom Rix <trix@redhat.com>
+Date: Wed, 5 Apr 2023 21:09:35 -0400
+Subject: clk: mediatek: fhctl: Mark local variables static
+
+smatch reports
+drivers/clk/mediatek/clk-fhctl.c:17:27: warning: symbol
+  'fhctl_offset_v1' was not declared. Should it be static?
+drivers/clk/mediatek/clk-fhctl.c:30:27: warning: symbol
+  'fhctl_offset_v2' was not declared. Should it be static?
+
+These variables are only used in one file so should be static.
+
+Signed-off-by: Tom Rix <trix@redhat.com>
+Link: https://lore.kernel.org/r/20230406010935.1944976-1-trix@redhat.com
+Fixes: 8da312d6574c ("clk: mediatek: fhctl: Add support for older fhctl register layout")
+Signed-off-by: Stephen Boyd <sboyd@kernel.org>
+---
+ drivers/clk/mediatek/clk-fhctl.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/clk/mediatek/clk-fhctl.c b/drivers/clk/mediatek/clk-fhctl.c
+index 45e4842cbf04e..33b6ad8fdc2ef 100644
+--- a/drivers/clk/mediatek/clk-fhctl.c
++++ b/drivers/clk/mediatek/clk-fhctl.c
+@@ -14,7 +14,7 @@
+ #define PERCENT_TO_DDSLMT(dds, percent_m10) \
+ 	((((dds) * (percent_m10)) >> 5) / 100)
+ 
+-const struct fhctl_offset fhctl_offset_v1 = {
++static const struct fhctl_offset fhctl_offset_v1 = {
+ 	.offset_hp_en = 0x0,
+ 	.offset_clk_con = 0x4,
+ 	.offset_rst_con = 0x8,
+@@ -27,7 +27,7 @@ const struct fhctl_offset fhctl_offset_v1 = {
+ 	.offset_mon = 0x10,
+ };
+ 
+-const struct fhctl_offset fhctl_offset_v2 = {
++static const struct fhctl_offset fhctl_offset_v2 = {
+ 	.offset_hp_en = 0x0,
+ 	.offset_clk_con = 0x8,
+ 	.offset_rst_con = 0xc,
+-- 
+cgit 
+

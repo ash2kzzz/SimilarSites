@@ -1,0 +1,76 @@
+From 193e30967897f3a8b6f9f137ac30571d832c2c5c Mon Sep 17 00:00:00 2001
+From: Jarno Rajahalme <jarno@ovn.org>
+Date: Thu, 9 Feb 2017 11:21:54 -0800
+Subject: openvswitch: Do not trigger events for unconfirmed connections.
+
+Receiving change events before the 'new' event for the connection has
+been received can be confusing.  Avoid triggering change events for
+setting conntrack mark or labels before the conntrack entry has been
+confirmed.
+
+Fixes: 182e3042e15d ("openvswitch: Allow matching on conntrack mark")
+Fixes: c2ac66735870 ("openvswitch: Allow matching on conntrack label")
+Signed-off-by: Jarno Rajahalme <jarno@ovn.org>
+Acked-by: Joe Stringer <joe@ovn.org>
+Acked-by: Pravin B Shelar <pshelar@ovn.org>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ net/openvswitch/conntrack.c | 28 ++++++++++++++++++++++------
+ 1 file changed, 22 insertions(+), 6 deletions(-)
+
+diff --git a/net/openvswitch/conntrack.c b/net/openvswitch/conntrack.c
+index 4df9a5449c952..a6ff374d57d3a 100644
+--- a/net/openvswitch/conntrack.c
++++ b/net/openvswitch/conntrack.c
+@@ -245,7 +245,8 @@ static int ovs_ct_set_mark(struct sk_buff *skb, struct sw_flow_key *key,
+ 	new_mark = ct_mark | (ct->mark & ~(mask));
+ 	if (ct->mark != new_mark) {
+ 		ct->mark = new_mark;
+-		nf_conntrack_event_cache(IPCT_MARK, ct);
++		if (nf_ct_is_confirmed(ct))
++			nf_conntrack_event_cache(IPCT_MARK, ct);
+ 		key->ct.mark = new_mark;
+ 	}
+ 
+@@ -262,7 +263,6 @@ static int ovs_ct_set_labels(struct sk_buff *skb, struct sw_flow_key *key,
+ 	enum ip_conntrack_info ctinfo;
+ 	struct nf_conn_labels *cl;
+ 	struct nf_conn *ct;
+-	int err;
+ 
+ 	/* The connection could be invalid, in which case set_label is no-op.*/
+ 	ct = nf_ct_get(skb, &ctinfo);
+@@ -277,10 +277,26 @@ static int ovs_ct_set_labels(struct sk_buff *skb, struct sw_flow_key *key,
+ 	if (!cl || sizeof(cl->bits) < OVS_CT_LABELS_LEN)
+ 		return -ENOSPC;
+ 
+-	err = nf_connlabels_replace(ct, (u32 *)labels, (u32 *)mask,
+-				    OVS_CT_LABELS_LEN / sizeof(u32));
+-	if (err)
+-		return err;
++	if (nf_ct_is_confirmed(ct)) {
++		/* Triggers a change event, which makes sense only for
++		 * confirmed connections.
++		 */
++		int err = nf_connlabels_replace(ct, (u32 *)labels, (u32 *)mask,
++						OVS_CT_LABELS_LEN / sizeof(u32));
++		if (err)
++			return err;
++	} else {
++		u32 *dst = (u32 *)cl->bits;
++		const u32 *msk = (const u32 *)mask->ct_labels;
++		const u32 *lbl = (const u32 *)labels->ct_labels;
++		int i;
++
++		/* No-one else has access to the non-confirmed entry, copy
++		 * labels over, keeping any bits we are not explicitly setting.
++		 */
++		for (i = 0; i < OVS_CT_LABELS_LEN / sizeof(u32); i++)
++			dst[i] = (dst[i] & ~msk[i]) | (lbl[i] & msk[i]);
++	}
+ 
+ 	ovs_ct_get_labels(ct, &key->ct.labels);
+ 	return 0;
+-- 
+cgit 
+

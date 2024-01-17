@@ -1,0 +1,69 @@
+From 6676d5e416eecaf4e823a2c3903aa132ffc2ede0 Mon Sep 17 00:00:00 2001
+From: Vlad Buslov <vladbu@mellanox.com>
+Date: Mon, 25 Feb 2019 17:38:31 +0200
+Subject: net: sched: set dedicated tcf_walker flag when tp is empty
+
+Using tcf_walker->stop flag to determine when tcf_walker->fn() was called
+at least once is unreliable. Some classifiers set 'stop' flag on error
+before calling walker callback, other classifiers used to call it with NULL
+filter pointer when empty. In order to prevent further regressions, extend
+tcf_walker structure with dedicated 'nonempty' flag. Set this flag in
+tcf_walker->fn() implementation that is used to check if classifier has
+filters configured.
+
+Fixes: 8b64678e0af8 ("net: sched: refactor tp insert/delete for concurrent execution")
+Signed-off-by: Vlad Buslov <vladbu@mellanox.com>
+Suggested-by: Cong Wang <xiyou.wangcong@gmail.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ include/net/pkt_cls.h |  1 +
+ net/sched/cls_api.c   | 13 +++++++++----
+ 2 files changed, 10 insertions(+), 4 deletions(-)
+
+diff --git a/include/net/pkt_cls.h b/include/net/pkt_cls.h
+index 58ea48e1221c5..d5e7a1af346fe 100644
+--- a/include/net/pkt_cls.h
++++ b/include/net/pkt_cls.h
+@@ -17,6 +17,7 @@ struct tcf_walker {
+ 	int	stop;
+ 	int	skip;
+ 	int	count;
++	bool	nonempty;
+ 	unsigned long cookie;
+ 	int	(*fn)(struct tcf_proto *, void *node, struct tcf_walker *);
+ };
+diff --git a/net/sched/cls_api.c b/net/sched/cls_api.c
+index 6593c245f7142..97d9312c2ff90 100644
+--- a/net/sched/cls_api.c
++++ b/net/sched/cls_api.c
+@@ -238,18 +238,23 @@ static void tcf_proto_put(struct tcf_proto *tp, bool rtnl_held,
+ 		tcf_proto_destroy(tp, rtnl_held, extack);
+ }
+ 
+-static int walker_noop(struct tcf_proto *tp, void *d, struct tcf_walker *arg)
++static int walker_check_empty(struct tcf_proto *tp, void *d,
++			      struct tcf_walker *arg)
+ {
+-	return -1;
++	if (tp) {
++		arg->nonempty = true;
++		return -1;
++	}
++	return 0;
+ }
+ 
+ static bool tcf_proto_is_empty(struct tcf_proto *tp, bool rtnl_held)
+ {
+-	struct tcf_walker walker = { .fn = walker_noop, };
++	struct tcf_walker walker = { .fn = walker_check_empty, };
+ 
+ 	if (tp->ops->walk) {
+ 		tp->ops->walk(tp, &walker, rtnl_held);
+-		return !walker.stop;
++		return !walker.nonempty;
+ 	}
+ 	return true;
+ }
+-- 
+cgit 
+

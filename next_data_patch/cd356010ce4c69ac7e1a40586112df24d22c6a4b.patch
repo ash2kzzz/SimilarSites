@@ -1,0 +1,149 @@
+From cd356010ce4c69ac7e1a40586112df24d22c6a4b Mon Sep 17 00:00:00 2001
+From: Vladimir Oltean <vladimir.oltean@nxp.com>
+Date: Tue, 14 Mar 2023 17:30:25 +0200
+Subject: net: phy: mscc: fix deadlock in phy_ethtool_{get,set}_wol()
+
+Since the blamed commit, phy_ethtool_get_wol() and phy_ethtool_set_wol()
+acquire phydev->lock, but the mscc phy driver implementations,
+vsc85xx_wol_get() and vsc85xx_wol_set(), acquire the same lock as well,
+resulting in a deadlock.
+
+$ ip link set swp3 down
+============================================
+WARNING: possible recursive locking detected
+mscc_felix 0000:00:00.5 swp3: Link is Down
+--------------------------------------------
+ip/375 is trying to acquire lock:
+ffff3d7e82e987a8 (&dev->lock){+.+.}-{4:4}, at: vsc85xx_wol_get+0x2c/0xf4
+
+but task is already holding lock:
+ffff3d7e82e987a8 (&dev->lock){+.+.}-{4:4}, at: phy_ethtool_get_wol+0x3c/0x6c
+
+other info that might help us debug this:
+ Possible unsafe locking scenario:
+
+       CPU0
+       ----
+  lock(&dev->lock);
+  lock(&dev->lock);
+
+ *** DEADLOCK ***
+
+ May be due to missing lock nesting notation
+
+2 locks held by ip/375:
+ #0: ffffd43b2a955788 (rtnl_mutex){+.+.}-{4:4}, at: rtnetlink_rcv_msg+0x144/0x58c
+ #1: ffff3d7e82e987a8 (&dev->lock){+.+.}-{4:4}, at: phy_ethtool_get_wol+0x3c/0x6c
+
+Call trace:
+ __mutex_lock+0x98/0x454
+ mutex_lock_nested+0x2c/0x38
+ vsc85xx_wol_get+0x2c/0xf4
+ phy_ethtool_get_wol+0x50/0x6c
+ phy_suspend+0x84/0xcc
+ phy_state_machine+0x1b8/0x27c
+ phy_stop+0x70/0x154
+ phylink_stop+0x34/0xc0
+ dsa_port_disable_rt+0x2c/0xa4
+ dsa_slave_close+0x38/0xec
+ __dev_close_many+0xc8/0x16c
+ __dev_change_flags+0xdc/0x218
+ dev_change_flags+0x24/0x6c
+ do_setlink+0x234/0xea4
+ __rtnl_newlink+0x46c/0x878
+ rtnl_newlink+0x50/0x7c
+ rtnetlink_rcv_msg+0x16c/0x58c
+
+Removing the mutex_lock(&phydev->lock) calls from the driver restores
+the functionality.
+
+Fixes: 2f987d486610 ("net: phy: Add locks to ethtool functions")
+Signed-off-by: Vladimir Oltean <vladimir.oltean@nxp.com>
+Reviewed-by: Simon Horman <simon.horman@corigine.com>
+Reviewed-by: Andrew Lunn <andrew@lunn.ch>
+Link: https://lore.kernel.org/r/20230314153025.2372970-1-vladimir.oltean@nxp.com
+Signed-off-by: Jakub Kicinski <kuba@kernel.org>
+---
+ drivers/net/phy/mscc/mscc_main.c | 24 ++++++++----------------
+ 1 file changed, 8 insertions(+), 16 deletions(-)
+
+diff --git a/drivers/net/phy/mscc/mscc_main.c b/drivers/net/phy/mscc/mscc_main.c
+index 8a13b1ad9a330..62bf99e45af16 100644
+--- a/drivers/net/phy/mscc/mscc_main.c
++++ b/drivers/net/phy/mscc/mscc_main.c
+@@ -280,12 +280,9 @@ static int vsc85xx_wol_set(struct phy_device *phydev,
+ 	u16 pwd[3] = {0, 0, 0};
+ 	struct ethtool_wolinfo *wol_conf = wol;
+ 
+-	mutex_lock(&phydev->lock);
+ 	rc = phy_select_page(phydev, MSCC_PHY_PAGE_EXTENDED_2);
+-	if (rc < 0) {
+-		rc = phy_restore_page(phydev, rc, rc);
+-		goto out_unlock;
+-	}
++	if (rc < 0)
++		return phy_restore_page(phydev, rc, rc);
+ 
+ 	if (wol->wolopts & WAKE_MAGIC) {
+ 		/* Store the device address for the magic packet */
+@@ -323,7 +320,7 @@ static int vsc85xx_wol_set(struct phy_device *phydev,
+ 
+ 	rc = phy_restore_page(phydev, rc, rc > 0 ? 0 : rc);
+ 	if (rc < 0)
+-		goto out_unlock;
++		return rc;
+ 
+ 	if (wol->wolopts & WAKE_MAGIC) {
+ 		/* Enable the WOL interrupt */
+@@ -331,22 +328,19 @@ static int vsc85xx_wol_set(struct phy_device *phydev,
+ 		reg_val |= MII_VSC85XX_INT_MASK_WOL;
+ 		rc = phy_write(phydev, MII_VSC85XX_INT_MASK, reg_val);
+ 		if (rc)
+-			goto out_unlock;
++			return rc;
+ 	} else {
+ 		/* Disable the WOL interrupt */
+ 		reg_val = phy_read(phydev, MII_VSC85XX_INT_MASK);
+ 		reg_val &= (~MII_VSC85XX_INT_MASK_WOL);
+ 		rc = phy_write(phydev, MII_VSC85XX_INT_MASK, reg_val);
+ 		if (rc)
+-			goto out_unlock;
++			return rc;
+ 	}
+ 	/* Clear WOL iterrupt status */
+ 	reg_val = phy_read(phydev, MII_VSC85XX_INT_STATUS);
+ 
+-out_unlock:
+-	mutex_unlock(&phydev->lock);
+-
+-	return rc;
++	return 0;
+ }
+ 
+ static void vsc85xx_wol_get(struct phy_device *phydev,
+@@ -358,10 +352,9 @@ static void vsc85xx_wol_get(struct phy_device *phydev,
+ 	u16 pwd[3] = {0, 0, 0};
+ 	struct ethtool_wolinfo *wol_conf = wol;
+ 
+-	mutex_lock(&phydev->lock);
+ 	rc = phy_select_page(phydev, MSCC_PHY_PAGE_EXTENDED_2);
+ 	if (rc < 0)
+-		goto out_unlock;
++		goto out_restore_page;
+ 
+ 	reg_val = __phy_read(phydev, MSCC_PHY_WOL_MAC_CONTROL);
+ 	if (reg_val & SECURE_ON_ENABLE)
+@@ -377,9 +370,8 @@ static void vsc85xx_wol_get(struct phy_device *phydev,
+ 		}
+ 	}
+ 
+-out_unlock:
++out_restore_page:
+ 	phy_restore_page(phydev, rc, rc > 0 ? 0 : rc);
+-	mutex_unlock(&phydev->lock);
+ }
+ 
+ #if IS_ENABLED(CONFIG_OF_MDIO)
+-- 
+cgit 
+

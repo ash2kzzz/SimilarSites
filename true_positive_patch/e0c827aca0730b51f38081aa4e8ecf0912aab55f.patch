@@ -1,0 +1,205 @@
+From e0c827aca0730b51f38081aa4e8ecf0912aab55f Mon Sep 17 00:00:00 2001
+From: Laurent Pinchart <laurent.pinchart@ideasonboard.com>
+Date: Sat, 10 Nov 2018 13:16:51 +0200
+Subject: drm/omap: Populate DSS children in omapdss driver
+
+The DSS DT node contains children that describe the DSS components
+(DISPC and internal encoders). Each of those components is handled by a
+platform driver, and thus needs to be backed by a platform device.
+
+The corresponding platform devices are created in mach-omap2 code by a
+call to of_platform_populate(). While this approach has worked so far,
+it doesn't model the hardware architecture very well, as it creates
+child devices before the parent is ready to handle them. This would be
+akin to creating I2C slaves before the I2C master is available.
+
+The task can be easily performed in the omapdss driver code instead,
+simplifying mach-omap2 code. We however can't remove the mach-omap2 code
+completely as the omap2fb driver still depends on it, but we can move it
+to the omap2fb-specific section, where it can stay until the omap2fb
+driver gets removed.
+
+This has the added benefit of not allowing DSS components to probe
+before the DSS itself, which led to runtime PM issues when the DSS probe
+is deferred.
+
+Fixes: 27d624527d99 ("drm/omap: dss: Acquire next dssdev at probe time")
+Signed-off-by: Laurent Pinchart <laurent.pinchart@ideasonboard.com>
+Acked-by: Tony Lindgren <tony@atomide.com>
+Reviewed-by: Sebastian Reichel <sebastian.reichel@collabora.com>
+Signed-off-by: Tomi Valkeinen <tomi.valkeinen@ti.com>
+Link: https://patchwork.freedesktop.org/patch/msgid/20181110111654.4387-2-laurent.pinchart@ideasonboard.com
+---
+ arch/arm/mach-omap2/display.c     | 111 ++++++++++++++++++--------------------
+ drivers/gpu/drm/omapdrm/dss/dss.c |  11 +++-
+ 2 files changed, 63 insertions(+), 59 deletions(-)
+
+diff --git a/arch/arm/mach-omap2/display.c b/arch/arm/mach-omap2/display.c
+index 9500b6e273801..f86b72d1d59e5 100644
+--- a/arch/arm/mach-omap2/display.c
++++ b/arch/arm/mach-omap2/display.c
+@@ -209,11 +209,61 @@ static int __init omapdss_init_fbdev(void)
+ 
+ 	return 0;
+ }
+-#else
+-static inline int omapdss_init_fbdev(void)
++
++static const char * const omapdss_compat_names[] __initconst = {
++	"ti,omap2-dss",
++	"ti,omap3-dss",
++	"ti,omap4-dss",
++	"ti,omap5-dss",
++	"ti,dra7-dss",
++};
++
++static struct device_node * __init omapdss_find_dss_of_node(void)
+ {
+-	return 0;
++	struct device_node *node;
++	int i;
++
++	for (i = 0; i < ARRAY_SIZE(omapdss_compat_names); ++i) {
++		node = of_find_compatible_node(NULL, NULL,
++			omapdss_compat_names[i]);
++		if (node)
++			return node;
++	}
++
++	return NULL;
+ }
++
++static int __init omapdss_init_of(void)
++{
++	int r;
++	struct device_node *node;
++	struct platform_device *pdev;
++
++	/* only create dss helper devices if dss is enabled in the .dts */
++
++	node = omapdss_find_dss_of_node();
++	if (!node)
++		return 0;
++
++	if (!of_device_is_available(node))
++		return 0;
++
++	pdev = of_find_device_by_node(node);
++
++	if (!pdev) {
++		pr_err("Unable to find DSS platform device\n");
++		return -ENODEV;
++	}
++
++	r = of_platform_populate(node, NULL, NULL, &pdev->dev);
++	if (r) {
++		pr_err("Unable to populate DSS submodule devices\n");
++		return r;
++	}
++
++	return omapdss_init_fbdev();
++}
++omap_device_initcall(omapdss_init_of);
+ #endif /* CONFIG_FB_OMAP2 */
+ 
+ static void dispc_disable_outputs(void)
+@@ -361,58 +411,3 @@ int omap_dss_reset(struct omap_hwmod *oh)
+ 
+ 	return r;
+ }
+-
+-static const char * const omapdss_compat_names[] __initconst = {
+-	"ti,omap2-dss",
+-	"ti,omap3-dss",
+-	"ti,omap4-dss",
+-	"ti,omap5-dss",
+-	"ti,dra7-dss",
+-};
+-
+-static struct device_node * __init omapdss_find_dss_of_node(void)
+-{
+-	struct device_node *node;
+-	int i;
+-
+-	for (i = 0; i < ARRAY_SIZE(omapdss_compat_names); ++i) {
+-		node = of_find_compatible_node(NULL, NULL,
+-			omapdss_compat_names[i]);
+-		if (node)
+-			return node;
+-	}
+-
+-	return NULL;
+-}
+-
+-static int __init omapdss_init_of(void)
+-{
+-	int r;
+-	struct device_node *node;
+-	struct platform_device *pdev;
+-
+-	/* only create dss helper devices if dss is enabled in the .dts */
+-
+-	node = omapdss_find_dss_of_node();
+-	if (!node)
+-		return 0;
+-
+-	if (!of_device_is_available(node))
+-		return 0;
+-
+-	pdev = of_find_device_by_node(node);
+-
+-	if (!pdev) {
+-		pr_err("Unable to find DSS platform device\n");
+-		return -ENODEV;
+-	}
+-
+-	r = of_platform_populate(node, NULL, NULL, &pdev->dev);
+-	if (r) {
+-		pr_err("Unable to populate DSS submodule devices\n");
+-		return r;
+-	}
+-
+-	return omapdss_init_fbdev();
+-}
+-omap_device_initcall(omapdss_init_of);
+diff --git a/drivers/gpu/drm/omapdrm/dss/dss.c b/drivers/gpu/drm/omapdrm/dss/dss.c
+index 1aaf260aa9b86..7553c7fc1c457 100644
+--- a/drivers/gpu/drm/omapdrm/dss/dss.c
++++ b/drivers/gpu/drm/omapdrm/dss/dss.c
+@@ -1484,16 +1484,23 @@ static int dss_probe(struct platform_device *pdev)
+ 						   dss);
+ 
+ 	/* Add all the child devices as components. */
++	r = of_platform_populate(pdev->dev.of_node, NULL, NULL, &pdev->dev);
++	if (r)
++		goto err_uninit_debugfs;
++
+ 	omapdss_gather_components(&pdev->dev);
+ 
+ 	device_for_each_child(&pdev->dev, &match, dss_add_child_component);
+ 
+ 	r = component_master_add_with_match(&pdev->dev, &dss_component_ops, match);
+ 	if (r)
+-		goto err_uninit_debugfs;
++		goto err_of_depopulate;
+ 
+ 	return 0;
+ 
++err_of_depopulate:
++	of_platform_depopulate(&pdev->dev);
++
+ err_uninit_debugfs:
+ 	dss_debugfs_remove_file(dss->debugfs.clk);
+ 	dss_debugfs_remove_file(dss->debugfs.dss);
+@@ -1522,6 +1529,8 @@ static int dss_remove(struct platform_device *pdev)
+ {
+ 	struct dss_device *dss = platform_get_drvdata(pdev);
+ 
++	of_platform_depopulate(&pdev->dev);
++
+ 	component_master_del(&pdev->dev, &dss_component_ops);
+ 
+ 	dss_debugfs_remove_file(dss->debugfs.clk);
+-- 
+cgit 
+

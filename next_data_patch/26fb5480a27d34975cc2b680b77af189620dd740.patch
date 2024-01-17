@@ -1,0 +1,126 @@
+From 26fb5480a27d34975cc2b680b77af189620dd740 Mon Sep 17 00:00:00 2001
+From: Chuck Lever <chuck.lever@oracle.com>
+Date: Thu, 11 May 2023 11:49:50 -0400
+Subject: net/handshake: Enable the SNI extension to work properly
+
+Enable the upper layer protocol to specify the SNI peername. This
+avoids the need for tlshd to use a DNS lookup, which can return a
+hostname that doesn't match the incoming certificate's SubjectName.
+
+Fixes: 2fd5532044a8 ("net/handshake: Add a kernel API for requesting a TLSv1.3 handshake")
+Reviewed-by: Simon Horman <simon.horman@corigine.com>
+Signed-off-by: Chuck Lever <chuck.lever@oracle.com>
+Signed-off-by: Jakub Kicinski <kuba@kernel.org>
+---
+ Documentation/netlink/specs/handshake.yaml | 4 ++++
+ Documentation/networking/tls-handshake.rst | 5 +++++
+ include/net/handshake.h                    | 1 +
+ include/uapi/linux/handshake.h             | 1 +
+ net/handshake/tlshd.c                      | 8 ++++++++
+ 5 files changed, 19 insertions(+)
+
+diff --git a/Documentation/netlink/specs/handshake.yaml b/Documentation/netlink/specs/handshake.yaml
+index 614f1a5855114..6d89e30f5fd52 100644
+--- a/Documentation/netlink/specs/handshake.yaml
++++ b/Documentation/netlink/specs/handshake.yaml
+@@ -68,6 +68,9 @@ attribute-sets:
+         type: nest
+         nested-attributes: x509
+         multi-attr: true
++      -
++        name: peername
++        type: string
+   -
+     name: done
+     attributes:
+@@ -105,6 +108,7 @@ operations:
+             - auth-mode
+             - peer-identity
+             - certificate
++            - peername
+     -
+       name: done
+       doc: Handler reports handshake completion
+diff --git a/Documentation/networking/tls-handshake.rst b/Documentation/networking/tls-handshake.rst
+index a2817a88e905f..6f5ea1646a470 100644
+--- a/Documentation/networking/tls-handshake.rst
++++ b/Documentation/networking/tls-handshake.rst
+@@ -53,6 +53,7 @@ fills in a structure that contains the parameters of the request:
+         struct socket   *ta_sock;
+         tls_done_func_t ta_done;
+         void            *ta_data;
++        const char      *ta_peername;
+         unsigned int    ta_timeout_ms;
+         key_serial_t    ta_keyring;
+         key_serial_t    ta_my_cert;
+@@ -71,6 +72,10 @@ instantiated a struct file in sock->file.
+ has completed. Further explanation of this function is in the "Handshake
+ Completion" sesction below.
+ 
++The consumer can provide a NUL-terminated hostname in the @ta_peername
++field that is sent as part of ClientHello. If no peername is provided,
++the DNS hostname associated with the server's IP address is used instead.
++
+ The consumer can fill in the @ta_timeout_ms field to force the servicing
+ handshake agent to exit after a number of milliseconds. This enables the
+ socket to be fully closed once both the kernel and the handshake agent
+diff --git a/include/net/handshake.h b/include/net/handshake.h
+index 3352b1ab43b35..2e26e436e85f5 100644
+--- a/include/net/handshake.h
++++ b/include/net/handshake.h
+@@ -24,6 +24,7 @@ struct tls_handshake_args {
+ 	struct socket		*ta_sock;
+ 	tls_done_func_t		ta_done;
+ 	void			*ta_data;
++	const char		*ta_peername;
+ 	unsigned int		ta_timeout_ms;
+ 	key_serial_t		ta_keyring;
+ 	key_serial_t		ta_my_cert;
+diff --git a/include/uapi/linux/handshake.h b/include/uapi/linux/handshake.h
+index 1de4d0b95325b..3d7ea58778c96 100644
+--- a/include/uapi/linux/handshake.h
++++ b/include/uapi/linux/handshake.h
+@@ -44,6 +44,7 @@ enum {
+ 	HANDSHAKE_A_ACCEPT_AUTH_MODE,
+ 	HANDSHAKE_A_ACCEPT_PEER_IDENTITY,
+ 	HANDSHAKE_A_ACCEPT_CERTIFICATE,
++	HANDSHAKE_A_ACCEPT_PEERNAME,
+ 
+ 	__HANDSHAKE_A_ACCEPT_MAX,
+ 	HANDSHAKE_A_ACCEPT_MAX = (__HANDSHAKE_A_ACCEPT_MAX - 1)
+diff --git a/net/handshake/tlshd.c b/net/handshake/tlshd.c
+index fcbeb63b4eb16..b735f5cced2f5 100644
+--- a/net/handshake/tlshd.c
++++ b/net/handshake/tlshd.c
+@@ -31,6 +31,7 @@ struct tls_handshake_req {
+ 	int			th_type;
+ 	unsigned int		th_timeout_ms;
+ 	int			th_auth_mode;
++	const char		*th_peername;
+ 	key_serial_t		th_keyring;
+ 	key_serial_t		th_certificate;
+ 	key_serial_t		th_privkey;
+@@ -48,6 +49,7 @@ tls_handshake_req_init(struct handshake_req *req,
+ 	treq->th_timeout_ms = args->ta_timeout_ms;
+ 	treq->th_consumer_done = args->ta_done;
+ 	treq->th_consumer_data = args->ta_data;
++	treq->th_peername = args->ta_peername;
+ 	treq->th_keyring = args->ta_keyring;
+ 	treq->th_num_peerids = 0;
+ 	treq->th_certificate = TLS_NO_CERT;
+@@ -214,6 +216,12 @@ static int tls_handshake_accept(struct handshake_req *req,
+ 	ret = nla_put_u32(msg, HANDSHAKE_A_ACCEPT_MESSAGE_TYPE, treq->th_type);
+ 	if (ret < 0)
+ 		goto out_cancel;
++	if (treq->th_peername) {
++		ret = nla_put_string(msg, HANDSHAKE_A_ACCEPT_PEERNAME,
++				     treq->th_peername);
++		if (ret < 0)
++			goto out_cancel;
++	}
+ 	if (treq->th_timeout_ms) {
+ 		ret = nla_put_u32(msg, HANDSHAKE_A_ACCEPT_TIMEOUT, treq->th_timeout_ms);
+ 		if (ret < 0)
+-- 
+cgit 
+

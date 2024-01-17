@@ -1,0 +1,58 @@
+From f50aa51c4498d7886cfd9dbf439a2332f234a755 Mon Sep 17 00:00:00 2001
+From: Masahiro Yamada <masahiroy@kernel.org>
+Date: Mon, 13 Mar 2023 05:07:28 +0900
+Subject: kbuild: deb-pkg: set CROSS_COMPILE only when undefined
+
+Commit 3ab18a625ce4 ("kbuild: deb-pkg: improve the usability of source
+package") set needless CROSS_COMPILE.
+
+For example, 'make allnoconfig bindeb-pkg' on a x86_64 system will set
+CROSS_COMPILE=i686-linux-gnu-, where the biarch compiler 'gcc' should
+work for building the i386 kernel.
+
+  $ uname -m
+  x86_64
+  $ make allnoconfig bindeb-pkg >/dev/null
+  dpkg-architecture: warning: specified GNU system type i686-linux-gnu does not match CC system type x86_64-linux-gnu, try setting a correct CC environment variable
+   dpkg-source --before-build .
+   debian/rules binary
+  scripts/Kconfig.include:39: C compiler 'i686-linux-gnu-gcc' not found
+  make[6]: *** [scripts/kconfig/Makefile:77: olddefconfig] Error 1
+  make[5]: *** [Makefile:693: olddefconfig] Error 2
+  make[4]: *** [Makefile:358: __build_one_by_one] Error 2
+  make[3]: *** [debian/rules:7: build-arch] Error 2
+  dpkg-buildpackage: error: debian/rules binary subprocess returned exit status 2
+  make[2]: *** [scripts/Makefile.package:127: bindeb-pkg] Error 2
+  make[1]: *** [Makefile:1657: bindeb-pkg] Error 2
+  make: *** [Makefile:358: __build_one_by_one] Error 2
+
+Check whether CROSS_COMPILE is defined, instead of whether it is non-empty.
+
+If you invoke debian/rules via Kbuild, CROSS_COMPILE is always defined
+in the top Makefile.
+
+Fixes: 3ab18a625ce4 ("kbuild: deb-pkg: improve the usability of source package")
+Signed-off-by: Masahiro Yamada <masahiroy@kernel.org>
+---
+ scripts/package/deb-build-option | 5 ++---
+ 1 file changed, 2 insertions(+), 3 deletions(-)
+
+diff --git a/scripts/package/deb-build-option b/scripts/package/deb-build-option
+index bd53624318f20..7950eff01781a 100755
+--- a/scripts/package/deb-build-option
++++ b/scripts/package/deb-build-option
+@@ -1,9 +1,8 @@
+ #!/bin/sh
+ # SPDX-License-Identifier: GPL-2.0-only
+ 
+-# Set up CROSS_COMPILE if we are cross-compiling, but not called from the
+-# kernel toplevel Makefile
+-if [ -z "${CROSS_COMPILE}${cross_compiling}" -a "${DEB_HOST_ARCH}" != "${DEB_BUILD_ARCH}" ]; then
++# Set up CROSS_COMPILE if not defined yet
++if [ "${CROSS_COMPILE+set}" != "set" -a "${DEB_HOST_ARCH}" != "${DEB_BUILD_ARCH}" ]; then
+ 	echo CROSS_COMPILE=${DEB_HOST_GNU_TYPE}-
+ fi
+ 
+-- 
+cgit 
+

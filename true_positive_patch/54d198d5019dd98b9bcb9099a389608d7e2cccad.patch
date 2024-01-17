@@ -1,0 +1,52 @@
+From 54d198d5019dd98b9bcb9099a389608d7e2cccad Mon Sep 17 00:00:00 2001
+From: Takashi Iwai <tiwai@suse.de>
+Date: Tue, 7 May 2019 21:39:10 +0200
+Subject: ASoC: SOF: Propagate sof_get_ctrl_copy_params() error properly
+
+This fixes a compile warning below by properly handling the error code
+from sof_get_ctrl_copy_params():
+  include/linux/kernel.h:843:43: warning: 'sparams.pl_size' may be used uninitialized in this function [-Wmaybe-uninitialized]
+  sound/soc/sof/ipc.c:639:34: note: 'sparams.pl_size' was declared here
+
+The function returns an error before setting sparams.pl_size, so it'd
+assign an uninitialized value at a later point.
+
+Fixes: 53e0c72d98ba ("ASoC: SOF: Add support for IPC IO between DSP and Host")
+Signed-off-by: Takashi Iwai <tiwai@suse.de>
+Signed-off-by: Mark Brown <broonie@kernel.org>
+---
+ sound/soc/sof/ipc.c | 10 +++++++---
+ 1 file changed, 7 insertions(+), 3 deletions(-)
+
+diff --git a/sound/soc/sof/ipc.c b/sound/soc/sof/ipc.c
+index ba1bb17a8d1e5..f0b9d3c53f6f6 100644
+--- a/sound/soc/sof/ipc.c
++++ b/sound/soc/sof/ipc.c
+@@ -567,7 +567,7 @@ static int sof_set_get_large_ctrl_data(struct snd_sof_dev *sdev,
+ 	size_t offset = 0;
+ 	size_t msg_bytes;
+ 	size_t pl_size;
+-	int err = 0;
++	int err;
+ 	int i;
+ 
+ 	/* allocate max ipc size because we have at least one */
+@@ -576,9 +576,13 @@ static int sof_set_get_large_ctrl_data(struct snd_sof_dev *sdev,
+ 		return -ENOMEM;
+ 
+ 	if (send)
+-		sof_get_ctrl_copy_params(cdata->type, cdata, partdata, sparams);
++		err = sof_get_ctrl_copy_params(cdata->type, cdata, partdata,
++					       sparams);
+ 	else
+-		sof_get_ctrl_copy_params(cdata->type, partdata, cdata, sparams);
++		err = sof_get_ctrl_copy_params(cdata->type, partdata, cdata,
++					       sparams);
++	if (err < 0)
++		return err;
+ 
+ 	msg_bytes = sparams->msg_bytes;
+ 	pl_size = sparams->pl_size;
+-- 
+cgit 
+

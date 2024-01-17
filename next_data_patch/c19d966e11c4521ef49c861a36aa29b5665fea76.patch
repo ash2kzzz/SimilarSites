@@ -1,0 +1,48 @@
+From c19d966e11c4521ef49c861a36aa29b5665fea76 Mon Sep 17 00:00:00 2001
+From: Hal Feng <hal.feng@starfivetech.com>
+Date: Mon, 17 Apr 2023 15:41:15 +0800
+Subject: clk: starfive: Delete the redundant dev_set_drvdata() in JH7110 clock
+ drivers
+
+The dev_set_drvdata() is no longer needed after we used a wrapper
+struct to get the data in auxiliary driver.
+
+Cc: Xingyu Wu <xingyu.wu@starfivetech.com>
+Fixes: d1aae0663023 ("clk: starfive: Avoid casting iomem pointers")
+Signed-off-by: Hal Feng <hal.feng@starfivetech.com>
+Link: https://lore.kernel.org/r/20230417074115.30786-3-hal.feng@starfivetech.com
+Signed-off-by: Stephen Boyd <sboyd@kernel.org>
+---
+ drivers/clk/starfive/clk-starfive-jh7110-aon.c | 2 --
+ drivers/clk/starfive/clk-starfive-jh7110-sys.c | 2 --
+ 2 files changed, 4 deletions(-)
+
+diff --git a/drivers/clk/starfive/clk-starfive-jh7110-aon.c b/drivers/clk/starfive/clk-starfive-jh7110-aon.c
+index a2799fe8a2344..62954eb7b50a3 100644
+--- a/drivers/clk/starfive/clk-starfive-jh7110-aon.c
++++ b/drivers/clk/starfive/clk-starfive-jh7110-aon.c
+@@ -83,8 +83,6 @@ static int jh7110_aoncrg_probe(struct platform_device *pdev)
+ 	if (IS_ERR(priv->base))
+ 		return PTR_ERR(priv->base);
+ 
+-	dev_set_drvdata(priv->dev, (void *)(&priv->base));
+-
+ 	for (idx = 0; idx < JH7110_AONCLK_END; idx++) {
+ 		u32 max = jh7110_aonclk_data[idx].max;
+ 		struct clk_parent_data parents[4] = {};
+diff --git a/drivers/clk/starfive/clk-starfive-jh7110-sys.c b/drivers/clk/starfive/clk-starfive-jh7110-sys.c
+index 851b93d0f371c..e6031345ef05d 100644
+--- a/drivers/clk/starfive/clk-starfive-jh7110-sys.c
++++ b/drivers/clk/starfive/clk-starfive-jh7110-sys.c
+@@ -402,8 +402,6 @@ static int __init jh7110_syscrg_probe(struct platform_device *pdev)
+ 	if (IS_ERR(priv->base))
+ 		return PTR_ERR(priv->base);
+ 
+-	dev_set_drvdata(priv->dev, (void *)(&priv->base));
+-
+ 	/*
+ 	 * These PLL clocks are not actually fixed factor clocks and can be
+ 	 * controlled by the syscon registers of JH7110. They will be dropped
+-- 
+cgit 
+

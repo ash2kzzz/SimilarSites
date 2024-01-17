@@ -1,0 +1,75 @@
+From b2d2440430c0fdd5e0cad3efd6d1c9e3d3d02e5b Mon Sep 17 00:00:00 2001
+From: Zhu Yanjun <yanjunz@nvidia.com>
+Date: Mon, 2 Nov 2020 22:13:42 +0800
+Subject: RDMA/rxe: Remove VLAN code leftovers from RXE
+
+Since the commit fd49ddaf7e26 ("RDMA/rxe: prevent rxe creation on top of
+vlan interface") does not permit rxe on top of vlan device, all the stuff
+related with vlan should be removed.
+
+Fixes: fd49ddaf7e26 ("RDMA/rxe: prevent rxe creation on top of vlan interface")
+Link: https://lore.kernel.org/r/1604326422-18625-1-git-send-email-yanjunz@nvidia.com
+Signed-off-by: Zhu Yanjun <yanjunz@nvidia.com>
+Reviewed-by: Leon Romanovsky <leonro@nvidia.com>
+Signed-off-by: Jason Gunthorpe <jgg@nvidia.com>
+---
+ drivers/infiniband/sw/rxe/rxe_net.c  | 9 ---------
+ drivers/infiniband/sw/rxe/rxe_resp.c | 5 -----
+ 2 files changed, 14 deletions(-)
+
+diff --git a/drivers/infiniband/sw/rxe/rxe_net.c b/drivers/infiniband/sw/rxe/rxe_net.c
+index 575e1a4ec8212..d61f06d4e8bdb 100644
+--- a/drivers/infiniband/sw/rxe/rxe_net.c
++++ b/drivers/infiniband/sw/rxe/rxe_net.c
+@@ -8,7 +8,6 @@
+ #include <linux/if_arp.h>
+ #include <linux/netdevice.h>
+ #include <linux/if.h>
+-#include <linux/if_vlan.h>
+ #include <net/udp_tunnel.h>
+ #include <net/sch_generic.h>
+ #include <linux/netfilter.h>
+@@ -26,9 +25,6 @@ struct device *rxe_dma_device(struct rxe_dev *rxe)
+ 
+ 	ndev = rxe->ndev;
+ 
+-	if (is_vlan_dev(ndev))
+-		ndev = vlan_dev_real_dev(ndev);
+-
+ 	return ndev->dev.parent;
+ }
+ 
+@@ -166,14 +162,9 @@ static int rxe_udp_encap_recv(struct sock *sk, struct sk_buff *skb)
+ {
+ 	struct udphdr *udph;
+ 	struct net_device *ndev = skb->dev;
+-	struct net_device *rdev = ndev;
+ 	struct rxe_dev *rxe = rxe_get_dev_from_net(ndev);
+ 	struct rxe_pkt_info *pkt = SKB_TO_PKT(skb);
+ 
+-	if (!rxe && is_vlan_dev(rdev)) {
+-		rdev = vlan_dev_real_dev(ndev);
+-		rxe = rxe_get_dev_from_net(rdev);
+-	}
+ 	if (!rxe)
+ 		goto drop;
+ 
+diff --git a/drivers/infiniband/sw/rxe/rxe_resp.c b/drivers/infiniband/sw/rxe/rxe_resp.c
+index c7e3b6a4af38f..5a098083a9d22 100644
+--- a/drivers/infiniband/sw/rxe/rxe_resp.c
++++ b/drivers/infiniband/sw/rxe/rxe_resp.c
+@@ -872,11 +872,6 @@ static enum resp_states do_complete(struct rxe_qp *qp,
+ 			else
+ 				wc->network_hdr_type = RDMA_NETWORK_IPV6;
+ 
+-			if (is_vlan_dev(skb->dev)) {
+-				wc->wc_flags |= IB_WC_WITH_VLAN;
+-				wc->vlan_id = vlan_dev_vlan_id(skb->dev);
+-			}
+-
+ 			if (pkt->mask & RXE_IMMDT_MASK) {
+ 				wc->wc_flags |= IB_WC_WITH_IMM;
+ 				wc->ex.imm_data = immdt_imm(pkt);
+-- 
+cgit 
+

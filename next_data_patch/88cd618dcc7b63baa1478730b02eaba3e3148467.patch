@@ -1,0 +1,42 @@
+From 88cd618dcc7b63baa1478730b02eaba3e3148467 Mon Sep 17 00:00:00 2001
+From: Bagas Sanjaya <bagasdotme@gmail.com>
+Date: Mon, 20 Feb 2023 19:47:21 +0700
+Subject: debugfs: drop inline constant formatting for ERR_PTR(-ERROR)
+
+Stephen Rothwell reported htmldocs warning when merging driver-core tree
+for linux-next:
+
+Documentation/filesystems/api-summary:146: fs/debugfs/inode.c:804: WARNING: Inline literal start-string without end-string.
+
+The warning is due to inline constant formatting (``%CONST``) doesn't play
+nice with complex-name constants like ERR_PTR(-ERROR).
+
+Drop the formatting for that constant above to be consistent with similar
+error constants and also to fix the above warning.
+
+Link: https://lore.kernel.org/lkml/20230220163133.481e43d8@canb.auug.org.au/
+Fixes: d3002468cb5d5d ("debugfs: update comment of debugfs_rename()")
+Reported-by: Stephen Rothwell <sfr@canb.auug.org.au>
+Signed-off-by: Bagas Sanjaya <bagasdotme@gmail.com>
+Link: https://lore.kernel.org/r/20230220124721.11657-1-bagasdotme@gmail.com
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+---
+ fs/debugfs/inode.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/fs/debugfs/inode.c b/fs/debugfs/inode.c
+index 58a35afb7c5d8..a7a6a0821605a 100644
+--- a/fs/debugfs/inode.c
++++ b/fs/debugfs/inode.c
+@@ -802,7 +802,7 @@ EXPORT_SYMBOL_GPL(debugfs_lookup_and_remove);
+  * exist for rename to succeed.
+  *
+  * This function will return a pointer to old_dentry (which is updated to
+- * reflect renaming) if it succeeds. If an error occurs, %ERR_PTR(-ERROR)
++ * reflect renaming) if it succeeds. If an error occurs, ERR_PTR(-ERROR)
+  * will be returned.
+  *
+  * If debugfs is not enabled in the kernel, the value -%ENODEV will be
+-- 
+cgit 
+

@@ -1,0 +1,78 @@
+From b36bf0a0fe5d18561dd98eb774ef61dd396edc42 Mon Sep 17 00:00:00 2001
+From: Miquel Raynal <miquel.raynal@bootlin.com>
+Date: Fri, 13 Nov 2020 13:34:24 +0100
+Subject: mtd: rawnand: socrates: Move the ECC initialization to
+ ->attach_chip()
+
+The probe function is only supposed to initialize the controller
+hardware but not the ECC engine. Indeed, we don't know anything about
+the NAND chip(s) at this stage. Let's move the logic initializing the
+ECC engine, even pretty simple, to the ->attach_chip() hook which gets
+called during nand_scan() routine, after the NAND chip discovery. As
+the previously mentioned logic is supposed to parse the DT for us, it
+is likely that the chip->ecc.* entries be overwritten. So let's avoid
+this by moving these lines to ->attach_chip().
+
+Fixes: d7157ff49a5b ("mtd: rawnand: Use the ECC framework user input parsing bits")
+Signed-off-by: Miquel Raynal <miquel.raynal@bootlin.com>
+Link: https://lore.kernel.org/linux-mtd/20201113123424.32233-20-miquel.raynal@bootlin.com
+---
+ drivers/mtd/nand/raw/socrates_nand.c | 21 +++++++++++++++++----
+ 1 file changed, 17 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/mtd/nand/raw/socrates_nand.c b/drivers/mtd/nand/raw/socrates_nand.c
+index 0f63ff6f7fe7d..107208311987e 100644
+--- a/drivers/mtd/nand/raw/socrates_nand.c
++++ b/drivers/mtd/nand/raw/socrates_nand.c
+@@ -22,6 +22,7 @@
+ #define FPGA_NAND_DATA_SHIFT		16
+ 
+ struct socrates_nand_host {
++	struct nand_controller	controller;
+ 	struct nand_chip	nand_chip;
+ 	void __iomem		*io_base;
+ 	struct device		*dev;
+@@ -116,6 +117,18 @@ static int socrates_nand_device_ready(struct nand_chip *nand_chip)
+ 	return 1;
+ }
+ 
++static int socrates_attach_chip(struct nand_chip *chip)
++{
++	chip->ecc.engine_type = NAND_ECC_ENGINE_TYPE_SOFT;
++	chip->ecc.algo = NAND_ECC_ALGO_HAMMING;
++
++	return 0;
++}
++
++static const struct nand_controller_ops socrates_ops = {
++	.attach_chip = socrates_attach_chip,
++};
++
+ /*
+  * Probe for the NAND device.
+  */
+@@ -141,6 +154,10 @@ static int socrates_nand_probe(struct platform_device *ofdev)
+ 	mtd = nand_to_mtd(nand_chip);
+ 	host->dev = &ofdev->dev;
+ 
++	nand_controller_init(&host->controller);
++	host->controller.ops = &socrates_ops;
++	nand_chip->controller = &host->controller;
++
+ 	/* link the private data structures */
+ 	nand_set_controller_data(nand_chip, host);
+ 	nand_set_flash_node(nand_chip, ofdev->dev.of_node);
+@@ -153,10 +170,6 @@ static int socrates_nand_probe(struct platform_device *ofdev)
+ 	nand_chip->legacy.read_buf = socrates_nand_read_buf;
+ 	nand_chip->legacy.dev_ready = socrates_nand_device_ready;
+ 
+-	/* enable ECC */
+-	nand_chip->ecc.engine_type = NAND_ECC_ENGINE_TYPE_SOFT;
+-	nand_chip->ecc.algo = NAND_ECC_ALGO_HAMMING;
+-
+ 	/* TODO: I have no idea what real delay is. */
+ 	nand_chip->legacy.chip_delay = 20;	/* 20us command delay time */
+ 
+-- 
+cgit 
+

@@ -1,0 +1,47 @@
+From 6e0a32d6f376ea22a34ae3a8df60adafbcdb0c86 Mon Sep 17 00:00:00 2001
+From: Linus Walleij <linus.walleij@linaro.org>
+Date: Wed, 16 Jan 2019 09:21:08 +0100
+Subject: spi: dw: Fix default polarity of native chipselect
+
+The DW controller also supports platforms specifying
+native chipselects. When I enforce the use of high CS
+for drivers opting in for using GPIO descriptors, I
+inadvertedly switched the driver to also use active
+high chip select for native chip selects.
+
+As it turns out, the DW hardware driving chip selects
+also thinks it is weird with active low chip selects
+so all we need to do is remove an inversion in the
+driver.
+
+Cc: Jan Kotas <jank@cadence.com>
+Reported-by: Jan Kotas <jank@cadence.com>
+Tested-by: Jan Kotas <jank@cadence.com>
+Fixes: 9400c41e77b8 ("spi: dw: Convert to use CS GPIO descriptors")
+Signed-off-by: Linus Walleij <linus.walleij@linaro.org>
+Signed-off-by: Mark Brown <broonie@kernel.org>
+---
+ drivers/spi/spi-dw.c | 5 ++---
+ 1 file changed, 2 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/spi/spi-dw.c b/drivers/spi/spi-dw.c
+index 7092e58add2cb..8abb94248d97e 100644
+--- a/drivers/spi/spi-dw.c
++++ b/drivers/spi/spi-dw.c
+@@ -137,11 +137,10 @@ void dw_spi_set_cs(struct spi_device *spi, bool enable)
+ 	struct dw_spi *dws = spi_controller_get_devdata(spi->controller);
+ 	struct chip_data *chip = spi_get_ctldata(spi);
+ 
+-	/* Chip select logic is inverted from spi_set_cs() */
+ 	if (chip && chip->cs_control)
+-		chip->cs_control(!enable);
++		chip->cs_control(enable);
+ 
+-	if (!enable)
++	if (enable)
+ 		dw_writel(dws, DW_SPI_SER, BIT(spi->chip_select));
+ 	else if (dws->cs_override)
+ 		dw_writel(dws, DW_SPI_SER, 0);
+-- 
+cgit 
+

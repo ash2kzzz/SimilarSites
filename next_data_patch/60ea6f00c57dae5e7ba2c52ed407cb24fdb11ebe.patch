@@ -1,0 +1,43 @@
+From 60ea6f00c57dae5e7ba2c52ed407cb24fdb11ebe Mon Sep 17 00:00:00 2001
+From: Alex Elder <elder@linaro.org>
+Date: Fri, 6 Jan 2023 07:25:01 -0600
+Subject: net: ipa: correct IPA v4.7 IMEM offset
+
+Commit b310de784bacd ("net: ipa: add IPA v4.7 support") was merged
+despite an unresolved comment made by Konrad Dybcio.  Konrad
+observed that the IMEM region specified for IPA v4.7 did not match
+that used downstream for the SM7225 SoC.  In "lagoon.dtsi" present
+in a Sony Xperia source tree, a ipa_smmu_ap node was defined with a
+"qcom,additional-mapping" property that defined the IPA IMEM area
+starting at offset 0x146a8000 (not 0x146a9000 that was committed).
+
+The IPA v4.7 target system used for testing uses the SM7225 SoC, so
+we'll adhere what the downstream code specifies is the address of
+the IMEM region used for IPA.
+
+Link: https://lore.kernel.org/linux-arm-msm/20221208211529.757669-1-elder@linaro.org
+Fixes: b310de784bac ("net: ipa: add IPA v4.7 support")
+Tested-by: Luca Weiss <luca.weiss@fairphone.com>
+Signed-off-by: Alex Elder <elder@linaro.org>
+Reviewed-by: Konrad Dybcio <konrad.dybcio@linaro.org>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ drivers/net/ipa/data/ipa_data-v4.7.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/net/ipa/data/ipa_data-v4.7.c b/drivers/net/ipa/data/ipa_data-v4.7.c
+index 7552c400961eb..b83390c486158 100644
+--- a/drivers/net/ipa/data/ipa_data-v4.7.c
++++ b/drivers/net/ipa/data/ipa_data-v4.7.c
+@@ -357,7 +357,7 @@ static const struct ipa_mem ipa_mem_local_data[] = {
+ static const struct ipa_mem_data ipa_mem_data = {
+ 	.local_count	= ARRAY_SIZE(ipa_mem_local_data),
+ 	.local		= ipa_mem_local_data,
+-	.imem_addr	= 0x146a9000,
++	.imem_addr	= 0x146a8000,
+ 	.imem_size	= 0x00002000,
+ 	.smem_id	= 497,
+ 	.smem_size	= 0x00009000,
+-- 
+cgit 
+

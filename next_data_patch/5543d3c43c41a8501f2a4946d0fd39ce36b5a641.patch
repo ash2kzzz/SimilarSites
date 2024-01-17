@@ -1,0 +1,89 @@
+From 5543d3c43c41a8501f2a4946d0fd39ce36b5a641 Mon Sep 17 00:00:00 2001
+From: Peter Xu <peterx@redhat.com>
+Date: Wed, 17 May 2023 15:09:16 -0400
+Subject: mm/uffd: allow vma to merge as much as possible
+
+We used to not pass in the pgoff correctly when register/unregister uffd
+regions, it caused incorrect behavior on vma merging and can cause
+mergeable vmas being separate after ioctls return.
+
+For example, when we have:
+
+  vma1(range 0-9, with uffd), vma2(range 10-19, no uffd)
+
+Then someone unregisters uffd on range (5-9), it should logically become:
+
+  vma1(range 0-4, with uffd), vma2(range 5-19, no uffd)
+
+But with current code we'll have:
+
+  vma1(range 0-4, with uffd), vma3(range 5-9, no uffd), vma2(range 10-19, no uffd)
+
+This patch allows such merge to happen correctly before ioctl returns.
+
+This behavior seems to have existed since the 1st day of uffd.  Since
+pgoff for vma_merge() is only used to identify the possibility of vma
+merging, meanwhile here what we did was always passing in a pgoff smaller
+than what we should, so there should have no other side effect besides not
+merging it.  Let's still tentatively copy stable for this, even though I
+don't see anything will go wrong besides vma being split (which is mostly
+not user visible).
+
+Link: https://lkml.kernel.org/r/20230517190916.3429499-3-peterx@redhat.com
+Fixes: 86039bd3b4e6 ("userfaultfd: add new syscall to provide memory externalization")
+Signed-off-by: Peter Xu <peterx@redhat.com>
+Reported-by: Lorenzo Stoakes <lstoakes@gmail.com>
+Acked-by: Lorenzo Stoakes <lstoakes@gmail.com>
+Reviewed-by: Liam R. Howlett <Liam.Howlett@oracle.com>
+Cc: Andrea Arcangeli <aarcange@redhat.com>
+Cc: Mike Rapoport (IBM) <rppt@kernel.org>
+Signed-off-by: Andrew Morton <akpm@linux-foundation.org>
+---
+ fs/userfaultfd.c | 8 ++++++--
+ 1 file changed, 6 insertions(+), 2 deletions(-)
+
+diff --git a/fs/userfaultfd.c b/fs/userfaultfd.c
+index 17c8c345dac40..4e800bb7d2ab6 100644
+--- a/fs/userfaultfd.c
++++ b/fs/userfaultfd.c
+@@ -1332,6 +1332,7 @@ static int userfaultfd_register(struct userfaultfd_ctx *ctx,
+ 	bool basic_ioctls;
+ 	unsigned long start, end, vma_end;
+ 	struct vma_iterator vmi;
++	pgoff_t pgoff;
+ 
+ 	user_uffdio_register = (struct uffdio_register __user *) arg;
+ 
+@@ -1484,8 +1485,9 @@ static int userfaultfd_register(struct userfaultfd_ctx *ctx,
+ 		vma_end = min(end, vma->vm_end);
+ 
+ 		new_flags = (vma->vm_flags & ~__VM_UFFD_FLAGS) | vm_flags;
++		pgoff = vma->vm_pgoff + ((start - vma->vm_start) >> PAGE_SHIFT);
+ 		prev = vma_merge(&vmi, mm, prev, start, vma_end, new_flags,
+-				 vma->anon_vma, vma->vm_file, vma->vm_pgoff,
++				 vma->anon_vma, vma->vm_file, pgoff,
+ 				 vma_policy(vma),
+ 				 ((struct vm_userfaultfd_ctx){ ctx }),
+ 				 anon_vma_name(vma));
+@@ -1565,6 +1567,7 @@ static int userfaultfd_unregister(struct userfaultfd_ctx *ctx,
+ 	unsigned long start, end, vma_end;
+ 	const void __user *buf = (void __user *)arg;
+ 	struct vma_iterator vmi;
++	pgoff_t pgoff;
+ 
+ 	ret = -EFAULT;
+ 	if (copy_from_user(&uffdio_unregister, buf, sizeof(uffdio_unregister)))
+@@ -1667,8 +1670,9 @@ static int userfaultfd_unregister(struct userfaultfd_ctx *ctx,
+ 			uffd_wp_range(vma, start, vma_end - start, false);
+ 
+ 		new_flags = vma->vm_flags & ~__VM_UFFD_FLAGS;
++		pgoff = vma->vm_pgoff + ((start - vma->vm_start) >> PAGE_SHIFT);
+ 		prev = vma_merge(&vmi, mm, prev, start, vma_end, new_flags,
+-				 vma->anon_vma, vma->vm_file, vma->vm_pgoff,
++				 vma->anon_vma, vma->vm_file, pgoff,
+ 				 vma_policy(vma),
+ 				 NULL_VM_UFFD_CTX, anon_vma_name(vma));
+ 		if (prev) {
+-- 
+cgit 
+

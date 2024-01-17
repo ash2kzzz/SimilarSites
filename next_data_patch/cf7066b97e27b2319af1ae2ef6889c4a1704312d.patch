@@ -1,0 +1,55 @@
+From cf7066b97e27b2319af1ae2ef6889c4a1704312d Mon Sep 17 00:00:00 2001
+From: "Joel Fernandes (Google)" <joel@joelfernandes.org>
+Date: Thu, 12 Jan 2023 00:52:23 +0000
+Subject: rcu: Disable laziness if lazy-tracking says so
+
+During suspend, we see failures to suspend 1 in 300-500 suspends.
+Looking closer, it appears that asynchronous RCU callbacks are being
+queued as lazy even though synchronous callbacks are expedited. These
+delays appear to not be very welcome by the suspend/resume code as
+evidenced by these occasional suspend failures.
+
+This commit modifies call_rcu() to check if rcu_async_should_hurry(),
+which will return true if we are in suspend or in-kernel boot.
+
+[ paulmck: Alphabetize local variables. ]
+
+Ignoring the lazy hint makes the 3000 suspend/resume cycles pass
+reliably on a 12th gen 12-core Intel CPU, and there is some evidence
+that it also slightly speeds up boot performance.
+
+Fixes: 3cb278e73be5 ("rcu: Make call_rcu() lazy to save power")
+Signed-off-by: Joel Fernandes (Google) <joel@joelfernandes.org>
+Signed-off-by: Paul E. McKenney <paulmck@kernel.org>
+---
+ kernel/rcu/tree.c | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/kernel/rcu/tree.c b/kernel/rcu/tree.c
+index 712c4e7b46755..4374d7af2c117 100644
+--- a/kernel/rcu/tree.c
++++ b/kernel/rcu/tree.c
+@@ -2575,10 +2575,11 @@ static void check_cb_ovld(struct rcu_data *rdp)
+ }
+ 
+ static void
+-__call_rcu_common(struct rcu_head *head, rcu_callback_t func, bool lazy)
++__call_rcu_common(struct rcu_head *head, rcu_callback_t func, bool lazy_in)
+ {
+ 	static atomic_t doublefrees;
+ 	unsigned long flags;
++	bool lazy;
+ 	struct rcu_data *rdp;
+ 	bool was_alldone;
+ 
+@@ -2603,6 +2604,7 @@ __call_rcu_common(struct rcu_head *head, rcu_callback_t func, bool lazy)
+ 	kasan_record_aux_stack_noalloc(head);
+ 	local_irq_save(flags);
+ 	rdp = this_cpu_ptr(&rcu_data);
++	lazy = lazy_in && !rcu_async_should_hurry();
+ 
+ 	/* Add the callback to our list. */
+ 	if (unlikely(!rcu_segcblist_is_enabled(&rdp->cblist))) {
+-- 
+cgit 
+

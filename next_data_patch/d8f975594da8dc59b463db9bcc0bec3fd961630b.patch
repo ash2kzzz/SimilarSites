@@ -1,0 +1,37 @@
+From d8f975594da8dc59b463db9bcc0bec3fd961630b Mon Sep 17 00:00:00 2001
+From: Gregory Greenman <gregory.greenman@intel.com>
+Date: Mon, 10 Apr 2023 17:07:20 +0300
+Subject: wifi: iwlwifi: mvm: fix the order of TIMING_MEASUREMENT notifications
+
+Host commands and notifications are expected to be ordered in
+iwl_mvm_groups array. Fix the order of two new TIMING_MEASUREMENT
+notifications.
+
+Fixes: c7eca79def44 ("wifi: iwlwifi: mvm: report hardware timestamps in RX/TX status")
+Reported-by: Nathan Chancellor <nathan@kernel.org>
+Link: https://lore.kernel.org/linux-wireless/20230331175121.GA3127046@dev-arch.thelio-3990X/
+Signed-off-by: Gregory Greenman <gregory.greenman@intel.com>
+Tested-by: Nathan Chancellor <nathan@kernel.org>
+Link: https://lore.kernel.org/r/20230410140721.897683-1-gregory.greenman@intel.com
+Signed-off-by: Johannes Berg <johannes.berg@intel.com>
+---
+ drivers/net/wireless/intel/iwlwifi/mvm/ops.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/net/wireless/intel/iwlwifi/mvm/ops.c b/drivers/net/wireless/intel/iwlwifi/mvm/ops.c
+index 56a4e9d6ae33d..6f082059025af 100644
+--- a/drivers/net/wireless/intel/iwlwifi/mvm/ops.c
++++ b/drivers/net/wireless/intel/iwlwifi/mvm/ops.c
+@@ -472,8 +472,8 @@ static const struct iwl_hcmd_names iwl_mvm_legacy_names[] = {
+ 	HCMD_NAME(SCAN_OFFLOAD_PROFILES_QUERY_CMD),
+ 	HCMD_NAME(BT_COEX_UPDATE_REDUCED_TXP),
+ 	HCMD_NAME(BT_COEX_CI),
+-	HCMD_NAME(WNM_80211V_TIMING_MEASUREMENT_CONFIRM_NOTIFICATION),
+ 	HCMD_NAME(WNM_80211V_TIMING_MEASUREMENT_NOTIFICATION),
++	HCMD_NAME(WNM_80211V_TIMING_MEASUREMENT_CONFIRM_NOTIFICATION),
+ 	HCMD_NAME(PHY_CONFIGURATION_CMD),
+ 	HCMD_NAME(CALIB_RES_NOTIF_PHY_DB),
+ 	HCMD_NAME(PHY_DB_CMD),
+-- 
+cgit 
+

@@ -1,0 +1,39 @@
+From d4b2c7484a8edd79c90b9f8acc8a03e5e3235b89 Mon Sep 17 00:00:00 2001
+From: Yang Li <yang.lee@linux.alibaba.com>
+Date: Fri, 6 Jan 2023 09:17:10 +0800
+Subject: soc: qcom: dcc: Fix unsigned comparison with less than zero
+
+The return value from the call to kstrtouint_from_user() is int.
+However, the return value is being assigned to
+an unsigned int variable 'ret', so making 'ret' an int.
+
+Eliminate the following warning:
+./drivers/soc/qcom/dcc.c:815:5-8: WARNING: Unsigned expression compared with zero: ret < 0
+
+Link: https://bugzilla.openanolis.cn/show_bug.cgi?id=3638
+Fixes: 4cbe60cf5ad6 ("soc: qcom: dcc: Add driver support for Data Capture and Compare unit(DCC)")
+Reported-by: Abaci Robot <abaci@linux.alibaba.com>
+Signed-off-by: Yang Li <yang.lee@linux.alibaba.com>
+Signed-off-by: Bjorn Andersson <andersson@kernel.org>
+Link: https://lore.kernel.org/r/20230106011710.2827-1-yang.lee@linux.alibaba.com
+---
+ drivers/soc/qcom/dcc.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/soc/qcom/dcc.c b/drivers/soc/qcom/dcc.c
+index d4101f79cb5df..5b50d638771d4 100644
+--- a/drivers/soc/qcom/dcc.c
++++ b/drivers/soc/qcom/dcc.c
+@@ -808,7 +808,8 @@ static ssize_t config_reset_write(struct file *filp,
+ 				  const char __user *user_buf, size_t count,
+ 				  loff_t *ppos)
+ {
+-	unsigned int val, ret;
++	unsigned int val;
++	int ret;
+ 	struct dcc_drvdata *drvdata = filp->private_data;
+ 
+ 	ret = kstrtouint_from_user(user_buf, count, 0, &val);
+-- 
+cgit 
+

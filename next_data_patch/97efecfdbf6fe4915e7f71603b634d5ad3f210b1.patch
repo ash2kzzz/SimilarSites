@@ -1,0 +1,68 @@
+From 97efecfdbf6fe4915e7f71603b634d5ad3f210b1 Mon Sep 17 00:00:00 2001
+From: "Rafael J. Wysocki" <rafael.j.wysocki@intel.com>
+Date: Thu, 26 Jan 2023 13:53:49 +0100
+Subject: thermal: ACPI: Initialize trips if temperature is out of range
+
+In some cases it is still useful to register a trip point if the
+temperature returned by the corresponding ACPI thermal object (for
+example, _HOT) is invalid to start with, because the same ACPI
+thermal object may start to return a valid temperature after a
+system configuration change (for example, from an AC power source
+to battery an vice versa).
+
+For this reason, if the ACPI thermal object evaluated by
+thermal_acpi_trip_init() successfully returns a temperature value that
+is out of the range of values taken into account, initialize the trip
+point using THERMAL_TEMP_INVALID as the temperature value instead of
+returning an error to allow the user of the trip point to decide what
+to do with it.
+
+Also update pch_wpt_add_acpi_psv_trip() to reject trip points with
+invalid temperature values.
+
+Fixes: 7a0e39748861 ("thermal: ACPI: Add ACPI trip point routines")
+Reported-by: Srinivas Pandruvada <srinivas.pandruvada@linux.intel.com>
+Signed-off-by: Rafael J. Wysocki <rafael.j.wysocki@intel.com>
+---
+ drivers/thermal/intel/intel_pch_thermal.c | 2 +-
+ drivers/thermal/thermal_acpi.c            | 7 ++++---
+ 2 files changed, 5 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/thermal/intel/intel_pch_thermal.c b/drivers/thermal/intel/intel_pch_thermal.c
+index cc4e9d28496b5..45a9ea86907e9 100644
+--- a/drivers/thermal/intel/intel_pch_thermal.c
++++ b/drivers/thermal/intel/intel_pch_thermal.c
+@@ -107,7 +107,7 @@ static void pch_wpt_add_acpi_psv_trip(struct pch_thermal_device *ptd,
+ 		return;
+ 
+ 	ret = thermal_acpi_trip_passive(adev, &ptd->trips[*nr_trips]);
+-	if (ret)
++	if (ret || ptd->trips[*nr_trips].temperature <= 0)
+ 		return;
+ 
+ 	++(*nr_trips);
+diff --git a/drivers/thermal/thermal_acpi.c b/drivers/thermal/thermal_acpi.c
+index f65281ca3ed0f..671f774a76219 100644
+--- a/drivers/thermal/thermal_acpi.c
++++ b/drivers/thermal/thermal_acpi.c
+@@ -64,13 +64,14 @@ static int thermal_acpi_trip_init(struct acpi_device *adev,
+ 		return -ENODATA;
+ 	}
+ 
+-	if (temp < TEMP_MIN_DECIK || temp >= TEMP_MAX_DECIK) {
++	if (temp >= TEMP_MIN_DECIK && temp <= TEMP_MAX_DECIK) {
++		trip->temperature = deci_kelvin_to_millicelsius(temp);
++	} else {
+ 		acpi_handle_debug(adev->handle, "%s result %llu out of range\n",
+ 				  obj_name, temp);
+-		return -ENODATA;
++		trip->temperature = THERMAL_TEMP_INVALID;
+ 	}
+ 
+-	trip->temperature = deci_kelvin_to_millicelsius(temp);
+ 	trip->hysteresis = 0;
+ 	trip->type = type;
+ 
+-- 
+cgit 
+

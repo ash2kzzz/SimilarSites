@@ -1,0 +1,101 @@
+From dd64b232deb8d48812a2ea739d1fedaeaffb59ed Mon Sep 17 00:00:00 2001
+From: Jakub Kicinski <kuba@kernel.org>
+Date: Wed, 19 Apr 2023 11:20:06 -0700
+Subject: page_pool: unlink from napi during destroy
+
+Jesper points out that we must prevent recycling into cache
+after page_pool_destroy() is called, because page_pool_destroy()
+is not synchronized with recycling (some pages may still be
+outstanding when destroy() gets called).
+
+I assumed this will not happen because NAPI can't be scheduled
+if its page pool is being destroyed. But I missed the fact that
+NAPI may get reused. For instance when user changes ring configuration
+driver may allocate a new page pool, stop NAPI, swap, start NAPI,
+and then destroy the old pool. The NAPI is running so old page
+pool will think it can recycle to the cache, but the consumer
+at that point is the destroy() path, not NAPI.
+
+To avoid extra synchronization let the drivers do "unlinking"
+during the "swap" stage while NAPI is indeed disabled.
+
+Fixes: 8c48eea3adf3 ("page_pool: allow caching from safely localized NAPI")
+Reported-by: Jesper Dangaard Brouer <jbrouer@redhat.com>
+Link: https://lore.kernel.org/all/e8df2654-6a5b-3c92-489d-2fe5e444135f@redhat.com/
+Acked-by: Jesper Dangaard Brouer <brouer@redhat.com>
+Link: https://lore.kernel.org/r/20230419182006.719923-1-kuba@kernel.org
+Signed-off-by: Jakub Kicinski <kuba@kernel.org>
+---
+ include/net/page_pool.h |  5 +++++
+ net/core/page_pool.c    | 18 +++++++++++++++++-
+ 2 files changed, 22 insertions(+), 1 deletion(-)
+
+diff --git a/include/net/page_pool.h b/include/net/page_pool.h
+index 91b808dade820..c8ec2f34722be 100644
+--- a/include/net/page_pool.h
++++ b/include/net/page_pool.h
+@@ -247,6 +247,7 @@ struct page_pool *page_pool_create(const struct page_pool_params *params);
+ struct xdp_mem_info;
+ 
+ #ifdef CONFIG_PAGE_POOL
++void page_pool_unlink_napi(struct page_pool *pool);
+ void page_pool_destroy(struct page_pool *pool);
+ void page_pool_use_xdp_mem(struct page_pool *pool, void (*disconnect)(void *),
+ 			   struct xdp_mem_info *mem);
+@@ -254,6 +255,10 @@ void page_pool_release_page(struct page_pool *pool, struct page *page);
+ void page_pool_put_page_bulk(struct page_pool *pool, void **data,
+ 			     int count);
+ #else
++static inline void page_pool_unlink_napi(struct page_pool *pool)
++{
++}
++
+ static inline void page_pool_destroy(struct page_pool *pool)
+ {
+ }
+diff --git a/net/core/page_pool.c b/net/core/page_pool.c
+index 97f20f7ff4fcc..e212e9d7edcb8 100644
+--- a/net/core/page_pool.c
++++ b/net/core/page_pool.c
+@@ -839,6 +839,21 @@ void page_pool_use_xdp_mem(struct page_pool *pool, void (*disconnect)(void *),
+ 	pool->xdp_mem_id = mem->id;
+ }
+ 
++void page_pool_unlink_napi(struct page_pool *pool)
++{
++	if (!pool->p.napi)
++		return;
++
++	/* To avoid races with recycling and additional barriers make sure
++	 * pool and NAPI are unlinked when NAPI is disabled.
++	 */
++	WARN_ON(!test_bit(NAPI_STATE_SCHED, &pool->p.napi->state) ||
++		READ_ONCE(pool->p.napi->list_owner) != -1);
++
++	WRITE_ONCE(pool->p.napi, NULL);
++}
++EXPORT_SYMBOL(page_pool_unlink_napi);
++
+ void page_pool_destroy(struct page_pool *pool)
+ {
+ 	if (!pool)
+@@ -847,6 +862,7 @@ void page_pool_destroy(struct page_pool *pool)
+ 	if (!page_pool_put(pool))
+ 		return;
+ 
++	page_pool_unlink_napi(pool);
+ 	page_pool_free_frag(pool);
+ 
+ 	if (!page_pool_release(pool))
+@@ -900,7 +916,7 @@ bool page_pool_return_skb_page(struct page *page, bool napi_safe)
+ 	 * in the same context as the consumer would run, so there's
+ 	 * no possible race.
+ 	 */
+-	napi = pp->p.napi;
++	napi = READ_ONCE(pp->p.napi);
+ 	allow_direct = napi_safe && napi &&
+ 		READ_ONCE(napi->list_owner) == smp_processor_id();
+ 
+-- 
+cgit 
+

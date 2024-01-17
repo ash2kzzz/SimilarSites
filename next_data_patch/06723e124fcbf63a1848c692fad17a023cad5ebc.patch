@@ -1,0 +1,36 @@
+From 06723e124fcbf63a1848c692fad17a023cad5ebc Mon Sep 17 00:00:00 2001
+From: Anup Patel <apatel@ventanamicro.com>
+Date: Sat, 28 Jan 2023 13:18:25 +0530
+Subject: RISC-V: KVM: Fix privilege mode setting in
+ kvm_riscv_vcpu_trap_redirect()
+
+The kvm_riscv_vcpu_trap_redirect() should set guest privilege mode
+to supervisor mode because guest traps/interrupts are always handled
+in virtual supervisor mode.
+
+Fixes: 9f7013265112 ("RISC-V: KVM: Handle MMIO exits for VCPU")
+Signed-off-by: Anup Patel <apatel@ventanamicro.com>
+Reviewed-by: Andrew Jones <ajones@ventanamicro.com>
+Reviewed-by: Atish Patra <atishp@rivosinc.com>
+Signed-off-by: Anup Patel <anup@brainfault.org>
+---
+ arch/riscv/kvm/vcpu_exit.c | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/arch/riscv/kvm/vcpu_exit.c b/arch/riscv/kvm/vcpu_exit.c
+index c9f741ab26f5b..af7c4bc07929d 100644
+--- a/arch/riscv/kvm/vcpu_exit.c
++++ b/arch/riscv/kvm/vcpu_exit.c
+@@ -160,6 +160,9 @@ void kvm_riscv_vcpu_trap_redirect(struct kvm_vcpu *vcpu,
+ 
+ 	/* Set Guest PC to Guest exception vector */
+ 	vcpu->arch.guest_context.sepc = csr_read(CSR_VSTVEC);
++
++	/* Set Guest privilege mode to supervisor */
++	vcpu->arch.guest_context.sstatus |= SR_SPP;
+ }
+ 
+ /*
+-- 
+cgit 
+

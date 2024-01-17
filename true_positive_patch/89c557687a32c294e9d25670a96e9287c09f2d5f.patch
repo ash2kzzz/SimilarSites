@@ -1,0 +1,35 @@
+From 89c557687a32c294e9d25670a96e9287c09f2d5f Mon Sep 17 00:00:00 2001
+From: Talat Batheesh <talatb@mellanox.com>
+Date: Tue, 9 May 2017 14:45:23 +0300
+Subject: net/mlx4_en: Avoid adding steering rules with invalid ring
+
+Inserting steering rules with illegal ring is an invalid operation,
+block it.
+
+Fixes: 820672812f82 ('net/mlx4_en: Manage flow steering rules with ethtool')
+Signed-off-by: Talat Batheesh <talatb@mellanox.com>
+Signed-off-by: Tariq Toukan <tariqt@mellanox.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ drivers/net/ethernet/mellanox/mlx4/en_ethtool.c | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/drivers/net/ethernet/mellanox/mlx4/en_ethtool.c b/drivers/net/ethernet/mellanox/mlx4/en_ethtool.c
+index ffbcb27c05e55..ae5fdc2df6541 100644
+--- a/drivers/net/ethernet/mellanox/mlx4/en_ethtool.c
++++ b/drivers/net/ethernet/mellanox/mlx4/en_ethtool.c
+@@ -1562,6 +1562,11 @@ static int mlx4_en_flow_replace(struct net_device *dev,
+ 		qpn = priv->drop_qp.qpn;
+ 	else if (cmd->fs.ring_cookie & EN_ETHTOOL_QP_ATTACH) {
+ 		qpn = cmd->fs.ring_cookie & (EN_ETHTOOL_QP_ATTACH - 1);
++		if (qpn < priv->rss_map.base_qpn ||
++		    qpn >= priv->rss_map.base_qpn + priv->rx_ring_num) {
++			en_warn(priv, "rxnfc: QP (0x%x) doesn't exist\n", qpn);
++			return -EINVAL;
++		}
+ 	} else {
+ 		if (cmd->fs.ring_cookie >= priv->rx_ring_num) {
+ 			en_warn(priv, "rxnfc: RX ring (%llu) doesn't exist\n",
+-- 
+cgit 
+

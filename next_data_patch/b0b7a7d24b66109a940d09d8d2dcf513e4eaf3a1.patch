@@ -1,0 +1,40 @@
+From b0b7a7d24b66109a940d09d8d2dcf513e4eaf3a1 Mon Sep 17 00:00:00 2001
+From: Pavel Begunkov <asml.silence@gmail.com>
+Date: Mon, 16 Jan 2023 16:48:57 +0000
+Subject: io_uring: return back links tw run optimisation
+
+io_submit_flush_completions() may queue new requests for tw execution,
+especially true for linked requests. Recheck the tw list for emptiness
+after flushing completions.
+
+Note that this doesn't really fix the commit referenced below, but it
+does reinstate an optimization that existed before that got merged.
+
+Fixes: f88262e60bb9 ("io_uring: lockless task list")
+Signed-off-by: Pavel Begunkov <asml.silence@gmail.com>
+Link: https://lore.kernel.org/r/6328acdbb5e60efc762b18003382de077e6e1367.1673887636.git.asml.silence@gmail.com
+Signed-off-by: Jens Axboe <axboe@kernel.dk>
+---
+ io_uring/io_uring.c | 5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/io_uring/io_uring.c b/io_uring/io_uring.c
+index 8fddc010ffe29..c47af3a3dacfe 100644
+--- a/io_uring/io_uring.c
++++ b/io_uring/io_uring.c
+@@ -1344,8 +1344,11 @@ again:
+ 
+ 	if (!llist_empty(&ctx->work_llist))
+ 		goto again;
+-	if (*locked)
++	if (*locked) {
+ 		io_submit_flush_completions(ctx);
++		if (!llist_empty(&ctx->work_llist))
++			goto again;
++	}
+ 	trace_io_uring_local_work_run(ctx, ret, loops);
+ 	return ret;
+ }
+-- 
+cgit 
+

@@ -1,0 +1,94 @@
+From e65065132fa6d9e1fd3b7418eae5215e3b7bf6c7 Mon Sep 17 00:00:00 2001
+From: Matti Vaittinen <mazziesaccount@gmail.com>
+Date: Mon, 17 Apr 2023 12:20:18 +0300
+Subject: iio: gts-helpers: fix integration time units
+
+The IIO ABI mandates expressing integration times in seconds. The GTS
+helper errorneously uses micro seconds in integration_times_available.
+Fix this by converting the lists to IIO_VAL_INT_PLUS_MICRO.
+
+Fixes: 38416c28e168 ("iio: light: Add gain-time-scale helpers")
+Signed-off-by: Matti Vaittinen <mazziesaccount@gmail.com>
+Link: https://lore.kernel.org/r/eeacd192c259e885850b5a2dd8b776bccfc44fa8.1681722914.git.mazziesaccount@gmail.com
+Signed-off-by: Jonathan Cameron <Jonathan.Cameron@huawei.com>
+---
+ drivers/iio/industrialio-gts-helper.c | 42 ++++++++++++++++++++++++++---------
+ 1 file changed, 32 insertions(+), 10 deletions(-)
+
+diff --git a/drivers/iio/industrialio-gts-helper.c b/drivers/iio/industrialio-gts-helper.c
+index 8bb68975b2598..7653261d2dc2b 100644
+--- a/drivers/iio/industrialio-gts-helper.c
++++ b/drivers/iio/industrialio-gts-helper.c
+@@ -337,6 +337,17 @@ free_gains:
+ 	return ret;
+ }
+ 
++static void iio_gts_us_to_int_micro(int *time_us, int *int_micro_times,
++				    int num_times)
++{
++	int i;
++
++	for (i = 0; i < num_times; i++) {
++		int_micro_times[i * 2] = time_us[i] / 1000000;
++		int_micro_times[i * 2 + 1] = time_us[i] % 1000000;
++	}
++}
++
+ /**
+  * iio_gts_build_avail_time_table - build table of available integration times
+  * @gts:	Gain time scale descriptor
+@@ -351,7 +362,7 @@ free_gains:
+  */
+ static int iio_gts_build_avail_time_table(struct iio_gts *gts)
+ {
+-	int *times, i, j, idx = 0;
++	int *times, i, j, idx = 0, *int_micro_times;
+ 
+ 	if (!gts->num_itime)
+ 		return 0;
+@@ -378,13 +389,24 @@ static int iio_gts_build_avail_time_table(struct iio_gts *gts)
+ 			}
+ 		}
+ 	}
+-	gts->avail_time_tables = times;
+-	/*
+-	 * This is just to survive a unlikely corner-case where times in the
+-	 * given time table were not unique. Else we could just trust the
+-	 * gts->num_itime.
+-	 */
+-	gts->num_avail_time_tables = idx;
++
++	/* create a list of times formatted as list of IIO_VAL_INT_PLUS_MICRO */
++	int_micro_times = kcalloc(idx, sizeof(int) * 2, GFP_KERNEL);
++	if (int_micro_times) {
++		/*
++		 * This is just to survive a unlikely corner-case where times in
++		 * the given time table were not unique. Else we could just
++		 * trust the gts->num_itime.
++		 */
++		gts->num_avail_time_tables = idx;
++		iio_gts_us_to_int_micro(times, int_micro_times, idx);
++	}
++
++	gts->avail_time_tables = int_micro_times;
++	kfree(times);
++
++	if (!int_micro_times)
++		return -ENOMEM;
+ 
+ 	return 0;
+ }
+@@ -683,8 +705,8 @@ int iio_gts_avail_times(struct iio_gts *gts,  const int **vals, int *type,
+ 		return -EINVAL;
+ 
+ 	*vals = gts->avail_time_tables;
+-	*type = IIO_VAL_INT;
+-	*length = gts->num_avail_time_tables;
++	*type = IIO_VAL_INT_PLUS_MICRO;
++	*length = gts->num_avail_time_tables * 2;
+ 
+ 	return IIO_AVAIL_LIST;
+ }
+-- 
+cgit 
+

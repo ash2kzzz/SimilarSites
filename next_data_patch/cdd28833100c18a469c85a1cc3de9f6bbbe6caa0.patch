@@ -1,0 +1,93 @@
+From cdd28833100c18a469c85a1cc3de9f6bbbe6caa0 Mon Sep 17 00:00:00 2001
+From: Daniel Machon <daniel.machon@microchip.com>
+Date: Tue, 7 Mar 2023 12:21:03 +0100
+Subject: net: microchip: sparx5: fix deletion of existing DSCP mappings
+
+Fix deletion of existing DSCP mappings in the APP table.
+
+Adding and deleting DSCP entries are replicated per-port, since the
+mapping table is global for all ports in the chip. Whenever a mapping
+for a DSCP value already exists, the old mapping is deleted first.
+However, it is only deleted for the specified port. Fix this by calling
+sparx5_dcb_ieee_delapp() instead of dcb_ieee_delapp() as it ought to be.
+
+Reproduce:
+
+// Map and remap DSCP value 63
+$ dcb app add dev eth0 dscp-prio 63:1
+$ dcb app add dev eth0 dscp-prio 63:2
+
+$ dcb app show dev eth0 dscp-prio
+dscp-prio 63:2
+
+$ dcb app show dev eth1 dscp-prio
+dscp-prio 63:1 63:2 <-- 63:1 should not be there
+
+Fixes: 8dcf69a64118 ("net: microchip: sparx5: add support for offloading dscp table")
+Signed-off-by: Daniel Machon <daniel.machon@microchip.com>
+Reviewed-by: Simon Horman <simon.horman@corigine.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ drivers/net/ethernet/microchip/sparx5/sparx5_dcb.c | 32 +++++++++++-----------
+ 1 file changed, 16 insertions(+), 16 deletions(-)
+
+diff --git a/drivers/net/ethernet/microchip/sparx5/sparx5_dcb.c b/drivers/net/ethernet/microchip/sparx5/sparx5_dcb.c
+index 871a3e62f8527..2d763664dcda1 100644
+--- a/drivers/net/ethernet/microchip/sparx5/sparx5_dcb.c
++++ b/drivers/net/ethernet/microchip/sparx5/sparx5_dcb.c
+@@ -249,6 +249,21 @@ static int sparx5_dcb_ieee_dscp_setdel(struct net_device *dev,
+ 	return 0;
+ }
+ 
++static int sparx5_dcb_ieee_delapp(struct net_device *dev, struct dcb_app *app)
++{
++	int err;
++
++	if (app->selector == IEEE_8021QAZ_APP_SEL_DSCP)
++		err = sparx5_dcb_ieee_dscp_setdel(dev, app, dcb_ieee_delapp);
++	else
++		err = dcb_ieee_delapp(dev, app);
++
++	if (err < 0)
++		return err;
++
++	return sparx5_dcb_app_update(dev);
++}
++
+ static int sparx5_dcb_ieee_setapp(struct net_device *dev, struct dcb_app *app)
+ {
+ 	struct dcb_app app_itr;
+@@ -264,7 +279,7 @@ static int sparx5_dcb_ieee_setapp(struct net_device *dev, struct dcb_app *app)
+ 	if (prio) {
+ 		app_itr = *app;
+ 		app_itr.priority = prio;
+-		dcb_ieee_delapp(dev, &app_itr);
++		sparx5_dcb_ieee_delapp(dev, &app_itr);
+ 	}
+ 
+ 	if (app->selector == IEEE_8021QAZ_APP_SEL_DSCP)
+@@ -281,21 +296,6 @@ out:
+ 	return err;
+ }
+ 
+-static int sparx5_dcb_ieee_delapp(struct net_device *dev, struct dcb_app *app)
+-{
+-	int err;
+-
+-	if (app->selector == IEEE_8021QAZ_APP_SEL_DSCP)
+-		err = sparx5_dcb_ieee_dscp_setdel(dev, app, dcb_ieee_delapp);
+-	else
+-		err = dcb_ieee_delapp(dev, app);
+-
+-	if (err < 0)
+-		return err;
+-
+-	return sparx5_dcb_app_update(dev);
+-}
+-
+ static int sparx5_dcb_setapptrust(struct net_device *dev, u8 *selectors,
+ 				  int nselectors)
+ {
+-- 
+cgit 
+

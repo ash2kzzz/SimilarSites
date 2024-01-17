@@ -1,0 +1,54 @@
+From b7b04f393ffa1530213f522115e7d77761eb5c4f Mon Sep 17 00:00:00 2001
+From: Matti Vaittinen <mazziesaccount@gmail.com>
+Date: Mon, 17 Apr 2023 12:19:57 +0300
+Subject: iio: bu27034: Fix integration time
+
+The bu27034 uses micro seconds for integration time configuration. This
+is incorrect as the ABI mandates use of seconds.
+
+Change BU27034 driver to use seconds for integration time.
+
+Fixes: e52afbd61039 ("iio: light: ROHM BU27034 Ambient Light Sensor")
+Signed-off-by: Matti Vaittinen <mazziesaccount@gmail.com>
+Link: https://lore.kernel.org/r/a05647669af22ba919c7c87dccb43975e3235a87.1681722914.git.mazziesaccount@gmail.com
+Signed-off-by: Jonathan Cameron <Jonathan.Cameron@huawei.com>
+---
+ drivers/iio/light/rohm-bu27034.c | 14 +++++++++-----
+ 1 file changed, 9 insertions(+), 5 deletions(-)
+
+diff --git a/drivers/iio/light/rohm-bu27034.c b/drivers/iio/light/rohm-bu27034.c
+index e486dcf35eba7..25c9b79574a53 100644
+--- a/drivers/iio/light/rohm-bu27034.c
++++ b/drivers/iio/light/rohm-bu27034.c
+@@ -1167,11 +1167,12 @@ static int bu27034_read_raw(struct iio_dev *idev,
+ 
+ 	switch (mask) {
+ 	case IIO_CHAN_INFO_INT_TIME:
+-		*val = bu27034_get_int_time(data);
+-		if (*val < 0)
+-			return *val;
++		*val = 0;
++		*val2 = bu27034_get_int_time(data);
++		if (*val2 < 0)
++			return *val2;
+ 
+-		return IIO_VAL_INT;
++		return IIO_VAL_INT_PLUS_MICRO;
+ 
+ 	case IIO_CHAN_INFO_SCALE:
+ 		return bu27034_get_scale(data, chan->channel, val, val2);
+@@ -1229,7 +1230,10 @@ static int bu27034_write_raw(struct iio_dev *idev,
+ 		ret = bu27034_set_scale(data, chan->channel, val, val2);
+ 		break;
+ 	case IIO_CHAN_INFO_INT_TIME:
+-		ret = bu27034_try_set_int_time(data, val);
++		if (!val)
++			ret = bu27034_try_set_int_time(data, val2);
++		else
++			ret = -EINVAL;
+ 		break;
+ 	default:
+ 		ret = -EINVAL;
+-- 
+cgit 
+

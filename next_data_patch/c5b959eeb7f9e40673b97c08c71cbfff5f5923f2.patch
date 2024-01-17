@@ -1,0 +1,36 @@
+From c5b959eeb7f9e40673b97c08c71cbfff5f5923f2 Mon Sep 17 00:00:00 2001
+From: Arnd Bergmann <arnd@arndb.de>
+Date: Fri, 31 Mar 2023 09:48:56 +0200
+Subject: net: netcp: MAX_SKB_FRAGS is now 'int'
+
+The type of MAX_SKB_FRAGS has changed recently, so the debug printk
+needs to be updated:
+
+drivers/net/ethernet/ti/netcp_core.c: In function 'netcp_create_interface':
+drivers/net/ethernet/ti/netcp_core.c:2084:30: error: format '%ld' expects argument of type 'long int', but argument 3 has type 'int' [-Werror=format=]
+ 2084 |                 dev_err(dev, "tx-pool size too small, must be at least %ld\n",
+      |                              ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Fixes: 3948b05950fd ("net: introduce a config option to tweak MAX_SKB_FRAGS")
+Signed-off-by: Arnd Bergmann <arnd@arndb.de>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ drivers/net/ethernet/ti/netcp_core.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/net/ethernet/ti/netcp_core.c b/drivers/net/ethernet/ti/netcp_core.c
+index 1bb596a9d8a2b..dfdbcdeb991fd 100644
+--- a/drivers/net/ethernet/ti/netcp_core.c
++++ b/drivers/net/ethernet/ti/netcp_core.c
+@@ -2081,7 +2081,7 @@ static int netcp_create_interface(struct netcp_device *netcp_device,
+ 	netcp->tx_pool_region_id = temp[1];
+ 
+ 	if (netcp->tx_pool_size < MAX_SKB_FRAGS) {
+-		dev_err(dev, "tx-pool size too small, must be at least %ld\n",
++		dev_err(dev, "tx-pool size too small, must be at least %d\n",
+ 			MAX_SKB_FRAGS);
+ 		ret = -ENODEV;
+ 		goto quit;
+-- 
+cgit 
+

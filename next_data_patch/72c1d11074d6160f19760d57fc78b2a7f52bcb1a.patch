@@ -1,0 +1,47 @@
+From 72c1d11074d6160f19760d57fc78b2a7f52bcb1a Mon Sep 17 00:00:00 2001
+From: Alexander Stein <alexander.stein@ew.tq-group.com>
+Date: Mon, 24 Apr 2023 11:23:12 +0200
+Subject: dt-bindings: iio: imx8qxp-adc: add missing vref-supply
+
+Although this property is used right now for IIO_CHAN_INFO_SCALE,
+this ADC has two internal reference voltages, which the driver currently
+doesn't make use of.
+
+Fixes: db73419d8c06 ("dt-bindings: iio: adc: Add binding documentation for NXP IMX8QXP ADC")
+Signed-off-by: Alexander Stein <alexander.stein@ew.tq-group.com>
+Reviewed-by: Haibo Chen <haibo.chen@nxp.com>
+Acked-by: Krzysztof Kozlowski <krzysztof.kozlowski@linaro.org>
+Link: https://lore.kernel.org/r/20230424092312.61746-1-alexander.stein@ew.tq-group.com
+Signed-off-by: Jonathan Cameron <Jonathan.Cameron@huawei.com>
+---
+ Documentation/devicetree/bindings/iio/adc/nxp,imx8qxp-adc.yaml | 7 +++++++
+ 1 file changed, 7 insertions(+)
+
+diff --git a/Documentation/devicetree/bindings/iio/adc/nxp,imx8qxp-adc.yaml b/Documentation/devicetree/bindings/iio/adc/nxp,imx8qxp-adc.yaml
+index 63369ba388e47..0a192ca192c5b 100644
+--- a/Documentation/devicetree/bindings/iio/adc/nxp,imx8qxp-adc.yaml
++++ b/Documentation/devicetree/bindings/iio/adc/nxp,imx8qxp-adc.yaml
+@@ -39,6 +39,12 @@ properties:
+   power-domains:
+     maxItems: 1
+ 
++  vref-supply:
++    description: |
++      External ADC reference voltage supply on VREFH pad. If VERID[MVI] is
++      set, there are additional, internal reference voltages selectable.
++      VREFH1 is always from VREFH pad.
++
+   "#io-channel-cells":
+     const: 1
+ 
+@@ -72,6 +78,7 @@ examples:
+             assigned-clocks = <&clk IMX_SC_R_ADC_0>;
+             assigned-clock-rates = <24000000>;
+             power-domains = <&pd IMX_SC_R_ADC_0>;
++            vref-supply = <&reg_1v8>;
+             #io-channel-cells = <1>;
+         };
+     };
+-- 
+cgit 
+

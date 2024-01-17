@@ -1,0 +1,33 @@
+From e12b6893d2333f08dc108ab045b7744adc198bed Mon Sep 17 00:00:00 2001
+From: Manivannan Sadhasivam <manivannan.sadhasivam@linaro.org>
+Date: Wed, 8 Mar 2023 13:54:15 +0530
+Subject: dt-bindings: PCI: qcom-ep: Fix the unit address used in example
+
+Unit address of PCIe EP node should be 0x1c00000 as it has to match the
+first address specified in the reg property.
+
+Link: https://lore.kernel.org/r/20230308082424.140224-5-manivannan.sadhasivam@linaro.org
+Fixes: 31c9ef002580 ("dt-bindings: PCI: Add Qualcomm PCIe Endpoint controller")
+Signed-off-by: Manivannan Sadhasivam <manivannan.sadhasivam@linaro.org>
+Signed-off-by: Lorenzo Pieralisi <lpieralisi@kernel.org>
+Reviewed-by: Krzysztof Kozlowski <krzysztof.kozlowski@linaro.org>
+---
+ Documentation/devicetree/bindings/pci/qcom,pcie-ep.yaml | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/Documentation/devicetree/bindings/pci/qcom,pcie-ep.yaml b/Documentation/devicetree/bindings/pci/qcom,pcie-ep.yaml
+index 89cfdee4b89f4..b7f6fbaa0ba02 100644
+--- a/Documentation/devicetree/bindings/pci/qcom,pcie-ep.yaml
++++ b/Documentation/devicetree/bindings/pci/qcom,pcie-ep.yaml
+@@ -166,7 +166,7 @@ examples:
+     #include <dt-bindings/clock/qcom,gcc-sdx55.h>
+     #include <dt-bindings/gpio/gpio.h>
+     #include <dt-bindings/interrupt-controller/arm-gic.h>
+-    pcie_ep: pcie-ep@40000000 {
++    pcie_ep: pcie-ep@1c00000 {
+         compatible = "qcom,sdx55-pcie-ep";
+         reg = <0x01c00000 0x3000>,
+               <0x40000000 0xf1d>,
+-- 
+cgit 
+

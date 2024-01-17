@@ -1,0 +1,46 @@
+From 55e391852e713f85af4e724443f929b3ce5b5dbe Mon Sep 17 00:00:00 2001
+From: Namhyung Kim <namhyung@kernel.org>
+Date: Mon, 6 Feb 2023 16:24:01 -0800
+Subject: perf lock contention: Fix to save callstack for the default modified
+
+The previous change missed to set the con->save_callstack for the
+LOCK_AGGR_CALLER mode resulting in no caller information.
+
+Fixes: ebab291641bed48f ("perf lock contention: Support filters for different aggregation")
+Signed-off-by: Namhyung Kim <namhyung@kernel.org>
+Cc: Adrian Hunter <adrian.hunter@intel.com>
+Cc: Boqun Feng <boqun.feng@gmail.com>
+Cc: Davidlohr Bueso <dave@stgolabs.net>
+Cc: Hao Luo <haoluo@google.com>
+Cc: Ian Rogers <irogers@google.com>
+Cc: Ingo Molnar <mingo@kernel.org>
+Cc: Jiri Olsa <jolsa@kernel.org>
+Cc: Namhyung Kim <namhyung@kernel.org>
+Cc: Peter Zijlstra <peterz@infradead.org>
+Cc: Song Liu <song@kernel.org>
+Cc: Waiman Long <longman@redhat.com>
+Cc: Will Deacon <will@kernel.org>
+Cc: bpf@vger.kernel.org
+Link: https://lore.kernel.org/r/20230207002403.63590-2-namhyung@kernel.org
+Signed-off-by: Arnaldo Carvalho de Melo <acme@redhat.com>
+---
+ tools/perf/builtin-lock.c | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/tools/perf/builtin-lock.c b/tools/perf/builtin-lock.c
+index 0d11f301fd729..a4b5c481129cb 100644
+--- a/tools/perf/builtin-lock.c
++++ b/tools/perf/builtin-lock.c
+@@ -1806,6 +1806,9 @@ static int __cmd_contention(int argc, const char **argv)
+ 	con.aggr_mode = aggr_mode = show_thread_stats ? LOCK_AGGR_TASK :
+ 		show_lock_addrs ? LOCK_AGGR_ADDR : LOCK_AGGR_CALLER;
+ 
++	if (con.aggr_mode == LOCK_AGGR_CALLER)
++		con.save_callstack = true;
++
+ 	/* for lock function check */
+ 	symbol_conf.sort_by_name = true;
+ 	symbol_conf.allow_aliases = true;
+-- 
+cgit 
+

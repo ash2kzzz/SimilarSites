@@ -1,0 +1,33 @@
+From b23bf10cca59b2955fa5c2b5e4f753962b4f88ca Mon Sep 17 00:00:00 2001
+From: Oz Shlomo <ozsh@nvidia.com>
+Date: Tue, 21 Feb 2023 15:24:39 +0000
+Subject: net/mlx5e: TC, fix cloned flow attribute
+
+Currently the cloned flow attr resets the original tc action cookies
+count.
+Fix that by resetting the cloned flow attribute.
+
+Fixes: cca7eac13856 ("net/mlx5e: TC, store tc action cookies per attr")
+Signed-off-by: Oz Shlomo <ozsh@nvidia.com>
+Reviewed-by: Paul Blakey <paulb@nvidia.com>
+Signed-off-by: Saeed Mahameed <saeedm@nvidia.com>
+---
+ drivers/net/ethernet/mellanox/mlx5/core/en_tc.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/net/ethernet/mellanox/mlx5/core/en_tc.c b/drivers/net/ethernet/mellanox/mlx5/core/en_tc.c
+index d2e191ee07047..6bfed633343ab 100644
+--- a/drivers/net/ethernet/mellanox/mlx5/core/en_tc.c
++++ b/drivers/net/ethernet/mellanox/mlx5/core/en_tc.c
+@@ -3752,7 +3752,7 @@ mlx5e_clone_flow_attr_for_post_act(struct mlx5_flow_attr *attr,
+ 	parse_attr->filter_dev = attr->parse_attr->filter_dev;
+ 	attr2->action = 0;
+ 	attr2->counter = NULL;
+-	attr->tc_act_cookies_count = 0;
++	attr2->tc_act_cookies_count = 0;
+ 	attr2->flags = 0;
+ 	attr2->parse_attr = parse_attr;
+ 	attr2->dest_chain = 0;
+-- 
+cgit 
+

@@ -1,0 +1,51 @@
+From a69ea7a76d52353b17d7bedf43818c2578517e9e Mon Sep 17 00:00:00 2001
+From: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+Date: Wed, 1 Feb 2023 13:56:42 +0100
+Subject: maple: remove unneeded maple_bus_uevent() callback.
+
+The driver core recently changed the uevent bus callback to take a const
+pointer, and the maple_bus_uevent() was not correctly fixed up.  Instead
+of fixing the function parameter types, just remove the callback
+entirely as it does not do anything, so it is not necessary.
+
+Cc: Yoshinori Sato <ysato@users.sourceforge.jp>
+Cc: Rich Felker <dalias@libc.org>
+Cc: Hans de Goede <hdegoede@redhat.com>
+Cc: "Rafael J. Wysocki" <rafael@kernel.org>
+Reported-by: Linux Kernel Functional Testing <lkft@linaro.org>
+Reported-by: Naresh Kamboju <naresh.kamboju@linaro.org>
+Fixes: 2a81ada32f0e ("driver core: make struct bus_type.uevent() take a const *")
+Link: https://lore.kernel.org/r/20230201125642.624255-1-gregkh@linuxfoundation.org
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+---
+ drivers/sh/maple/maple.c | 7 -------
+ 1 file changed, 7 deletions(-)
+
+diff --git a/drivers/sh/maple/maple.c b/drivers/sh/maple/maple.c
+index e24e220e56eea..e05473c5c267f 100644
+--- a/drivers/sh/maple/maple.c
++++ b/drivers/sh/maple/maple.c
+@@ -760,12 +760,6 @@ static int maple_match_bus_driver(struct device *devptr,
+ 	return 0;
+ }
+ 
+-static int maple_bus_uevent(struct device *dev,
+-			    struct kobj_uevent_env *env)
+-{
+-	return 0;
+-}
+-
+ static void maple_bus_release(struct device *dev)
+ {
+ }
+@@ -782,7 +776,6 @@ static struct maple_driver maple_unsupported_device = {
+ struct bus_type maple_bus_type = {
+ 	.name = "maple",
+ 	.match = maple_match_bus_driver,
+-	.uevent = maple_bus_uevent,
+ };
+ EXPORT_SYMBOL_GPL(maple_bus_type);
+ 
+-- 
+cgit 
+

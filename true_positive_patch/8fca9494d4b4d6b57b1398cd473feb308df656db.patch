@@ -1,0 +1,64 @@
+From 8fca9494d4b4d6b57b1398cd473feb308df656db Mon Sep 17 00:00:00 2001
+From: Valentin Schneider <valentin.schneider@arm.com>
+Date: Tue, 25 Aug 2020 14:32:15 +0100
+Subject: sched/topology: Move sd_flag_debug out of linux/sched/topology.h
+
+Defining an array in a header imported all over the place clearly is a daft
+idea, that still didn't stop me from doing it.
+
+Leave a declaration of sd_flag_debug in topology.h and move its definition
+to sched/debug.c.
+
+Fixes: b6e862f38672 ("sched/topology: Define and assign sched_domain flag metadata")
+Reported-by: Andy Shevchenko <andriy.shevchenko@linux.intel.com>
+Signed-off-by: Valentin Schneider <valentin.schneider@arm.com>
+Signed-off-by: Peter Zijlstra (Intel) <peterz@infradead.org>
+Link: https://lkml.kernel.org/r/20200825133216.9163-1-valentin.schneider@arm.com
+---
+ include/linux/sched/topology.h | 9 ++++-----
+ kernel/sched/debug.c           | 6 ++++++
+ 2 files changed, 10 insertions(+), 5 deletions(-)
+
+diff --git a/include/linux/sched/topology.h b/include/linux/sched/topology.h
+index 2d59ca77103ef..b9b0dab4d0678 100644
+--- a/include/linux/sched/topology.h
++++ b/include/linux/sched/topology.h
+@@ -33,14 +33,13 @@ static const unsigned int SD_DEGENERATE_GROUPS_MASK =
+ #undef SD_FLAG
+ 
+ #ifdef CONFIG_SCHED_DEBUG
+-#define SD_FLAG(_name, mflags) [__##_name] = { .meta_flags = mflags, .name = #_name },
+-static const struct {
++
++struct sd_flag_debug {
+ 	unsigned int meta_flags;
+ 	char *name;
+-} sd_flag_debug[] = {
+-#include <linux/sched/sd_flags.h>
+ };
+-#undef SD_FLAG
++extern const struct sd_flag_debug sd_flag_debug[];
++
+ #endif
+ 
+ #ifdef CONFIG_SCHED_SMT
+diff --git a/kernel/sched/debug.c b/kernel/sched/debug.c
+index 0655524700d24..0d7896d2a0b23 100644
+--- a/kernel/sched/debug.c
++++ b/kernel/sched/debug.c
+@@ -245,6 +245,12 @@ set_table_entry(struct ctl_table *entry,
+ 	entry->proc_handler = proc_handler;
+ }
+ 
++#define SD_FLAG(_name, mflags) [__##_name] = { .meta_flags = mflags, .name = #_name },
++const struct sd_flag_debug sd_flag_debug[] = {
++#include <linux/sched/sd_flags.h>
++};
++#undef SD_FLAG
++
+ static int sd_ctl_doflags(struct ctl_table *table, int write,
+ 			  void *buffer, size_t *lenp, loff_t *ppos)
+ {
+-- 
+cgit 
+

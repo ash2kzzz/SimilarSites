@@ -1,0 +1,74 @@
+From 786bbe50e1d5777f0b6ec7b4c2de6189d6f7feb4 Mon Sep 17 00:00:00 2001
+From: Alex Elder <elder@linaro.org>
+Date: Thu, 16 Mar 2023 09:51:35 -0500
+Subject: net: ipa: kill FILT_ROUT_CACHE_CFG IPA register
+
+A recent commit defined a few IPA registers used for IPA v5.0+.
+One of those was a mistake.  Although the filter and router caches
+get *flushed* using a single register, they use distinct registers
+(ENDP_FILTER_CACHE_CFG and ENDP_ROUTER_CACHE_CFG) for configuration.
+
+And although there *exists* a FILT_ROUT_CACHE_CFG register, it is
+not needed in upstream code.  So get rid of definitions related to
+FILT_ROUT_CACHE_CFG, because they are not needed.
+
+Fixes: 8ba59716d16a ("net: ipa: define IPA v5.0+ registers")
+Signed-off-by: Alex Elder <elder@linaro.org>
+Signed-off-by: Jakub Kicinski <kuba@kernel.org>
+---
+ drivers/net/ipa/ipa_reg.c | 4 ++--
+ drivers/net/ipa/ipa_reg.h | 9 ---------
+ 2 files changed, 2 insertions(+), 11 deletions(-)
+
+diff --git a/drivers/net/ipa/ipa_reg.c b/drivers/net/ipa/ipa_reg.c
+index 735fa65916097..463a31dfa9f47 100644
+--- a/drivers/net/ipa/ipa_reg.c
++++ b/drivers/net/ipa/ipa_reg.c
+@@ -39,7 +39,8 @@ static bool ipa_reg_id_valid(struct ipa *ipa, enum ipa_reg_id reg_id)
+ 		return version <= IPA_VERSION_3_1;
+ 
+ 	case ENDP_FILTER_ROUTER_HSH_CFG:
+-		return version != IPA_VERSION_4_2;
++		return version < IPA_VERSION_5_0 &&
++			version != IPA_VERSION_4_2;
+ 
+ 	case IRQ_SUSPEND_EN:
+ 	case IRQ_SUSPEND_CLR:
+@@ -52,7 +53,6 @@ static bool ipa_reg_id_valid(struct ipa *ipa, enum ipa_reg_id reg_id)
+ 	case QSB_MAX_WRITES:
+ 	case QSB_MAX_READS:
+ 	case FILT_ROUT_HASH_EN:
+-	case FILT_ROUT_CACHE_CFG:
+ 	case FILT_ROUT_HASH_FLUSH:
+ 	case FILT_ROUT_CACHE_FLUSH:
+ 	case STATE_AGGR_ACTIVE:
+diff --git a/drivers/net/ipa/ipa_reg.h b/drivers/net/ipa/ipa_reg.h
+index 28aa1351dd488..ff2be8be0f683 100644
+--- a/drivers/net/ipa/ipa_reg.h
++++ b/drivers/net/ipa/ipa_reg.h
+@@ -61,7 +61,6 @@ enum ipa_reg_id {
+ 	QSB_MAX_WRITES,
+ 	QSB_MAX_READS,
+ 	FILT_ROUT_HASH_EN,				/* Not IPA v5.0+ */
+-	FILT_ROUT_CACHE_CFG,				/* IPA v5.0+ */
+ 	FILT_ROUT_HASH_FLUSH,				/* Not IPA v5.0+ */
+ 	FILT_ROUT_CACHE_FLUSH,				/* IPA v5.0+ */
+ 	STATE_AGGR_ACTIVE,
+@@ -206,14 +205,6 @@ enum ipa_reg_qsb_max_reads_field_id {
+ 	GEN_QMB_1_MAX_READS_BEATS,			/* IPA v4.0+ */
+ };
+ 
+-/* FILT_ROUT_CACHE_CFG register */
+-enum ipa_reg_filt_rout_cache_cfg_field_id {
+-	ROUTER_CACHE_EN,
+-	FILTER_CACHE_EN,
+-	LOW_PRI_HASH_HIT_DISABLE,
+-	LRU_EVICTION_THRESHOLD,
+-};
+-
+ /* FILT_ROUT_HASH_EN and FILT_ROUT_HASH_FLUSH registers */
+ enum ipa_reg_filt_rout_hash_field_id {
+ 	IPV6_ROUTER_HASH,
+-- 
+cgit 
+

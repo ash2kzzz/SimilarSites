@@ -1,0 +1,99 @@
+From 27d9a0fdb53f05c93ed9c674b870c8add451697e Mon Sep 17 00:00:00 2001
+From: Hao Ge <gehao@kylinos.cn>
+Date: Thu, 30 Mar 2023 14:09:04 +0800
+Subject: kmemleak-test: fix kmemleak_test.c build logic
+
+kmemleak-test.c was moved to the samples directory in 1abbef4f51724
+("mm,kmemleak-test.c: move kmemleak-test.c to samples dir").
+
+If CONFIG_DEBUG_KMEMLEAK_TEST=m and CONFIG_SAMPLES is unset,
+kmemleak-test.c will be unnecessarily compiled.
+
+So move the entry for CONFIG_DEBUG_KMEMLEAK_TEST from mm/Kconfig and add a
+new CONFIG_SAMPLE_KMEMLEAK in samples/ to control whether kmemleak-test.c
+is built or not.
+
+Link: https://lkml.kernel.org/r/20230330060904.292975-1-gehao@kylinos.cn
+Fixes: 1abbef4f51724 ("mm,kmemleak-test.c: move kmemleak-test.c to samples dir")
+Signed-off-by: Hao Ge <gehao@kylinos.cn>
+Cc: Catalin Marinas <catalin.marinas@arm.com>
+Cc: Alex Gaynor <alex.gaynor@gmail.com>
+Cc: Alex Williamson <alex.williamson@redhat.com>
+Cc: Arnd Bergmann <arnd@arndb.de>
+Cc: Finn Behrens <me@kloenk.dev>
+Cc: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+Cc: Jason Gunthorpe <jgg@ziepe.ca>
+Cc: Mark Rutland <mark.rutland@arm.com>
+Cc: Miguel Ojeda <ojeda@kernel.org>
+Cc: Tony Krowiak <akrowiak@linux.ibm.com>
+Cc: Ye Xingchen <ye.xingchen@zte.com.cn>
+Signed-off-by: Andrew Morton <akpm@linux-foundation.org>
+---
+ mm/Kconfig.debug          | 8 --------
+ samples/Kconfig           | 7 +++++++
+ samples/Makefile          | 2 +-
+ samples/kmemleak/Makefile | 2 +-
+ 4 files changed, 9 insertions(+), 10 deletions(-)
+
+diff --git a/mm/Kconfig.debug b/mm/Kconfig.debug
+index 4965a7333a3f4..065ed0d687cb6 100644
+--- a/mm/Kconfig.debug
++++ b/mm/Kconfig.debug
+@@ -249,14 +249,6 @@ config DEBUG_KMEMLEAK_MEM_POOL_SIZE
+ 	  fully initialised, this memory pool acts as an emergency one
+ 	  if slab allocations fail.
+ 
+-config DEBUG_KMEMLEAK_TEST
+-	tristate "Simple test for the kernel memory leak detector"
+-	depends on DEBUG_KMEMLEAK && m
+-	help
+-	  This option enables a module that explicitly leaks memory.
+-
+-	  If unsure, say N.
+-
+ config DEBUG_KMEMLEAK_DEFAULT_OFF
+ 	bool "Default kmemleak to off"
+ 	depends on DEBUG_KMEMLEAK
+diff --git a/samples/Kconfig b/samples/Kconfig
+index 30ef8bd48ba38..69076fbf32982 100644
+--- a/samples/Kconfig
++++ b/samples/Kconfig
+@@ -273,6 +273,13 @@ config SAMPLE_CORESIGHT_SYSCFG
+ 	  This demonstrates how a user may create their own CoreSight
+ 	  configurations and easily load them into the system at runtime.
+ 
++config SAMPLE_KMEMLEAK
++        tristate "Simple test for the kernel memory leak detector"
++        depends on DEBUG_KMEMLEAK && m
++        help
++          Build a sample program which have explicitly leaks memory to test
++          kmemleak
++
+ source "samples/rust/Kconfig"
+ 
+ endif # SAMPLES
+diff --git a/samples/Makefile b/samples/Makefile
+index 7cb632ef88eeb..7727f1a0d6d15 100644
+--- a/samples/Makefile
++++ b/samples/Makefile
+@@ -33,7 +33,7 @@ subdir-$(CONFIG_SAMPLE_VFS)		+= vfs
+ obj-$(CONFIG_SAMPLE_INTEL_MEI)		+= mei/
+ subdir-$(CONFIG_SAMPLE_WATCHDOG)	+= watchdog
+ subdir-$(CONFIG_SAMPLE_WATCH_QUEUE)	+= watch_queue
+-obj-$(CONFIG_DEBUG_KMEMLEAK_TEST)	+= kmemleak/
++obj-$(CONFIG_SAMPLE_KMEMLEAK)		+= kmemleak/
+ obj-$(CONFIG_SAMPLE_CORESIGHT_SYSCFG)	+= coresight/
+ obj-$(CONFIG_SAMPLE_FPROBE)		+= fprobe/
+ obj-$(CONFIG_SAMPLES_RUST)		+= rust/
+diff --git a/samples/kmemleak/Makefile b/samples/kmemleak/Makefile
+index 16b6132c540c6..8a999ab43b6d2 100644
+--- a/samples/kmemleak/Makefile
++++ b/samples/kmemleak/Makefile
+@@ -1,3 +1,3 @@
+ # SPDX-License-Identifier: GPL-2.0-only
+ 
+-obj-$(CONFIG_DEBUG_KMEMLEAK_TEST) += kmemleak-test.o
++obj-$(CONFIG_SAMPLE_KMEMLEAK) += kmemleak-test.o
+-- 
+cgit 
+

@@ -1,0 +1,61 @@
+From 536bd00cdbb7b908573e5a93bae67b64cbae60d8 Mon Sep 17 00:00:00 2001
+From: "Rafael J. Wysocki" <rafael.j.wysocki@intel.com>
+Date: Fri, 6 May 2016 14:58:43 +0200
+Subject: sched/fair: Fix !CONFIG_SMP kernel cpufreq governor breakage
+
+The following commit:
+
+  34e2c555f3e1 ("cpufreq: Add mechanism for registering utilization update callbacks")
+
+overlooked the fact that update_load_avg(), where CFS invokes cpufreq
+utilization update callbacks, becomes an empty stub on UP kernels.
+
+In consequence, if !CONFIG_SMP, cpufreq governors are never invoked
+from CFS and they do not have a chance to evaluate CPU performace
+levels and update them often enough.
+
+Needless to say, things don't work as expected then.
+
+Fix the problem by making the !CONFIG_SMP stub of update_load_avg()
+invoke cpufreq update callbacks too.
+
+Reported-by: Steve Muckle <steve.muckle@linaro.org>
+Tested-by: Steve Muckle <steve.muckle@linaro.org>
+Signed-off-by: Rafael J. Wysocki <rafael.j.wysocki@intel.com>
+Acked-by: Steve Muckle <steve.muckle@linaro.org>
+Cc: Linus Torvalds <torvalds@linux-foundation.org>
+Cc: Linux PM list <linux-pm@vger.kernel.org>
+Cc: Peter Zijlstra <peterz@infradead.org>
+Cc: Srinivas Pandruvada <srinivas.pandruvada@linux.intel.com>
+Cc: Thomas Gleixner <tglx@linutronix.de>
+Cc: Viresh Kumar <viresh.kumar@linaro.org>
+Fixes: 34e2c555f3e1 (cpufreq: Add mechanism for registering utilization update callbacks)
+Link: http://lkml.kernel.org/r/6282396.VVEdgVYxO3@vostro.rjw.lan
+Signed-off-by: Ingo Molnar <mingo@kernel.org>
+---
+ kernel/sched/fair.c | 9 ++++++++-
+ 1 file changed, 8 insertions(+), 1 deletion(-)
+
+diff --git a/kernel/sched/fair.c b/kernel/sched/fair.c
+index 0fe30e66aff1d..40748dc8ea3e9 100644
+--- a/kernel/sched/fair.c
++++ b/kernel/sched/fair.c
+@@ -3030,7 +3030,14 @@ static int idle_balance(struct rq *this_rq);
+ 
+ #else /* CONFIG_SMP */
+ 
+-static inline void update_load_avg(struct sched_entity *se, int update_tg) {}
++static inline void update_load_avg(struct sched_entity *se, int not_used)
++{
++	struct cfs_rq *cfs_rq = cfs_rq_of(se);
++	struct rq *rq = rq_of(cfs_rq);
++
++	cpufreq_trigger_update(rq_clock(rq));
++}
++
+ static inline void
+ enqueue_entity_load_avg(struct cfs_rq *cfs_rq, struct sched_entity *se) {}
+ static inline void
+-- 
+cgit 
+

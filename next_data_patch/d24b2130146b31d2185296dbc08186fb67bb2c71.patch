@@ -1,0 +1,40 @@
+From d24b2130146b31d2185296dbc08186fb67bb2c71 Mon Sep 17 00:00:00 2001
+From: Gregory Greenman <gregory.greenman@intel.com>
+Date: Fri, 24 Mar 2023 00:35:43 +0200
+Subject: wifi: iwlwifi: mvm: fix NULL deref in iwl_mvm_mld_disable_txq
+
+Check sta pointer for NULL and don't crash if it is.
+
+Fixes: 006c152ac9e5 ("wifi: iwlwifi: mvm: add support for the new STA related commands")
+Reported-by: Dan Carpenter <error27@gmail.com>
+Link: https://lore.kernel.org/linux-wireless/20230314194113.132873ce015c.I7b12a77e5be066730762e6ceeeaa7190293c3df1@changeid/
+Signed-off-by: Gregory Greenman <gregory.greenman@intel.com>
+Signed-off-by: Johannes Berg <johannes.berg@intel.com>
+---
+ drivers/net/wireless/intel/iwlwifi/mvm/mld-sta.c | 7 ++++++-
+ 1 file changed, 6 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/net/wireless/intel/iwlwifi/mvm/mld-sta.c b/drivers/net/wireless/intel/iwlwifi/mvm/mld-sta.c
+index d81fc9207ef00..51532b6379e26 100644
+--- a/drivers/net/wireless/intel/iwlwifi/mvm/mld-sta.c
++++ b/drivers/net/wireless/intel/iwlwifi/mvm/mld-sta.c
+@@ -227,10 +227,15 @@ static int iwl_mvm_mld_disable_txq(struct iwl_mvm *mvm,
+ 				   struct ieee80211_sta *sta,
+ 				   u16 *queueptr, u8 tid)
+ {
+-	struct iwl_mvm_sta *mvmsta = iwl_mvm_sta_from_mac80211(sta);
++	struct iwl_mvm_sta *mvmsta;
+ 	int queue = *queueptr;
+ 	int ret = 0;
+ 
++	if (!sta)
++		return -EINVAL;
++
++	mvmsta = iwl_mvm_sta_from_mac80211(sta);
++
+ 	if (mvm->sta_remove_requires_queue_remove) {
+ 		u32 cmd_id = WIDE_ID(DATA_PATH_GROUP,
+ 				     SCD_QUEUE_CONFIG_CMD);
+-- 
+cgit 
+

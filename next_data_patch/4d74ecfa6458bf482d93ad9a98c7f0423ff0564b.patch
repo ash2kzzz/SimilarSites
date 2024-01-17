@@ -1,0 +1,49 @@
+From 4d74ecfa6458bf482d93ad9a98c7f0423ff0564b Mon Sep 17 00:00:00 2001
+From: Marc Zyngier <maz@kernel.org>
+Date: Thu, 12 Jan 2023 12:38:27 +0000
+Subject: KVM: arm64: Don't arm a hrtimer for an already pending timer
+
+When fully emulating a timer, we back it with a hrtimer that is
+armver on vcpu_load(). However, we do this even if the timer is
+already pending.
+
+This causes spurious interrupts to be taken, though the guest
+doesn't observe them (the interrupt is already pending).
+
+Although this is a waste of precious cycles, this isn't the
+end of the world with the current state of KVM. However, this
+can lead to a situation where a guest doesn't make forward
+progress anymore with NV.
+
+Fix it by checking that if the timer is already pending
+before arming a new hrtimer. Also drop the hrtimer cancelling,
+which is useless, by construction.
+
+Reported-by: D Scott Phillips <scott@os.amperecomputing.com>
+Fixes: bee038a67487 ("KVM: arm/arm64: Rework the timer code to use a timer_map")
+Signed-off-by: Marc Zyngier <maz@kernel.org>
+Link: https://lore.kernel.org/r/20230112123829.458912-2-maz@kernel.org
+Signed-off-by: Oliver Upton <oliver.upton@linux.dev>
+---
+ arch/arm64/kvm/arch_timer.c | 4 +---
+ 1 file changed, 1 insertion(+), 3 deletions(-)
+
+diff --git a/arch/arm64/kvm/arch_timer.c b/arch/arm64/kvm/arch_timer.c
+index bb24a76b4224b..587d87aec33f8 100644
+--- a/arch/arm64/kvm/arch_timer.c
++++ b/arch/arm64/kvm/arch_timer.c
+@@ -428,10 +428,8 @@ static void timer_emulate(struct arch_timer_context *ctx)
+ 	 * scheduled for the future.  If the timer cannot fire at all,
+ 	 * then we also don't need a soft timer.
+ 	 */
+-	if (!kvm_timer_irq_can_fire(ctx)) {
+-		soft_timer_cancel(&ctx->hrtimer);
++	if (should_fire || !kvm_timer_irq_can_fire(ctx))
+ 		return;
+-	}
+ 
+ 	soft_timer_start(&ctx->hrtimer, kvm_timer_compute_delta(ctx));
+ }
+-- 
+cgit 
+

@@ -1,0 +1,35 @@
+From e485bd9e2c419142430ae6fe3e8f64e3059aef50 Mon Sep 17 00:00:00 2001
+From: Ming Lei <ming.lei@redhat.com>
+Date: Fri, 5 May 2023 23:31:42 +0800
+Subject: ublk: fix command op code check
+
+In case of CONFIG_BLKDEV_UBLK_LEGACY_OPCODES, type of cmd opcode could
+be 0 or 'u'; and type can only be 'u' if CONFIG_BLKDEV_UBLK_LEGACY_OPCODES
+isn't set.
+
+So fix the wrong check.
+
+Fixes: 2d786e66c966 ("block: ublk: switch to ioctl command encoding")
+Signed-off-by: Ming Lei <ming.lei@redhat.com>
+Link: https://lore.kernel.org/r/20230505153142.1258336-1-ming.lei@redhat.com
+Signed-off-by: Jens Axboe <axboe@kernel.dk>
+---
+ drivers/block/ublk_drv.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/block/ublk_drv.c b/drivers/block/ublk_drv.c
+index c7331f5197503..c7ed5d69e9eee 100644
+--- a/drivers/block/ublk_drv.c
++++ b/drivers/block/ublk_drv.c
+@@ -1281,7 +1281,7 @@ static inline int ublk_check_cmd_op(u32 cmd_op)
+ {
+ 	u32 ioc_type = _IOC_TYPE(cmd_op);
+ 
+-	if (IS_ENABLED(CONFIG_BLKDEV_UBLK_LEGACY_OPCODES) && ioc_type != 'u')
++	if (!IS_ENABLED(CONFIG_BLKDEV_UBLK_LEGACY_OPCODES) && ioc_type != 'u')
+ 		return -EOPNOTSUPP;
+ 
+ 	if (ioc_type != 'u' && ioc_type != 0)
+-- 
+cgit 
+

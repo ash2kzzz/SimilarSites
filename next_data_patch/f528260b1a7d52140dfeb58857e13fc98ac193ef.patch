@@ -1,0 +1,55 @@
+From f528260b1a7d52140dfeb58857e13fc98ac193ef Mon Sep 17 00:00:00 2001
+From: "Vishal Moola (Oracle)" <vishal.moola@gmail.com>
+Date: Mon, 13 Feb 2023 13:43:24 -0800
+Subject: mm/khugepaged: fix invalid page access in release_pte_pages()
+
+release_pte_pages() converts from a pfn to a folio by using pfn_folio().
+If the pte is not mapped, pfn_folio() will result in undefined behavior
+which ends up causing a kernel panic[1].
+
+Only call pfn_folio() once we have validated that the pte is both valid
+and mapped to fix the issue.
+
+[1] https://lore.kernel.org/linux-mm/ff300770-afe9-908d-23ed-d23e0796e899@samsung.com/
+
+Link: https://lkml.kernel.org/r/20230213214324.34215-1-vishal.moola@gmail.com
+Signed-off-by: Vishal Moola (Oracle) <vishal.moola@gmail.com>
+Fixes: 9bdfeea46f49 ("mm/khugepaged: convert release_pte_pages() to use folios")
+Reported-by: Marek Szyprowski <m.szyprowski@samsung.com>
+Tested-by: Marek Szyprowski <m.szyprowski@samsung.com>
+Debugged-by: Alexandre Ghiti <alex@ghiti.fr>
+Cc: Matthew Wilcox <willy@infradead.org>
+Signed-off-by: Andrew Morton <akpm@linux-foundation.org>
+---
+ mm/khugepaged.c | 14 ++++++++++----
+ 1 file changed, 10 insertions(+), 4 deletions(-)
+
+diff --git a/mm/khugepaged.c b/mm/khugepaged.c
+index b39ab219d5b75..bd54b957f69a7 100644
+--- a/mm/khugepaged.c
++++ b/mm/khugepaged.c
+@@ -511,11 +511,17 @@ static void release_pte_pages(pte_t *pte, pte_t *_pte,
+ 
+ 	while (--_pte >= pte) {
+ 		pte_t pteval = *_pte;
++		unsigned long pfn;
+ 
+-		folio = pfn_folio(pte_pfn(pteval));
+-		if (!pte_none(pteval) && !is_zero_pfn(pte_pfn(pteval)) &&
+-				!folio_test_large(folio))
+-			release_pte_folio(folio);
++		if (pte_none(pteval))
++			continue;
++		pfn = pte_pfn(pteval);
++		if (is_zero_pfn(pfn))
++			continue;
++		folio = pfn_folio(pfn);
++		if (folio_test_large(folio))
++			continue;
++		release_pte_folio(folio);
+ 	}
+ 
+ 	list_for_each_entry_safe(folio, tmp, compound_pagelist, lru) {
+-- 
+cgit 
+

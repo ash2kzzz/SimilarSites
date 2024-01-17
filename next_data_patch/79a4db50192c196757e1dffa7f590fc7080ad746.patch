@@ -1,0 +1,46 @@
+From 79a4db50192c196757e1dffa7f590fc7080ad746 Mon Sep 17 00:00:00 2001
+From: Miquel Raynal <miquel.raynal@bootlin.com>
+Date: Fri, 31 Mar 2023 21:46:19 +0200
+Subject: mtd: spi-nor: Delay the initialization of bank_size
+
+Bank size is derived from the chip's size, which in
+spi_nor_init_default_params() can still be zero if the flash size is
+not specified at flash declaration. Let the flash size be updated
+by parsing SFDP and do the initialization of the bank size in
+spi_nor_late_init_params(). Flashes that don't define the SFDP tables
+must specify the flash size at declaration.
+
+Fixes: 9d6c5d64f028 ("mtd: spi-nor: Introduce the concept of bank")
+Signed-off-by: Miquel Raynal <miquel.raynal@bootlin.com>
+Link: https://lore.kernel.org/r/20230331194620.839899-1-miquel.raynal@bootlin.com
+[ta: drop superfluous initialization in spi_nor_init_default_params(),
+reword commit message, add Fixes tag.]
+Signed-off-by: Tudor Ambarus <tudor.ambarus@linaro.org>
+---
+ drivers/mtd/spi-nor/core.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/mtd/spi-nor/core.c b/drivers/mtd/spi-nor/core.c
+index c6a313d87c179..35295d98542fd 100644
+--- a/drivers/mtd/spi-nor/core.c
++++ b/drivers/mtd/spi-nor/core.c
+@@ -2882,6 +2882,8 @@ static void spi_nor_late_init_params(struct spi_nor *nor)
+ 	 */
+ 	if (nor->flags & SNOR_F_HAS_LOCK && !nor->params->locking_ops)
+ 		spi_nor_init_default_locking_ops(nor);
++
++	nor->params->bank_size = div64_u64(nor->params->size, nor->info->n_banks);
+ }
+ 
+ /**
+@@ -2948,7 +2950,6 @@ static void spi_nor_init_default_params(struct spi_nor *nor)
+ 	/* Set SPI NOR sizes. */
+ 	params->writesize = 1;
+ 	params->size = (u64)info->sector_size * info->n_sectors;
+-	params->bank_size = div64_u64(params->size, info->n_banks);
+ 	params->page_size = info->page_size;
+ 
+ 	if (!(info->flags & SPI_NOR_NO_FR)) {
+-- 
+cgit 
+

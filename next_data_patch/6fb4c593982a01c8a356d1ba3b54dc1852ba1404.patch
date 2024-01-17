@@ -1,0 +1,41 @@
+From 6fb4c593982a01c8a356d1ba3b54dc1852ba1404 Mon Sep 17 00:00:00 2001
+From: Conor Dooley <conor.dooley@microchip.com>
+Date: Wed, 11 Jan 2023 10:48:49 +0000
+Subject: RISC-V: fix incorrect type of ARCH_CANAAN_K210_DTB_SOURCE
+
+When adding the ARCH_ symbol for the builtin K210 dtb, I erroneously
+used the bool type for something that is quite obviously a string.
+Unfortunately, there is no such thing as "def_string", but in this case
+we can use "default" to propagate the value of
+SOC_CANAAN_K210_DTB_SOURCE to ARCH_CANAAN_K210_DTB_SOURCE.
+ARCH_CANAAN_K210_DTB_SOURCE is not user selectable, so using
+olddefconfig etc will update ARCH_CANAAN_K210_DTB_SOURCE to reflect any
+changes made to SOC_CANAAN_K210_DTB_SOURCE.
+
+Fixes: fc43211939bb ("RISC-V: kconfig.socs: convert usage of SOC_CANAAN to ARCH_CANAAN")
+Reported-by: Geert Uytterhoeven <geert+renesas@glider.be>
+Signed-off-by: Conor Dooley <conor.dooley@microchip.com>
+Tested-by: Geert Uytterhoeven <geert+renesas@glider.be>
+Link: https://lore.kernel.org/all/20230111104848.2088516-1-conor.dooley@microchip.com/
+Signed-off-by: Palmer Dabbelt <palmer@rivosinc.com>
+---
+ arch/riscv/Kconfig.socs | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/arch/riscv/Kconfig.socs b/arch/riscv/Kconfig.socs
+index ce920f627f6d7..fb34ae19d454d 100644
+--- a/arch/riscv/Kconfig.socs
++++ b/arch/riscv/Kconfig.socs
+@@ -87,7 +87,8 @@ config SOC_CANAAN_K210_DTB_BUILTIN
+ 	  If unsure, say Y.
+ 
+ config ARCH_CANAAN_K210_DTB_SOURCE
+-	def_bool SOC_CANAAN_K210_DTB_SOURCE
++	string
++	default SOC_CANAAN_K210_DTB_SOURCE
+ 
+ config SOC_CANAAN_K210_DTB_SOURCE
+ 	string "Source file for the Canaan Kendryte K210 builtin DTB"
+-- 
+cgit 
+

@@ -1,0 +1,36 @@
+From 52848a79b9d2d6773160221e7ea1e1500954de84 Mon Sep 17 00:00:00 2001
+From: Johannes Berg <johannes.berg@intel.com>
+Date: Tue, 20 Jun 2017 12:51:30 +0200
+Subject: iwlwifi: pcie: reconfigure MSI-X HW on resume
+
+When going into suspend, the HW configuration for MSI-X will
+likely be lost. As a consequence, after waking up, all IRQ
+causes will be mapped to interrupt 0, and as a consequence we
+don't notice the interrupt because in most cases this is an
+interrupt for a queue, and getting it doesn't read the other
+cause registers.
+
+Fixes: 2e5d4a8f61dc ("iwlwifi: pcie: Add new configuration to enable MSIX")
+Signed-off-by: Johannes Berg <johannes.berg@intel.com>
+Signed-off-by: Luca Coelho <luciano.coelho@intel.com>
+---
+ drivers/net/wireless/intel/iwlwifi/pcie/drv.c | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/drivers/net/wireless/intel/iwlwifi/pcie/drv.c b/drivers/net/wireless/intel/iwlwifi/pcie/drv.c
+index 3ca0f374c0816..f16c1bb9bf94b 100644
+--- a/drivers/net/wireless/intel/iwlwifi/pcie/drv.c
++++ b/drivers/net/wireless/intel/iwlwifi/pcie/drv.c
+@@ -799,6 +799,9 @@ static int iwl_pci_resume(struct device *device)
+ 	if (!trans->op_mode)
+ 		return 0;
+ 
++	/* reconfigure the MSI-X mapping to get the correct IRQ for rfkill */
++	iwl_pcie_conf_msix_hw(trans_pcie);
++
+ 	/*
+ 	 * Enable rfkill interrupt (in order to keep track of the rfkill
+ 	 * status). Must be locked to avoid processing a possible rfkill
+-- 
+cgit 
+

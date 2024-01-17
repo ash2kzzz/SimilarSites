@@ -1,0 +1,37 @@
+From 749d56bd5cf311dd9b50cfc092d7a39309454077 Mon Sep 17 00:00:00 2001
+From: Luca Weiss <luca@z3ntu.xyz>
+Date: Sun, 5 Mar 2023 11:32:34 +0100
+Subject: soc: qcom: rmtfs: handle optional qcom,vmid correctly
+
+Older platforms don't have qcom,vmid set, handle -EINVAL return value
+correctly. And since num_vmids is passed to of_property_read_u32_array
+later we should make sure it has a sane value before continuing.
+
+Fixes: e656cd0bcf3d ("soc: qcom: rmtfs: Optionally map RMTFS to more VMs")
+Signed-off-by: Luca Weiss <luca@z3ntu.xyz>
+Reviewed-by: Konrad Dybcio <konrad.dybcio@linaro.org>
+Signed-off-by: Bjorn Andersson <andersson@kernel.org>
+Link: https://lore.kernel.org/r/20230305-rmtfs-vmid-fix-v1-2-6a7206081602@z3ntu.xyz
+---
+ drivers/soc/qcom/rmtfs_mem.c | 5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/soc/qcom/rmtfs_mem.c b/drivers/soc/qcom/rmtfs_mem.c
+index f57756220198c..538fa182169a4 100644
+--- a/drivers/soc/qcom/rmtfs_mem.c
++++ b/drivers/soc/qcom/rmtfs_mem.c
+@@ -229,7 +229,10 @@ static int qcom_rmtfs_mem_probe(struct platform_device *pdev)
+ 	}
+ 
+ 	num_vmids = of_property_count_u32_elems(node, "qcom,vmid");
+-	if (num_vmids < 0) {
++	if (num_vmids == -EINVAL) {
++		/* qcom,vmid is optional */
++		num_vmids = 0;
++	} else if (num_vmids < 0) {
+ 		dev_err(&pdev->dev, "failed to count qcom,vmid elements: %d\n", num_vmids);
+ 		goto remove_cdev;
+ 	} else if (num_vmids > NUM_MAX_VMIDS) {
+-- 
+cgit 
+

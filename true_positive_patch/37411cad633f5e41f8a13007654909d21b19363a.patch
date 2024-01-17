@@ -1,0 +1,55 @@
+From 37411cad633f5e41f8a13007654909d21b19363a Mon Sep 17 00:00:00 2001
+From: David Howells <dhowells@redhat.com>
+Date: Thu, 2 Mar 2017 23:48:52 +0000
+Subject: rxrpc: Fix potential NULL-pointer exception
+
+Fix a potential NULL-pointer exception in rxrpc_do_sendmsg().  The call
+state check that I added should have gone into the else-body of the
+if-statement where we actually have a call to check.
+
+Found by CoverityScan CID#1414316 ("Dereference after null check").
+
+Fixes: 540b1c48c37a ("rxrpc: Fix deadlock between call creation and sendmsg/recvmsg")
+Reported-by: Colin Ian King <colin.king@canonical.com>
+Signed-off-by: David Howells <dhowells@redhat.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ net/rxrpc/sendmsg.c | 15 ++++++++-------
+ 1 file changed, 8 insertions(+), 7 deletions(-)
+
+diff --git a/net/rxrpc/sendmsg.c b/net/rxrpc/sendmsg.c
+index 31c1538c1a8de..27685d8cba1ae 100644
+--- a/net/rxrpc/sendmsg.c
++++ b/net/rxrpc/sendmsg.c
+@@ -517,13 +517,6 @@ int rxrpc_do_sendmsg(struct rxrpc_sock *rx, struct msghdr *msg, size_t len)
+ 		ret = -EBADSLT;
+ 		if (cmd != RXRPC_CMD_SEND_DATA)
+ 			goto error_release_sock;
+-		ret = -EBUSY;
+-		if (call->state == RXRPC_CALL_UNINITIALISED ||
+-		    call->state == RXRPC_CALL_CLIENT_AWAIT_CONN ||
+-		    call->state == RXRPC_CALL_SERVER_PREALLOC ||
+-		    call->state == RXRPC_CALL_SERVER_SECURING ||
+-		    call->state == RXRPC_CALL_SERVER_ACCEPTING)
+-			goto error_release_sock;
+ 		call = rxrpc_new_client_call_for_sendmsg(rx, msg, user_call_ID,
+ 							 exclusive);
+ 		/* The socket is now unlocked... */
+@@ -531,6 +524,14 @@ int rxrpc_do_sendmsg(struct rxrpc_sock *rx, struct msghdr *msg, size_t len)
+ 			return PTR_ERR(call);
+ 		/* ... and we have the call lock. */
+ 	} else {
++		ret = -EBUSY;
++		if (call->state == RXRPC_CALL_UNINITIALISED ||
++		    call->state == RXRPC_CALL_CLIENT_AWAIT_CONN ||
++		    call->state == RXRPC_CALL_SERVER_PREALLOC ||
++		    call->state == RXRPC_CALL_SERVER_SECURING ||
++		    call->state == RXRPC_CALL_SERVER_ACCEPTING)
++			goto error_release_sock;
++
+ 		ret = mutex_lock_interruptible(&call->user_mutex);
+ 		release_sock(&rx->sk);
+ 		if (ret < 0) {
+-- 
+cgit 
+

@@ -1,0 +1,42 @@
+From 3d27a95b1d96757e48ce970baa3d419af299c2af Mon Sep 17 00:00:00 2001
+From: Joey Gouly <joey.gouly@arm.com>
+Date: Wed, 8 Mar 2023 19:04:21 +0000
+Subject: mm: fix error handling for map_deny_write_exec
+
+Commit 4a18419f71cd ("mm/mprotect: use mmu_gather") changed 'goto out;' to
+'break' in the loop.
+
+This wasn't noticed while rebasing the MDWE patches, so fix it now.
+
+Link: https://lkml.kernel.org/r/20230308190423.46491-3-joey.gouly@arm.com
+Fixes: b507808ebce2 ("mm: implement memory-deny-write-execute as a prctl")
+Signed-off-by: Joey Gouly <joey.gouly@arm.com>
+Reported-by: Alexey Izbyshev <izbyshev@ispras.ru>
+  Link: https://lore.kernel.org/linux-arm-kernel/8408d8901e9d7ee6b78db4c6cba04b78@ispras.ru/
+Reviewed-by: Catalin Marinas <catalin.marinas@arm.com>
+Cc: Arnaldo Carvalho de Melo <acme@redhat.com>
+Cc: Kees Cook <keescook@chromium.org>
+Cc: nd <nd@arm.com>
+Cc: Peter Xu <peterx@redhat.com>
+Cc: Shuah Khan <shuah@kernel.org>
+Signed-off-by: Andrew Morton <akpm@linux-foundation.org>
+---
+ mm/mprotect.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/mm/mprotect.c b/mm/mprotect.c
+index 231929f119d95..13e84d8c0797a 100644
+--- a/mm/mprotect.c
++++ b/mm/mprotect.c
+@@ -805,7 +805,7 @@ static int do_mprotect_pkey(unsigned long start, size_t len,
+ 
+ 		if (map_deny_write_exec(vma, newflags)) {
+ 			error = -EACCES;
+-			goto out;
++			break;
+ 		}
+ 
+ 		/* Allow architectures to sanity-check the new flags */
+-- 
+cgit 
+

@@ -1,0 +1,53 @@
+From 2076f57f2ca0a2034afac7832257b2bc509c1a87 Mon Sep 17 00:00:00 2001
+From: Asutosh Das <quic_asutoshd@quicinc.com>
+Date: Thu, 16 Feb 2023 09:13:46 -0800
+Subject: scsi: ufs: mcq: Fix incorrectly set queue depth
+
+ufshcd_config_mcq() may change the can_queue value. The current code
+invokes scsi_add_host() before ufshcd_config_mcq() so the tags are
+limited to the original can_queue value.
+
+Fix this by invoking scsi_add_host() after ufshcd_config_mcq().
+
+Link: https://lore.kernel.org/r/8840cea4a57b46dabce18acc39afc50ab826330f.1676567593.git.quic_asutoshd@quicinc.com
+Fixes: 2468da61ea09 ("scsi: ufs: core: mcq: Configure operation and runtime interface")
+Signed-off-by: Asutosh Das <quic_asutoshd@quicinc.com>
+Reviewed-by: Bart Van Assche <bvanassche@acm.org>
+Reviewed-by: Manivannan Sadhasivam <mani@kernel.org>
+Signed-off-by: Martin K. Petersen <martin.petersen@oracle.com>
+---
+ drivers/ufs/core/ufshcd.c | 10 ++++++----
+ 1 file changed, 6 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/ufs/core/ufshcd.c b/drivers/ufs/core/ufshcd.c
+index 0baeec4ca304f..47c7739b9a868 100644
+--- a/drivers/ufs/core/ufshcd.c
++++ b/drivers/ufs/core/ufshcd.c
+@@ -8521,7 +8521,9 @@ static int ufshcd_device_init(struct ufs_hba *hba, bool init_dev_params)
+ 			return ret;
+ 		if (is_mcq_supported(hba) && !hba->scsi_host_added) {
+ 			ret = ufshcd_alloc_mcq(hba);
+-			if (ret) {
++			if (!ret) {
++				ufshcd_config_mcq(hba);
++			} else {
+ 				/* Continue with SDB mode */
+ 				use_mcq_mode = false;
+ 				dev_err(hba->dev, "MCQ mode is disabled, err=%d\n",
+@@ -8533,10 +8535,10 @@ static int ufshcd_device_init(struct ufs_hba *hba, bool init_dev_params)
+ 				return ret;
+ 			}
+ 			hba->scsi_host_added = true;
+-		}
+-		/* MCQ may be disabled if ufshcd_alloc_mcq() fails */
+-		if (is_mcq_supported(hba) && use_mcq_mode)
++		} else if (is_mcq_supported(hba)) {
++			/* UFSHCD_QUIRK_REINIT_AFTER_MAX_GEAR_SWITCH is set */
+ 			ufshcd_config_mcq(hba);
++		}
+ 	}
+ 
+ 	ufshcd_tune_unipro_params(hba);
+-- 
+cgit 
+

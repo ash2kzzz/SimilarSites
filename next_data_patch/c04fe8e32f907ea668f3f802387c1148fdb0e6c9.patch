@@ -1,0 +1,45 @@
+From c04fe8e32f907ea668f3f802387c1148fdb0e6c9 Mon Sep 17 00:00:00 2001
+From: Jens Axboe <axboe@kernel.dk>
+Date: Tue, 9 May 2023 09:12:24 -0600
+Subject: pipe: check for IOCB_NOWAIT alongside O_NONBLOCK
+
+Pipe reads or writes need to enable nonblocking attempts, if either
+O_NONBLOCK is set on the file, or IOCB_NOWAIT is set in the iocb being
+passed in. The latter isn't currently true, ensure we check for both
+before waiting on data or space.
+
+Fixes: afed6271f5b0 ("pipe: set FMODE_NOWAIT on pipes")
+Signed-off-by: Jens Axboe <axboe@kernel.dk>
+Message-Id: <e5946d67-4e5e-b056-ba80-656bab12d9f6@kernel.dk>
+Signed-off-by: Christian Brauner <brauner@kernel.org>
+---
+ fs/pipe.c | 6 ++++--
+ 1 file changed, 4 insertions(+), 2 deletions(-)
+
+diff --git a/fs/pipe.c b/fs/pipe.c
+index ceb17d2dfa195..2d88f73f585a2 100644
+--- a/fs/pipe.c
++++ b/fs/pipe.c
+@@ -342,7 +342,8 @@ pipe_read(struct kiocb *iocb, struct iov_iter *to)
+ 			break;
+ 		if (ret)
+ 			break;
+-		if (filp->f_flags & O_NONBLOCK) {
++		if ((filp->f_flags & O_NONBLOCK) ||
++		    (iocb->ki_flags & IOCB_NOWAIT)) {
+ 			ret = -EAGAIN;
+ 			break;
+ 		}
+@@ -547,7 +548,8 @@ pipe_write(struct kiocb *iocb, struct iov_iter *from)
+ 			continue;
+ 
+ 		/* Wait for buffer space to become available. */
+-		if (filp->f_flags & O_NONBLOCK) {
++		if ((filp->f_flags & O_NONBLOCK) ||
++		    (iocb->ki_flags & IOCB_NOWAIT)) {
+ 			if (!ret)
+ 				ret = -EAGAIN;
+ 			break;
+-- 
+cgit 
+

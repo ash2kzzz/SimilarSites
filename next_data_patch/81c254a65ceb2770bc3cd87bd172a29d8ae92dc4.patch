@@ -1,0 +1,63 @@
+From 81c254a65ceb2770bc3cd87bd172a29d8ae92dc4 Mon Sep 17 00:00:00 2001
+From: Dan Carpenter <error27@gmail.com>
+Date: Tue, 17 Jan 2023 17:17:29 +0300
+Subject: ALSA: fireface: fix locking bug in ff400_copy_msg_to_user()
+
+The ff400_copy_msg_to_user() function drops the spin lock to call
+copy_to_user().  However, if the copy_to_user() fails, then it must
+take the lock again before returning.  Failure to take the lock leads
+to a double unlock in the caller, hwdep_read().
+
+Fixes: acdebd8b4c0c ("ALSA: fireface: implement message parser for Fireface 400")
+Signed-off-by: Dan Carpenter <error27@gmail.com>
+Acked-by: Takashi Sakamoto <o-takashi@sakamocchi.jp>
+Link: https://lore.kernel.org/r/Y8at+W/7OGvEBY8O@kili
+Signed-off-by: Takashi Iwai <tiwai@suse.de>
+---
+ sound/firewire/fireface/ff-protocol-former.c | 14 ++++++++------
+ 1 file changed, 8 insertions(+), 6 deletions(-)
+
+diff --git a/sound/firewire/fireface/ff-protocol-former.c b/sound/firewire/fireface/ff-protocol-former.c
+index f58008762fe66..fa41de9787560 100644
+--- a/sound/firewire/fireface/ff-protocol-former.c
++++ b/sound/firewire/fireface/ff-protocol-former.c
+@@ -680,28 +680,30 @@ static long ff400_copy_msg_to_user(struct snd_ff *ff, char __user *buf, long cou
+ 	struct ff400_msg_parser *parser = ff->msg_parser;
+ 	u32 type = SNDRV_FIREWIRE_EVENT_FF400_MESSAGE;
+ 	long consumed = 0;
++	int ret = 0;
+ 
+ 	if (count < 8)
+ 		return 0;
+ 
+ 	spin_unlock_irq(&ff->lock);
+-
+ 	if (copy_to_user(buf, &type, sizeof(type)))
+-		return -EFAULT;
+-
++		ret = -EFAULT;
+ 	spin_lock_irq(&ff->lock);
++	if (ret)
++		return ret;
+ 
+ 	count -= sizeof(type);
+ 	consumed += sizeof(type);
+ 
+ 	while (count >= sizeof(*parser->msgs) && parser->pull_pos != parser->push_pos) {
+ 		spin_unlock_irq(&ff->lock);
+-
+ 		if (copy_to_user(buf + consumed, parser->msgs + parser->pull_pos,
+ 				 sizeof(*parser->msgs)))
+-			return -EFAULT;
+-
++			ret = -EFAULT;
+ 		spin_lock_irq(&ff->lock);
++		if (ret)
++			return ret;
++
+ 		++parser->pull_pos;
+ 		if (parser->pull_pos >= FF400_QUEUE_SIZE)
+ 			parser->pull_pos = 0;
+-- 
+cgit 
+

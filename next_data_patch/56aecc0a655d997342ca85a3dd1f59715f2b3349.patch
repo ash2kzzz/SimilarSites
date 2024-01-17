@@ -1,0 +1,39 @@
+From 56aecc0a655d997342ca85a3dd1f59715f2b3349 Mon Sep 17 00:00:00 2001
+From: Lukas Bulwahn <lukas.bulwahn@gmail.com>
+Date: Mon, 20 Mar 2023 08:32:01 +0100
+Subject: MAINTAINERS: remove file entry in NFC SUBSYSTEM after platform_data
+ movement
+
+Commit 053fdaa841bd ("nfc: mrvl: Move platform_data struct into driver")
+moves the nfcmrvl.h header file from include/linux/platform_data to the
+driver's directory, but misses to adjust MAINTAINERS.
+
+Hence, ./scripts/get_maintainer.pl --self-test=patterns complains about a
+broken reference.
+
+Just remove the file entry in NFC SUBSYSTEM, as the new location of the
+code is already covered by another pattern in that section.
+
+Fixes: 053fdaa841bd ("nfc: mrvl: Move platform_data struct into driver")
+Signed-off-by: Lukas Bulwahn <lukas.bulwahn@gmail.com>
+Reviewed-by: Krzysztof Kozlowski <krzysztof.kozlowski@linaro.org>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ MAINTAINERS | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/MAINTAINERS b/MAINTAINERS
+index 9faef5784c03f..30ca644d704f7 100644
+--- a/MAINTAINERS
++++ b/MAINTAINERS
+@@ -14662,7 +14662,6 @@ S:	Maintained
+ B:	mailto:linux-nfc@lists.01.org
+ F:	Documentation/devicetree/bindings/net/nfc/
+ F:	drivers/nfc/
+-F:	include/linux/platform_data/nfcmrvl.h
+ F:	include/net/nfc/
+ F:	include/uapi/linux/nfc.h
+ F:	net/nfc/
+-- 
+cgit 
+

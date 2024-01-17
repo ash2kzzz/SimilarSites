@@ -1,0 +1,41 @@
+From d1725ca60e8ff7aef3573d29231251c2838ca532 Mon Sep 17 00:00:00 2001
+From: Vasily Gorbik <gor@linux.ibm.com>
+Date: Thu, 2 Feb 2023 19:21:38 +0100
+Subject: s390/boot: move detect_facilities() after cmd line parsing
+
+Facilities setup has to be done after "facilities" command line option
+parsing, it might set extra or remove existing facilities bits for
+testing purposes.
+
+Fixes: bb1520d581a3 ("s390/mm: start kernel with DAT enabled")
+Reviewed-by: Alexander Gordeev <agordeev@linux.ibm.com>
+Signed-off-by: Vasily Gorbik <gor@linux.ibm.com>
+Signed-off-by: Heiko Carstens <hca@linux.ibm.com>
+---
+ arch/s390/boot/startup.c | 3 +--
+ 1 file changed, 1 insertion(+), 2 deletions(-)
+
+diff --git a/arch/s390/boot/startup.c b/arch/s390/boot/startup.c
+index 89beb31e982a1..e7e2de386e24e 100644
+--- a/arch/s390/boot/startup.c
++++ b/arch/s390/boot/startup.c
+@@ -283,8 +283,6 @@ void startup_kernel(void)
+ 	void *img;
+ 	psw_t psw;
+ 
+-	detect_facilities();
+-
+ 	initrd_data.start = parmarea.initrd_start;
+ 	initrd_data.size = parmarea.initrd_size;
+ 	oldmem_data.start = parmarea.oldmem_base;
+@@ -300,6 +298,7 @@ void startup_kernel(void)
+ 	sclp_early_read_info();
+ 	setup_boot_command_line();
+ 	parse_boot_command_line();
++	detect_facilities();
+ 	sanitize_prot_virt_host();
+ 	max_physmem_end = detect_memory(&safe_addr);
+ 	setup_ident_map_size(max_physmem_end);
+-- 
+cgit 
+

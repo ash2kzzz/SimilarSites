@@ -1,0 +1,37 @@
+From 1e203847aa9245bd782d6dc904ece124ca1b89cb Mon Sep 17 00:00:00 2001
+From: Hou Wenlong <houwenlong.hwl@antgroup.com>
+Date: Mon, 10 Oct 2022 20:19:14 +0800
+Subject: KVM: x86/mmu: Reduce gfn range of tlb flushing in
+ tdp_mmu_map_handle_target_level()
+
+Since the children SP is zapped, the gfn range of tlb flushing should be
+the range covered by children SP not parent SP. Replace sp->gfn which is
+the base gfn of parent SP with iter->gfn and use the correct size of gfn
+range for children SP to reduce tlb flushing range.
+
+Fixes: bb95dfb9e2df ("KVM: x86/mmu: Defer TLB flush to caller when freeing TDP MMU shadow pages")
+Signed-off-by: Hou Wenlong <houwenlong.hwl@antgroup.com>
+Reviewed-by: David Matlack <dmatlack@google.com>
+Link: https://lore.kernel.org/r/528ab9c784a486e9ce05f61462ad9260796a8732.1665214747.git.houwenlong.hwl@antgroup.com
+Signed-off-by: Sean Christopherson <seanjc@google.com>
+---
+ arch/x86/kvm/mmu/tdp_mmu.c | 3 +--
+ 1 file changed, 1 insertion(+), 2 deletions(-)
+
+diff --git a/arch/x86/kvm/mmu/tdp_mmu.c b/arch/x86/kvm/mmu/tdp_mmu.c
+index bba33aea0fb00..ce2f86f8a3a5f 100644
+--- a/arch/x86/kvm/mmu/tdp_mmu.c
++++ b/arch/x86/kvm/mmu/tdp_mmu.c
+@@ -1080,8 +1080,7 @@ static int tdp_mmu_map_handle_target_level(struct kvm_vcpu *vcpu,
+ 		return RET_PF_RETRY;
+ 	else if (is_shadow_present_pte(iter->old_spte) &&
+ 		 !is_last_spte(iter->old_spte, iter->level))
+-		kvm_flush_remote_tlbs_with_address(vcpu->kvm, sp->gfn,
+-						   KVM_PAGES_PER_HPAGE(iter->level + 1));
++		kvm_flush_remote_tlbs_gfn(vcpu->kvm, iter->gfn, iter->level);
+ 
+ 	/*
+ 	 * If the page fault was caused by a write but the page is write
+-- 
+cgit 
+

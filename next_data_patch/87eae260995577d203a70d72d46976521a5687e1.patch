@@ -1,0 +1,60 @@
+From 87eae260995577d203a70d72d46976521a5687e1 Mon Sep 17 00:00:00 2001
+From: "Mike Rapoport (IBM)" <rppt@kernel.org>
+Date: Fri, 24 Feb 2023 12:03:06 +0200
+Subject: docs/mm: hugetlbfs_reserv: fix a reference to a file that doesn't
+ exist
+
+kbuild reports:
+
+>> Warning: Documentation/mm/hugetlbfs_reserv.rst references a file that doesn't exist: Documentation/mm/hugetlbpage.rst
+>> Warning: Documentation/translations/zh_CN/mm/hugetlbfs_reserv.rst references a file that doesn't exist: Documentation/mm/hugetlbpage.rst
+
+Fix the filename to be 'Documentation/admin-guide/mm/hugetlbpage.rst'.
+
+Reported-by: kernel test robot <lkp@intel.com>
+Link: https://lore.kernel.org/oe-kbuild-all/202302231854.sKlCmx9K-lkp@intel.com/
+Fixes: ee86588960e2 ("docs/mm: remove useless markup")
+Signed-off-by: Mike Rapoport (IBM) <rppt@kernel.org>
+Link: https://lore.kernel.org/r/20230224100306.2287696-2-rppt@kernel.org
+Signed-off-by: Jonathan Corbet <corbet@lwn.net>
+---
+ Documentation/mm/hugetlbfs_reserv.rst                    | 8 ++++----
+ Documentation/translations/zh_CN/mm/hugetlbfs_reserv.rst | 3 ++-
+ 2 files changed, 6 insertions(+), 5 deletions(-)
+
+diff --git a/Documentation/mm/hugetlbfs_reserv.rst b/Documentation/mm/hugetlbfs_reserv.rst
+index 3d05d64de9b46..d9c2b0f01dcd0 100644
+--- a/Documentation/mm/hugetlbfs_reserv.rst
++++ b/Documentation/mm/hugetlbfs_reserv.rst
+@@ -5,10 +5,10 @@ Hugetlbfs Reservation
+ Overview
+ ========
+ 
+-Huge pages as described at Documentation/mm/hugetlbpage.rst are typically
+-preallocated for application use.  These huge pages are instantiated in a
+-task's address space at page fault time if the VMA indicates huge pages are
+-to be used.  If no huge page exists at page fault time, the task is sent
++Huge pages as described at Documentation/admin-guide/mm/hugetlbpage.rst are
++typically preallocated for application use.  These huge pages are instantiated
++in a task's address space at page fault time if the VMA indicates huge pages
++are to be used.  If no huge page exists at page fault time, the task is sent
+ a SIGBUS and often dies an unhappy death.  Shortly after huge page support
+ was added, it was determined that it would be better to detect a shortage
+ of huge pages at mmap() time.  The idea is that if there were not enough
+diff --git a/Documentation/translations/zh_CN/mm/hugetlbfs_reserv.rst b/Documentation/translations/zh_CN/mm/hugetlbfs_reserv.rst
+index c1fa35315d8b2..b7a0544224ad1 100644
+--- a/Documentation/translations/zh_CN/mm/hugetlbfs_reserv.rst
++++ b/Documentation/translations/zh_CN/mm/hugetlbfs_reserv.rst
+@@ -15,7 +15,8 @@ Hugetlbfs 预留
+ 概述
+ ====
+ 
+-Documentation/mm/hugetlbpage.rst 中描述的巨页通常是预先分配给应用程序使用的。如果VMA指
++Documentation/admin-guide/mm/hugetlbpage.rst
++中描述的巨页通常是预先分配给应用程序使用的 。如果VMA指
+ 示要使用巨页，这些巨页会在缺页异常时被实例化到任务的地址空间。如果在缺页异常
+ 时没有巨页存在，任务就会被发送一个SIGBUS，并经常不高兴地死去。在加入巨页支
+ 持后不久，人们决定，在mmap()时检测巨页的短缺情况会更好。这个想法是，如果
+-- 
+cgit 
+

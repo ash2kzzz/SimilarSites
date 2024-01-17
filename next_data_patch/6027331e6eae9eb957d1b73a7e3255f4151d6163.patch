@@ -1,0 +1,33 @@
+From 6027331e6eae9eb957d1b73a7e3255f4151d6163 Mon Sep 17 00:00:00 2001
+From: Krzysztof Kozlowski <krzysztof.kozlowski@linaro.org>
+Date: Tue, 24 Jan 2023 09:49:49 +0100
+Subject: arm64: dts: qcom: sm8350: drop incorrect cells from serial
+
+The serial/UART device node does not have children with unit addresses,
+so address/size cells are not correct.
+
+Fixes: cf03cd7e12bd ("arm64: dts: qcom: sm8350: Set up WRAP0 QUPs")
+Signed-off-by: Krzysztof Kozlowski <krzysztof.kozlowski@linaro.org>
+Reviewed-by: Konrad Dybcio <konrad.dybcio@linaro.org>
+Signed-off-by: Bjorn Andersson <andersson@kernel.org>
+Link: https://lore.kernel.org/r/20230124084951.38195-2-krzysztof.kozlowski@linaro.org
+---
+ arch/arm64/boot/dts/qcom/sm8350.dtsi | 2 --
+ 1 file changed, 2 deletions(-)
+
+diff --git a/arch/arm64/boot/dts/qcom/sm8350.dtsi b/arch/arm64/boot/dts/qcom/sm8350.dtsi
+index 04bb838189a67..3e019f8b9039b 100644
+--- a/arch/arm64/boot/dts/qcom/sm8350.dtsi
++++ b/arch/arm64/boot/dts/qcom/sm8350.dtsi
+@@ -1031,8 +1031,6 @@
+ 				interrupts = <GIC_SPI 604 IRQ_TYPE_LEVEL_HIGH>;
+ 				power-domains = <&rpmhpd SM8350_CX>;
+ 				operating-points-v2 = <&qup_opp_table_100mhz>;
+-				#address-cells = <1>;
+-				#size-cells = <0>;
+ 				status = "disabled";
+ 			};
+ 
+-- 
+cgit 
+

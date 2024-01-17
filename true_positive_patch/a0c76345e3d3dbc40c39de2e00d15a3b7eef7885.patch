@@ -1,0 +1,199 @@
+From a0c76345e3d3dbc40c39de2e00d15a3b7eef7885 Mon Sep 17 00:00:00 2001
+From: Jiri Pirko <jiri@mellanox.com>
+Date: Fri, 8 Nov 2019 21:42:43 +0100
+Subject: devlink: disallow reload operation during device cleanup
+
+There is a race between driver code that does setup/cleanup of device
+and devlink reload operation that in some drivers works with the same
+code. Use after free could we easily obtained by running:
+
+while true; do
+        echo 10 > /sys/bus/netdevsim/new_device
+        devlink dev reload netdevsim/netdevsim10 &
+        echo 10 > /sys/bus/netdevsim/del_device
+done
+
+Fix this by enabling reload only after setup of device is complete and
+disabling it at the beginning of the cleanup process.
+
+Reported-by: Ido Schimmel <idosch@mellanox.com>
+Fixes: 2d8dc5bbf4e7 ("devlink: Add support for reload")
+Signed-off-by: Jiri Pirko <jiri@mellanox.com>
+Acked-by: Jakub Kicinski <jakub.kicinski@netronome.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ drivers/net/ethernet/mellanox/mlx4/main.c  |  3 +++
+ drivers/net/ethernet/mellanox/mlxsw/core.c |  6 ++++-
+ drivers/net/netdevsim/dev.c                |  3 +++
+ include/net/devlink.h                      |  7 +++--
+ net/core/devlink.c                         | 42 +++++++++++++++++++++++++++++-
+ 5 files changed, 57 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/net/ethernet/mellanox/mlx4/main.c b/drivers/net/ethernet/mellanox/mlx4/main.c
+index 22c72fb7206af..77f056b0895e6 100644
+--- a/drivers/net/ethernet/mellanox/mlx4/main.c
++++ b/drivers/net/ethernet/mellanox/mlx4/main.c
+@@ -4015,6 +4015,7 @@ static int mlx4_init_one(struct pci_dev *pdev, const struct pci_device_id *id)
+ 		goto err_params_unregister;
+ 
+ 	devlink_params_publish(devlink);
++	devlink_reload_enable(devlink);
+ 	pci_save_state(pdev);
+ 	return 0;
+ 
+@@ -4126,6 +4127,8 @@ static void mlx4_remove_one(struct pci_dev *pdev)
+ 	struct devlink *devlink = priv_to_devlink(priv);
+ 	int active_vfs = 0;
+ 
++	devlink_reload_disable(devlink);
++
+ 	if (mlx4_is_slave(dev))
+ 		persist->interface_state |= MLX4_INTERFACE_STATE_NOWAIT;
+ 
+diff --git a/drivers/net/ethernet/mellanox/mlxsw/core.c b/drivers/net/ethernet/mellanox/mlxsw/core.c
+index e1a90f5bddd04..da436a6aad2fb 100644
+--- a/drivers/net/ethernet/mellanox/mlxsw/core.c
++++ b/drivers/net/ethernet/mellanox/mlxsw/core.c
+@@ -1198,8 +1198,10 @@ __mlxsw_core_bus_device_register(const struct mlxsw_bus_info *mlxsw_bus_info,
+ 	if (err)
+ 		goto err_thermal_init;
+ 
+-	if (mlxsw_driver->params_register)
++	if (mlxsw_driver->params_register) {
+ 		devlink_params_publish(devlink);
++		devlink_reload_enable(devlink);
++	}
+ 
+ 	return 0;
+ 
+@@ -1263,6 +1265,8 @@ void mlxsw_core_bus_device_unregister(struct mlxsw_core *mlxsw_core,
+ {
+ 	struct devlink *devlink = priv_to_devlink(mlxsw_core);
+ 
++	if (!reload)
++		devlink_reload_disable(devlink);
+ 	if (devlink_is_reload_failed(devlink)) {
+ 		if (!reload)
+ 			/* Only the parts that were not de-initialized in the
+diff --git a/drivers/net/netdevsim/dev.c b/drivers/net/netdevsim/dev.c
+index 3da96c7e82655..059711edfc61e 100644
+--- a/drivers/net/netdevsim/dev.c
++++ b/drivers/net/netdevsim/dev.c
+@@ -820,6 +820,7 @@ int nsim_dev_probe(struct nsim_bus_dev *nsim_bus_dev)
+ 		goto err_bpf_dev_exit;
+ 
+ 	devlink_params_publish(devlink);
++	devlink_reload_enable(devlink);
+ 	return 0;
+ 
+ err_bpf_dev_exit:
+@@ -865,6 +866,8 @@ void nsim_dev_remove(struct nsim_bus_dev *nsim_bus_dev)
+ 	struct nsim_dev *nsim_dev = dev_get_drvdata(&nsim_bus_dev->dev);
+ 	struct devlink *devlink = priv_to_devlink(nsim_dev);
+ 
++	devlink_reload_disable(devlink);
++
+ 	nsim_dev_reload_destroy(nsim_dev);
+ 
+ 	nsim_bpf_dev_exit(nsim_dev);
+diff --git a/include/net/devlink.h b/include/net/devlink.h
+index 8d6b5846822c7..7891611868e45 100644
+--- a/include/net/devlink.h
++++ b/include/net/devlink.h
+@@ -38,8 +38,9 @@ struct devlink {
+ 	struct device *dev;
+ 	possible_net_t _net;
+ 	struct mutex lock;
+-	bool reload_failed;
+-	bool registered;
++	u8 reload_failed:1,
++	   reload_enabled:1,
++	   registered:1;
+ 	char priv[0] __aligned(NETDEV_ALIGN);
+ };
+ 
+@@ -824,6 +825,8 @@ void devlink_net_set(struct devlink *devlink, struct net *net);
+ struct devlink *devlink_alloc(const struct devlink_ops *ops, size_t priv_size);
+ int devlink_register(struct devlink *devlink, struct device *dev);
+ void devlink_unregister(struct devlink *devlink);
++void devlink_reload_enable(struct devlink *devlink);
++void devlink_reload_disable(struct devlink *devlink);
+ void devlink_free(struct devlink *devlink);
+ int devlink_port_register(struct devlink *devlink,
+ 			  struct devlink_port *devlink_port,
+diff --git a/net/core/devlink.c b/net/core/devlink.c
+index ff53f7d29dea9..2e027c9436e02 100644
+--- a/net/core/devlink.c
++++ b/net/core/devlink.c
+@@ -2791,6 +2791,9 @@ static int devlink_reload(struct devlink *devlink, struct net *dest_net,
+ {
+ 	int err;
+ 
++	if (!devlink->reload_enabled)
++		return -EOPNOTSUPP;
++
+ 	err = devlink->ops->reload_down(devlink, !!dest_net, extack);
+ 	if (err)
+ 		return err;
+@@ -6308,12 +6311,49 @@ EXPORT_SYMBOL_GPL(devlink_register);
+ void devlink_unregister(struct devlink *devlink)
+ {
+ 	mutex_lock(&devlink_mutex);
++	WARN_ON(devlink_reload_supported(devlink) &&
++		devlink->reload_enabled);
+ 	devlink_notify(devlink, DEVLINK_CMD_DEL);
+ 	list_del(&devlink->list);
+ 	mutex_unlock(&devlink_mutex);
+ }
+ EXPORT_SYMBOL_GPL(devlink_unregister);
+ 
++/**
++ *	devlink_reload_enable - Enable reload of devlink instance
++ *
++ *	@devlink: devlink
++ *
++ *	Should be called at end of device initialization
++ *	process when reload operation is supported.
++ */
++void devlink_reload_enable(struct devlink *devlink)
++{
++	mutex_lock(&devlink_mutex);
++	devlink->reload_enabled = true;
++	mutex_unlock(&devlink_mutex);
++}
++EXPORT_SYMBOL_GPL(devlink_reload_enable);
++
++/**
++ *	devlink_reload_disable - Disable reload of devlink instance
++ *
++ *	@devlink: devlink
++ *
++ *	Should be called at the beginning of device cleanup
++ *	process when reload operation is supported.
++ */
++void devlink_reload_disable(struct devlink *devlink)
++{
++	mutex_lock(&devlink_mutex);
++	/* Mutex is taken which ensures that no reload operation is in
++	 * progress while setting up forbidded flag.
++	 */
++	devlink->reload_enabled = false;
++	mutex_unlock(&devlink_mutex);
++}
++EXPORT_SYMBOL_GPL(devlink_reload_disable);
++
+ /**
+  *	devlink_free - Free devlink instance resources
+  *
+@@ -8201,7 +8241,7 @@ static void __net_exit devlink_pernet_pre_exit(struct net *net)
+ 			if (WARN_ON(!devlink_reload_supported(devlink)))
+ 				continue;
+ 			err = devlink_reload(devlink, &init_net, NULL);
+-			if (err)
++			if (err && err != -EOPNOTSUPP)
+ 				pr_warn("Failed to reload devlink instance into init_net\n");
+ 		}
+ 	}
+-- 
+cgit 
+

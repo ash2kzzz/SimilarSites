@@ -1,0 +1,63 @@
+From 32ff6831cdecd828bd8be9cdfb6c4a3d1feb8f8a Mon Sep 17 00:00:00 2001
+From: David Gow <davidgow@google.com>
+Date: Sat, 25 Feb 2023 09:45:30 +0800
+Subject: kunit: Fix 'hooks.o' build by recursing into kunit
+
+KUnit's 'hooks.o' file need to be built-in whenever KUnit is enabled
+(even if CONFIG_KUNIT=m).  We'd previously attemtped to do this by
+adding 'kunit/hooks.o' to obj-y in lib/Makefile, but this caused hooks.c
+to be rebuilt even when it was unchanged.
+
+Instead, always recurse into lib/kunit using obj-y when KUnit is
+enabled, and add the hooks there.
+
+Fixes: 7170b7ed6acb ("kunit: Add "hooks" to call into KUnit when it's built as a module").
+Reported-by: Linus Torvalds <torvalds@linux-foundation.org>
+Link: https://lore.kernel.org/linux-kselftest/CAHk-=wiEf7irTKwPJ0jTMOF3CS-13UXmF6Fns3wuWpOZ_wGyZQ@mail.gmail.com/
+Signed-off-by: David Gow <davidgow@google.com>
+Reviewed-by: Brendan Higgins <brendanhiggins@google.com>
+Signed-off-by: Linus Torvalds <torvalds@linux-foundation.org>
+---
+ lib/Makefile       | 12 ++++--------
+ lib/kunit/Makefile |  2 +-
+ 2 files changed, 5 insertions(+), 9 deletions(-)
+
+diff --git a/lib/Makefile b/lib/Makefile
+index 469be6240523f..baf2821f7a00f 100644
+--- a/lib/Makefile
++++ b/lib/Makefile
+@@ -127,14 +127,10 @@ CFLAGS_test_fpu.o += $(FPU_CFLAGS)
+ 
+ obj-$(CONFIG_TEST_LIVEPATCH) += livepatch/
+ 
+-obj-$(CONFIG_KUNIT) += kunit/
+-# Include the KUnit hooks unconditionally. They'll compile to nothing if
+-# CONFIG_KUNIT=n, otherwise will be a small table of static data (static key,
+-# function pointers) which need to be built-in even when KUnit is a module.
+-ifeq ($(CONFIG_KUNIT), m)
+-obj-y += kunit/hooks.o
+-else
+-obj-$(CONFIG_KUNIT) += kunit/hooks.o
++# Some KUnit files (hooks.o) need to be built-in even when KUnit is a module,
++# so we can't just use obj-$(CONFIG_KUNIT).
++ifdef CONFIG_KUNIT
++obj-y += kunit/
+ endif
+ 
+ ifeq ($(CONFIG_DEBUG_KOBJECT),y)
+diff --git a/lib/kunit/Makefile b/lib/kunit/Makefile
+index da665cd4ea12f..cb417f5049962 100644
+--- a/lib/kunit/Makefile
++++ b/lib/kunit/Makefile
+@@ -13,7 +13,7 @@ kunit-objs +=				debugfs.o
+ endif
+ 
+ # KUnit 'hooks' are built-in even when KUnit is built as a module.
+-lib-y +=				hooks.o
++obj-y +=				hooks.o
+ 
+ obj-$(CONFIG_KUNIT_TEST) +=		kunit-test.o
+ 
+-- 
+cgit 
+

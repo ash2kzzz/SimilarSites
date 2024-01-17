@@ -1,0 +1,44 @@
+From ed4da0d3de1e1781f8fbdc9cf1028b39cc658c7f Mon Sep 17 00:00:00 2001
+From: Tiezhu Yang <yangtiezhu@loongson.cn>
+Date: Fri, 7 Apr 2023 10:21:30 +0800
+Subject: tools headers: Remove s390 ptrace.h in check-headers.sh
+
+After commit 1f265d2aea0dff1f ("selftests/bpf: Remove not used headers"),
+tools/arch/s390/include/uapi/asm/ptrace.h has been removed, so remove
+it in check-headers.sh too, otherwise we can see the following build
+warning:
+
+  diff: tools/arch/s390/include/uapi/asm/ptrace.h: No such file or directory
+
+Fixes: 1f265d2aea0dff1f ("selftests/bpf: Remove not used headers")
+Reported-by: kernel test robot <lkp@intel.com>
+Signed-off-by: Tiezhu Yang <yangtiezhu@loongson.cn>
+Acked-by: Daniel Borkmann <daniel@iogearbox.net>
+Acked-by: Jiri Olsa <jolsa@kernel.org>
+Cc: Alexei Starovoitov <ast@kernel.org>
+Cc: Andrii Nakryiko <andrii@kernel.org>
+Cc: Tiezhu Yang <yangtiezhu@loongson.cn>
+Cc: bpf@vger.kernel.org
+Cc: loongson-kernel@lists.loongnix.cn
+Link: https://lore.kernel.org/oe-kbuild-all/202304050029.38NdbQPf-lkp@intel.com/
+Link: https://lore.kernel.org/r/1680834090-2322-1-git-send-email-yangtiezhu@loongson.cn
+Signed-off-by: Arnaldo Carvalho de Melo <acme@redhat.com>
+---
+ tools/perf/check-headers.sh | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/tools/perf/check-headers.sh b/tools/perf/check-headers.sh
+index eacca9a874e2f..e4a8b53486782 100755
+--- a/tools/perf/check-headers.sh
++++ b/tools/perf/check-headers.sh
+@@ -52,7 +52,6 @@ arch/x86/include/uapi/asm/vmx.h
+ arch/powerpc/include/uapi/asm/kvm.h
+ arch/s390/include/uapi/asm/kvm.h
+ arch/s390/include/uapi/asm/kvm_perf.h
+-arch/s390/include/uapi/asm/ptrace.h
+ arch/s390/include/uapi/asm/sie.h
+ arch/arm/include/uapi/asm/kvm.h
+ arch/arm64/include/uapi/asm/kvm.h
+-- 
+cgit 
+

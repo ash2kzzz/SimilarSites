@@ -1,0 +1,34 @@
+From 3e1b9b2d81901b3ceeb5ec1f1b4c41cd1cff53ba Mon Sep 17 00:00:00 2001
+From: Carl Vanderlip <quic_carlv@quicinc.com>
+Date: Fri, 2 Jun 2023 15:04:39 -0600
+Subject: accel/qaic: Free user handle on interrupted mutex
+
+After user handle is allocated, if mutex is interrupted, we do not free
+the user handle and return an error. Kref had been initialized, but not
+added to users list, so device teardown would also not call free_usr.
+
+Fixes: c501ca23a6a3 ("accel/qaic: Add uapi and core driver file")
+Signed-off-by: Carl Vanderlip <quic_carlv@quicinc.com>
+Reviewed-by: Pranjal Ramajor Asha Kanojiya <quic_pkanojiy@quicinc.com>
+Reviewed-by: Jeffrey Hugo <quic_jhugo@quicinc.com>
+Signed-off-by: Jeffrey Hugo <quic_jhugo@quicinc.com>
+Link: https://patchwork.freedesktop.org/patch/msgid/20230602210440.8411-2-quic_jhugo@quicinc.com
+---
+ drivers/accel/qaic/qaic_drv.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/drivers/accel/qaic/qaic_drv.c b/drivers/accel/qaic/qaic_drv.c
+index 2d0828db28d8e..961cd341b4141 100644
+--- a/drivers/accel/qaic/qaic_drv.c
++++ b/drivers/accel/qaic/qaic_drv.c
+@@ -97,6 +97,7 @@ static int qaic_open(struct drm_device *dev, struct drm_file *file)
+ 
+ cleanup_usr:
+ 	cleanup_srcu_struct(&usr->qddev_lock);
++	ida_free(&qaic_usrs, usr->handle);
+ free_usr:
+ 	kfree(usr);
+ dev_unlock:
+-- 
+cgit 
+

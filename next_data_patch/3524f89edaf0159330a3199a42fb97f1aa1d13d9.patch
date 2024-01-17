@@ -1,0 +1,37 @@
+From 3524f89edaf0159330a3199a42fb97f1aa1d13d9 Mon Sep 17 00:00:00 2001
+From: qinyu <qinyu32@huawei.com>
+Date: Mon, 16 Jan 2023 09:21:43 +0800
+Subject: perf docs: Fix a typo in 'perf probe' man page: l20th -> 120th
+
+Fix a minor typo in 'perf probe' doc.
+
+Fixes: 631c9def804b2c92 ("perf probe: Support --line option to show probable source-code lines")
+Signed-off-by: qinyu <qinyu32@huawei.com>
+Acked-by: Ian Rogers <irogers@google.com>
+Cc: Feilong Lin <linfeilong@huawei.com>
+Cc: Hewenliang <hewenliang4@huawei.com>
+Cc: Ingo Molnar <mingo@redhat.com>
+Cc: Masami Hiramatsu <mhiramat@redhat.com>
+Cc: Peter Zijlstra <peterz@infradead.org>
+Link: https://lore.kernel.org/r/20230116012143.432435-1-qinyu32@huawei.com
+Signed-off-by: Arnaldo Carvalho de Melo <acme@redhat.com>
+---
+ tools/perf/Documentation/perf-probe.txt | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/tools/perf/Documentation/perf-probe.txt b/tools/perf/Documentation/perf-probe.txt
+index 7f8e8ba3a7872..5c43a6edc0e5b 100644
+--- a/tools/perf/Documentation/perf-probe.txt
++++ b/tools/perf/Documentation/perf-probe.txt
+@@ -222,7 +222,7 @@ probe syntax, 'SRC' means the source file path, 'ALN' is start line number,
+ and 'ALN2' is end line number in the file. It is also possible to specify how
+ many lines to show by using 'NUM'. Moreover, 'FUNC@SRC' combination is good
+ for searching a specific function when several functions share same name.
+-So, "source.c:100-120" shows lines between 100th to l20th in source.c file. And "func:10+20" shows 20 lines from 10th line of func function.
++So, "source.c:100-120" shows lines between 100th to 120th in source.c file. And "func:10+20" shows 20 lines from 10th line of func function.
+ 
+ LAZY MATCHING
+ -------------
+-- 
+cgit 
+

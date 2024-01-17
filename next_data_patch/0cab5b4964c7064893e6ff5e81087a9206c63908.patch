@@ -1,0 +1,36 @@
+From 0cab5b4964c7064893e6ff5e81087a9206c63908 Mon Sep 17 00:00:00 2001
+From: Mark Brown <broonie@kernel.org>
+Date: Tue, 27 Dec 2022 17:12:04 +0000
+Subject: arm64/sme: Fix context switch for SME only systems
+
+When refactoring fpsimd_load() to support keeping SVE enabled over syscalls
+support for systems with SME but not SVE was broken. The code that selects
+between loading regular FPSIMD and SVE states was guarded by using
+system_supports_sve() but is also needed to handle the streaming SVE state
+in SME only systems where that check will be false. Fix this by also
+checking for system_supports_sme().
+
+Fixes: a0136be443d5 ("arm64/fpsimd: Load FP state based on recorded data type")
+Signed-off-by: Mark Brown <broonie@kernel.org>
+Link: https://lore.kernel.org/r/20221223-arm64-fix-sme-only-v1-1-938d663f69e5@kernel.org
+Signed-off-by: Will Deacon <will@kernel.org>
+---
+ arch/arm64/kernel/fpsimd.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/arch/arm64/kernel/fpsimd.c b/arch/arm64/kernel/fpsimd.c
+index dcc81e7200d40..b6ef1af0122eb 100644
+--- a/arch/arm64/kernel/fpsimd.c
++++ b/arch/arm64/kernel/fpsimd.c
+@@ -385,7 +385,7 @@ static void task_fpsimd_load(void)
+ 	WARN_ON(!system_supports_fpsimd());
+ 	WARN_ON(!have_cpu_fpsimd_context());
+ 
+-	if (system_supports_sve()) {
++	if (system_supports_sve() || system_supports_sme()) {
+ 		switch (current->thread.fp_type) {
+ 		case FP_STATE_FPSIMD:
+ 			/* Stop tracking SVE for this task until next use. */
+-- 
+cgit 
+

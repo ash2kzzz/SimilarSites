@@ -1,0 +1,34 @@
+From fb7be476ab7e797b18c6f0047041635c41b3b5a4 Mon Sep 17 00:00:00 2001
+From: Chris Mi <cmi@nvidia.com>
+Date: Thu, 6 Apr 2023 09:38:09 +0300
+Subject: net/mlx5e: TC, Cleanup ct resources for nic flow
+
+The cited commit removes special handling of CT action. But it
+removes too much. Pre ct/ct_nat tables and some other resources
+are not destroyed due to the cited commit.
+
+Fix it by adding it back.
+
+Fixes: 08fe94ec5f77 ("net/mlx5e: TC, Remove special handling of CT action")
+Signed-off-by: Chris Mi <cmi@nvidia.com>
+Reviewed-by: Paul Blakey <paulb@nvidia.com>
+Signed-off-by: Saeed Mahameed <saeedm@nvidia.com>
+---
+ drivers/net/ethernet/mellanox/mlx5/core/en_tc.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/drivers/net/ethernet/mellanox/mlx5/core/en_tc.c b/drivers/net/ethernet/mellanox/mlx5/core/en_tc.c
+index 8a5a8703f0a31..b9b1da751a3b8 100644
+--- a/drivers/net/ethernet/mellanox/mlx5/core/en_tc.c
++++ b/drivers/net/ethernet/mellanox/mlx5/core/en_tc.c
+@@ -1439,6 +1439,7 @@ static void mlx5e_tc_del_nic_flow(struct mlx5e_priv *priv,
+ 		mlx5e_hairpin_flow_del(priv, flow);
+ 
+ 	free_flow_post_acts(flow);
++	mlx5_tc_ct_delete_flow(get_ct_priv(flow->priv), attr);
+ 
+ 	kvfree(attr->parse_attr);
+ 	kfree(flow->attr);
+-- 
+cgit 
+

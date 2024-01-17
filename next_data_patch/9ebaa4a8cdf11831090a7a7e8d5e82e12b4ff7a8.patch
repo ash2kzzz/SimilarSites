@@ -1,0 +1,31 @@
+From 9ebaa4a8cdf11831090a7a7e8d5e82e12b4ff7a8 Mon Sep 17 00:00:00 2001
+From: Bartosz Golaszewski <bartosz.golaszewski@linaro.org>
+Date: Wed, 15 Mar 2023 21:27:51 +0100
+Subject: arm64: dts: qcom: sm8150: fix the uart9 label
+
+There's a typo in the @<address> part of the uart9 label. Fix it.
+
+Fixes: 10d900a834da ("arm64: dts: sm8150: add the QUPv3 high-speed UART node")
+Signed-off-by: Bartosz Golaszewski <bartosz.golaszewski@linaro.org>
+Signed-off-by: Bjorn Andersson <andersson@kernel.org>
+Link: https://lore.kernel.org/r/20230315202751.1518543-1-brgl@bgdev.pl
+---
+ arch/arm64/boot/dts/qcom/sm8150.dtsi | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/arch/arm64/boot/dts/qcom/sm8150.dtsi b/arch/arm64/boot/dts/qcom/sm8150.dtsi
+index d3e7df92998c2..3e2b3597281ea 100644
+--- a/arch/arm64/boot/dts/qcom/sm8150.dtsi
++++ b/arch/arm64/boot/dts/qcom/sm8150.dtsi
+@@ -1342,7 +1342,7 @@
+ 				status = "disabled";
+ 			};
+ 
+-			uart9: serial@a8c000 {
++			uart9: serial@a84000 {
+ 				compatible = "qcom,geni-uart";
+ 				reg = <0x0 0x00a84000 0x0 0x4000>;
+ 				reg-names = "se";
+-- 
+cgit 
+

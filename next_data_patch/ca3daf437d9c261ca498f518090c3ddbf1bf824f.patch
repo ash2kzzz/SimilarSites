@@ -1,0 +1,71 @@
+From ca3daf437d9c261ca498f518090c3ddbf1bf824f Mon Sep 17 00:00:00 2001
+From: Huayu Chen <huayu.chen@corigine.com>
+Date: Tue, 31 Jan 2023 17:30:33 +0100
+Subject: nfp: correct cleanup related to DCB resources
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+This patch corrects two oversights relating to releasing resources
+and DCB initialisation.
+
+1. If mapping of the dcbcfg_tbl area fails: an error should be
+   propagated, allowing partial initialisation (probe) to be unwound.
+
+2. Conversely, if where dcbcfg_tbl is successfully mapped: it should
+   be unmapped in nfp_nic_dcb_clean() which is called via various error
+   cleanup paths, and shutdown or removal of the PCIE device.
+
+Fixes: 9b7fe8046d74 ("nfp: add DCB IEEE support")
+Signed-off-by: Huayu Chen <huayu.chen@corigine.com>
+Reviewed-by: Niklas Söderlund <niklas.soderlund@corigine.com>
+Signed-off-by: Simon Horman <simon.horman@corigine.com>
+Reviewed-by: Leon Romanovsky <leonro@nvidia.com>
+Link: https://lore.kernel.org/r/20230131163033.981937-1-simon.horman@corigine.com
+Signed-off-by: Jakub Kicinski <kuba@kernel.org>
+---
+ drivers/net/ethernet/netronome/nfp/nic/main.c | 8 ++++++--
+ drivers/net/ethernet/netronome/nfp/nic/main.h | 2 +-
+ 2 files changed, 7 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/net/ethernet/netronome/nfp/nic/main.c b/drivers/net/ethernet/netronome/nfp/nic/main.c
+index f78c2447d45b4..9dd5afe37f6e4 100644
+--- a/drivers/net/ethernet/netronome/nfp/nic/main.c
++++ b/drivers/net/ethernet/netronome/nfp/nic/main.c
+@@ -32,9 +32,12 @@ static void nfp_nic_sriov_disable(struct nfp_app *app)
+ 
+ static int nfp_nic_vnic_init(struct nfp_app *app, struct nfp_net *nn)
+ {
+-	nfp_nic_dcb_init(nn);
++	return nfp_nic_dcb_init(nn);
++}
+ 
+-	return 0;
++static void nfp_nic_vnic_clean(struct nfp_app *app, struct nfp_net *nn)
++{
++	nfp_nic_dcb_clean(nn);
+ }
+ 
+ static int nfp_nic_vnic_alloc(struct nfp_app *app, struct nfp_net *nn,
+@@ -72,4 +75,5 @@ const struct nfp_app_type app_nic = {
+ 	.sriov_disable	= nfp_nic_sriov_disable,
+ 
+ 	.vnic_init      = nfp_nic_vnic_init,
++	.vnic_clean     = nfp_nic_vnic_clean,
+ };
+diff --git a/drivers/net/ethernet/netronome/nfp/nic/main.h b/drivers/net/ethernet/netronome/nfp/nic/main.h
+index 7ba04451b8bae..094374df42b8c 100644
+--- a/drivers/net/ethernet/netronome/nfp/nic/main.h
++++ b/drivers/net/ethernet/netronome/nfp/nic/main.h
+@@ -33,7 +33,7 @@ struct nfp_dcb {
+ int nfp_nic_dcb_init(struct nfp_net *nn);
+ void nfp_nic_dcb_clean(struct nfp_net *nn);
+ #else
+-static inline int nfp_nic_dcb_init(struct nfp_net *nn) {return 0; }
++static inline int nfp_nic_dcb_init(struct nfp_net *nn) { return 0; }
+ static inline void nfp_nic_dcb_clean(struct nfp_net *nn) {}
+ #endif
+ 
+-- 
+cgit 
+

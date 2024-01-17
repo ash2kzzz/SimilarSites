@@ -1,0 +1,34 @@
+From bfc7486991c2b1b514cee90854af0f90c56b6bf2 Mon Sep 17 00:00:00 2001
+From: Konrad Dybcio <konrad.dybcio@linaro.org>
+Date: Sat, 7 Jan 2023 13:04:34 +0100
+Subject: clk: qcom: camcc-sm6350: Make camcc_sm6350_hws static
+
+There's no reason for it not to be static, and some compilers don't
+like not it being that way. Make it so.
+
+Reported-by: kernel test robot <lkp@intel.com>
+Fixes: 80f5451d9a7c ("clk: qcom: Add camera clock controller driver for SM6350")
+Signed-off-by: Konrad Dybcio <konrad.dybcio@linaro.org>
+Reviewed-by: Stephen Boyd <sboyd@kernel.org>
+Signed-off-by: Bjorn Andersson <andersson@kernel.org>
+Link: https://lore.kernel.org/r/20230107120434.1902666-1-konrad.dybcio@linaro.org
+---
+ drivers/clk/qcom/camcc-sm6350.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/clk/qcom/camcc-sm6350.c b/drivers/clk/qcom/camcc-sm6350.c
+index ea8600530046e..acba9f99d960c 100644
+--- a/drivers/clk/qcom/camcc-sm6350.c
++++ b/drivers/clk/qcom/camcc-sm6350.c
+@@ -1742,7 +1742,7 @@ static struct gdsc titan_top_gdsc = {
+ 	.pwrsts = PWRSTS_OFF_ON,
+ };
+ 
+-struct clk_hw *camcc_sm6350_hws[] = {
++static struct clk_hw *camcc_sm6350_hws[] = {
+ 	[CAMCC_PLL2_OUT_EARLY] = &camcc_pll2_out_early.hw,
+ };
+ 
+-- 
+cgit 
+

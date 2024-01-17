@@ -1,0 +1,152 @@
+From ec9f02384f6053f2a5417e82b65078edc5364a8d Mon Sep 17 00:00:00 2001
+From: Roman Gushchin <guro@fb.com>
+Date: Tue, 13 Aug 2019 15:37:41 -0700
+Subject: mm: workingset: fix vmstat counters for shadow nodes
+
+Memcg counters for shadow nodes are broken because the memcg pointer is
+obtained in a wrong way. The following approach is used:
+        virt_to_page(xa_node)->mem_cgroup
+
+Since commit 4d96ba353075 ("mm: memcg/slab: stop setting
+page->mem_cgroup pointer for slab pages") page->mem_cgroup pointer isn't
+set for slab pages, so memcg_from_slab_page() should be used instead.
+
+Also I doubt that it ever worked correctly: virt_to_head_page() should
+be used instead of virt_to_page().  Otherwise objects residing on tail
+pages are not accounted, because only the head page contains a valid
+mem_cgroup pointer.  That was a case since the introduction of these
+counters by the commit 68d48e6a2df5 ("mm: workingset: add vmstat counter
+for shadow nodes").
+
+Link: http://lkml.kernel.org/r/20190801233532.138743-1-guro@fb.com
+Fixes: 4d96ba353075 ("mm: memcg/slab: stop setting page->mem_cgroup pointer for slab pages")
+Signed-off-by: Roman Gushchin <guro@fb.com>
+Acked-by: Johannes Weiner <hannes@cmpxchg.org>
+Cc: Vladimir Davydov <vdavydov.dev@gmail.com>
+Cc: Shakeel Butt <shakeelb@google.com>
+Cc: Michal Hocko <mhocko@suse.com>
+Signed-off-by: Andrew Morton <akpm@linux-foundation.org>
+Signed-off-by: Linus Torvalds <torvalds@linux-foundation.org>
+---
+ include/linux/memcontrol.h | 19 +++++++++++++++++++
+ mm/memcontrol.c            | 20 ++++++++++++++++++++
+ mm/workingset.c            | 10 ++++------
+ 3 files changed, 43 insertions(+), 6 deletions(-)
+
+diff --git a/include/linux/memcontrol.h b/include/linux/memcontrol.h
+index 44c41462be334..2cd4359cb38cb 100644
+--- a/include/linux/memcontrol.h
++++ b/include/linux/memcontrol.h
+@@ -668,6 +668,7 @@ static inline unsigned long lruvec_page_state_local(struct lruvec *lruvec,
+ 
+ void __mod_lruvec_state(struct lruvec *lruvec, enum node_stat_item idx,
+ 			int val);
++void __mod_lruvec_slab_state(void *p, enum node_stat_item idx, int val);
+ 
+ static inline void mod_lruvec_state(struct lruvec *lruvec,
+ 				    enum node_stat_item idx, int val)
+@@ -1072,6 +1073,14 @@ static inline void mod_lruvec_page_state(struct page *page,
+ 	mod_node_page_state(page_pgdat(page), idx, val);
+ }
+ 
++static inline void __mod_lruvec_slab_state(void *p, enum node_stat_item idx,
++					   int val)
++{
++	struct page *page = virt_to_head_page(p);
++
++	__mod_node_page_state(page_pgdat(page), idx, val);
++}
++
+ static inline
+ unsigned long mem_cgroup_soft_limit_reclaim(pg_data_t *pgdat, int order,
+ 					    gfp_t gfp_mask,
+@@ -1159,6 +1168,16 @@ static inline void __dec_lruvec_page_state(struct page *page,
+ 	__mod_lruvec_page_state(page, idx, -1);
+ }
+ 
++static inline void __inc_lruvec_slab_state(void *p, enum node_stat_item idx)
++{
++	__mod_lruvec_slab_state(p, idx, 1);
++}
++
++static inline void __dec_lruvec_slab_state(void *p, enum node_stat_item idx)
++{
++	__mod_lruvec_slab_state(p, idx, -1);
++}
++
+ /* idx can be of type enum memcg_stat_item or node_stat_item */
+ static inline void inc_memcg_state(struct mem_cgroup *memcg,
+ 				   int idx)
+diff --git a/mm/memcontrol.c b/mm/memcontrol.c
+index 2e405e058edae..6f5c0c517c497 100644
+--- a/mm/memcontrol.c
++++ b/mm/memcontrol.c
+@@ -768,6 +768,26 @@ void __mod_lruvec_state(struct lruvec *lruvec, enum node_stat_item idx,
+ 	__this_cpu_write(pn->lruvec_stat_cpu->count[idx], x);
+ }
+ 
++void __mod_lruvec_slab_state(void *p, enum node_stat_item idx, int val)
++{
++	struct page *page = virt_to_head_page(p);
++	pg_data_t *pgdat = page_pgdat(page);
++	struct mem_cgroup *memcg;
++	struct lruvec *lruvec;
++
++	rcu_read_lock();
++	memcg = memcg_from_slab_page(page);
++
++	/* Untracked pages have no memcg, no lruvec. Update only the node */
++	if (!memcg || memcg == root_mem_cgroup) {
++		__mod_node_page_state(pgdat, idx, val);
++	} else {
++		lruvec = mem_cgroup_lruvec(pgdat, memcg);
++		__mod_lruvec_state(lruvec, idx, val);
++	}
++	rcu_read_unlock();
++}
++
+ /**
+  * __count_memcg_events - account VM events in a cgroup
+  * @memcg: the memory cgroup
+diff --git a/mm/workingset.c b/mm/workingset.c
+index e0b4edcb88c8c..c963831d354f8 100644
+--- a/mm/workingset.c
++++ b/mm/workingset.c
+@@ -380,14 +380,12 @@ void workingset_update_node(struct xa_node *node)
+ 	if (node->count && node->count == node->nr_values) {
+ 		if (list_empty(&node->private_list)) {
+ 			list_lru_add(&shadow_nodes, &node->private_list);
+-			__inc_lruvec_page_state(virt_to_page(node),
+-						WORKINGSET_NODES);
++			__inc_lruvec_slab_state(node, WORKINGSET_NODES);
+ 		}
+ 	} else {
+ 		if (!list_empty(&node->private_list)) {
+ 			list_lru_del(&shadow_nodes, &node->private_list);
+-			__dec_lruvec_page_state(virt_to_page(node),
+-						WORKINGSET_NODES);
++			__dec_lruvec_slab_state(node, WORKINGSET_NODES);
+ 		}
+ 	}
+ }
+@@ -480,7 +478,7 @@ static enum lru_status shadow_lru_isolate(struct list_head *item,
+ 	}
+ 
+ 	list_lru_isolate(lru, item);
+-	__dec_lruvec_page_state(virt_to_page(node), WORKINGSET_NODES);
++	__dec_lruvec_slab_state(node, WORKINGSET_NODES);
+ 
+ 	spin_unlock(lru_lock);
+ 
+@@ -503,7 +501,7 @@ static enum lru_status shadow_lru_isolate(struct list_head *item,
+ 	 * shadow entries we were tracking ...
+ 	 */
+ 	xas_store(&xas, NULL);
+-	__inc_lruvec_page_state(virt_to_page(node), WORKINGSET_NODERECLAIM);
++	__inc_lruvec_slab_state(node, WORKINGSET_NODERECLAIM);
+ 
+ out_invalid:
+ 	xa_unlock_irq(&mapping->i_pages);
+-- 
+cgit 
+

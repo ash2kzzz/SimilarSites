@@ -1,0 +1,35 @@
+From 5f22c3b6215d34b8af45c390c8d5ea2cef2ef5d2 Mon Sep 17 00:00:00 2001
+From: Alejandro Lucero <alejandro.lucero-palau@amd.com>
+Date: Mon, 20 Feb 2023 11:01:33 +0000
+Subject: sfc: fix builds without CONFIG_RTC_LIB
+
+Add an embarrassingly missed semicolon plus and embarrassingly missed
+parenthesis breaking kernel building when CONFIG_RTC_LIB is not set
+like the one reported with ia64 config.
+
+Reported-by: kernel test robot <lkp@intel.com>
+Link: https://lore.kernel.org/oe-kbuild-all/202302170047.EjCPizu3-lkp@intel.com/
+Fixes: 14743ddd2495 ("sfc: add devlink info support for ef100")
+Signed-off-by: Alejandro Lucero <alejandro.lucero-palau@amd.com>
+Link: https://lore.kernel.org/r/20230220110133.29645-1-alejandro.lucero-palau@amd.com
+Signed-off-by: Jakub Kicinski <kuba@kernel.org>
+---
+ drivers/net/ethernet/sfc/efx_devlink.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/net/ethernet/sfc/efx_devlink.c b/drivers/net/ethernet/sfc/efx_devlink.c
+index 52fe2b2658f34..381b805659d39 100644
+--- a/drivers/net/ethernet/sfc/efx_devlink.c
++++ b/drivers/net/ethernet/sfc/efx_devlink.c
+@@ -323,7 +323,7 @@ static void efx_devlink_info_running_v2(struct efx_nic *efx,
+ 				    GET_VERSION_V2_OUT_SUCFW_BUILD_DATE);
+ 		rtc_time64_to_tm(tstamp, &build_date);
+ #else
+-		memset(&build_date, 0, sizeof(build_date)
++		memset(&build_date, 0, sizeof(build_date));
+ #endif
+ 		build_id = MCDI_DWORD(outbuf, GET_VERSION_V2_OUT_SUCFW_CHIP_ID);
+ 
+-- 
+cgit 
+

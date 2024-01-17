@@ -1,0 +1,37 @@
+From 7859ad5a401b73bf2ddfa274950b5722492c3150 Mon Sep 17 00:00:00 2001
+From: Geert Uytterhoeven <geert+renesas@glider.be>
+Date: Mon, 13 Mar 2023 11:58:38 +0100
+Subject: spi: sh-msiof: Remove casts to drop constness
+
+Now the chip select APIs take const pointers, there is no longer a need
+to cast away constness.
+
+Fixes: 9e264f3f85a56cc1 ("spi: Replace all spi->chip_select and spi->cs_gpiod references with function call")
+Signed-off-by: Geert Uytterhoeven <geert+renesas@glider.be>
+Link: https://lore.kernel.org/r/bc14c7c75f8d63c5c11f61f80daaa53b12bb15fb.1678704562.git.geert+renesas@glider.be
+Signed-off-by: Mark Brown <broonie@kernel.org>
+---
+ drivers/spi/spi-sh-msiof.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/spi/spi-sh-msiof.c b/drivers/spi/spi-sh-msiof.c
+index 50498c4eb661d..55dfe2fd89c8b 100644
+--- a/drivers/spi/spi-sh-msiof.c
++++ b/drivers/spi/spi-sh-msiof.c
+@@ -587,11 +587,11 @@ static int sh_msiof_prepare_message(struct spi_controller *ctlr,
+ 	u32 ss, cs_high;
+ 
+ 	/* Configure pins before asserting CS */
+-	if (spi_get_csgpiod((struct spi_device *)spi, 0)) {
++	if (spi_get_csgpiod(spi, 0)) {
+ 		ss = ctlr->unused_native_cs;
+ 		cs_high = p->native_cs_high;
+ 	} else {
+-		ss = spi_get_chipselect((struct spi_device *)spi, 0);
++		ss = spi_get_chipselect(spi, 0);
+ 		cs_high = !!(spi->mode & SPI_CS_HIGH);
+ 	}
+ 	sh_msiof_spi_set_pin_regs(p, ss, !!(spi->mode & SPI_CPOL),
+-- 
+cgit 
+
