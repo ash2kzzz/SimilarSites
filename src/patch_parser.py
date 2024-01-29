@@ -177,7 +177,9 @@ class ValueUsePatchInfo(PatchInfo):
         self.d = {}
         self.d_macro = {}
         self.path = []
+        self.changed_lines = {}
         self.__parser_patch()
+        self.__init_changed_lines()
 
     def __parser_patch(self):
         for file in self.patch:
@@ -191,15 +193,15 @@ class ValueUsePatchInfo(PatchInfo):
                             index += 1
                             if hunk[index].is_added and common.is_assign_statement(hunk[index].value.strip()):
                                 next_left, next_right = common.assign_statement_get_value(hunk[index].value.strip())
-                                index += 1
-                                if next_left != left_value:
+                                if next_left != left_value or common.count_prefix_spaces(hunk[index-1].value) != common.count_prefix_spaces(hunk[index].value):
                                     continue
+                                index += 1
                                 self.__add_d(right_value, next_right)
-                            elif hunk[index].is_added and common.macro_statement_get_value(hunk[index].value.strip()):
+                            elif hunk[index].is_added and common.is_macro_statement(hunk[index].value.strip()):
                                 next_left, next_right = common.macro_statement_get_value(hunk[index].value.strip())
-                                index += 1
-                                if next_left != left_value:
+                                if next_left != left_value or common.count_prefix_spaces(hunk[index-1].value) != common.count_prefix_spaces(hunk[index].value):
                                     continue
+                                index += 1
                                 self.__add_d_macro(next_left, common.macro_statement_get_macro(hunk[index-1].value.strip()))
                             else:
                                 continue
@@ -235,12 +237,52 @@ class ValueUsePatchInfo(PatchInfo):
                             index += 1
                     else:
                         index += 1
+        for file in self.patch:
+            for hunk in file:
+                for line in hunk:
+                    self.__d_check(line)
+
+    def __init_changed_lines(self):
+        for file in self.patch:
+            self.changed_lines[file.path] = []
+            for hunk in file:
+                for line in hunk:
+                    if line.is_added:
+                        self.changed_lines[file.path].append(line.target_line_no)
 
     def __add_d(self, value, value_add):
         if value_add != value:
             if value not in self.d and not common.is_simple_number(value) and not common.is_simple_bool(value) and common.is_variable(value):
                 if common.is_relational(value, value_add):
                     self.d[value] = value_add
+                    
+    def __d_check(self, line):
+        if not line.is_added:
+            return
+        line = line.value.strip()
+        for key, value in self.d.items():
+            if 'get' in value:
+                tmp = value.replace('get', 'put')
+                if tmp in line:
+                    del self.d[key]
+                    return
+                if constants.FUNC_NAME.match(value):
+                    tmp = constants.FUNC_NAME.match(value).group(1)
+                    tmp = '{func}({args})'.format(func=tmp, args=key)
+                    if tmp in line:
+                        del self.d[key]
+                        return
+            if 'put' in value:
+                tmp = value.replace('put', 'get')
+                if tmp in line:
+                    del self.d[key]
+                    return
+                if constants.FUNC_NAME.match(value):
+                    tmp = constants.FUNC_NAME.match(value).group(1)
+                    tmp = '{func}({args})'.format(func=tmp, args=key)
+                    if tmp in line:
+                        del self.d[key]
+                        return
                 
     def __add_d_macro(self, value, macro):
         if value not in self.d_macro and not common.is_simple_number(value) and not common.is_simple_bool(value) and common.is_variable(value):
@@ -254,4 +296,7 @@ class ValueUsePatchInfo(PatchInfo):
     
     def get_all_file_path(self):
         return self.path
+
+    def get_changed_lines(self):
+        return self.changed_lines
 

@@ -385,3 +385,18 @@ def start_of_function(line):
     else:
         return False
 
+def count_prefix_spaces(s):
+    count = 0
+    for char in s:
+        if char.isspace():
+            count += 1
+        else:
+            break
+    return count
+
+def line_start_with_comment(line):
+    line = line.strip()
+    if line.startswith(r'/*') or line.startswith(r'*') or line.startswith(r'//'):
+        return True
+    return False
+

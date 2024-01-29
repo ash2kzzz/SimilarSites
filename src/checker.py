@@ -88,7 +88,7 @@ class SimilarSitesChecker(object):
                     line_list = f.readlines()
                     index = 0
                     while index < len(line_list):
-                        if not line_list[index].strip().startswith(r'if ('):
+                        if not line_list[index].strip().startswith(r'if (') or common.line_start_with_comment(line_list[index]):
                             index += 1
                             continue
                         if_str = line_list[index].strip()
@@ -138,7 +138,7 @@ class SimilarSitesChecker(object):
             index = 0
             while index < len(line_list):
                 base = index + 1
-                if not common.function_in_line(line_list[index], ctx_info.func_name_list):
+                if not common.function_in_line(line_list[index], ctx_info.func_name_list) or common.line_start_with_comment(line_list[index]):
                     index += 1
                     continue
                 # print(line_list[index].strip())
@@ -166,7 +166,7 @@ class SimilarSitesChecker(object):
         for sub_path, ctx_info in res_list:
             self.__check_rule2_find(os.path.join("/home/{user}/.source/{id}/linux_patched".format(user=getpass.getuser(), id=self.commit_id), sub_path), ctx_info)
 
-    def __check_rule3_find(self, d, macro_d, path_list):
+    def __check_rule3_find(self, d, macro_d, path_list, changed_lines):
         checked_macro = copy.deepcopy(macro_d)
         for variable, new_variable in d.items():
             macro = ''
@@ -184,14 +184,14 @@ class SimilarSitesChecker(object):
                     while index < len(line_list):
                         recheck = 0
                         base = index + 1
-                        if variable not in line_list[index]:
+                        if not re.compile('[\W]'+common.add_escape(str(variable))+'[\W]').search(line_list[index]) or common.line_start_with_comment(line_list[index]):
                             index += 1
                             continue
                         for already_new_variable in d.values():
                             if already_new_variable in line_list[index]:
                                 recheck = 1
                                 break
-                        if recheck or common.is_debug_statement(line_list[index]):
+                        if recheck or common.is_debug_statement(line_list[index]) or base in changed_lines[sub_path]:
                             index += 1
                             continue
                         if len(macro):
@@ -215,7 +215,7 @@ class SimilarSitesChecker(object):
                     index = 0
                     while index < len(line_list):
                         base = index + 1
-                        if variable not in line_list[index]:
+                        if variable not in line_list[index] or base in changed_lines[sub_path]:
                             index += 1
                             continue
                         pattern = macro + '(' + variable
@@ -229,11 +229,13 @@ class SimilarSitesChecker(object):
         self.value_use_path_info = patch_parser.ValueUsePatchInfo(self.patch_path)
         changed_d = self.value_use_path_info.get_variable_change()
         add_macro_d = self.value_use_path_info.get_variable_add_macro()
+        path_list = self.value_use_path_info.get_all_file_path()
+        changed_lines_d = self.value_use_path_info.get_changed_lines()
         if not (len(changed_d) + len(add_macro_d)):
             return
-        print("changed:{change}   add macro:{add}".format(change=changed_d, add=add_macro_d))
-        return
-        self.__check_rule3_find(changed_d, add_macro_d, self.value_use_path_info.get_all_file_path())
+        # print("changed:{change}   add macro:{add}".format(change=changed_d, add=add_macro_d))
+        # return
+        self.__check_rule3_find(changed_d, add_macro_d, path_list, changed_lines_d)
 
     def check_all(self):
         if self.__fix_check():
