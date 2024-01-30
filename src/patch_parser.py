@@ -25,7 +25,7 @@ class PatchInfo(object):
             self.commit_id = m.group(2)
         else:
             self.commit_id = None
-    
+
 class ConditionPatchInfo(PatchInfo):
     def __init__(self, patch_file):
         super(ConditionPatchInfo, self).__init__(patch_file)
@@ -90,15 +90,25 @@ class ConditionPatchInfo(PatchInfo):
                             index = back
                             continue
                         extra_add_conditions = common.get_extra_add_conditions(remove_conditions, add_conditions)
-                        self.multi_res.append((base_conditions, extra_add_conditions, file.path, ctx_info))
+                        if self.__check_condition(extra_add_conditions):
+                            self.multi_res.append((base_conditions, extra_add_conditions, file.path, ctx_info))
                         remove_conditions2 = common.reverse_condition_list(remove_conditions)
                         add_conditions2 = common.reverse_condition_list(add_conditions)
                         base_conditions2 = common.get_base_conditions(remove_conditions2, add_conditions2)
                         extra_add_conditions2 = common.get_extra_add_conditions(remove_conditions2, add_conditions2)
-                        self.multi_res.append((base_conditions2, extra_add_conditions2, file.path, ctx_info))
+                        if self.__check_condition(extra_add_conditions2):
+                            self.multi_res.append((base_conditions2, extra_add_conditions2, file.path, ctx_info))
                     else:
                         index += 1
                         continue
+
+    def __check_condition(self, condition_list):
+        key_words = ['ret', 'res']
+        for word in key_words:
+            condition_list = [condition for condition in condition_list if word not in condition]
+        if not len(condition_list):
+            return False
+        return True
 
     def get_multi_res_conditions(self):
         if len(self.multi_res):
@@ -142,19 +152,23 @@ class DoubleLockPatchInfo(PatchInfo):
                         if hunk[index].is_removed or common.statement_unlock_type(hunk[index].value) != lock_type or common.statement_lock_args(hunk[index].value) != lock_args or len(func_list) == 0:
                             index += 1
                             continue
-                        ctx_info = ctx.LockCTXInfo(func_list, lock_type, lock_args)
+                        ctx_info = ctx.LockCTXInfo(func_list, lock_type, [lock_args])
                         if not self.already_have_it(ctx_info):
                             self.res.append((file.path, ctx_info))
+                        else:
+                            a = self.already_have_it(ctx_info)
+                            if lock_args not in a.ctx_args_list:
+                                a.ctx_args_list.append(lock_args)
                     else:
                         index += 1
                         continue
-                    
+
     def get_res_locks(self):
         if len(self.res):
             return self.res
         else:
             return None
-        
+
     def already_have_it(self, ctx_info):
         for _, already_ctx_info in self.res:
             if already_ctx_info.ctx_type != ctx_info.ctx_type:
@@ -167,8 +181,8 @@ class DoubleLockPatchInfo(PatchInfo):
                     if operator.eq(func_tuple, func_tuple2):
                         check_len_list.append(func_tuple2)
             if len(check_len_list) == len(ctx_info.func_name_list):
-                return True
-        return False
+                return already_ctx_info
+        return None
 
 class ValueUsePatchInfo(PatchInfo):
     def __init__(self, patch_file):
@@ -255,7 +269,7 @@ class ValueUsePatchInfo(PatchInfo):
             if value not in self.d and not common.is_simple_number(value) and not common.is_simple_bool(value) and common.is_variable(value):
                 if common.is_relational(value, value_add):
                     self.d[value] = value_add
-                    
+
     def __d_check(self, line):
         if not line.is_added:
             return
@@ -283,7 +297,7 @@ class ValueUsePatchInfo(PatchInfo):
                     if tmp in line:
                         del self.d[key]
                         return
-                
+
     def __add_d_macro(self, value, macro):
         if value not in self.d_macro and not common.is_simple_number(value) and not common.is_simple_bool(value) and common.is_variable(value):
             self.d_macro[value] = macro
@@ -293,7 +307,7 @@ class ValueUsePatchInfo(PatchInfo):
 
     def get_variable_add_macro(self):
         return self.d_macro
-    
+
     def get_all_file_path(self):
         return self.path
 

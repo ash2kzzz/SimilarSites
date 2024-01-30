@@ -7,7 +7,7 @@ class statement_ctx_type(IntEnum):
     unknown = 0
     func_statement = 1
     goto_statement = 2
-    
+
 class lock_ctx_type(IntEnum):
     unknown = 0
     spin_lock = 1
@@ -36,8 +36,8 @@ class StatementCTXInfo(object):
         self.ctx = ''
 
 class LockCTXInfo(object):
-    def __init__(self, func_name_list, ctx_type, ctx_args):
+    def __init__(self, func_name_list, ctx_type, ctx_args_list):
         self.ctx_type = ctx_type
-        self.ctx_args = ctx_args
+        self.ctx_args_list = ctx_args_list # list
         self.func_name_list = func_name_list # list[tuple] tuple(func_name, func_args:list)
-        
+

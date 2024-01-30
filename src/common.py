@@ -110,7 +110,7 @@ def is_variable(s):
     if constants.VARIABLE.match(s):
         return True
     return False
-    
+
 def capture_function_call(line):
     m = constants.FUNC_NAME.search(line.strip())
     if not m:
@@ -134,6 +134,16 @@ def capture_function_args(line):
     if "lock" in m.group(1) or "unlock" in m.group(1) or "bit" in m.group(1):
         return None
     return m.group(2).split(", ")
+
+def is_def_statement(line_list, index):
+    key_words = ['void', 'int', 'long', 'unsigned', 'float', 'double', 'struct']
+    d = constants.DEFINE_STATEMENT.match(line_list[index].strip())
+    if d:
+        return True
+    for word in key_words:
+        if line_list[index-1].strip().startswith(word):
+            return True
+    return False
 
 def is_lock_statement(line):
     m = constants.FUNC_NAME.match(line.strip())
@@ -367,8 +377,20 @@ def reverse_condition_list(conditions_list):
     for condition in conditions_list:
         if condition.startswith(r'!'):
             reverse_conditions.append(condition[1:])
+        elif ' != ' in condition:
+            reverse_conditions.append(condition.replace('!=', '=='))
+        elif ' == ' in condition:
+            reverse_conditions.append(condition.replace('==', '!='))
+        elif ' >= ' in condition:
+            reverse_conditions.append(condition.replace('>=', '<'))
+        elif ' <= ' in condition:
+            reverse_conditions.append(condition.replace('<=', '>'))
+        elif ' > ' in condition:
+            reverse_conditions.append(condition.replace('>', '<='))
+        elif ' < ' in condition:
+            reverse_conditions.append(condition.replace('<', '>='))
         else:
-            reverse_conditions.append('!'+condition)
+            reverse_conditions.append('!('+condition+')')
     return reverse_conditions
 
 def end_of_function(line):
@@ -377,7 +399,7 @@ def end_of_function(line):
         return True
     else:
         return False
-    
+
 def start_of_function(line):
     m = constants.START_OF_FUNCTION.match(line)
     if m:

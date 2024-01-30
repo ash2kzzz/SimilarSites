@@ -24,3 +24,4 @@ MACRO = re.compile(r'(\w+)\((\w+|\w+\->\w+)\)')
 
 START_OF_FUNCTION = re.compile(r'^{')
 END_OF_FUNCTION = re.compile(r'^}')
+

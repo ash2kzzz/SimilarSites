@@ -119,7 +119,7 @@ class SimilarSitesChecker(object):
                                 error_path = str(home) + '/' + str(file)
                                 error_path = error_path.split("/linux_patched/")[1]
                                 print('[*] {path}:{line} miss condition \"{message}\".'.format(path=error_path, line=base, message=condition))
-    
+
     def check_rule1(self):
         if not self.commit_id:
             return
@@ -138,21 +138,24 @@ class SimilarSitesChecker(object):
             index = 0
             while index < len(line_list):
                 base = index + 1
-                if not common.function_in_line(line_list[index], ctx_info.func_name_list) or common.line_start_with_comment(line_list[index]):
+                if not common.function_in_line(line_list[index], ctx_info.func_name_list) or common.line_start_with_comment(line_list[index]) or common.is_def_statement(line_list, index):
                     index += 1
                     continue
                 # print(line_list[index].strip())
                 # print(ctx_info.func_name_list)
                 # index += 1
                 # continue
-                if common.search_forward_lock(line_list, index-1, ctx_info.ctx_type, ctx_info.ctx_args) and common.search_backward_unlock(line_list, index+1, ctx_info.ctx_type, ctx_info.ctx_args):
-                    index = common.search_backward_unlock(line_list, index+1, ctx_info.ctx_type, ctx_info.ctx_args) + 1
-                    continue
-                else:
+                flag = 0
+                for lock_arg in ctx_info.ctx_args_list:
+                    if common.search_forward_lock(line_list, index-1, ctx_info.ctx_type, lock_arg) and common.search_backward_unlock(line_list, index+1, ctx_info.ctx_type, lock_arg):
+                        index = common.search_backward_unlock(line_list, index+1, ctx_info.ctx_type, lock_arg) + 1
+                        flag = 1
+                        break
+                if not flag:
                     error_path = path.split("/linux_patched/")[1]
                     print('[*] {path}:{line} miss locks \"{message}\".'.format(path=error_path, line=base, message=common.lock_type_to_str(ctx_info.ctx_type)))
                     index += 1
-                                    
+
     def check_rule2(self):
         if not self.commit_id:
             return
@@ -161,7 +164,7 @@ class SimilarSitesChecker(object):
         if not res_list:
             return
         # for path, ctx_info in res_list:
-        #     print("path:{path}\nlock args:{args}\nfunc:{name}".format(path=path, args=ctx_info.ctx_args, name=ctx_info.func_name_list))
+        #     print("path:{path}\nlock args:{args}\nfunc:{name}".format(path=path, args=ctx_info.ctx_args_list, name=ctx_info.func_name_list))
         # return
         for sub_path, ctx_info in res_list:
             self.__check_rule2_find(os.path.join("/home/{user}/.source/{id}/linux_patched".format(user=getpass.getuser(), id=self.commit_id), sub_path), ctx_info)
@@ -242,4 +245,4 @@ class SimilarSitesChecker(object):
             self.check_rule1()
             self.check_rule2()
             self.check_rule3()
-        
+
